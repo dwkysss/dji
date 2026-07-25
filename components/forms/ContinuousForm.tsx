@@ -823,7 +823,7 @@ export default function ContinuousForm({
     actionType: "increment",
   });
 
-  const handleChangePcsCount = (targetCount: number) => {
+  const handleChangePcsCount = (targetCount: number, forceDirect = false) => {
     if (targetCount > fields.length) {
       // Append directly without confirmation for increasing
       for (let i = fields.length; i < targetCount; i++) {
@@ -834,12 +834,18 @@ export default function ContinuousForm({
         });
       }
     } else if (targetCount < fields.length) {
-      // Show confirmation dialog before reducing PCS count since it deletes data
-      setPcsConfirmModal({
-        isOpen: true,
-        targetCount,
-        actionType: "decrement",
-      });
+      if (forceDirect) {
+        while (fields.length > targetCount) {
+          remove(fields.length - 1);
+        }
+      } else {
+        // Show confirmation dialog before reducing PCS count since it deletes data
+        setPcsConfirmModal({
+          isOpen: true,
+          targetCount,
+          actionType: "decrement",
+        });
+      }
     }
   };
 
@@ -848,6 +854,38 @@ export default function ContinuousForm({
   const watchMeterAkhir = watch("meterAkhir");
   const watchNomorMc = watch("nomorMc");
   const watchPotonganKe = watch("potonganKe");
+
+  // Standalone effect to sync Machine Config (Default PCS & Input Type) as soon as machine selection changes
+  useEffect(() => {
+    if (isEdit || !watchNomorMc) return;
+
+    let isMounted = true;
+    async function syncMachineConfig() {
+      const cfgRes = await getMachineConfigs();
+      if (!isMounted || !cfgRes.success || !cfgRes.data) return;
+
+      const match = cfgRes.data.find(
+        (c) => c.nomor_mc.trim().toUpperCase() === watchNomorMc.trim().toUpperCase()
+      );
+
+      if (match) {
+        if (match.default_pcs && typeof match.default_pcs === "number") {
+          handleChangePcsCount(match.default_pcs, true);
+        }
+        if (match.input_type) {
+          setMachineInputTypes((prev) => ({
+            ...prev,
+            [watchNomorMc.trim().toUpperCase()]: match.input_type === "METER" ? "METER" : "PANEL",
+          }));
+        }
+      }
+    }
+
+    syncMachineConfig();
+    return () => {
+      isMounted = false;
+    };
+  }, [watchNomorMc, isEdit]);
 
   useEffect(() => {
     if (watchMeterAwal && watchMeterAkhir) {
@@ -970,7 +1008,6 @@ export default function ContinuousForm({
       }
 
       // Fetch Production Plan (Admin)
-      let pcsTargetSet = false;
       const planRes = await getProductionPlan(watchNomorMc, parseInt(watchPotonganKe));
       if (isActive && planRes.success && planRes.data) {
         const plan = planRes.data;
@@ -986,32 +1023,7 @@ export default function ContinuousForm({
         if (plan.pinggiran) setValue("pinggiran", plan.pinggiran);
         if (plan.rpm) setValue("rpm", plan.rpm);
         if (plan.pcs_count && typeof plan.pcs_count === "number") {
-          handleChangePcsCount(plan.pcs_count);
-          pcsTargetSet = true;
-        }
-      }
-
-      if (isActive && !pcsTargetSet && watchNomorMc) {
-        const cfgRes = await getMachineConfigs();
-        if (cfgRes.success && cfgRes.data) {
-          const match = cfgRes.data.find(c => c.nomor_mc.toUpperCase() === watchNomorMc.toUpperCase());
-          if (match && match.default_pcs) {
-            handleChangePcsCount(match.default_pcs);
-          }
-        } else {
-          let localPcs: number | null = null;
-          try {
-            const saved = localStorage.getItem("dji_machine_configs");
-            if (saved) {
-              const map = JSON.parse(saved);
-              const mcUpper = watchNomorMc.toUpperCase();
-              if (map[mcUpper] !== undefined) localPcs = parseInt(map[mcUpper]);
-            }
-          } catch (e) {}
-
-          if (localPcs) {
-            handleChangePcsCount(localPcs);
-          }
+          handleChangePcsCount(plan.pcs_count, true);
         }
       }
     }, 600); // Add 600ms delay mirip getLastPanelNoByPotongan
