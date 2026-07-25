@@ -8,19 +8,15 @@ export interface MachineConfig {
   input_type: "PANEL" | "METER";
 }
 
+const STANDARD_MACHINES = [
+  "R1", "R2", "R3", "R6", "R11", "R12", "R16", "T1C", "T2A", "STM", 
+  "S2A", "R1C", "S1A", "R2C", "R3B", "R5B", "Warping D6", "Winding"
+];
+
 const DEFAULT_MACHINES: Record<string, number> = {
-  R1: 1,
-  R2: 1,
-  R3B: 1,
-  R1C: 1,
-  R2C: 1,
-  R11: 1,
-  R12: 1,
-  R16: 1,
-  T1C: 1,
-  T2A: 1,
-  "Warping D6": 1,
-  Winding: 1,
+  R1: 1, R2: 1, R3: 1, R6: 1, R11: 1, R12: 1, R16: 1,
+  T1C: 1, T2A: 1, STM: 1, S2A: 1, R1C: 1, S1A: 1, R2C: 1, R3B: 1, R5B: 1,
+  "Warping D6": 1, Winding: 1,
 };
 
 const DEFAULT_INPUT_TYPES: Record<string, "PANEL" | "METER"> = {
@@ -41,21 +37,27 @@ export async function getMachineConfigs(): Promise<{ success: boolean; data: Mac
       console.error("Error fetching machine_configs:", error);
     }
 
-    const configMap = new Map<string, { pcs: number; input_type?: "PANEL" | "METER" }>();
+    const configMap = new Map<string, { rawName: string; pcs: number; input_type?: "PANEL" | "METER" }>();
     if (data && Array.isArray(data)) {
       data.forEach((item: any) => {
         if (item.nomor_mc) {
-          configMap.set(String(item.nomor_mc).trim().toUpperCase(), {
-            pcs: item.default_pcs || 1,
-            input_type: item.input_type === "METER" ? "METER" : item.input_type === "PANEL" ? "PANEL" : undefined,
+          const rawName = String(item.nomor_mc).trim();
+          configMap.set(rawName.toUpperCase(), {
+            rawName,
+            pcs: item.default_pcs !== undefined && item.default_pcs !== null ? Number(item.default_pcs) : 1,
+            input_type: item.input_type === "METER" ? "METER" : "PANEL",
           });
         }
       });
     }
 
-    const ALL_MACHINES = ["R1", "R2", "R3B", "R1C", "R2C", "R11", "R12", "R16", "T1C", "T2A", "Warping D6", "Winding"];
+    // Merge standard machines list with any extra machines present in DB
+    const allMachineNamesSet = new Set<string>(STANDARD_MACHINES);
+    configMap.forEach((v) => {
+      if (v.rawName) allMachineNamesSet.add(v.rawName);
+    });
 
-    const results: MachineConfig[] = ALL_MACHINES.map((mc) => {
+    const results: MachineConfig[] = Array.from(allMachineNamesSet).map((mc) => {
       const mcKey = mc.toUpperCase();
       const dbObj = configMap.get(mcKey);
       const fallbackPcs = DEFAULT_MACHINES[mc] || 1;
@@ -72,8 +74,7 @@ export async function getMachineConfigs(): Promise<{ success: boolean; data: Mac
   } catch (err: any) {
     console.error("Error in getMachineConfigs:", err);
     // Return fallback list if error
-    const ALL_MACHINES = ["R1", "R2", "R3B", "R1C", "R2C", "R11", "R12", "R16", "T1C", "T2A", "Warping D6", "Winding"];
-    const fallbackData = ALL_MACHINES.map((mc) => ({
+    const fallbackData = STANDARD_MACHINES.map((mc) => ({
       nomor_mc: mc,
       default_pcs: DEFAULT_MACHINES[mc] || 1,
       input_type: DEFAULT_INPUT_TYPES[mc] || ("PANEL" as const),
@@ -87,29 +88,13 @@ export async function upsertMachineConfig(nomorMc: string, defaultPcs: number, i
     const supabase = await createClient();
 
     const payload = {
-      nomor_mc: nomorMc,
-      default_pcs: defaultPcs,
+      nomor_mc: nomorMc.trim(),
+      default_pcs: Number(defaultPcs),
       input_type: inputType,
       updated_at: new Date().toISOString(),
     };
 
-    const { data: existing } = await supabase
-      .from("machine_configs")
-      .select("nomor_mc")
-      .eq("nomor_mc", nomorMc)
-      .single();
-
-    let error;
-    if (existing) {
-      const res = await supabase
-        .from("machine_configs")
-        .update({ default_pcs: defaultPcs, input_type: inputType, updated_at: new Date().toISOString() })
-        .eq("nomor_mc", nomorMc);
-      error = res.error;
-    } else {
-      const res = await supabase.from("machine_configs").insert(payload);
-      error = res.error;
-    }
+    const { error } = await supabase.from("machine_configs").upsert(payload, { onConflict: "nomor_mc" });
 
     if (error) {
       console.error("Error saving machine config:", error);
@@ -127,32 +112,18 @@ export async function upsertAllMachineConfigs(configs: MachineConfig[]) {
   try {
     const supabase = await createClient();
 
-    for (const cfg of configs) {
-      const payload = {
-        nomor_mc: cfg.nomor_mc,
-        default_pcs: cfg.default_pcs,
-        input_type: cfg.input_type,
-        updated_at: new Date().toISOString(),
-      };
+    const payloads = configs.map((cfg) => ({
+      nomor_mc: cfg.nomor_mc.trim(),
+      default_pcs: Number(cfg.default_pcs),
+      input_type: cfg.input_type === "METER" ? "METER" : "PANEL",
+      updated_at: new Date().toISOString(),
+    }));
 
-      const { data: existing } = await supabase
-        .from("machine_configs")
-        .select("nomor_mc")
-        .eq("nomor_mc", cfg.nomor_mc)
-        .single();
+    const { error } = await supabase.from("machine_configs").upsert(payloads, { onConflict: "nomor_mc" });
 
-      if (existing) {
-        await supabase
-          .from("machine_configs")
-          .update({
-            default_pcs: cfg.default_pcs,
-            input_type: cfg.input_type,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("nomor_mc", cfg.nomor_mc);
-      } else {
-        await supabase.from("machine_configs").insert(payload);
-      }
+    if (error) {
+      console.error("Error in upsertAllMachineConfigs:", error);
+      return { success: false, error: error.message };
     }
 
     return { success: true };

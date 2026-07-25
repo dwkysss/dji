@@ -398,10 +398,16 @@ export default function ContinuousForm({
       const cfgRes = await getMachineConfigs();
       if (cfgRes.success && cfgRes.data) {
         const typeMap: Record<string, "PANEL" | "METER"> = {};
+        const pcsMap: Record<string, number> = {};
         cfgRes.data.forEach((c) => {
-          typeMap[c.nomor_mc.toUpperCase()] = c.input_type || "METER";
+          typeMap[c.nomor_mc.toUpperCase()] = c.input_type === "METER" ? "METER" : "PANEL";
+          pcsMap[c.nomor_mc.toUpperCase()] = c.default_pcs || 1;
         });
         setMachineInputTypes(typeMap);
+        try {
+          localStorage.setItem("dji_machine_input_types", JSON.stringify(typeMap));
+          localStorage.setItem("dji_machine_configs", JSON.stringify(pcsMap));
+        } catch (e) {}
       } else {
         let localTypes: Record<string, "PANEL" | "METER"> = {};
         try {
@@ -986,25 +992,25 @@ export default function ContinuousForm({
       }
 
       if (isActive && !pcsTargetSet && watchNomorMc) {
-        let localPcs: number | null = null;
-        try {
-          const saved = localStorage.getItem("dji_machine_configs");
-          if (saved) {
-            const map = JSON.parse(saved);
-            const mcUpper = watchNomorMc.toUpperCase();
-            if (map[mcUpper] !== undefined) localPcs = parseInt(map[mcUpper]);
+        const cfgRes = await getMachineConfigs();
+        if (cfgRes.success && cfgRes.data) {
+          const match = cfgRes.data.find(c => c.nomor_mc.toUpperCase() === watchNomorMc.toUpperCase());
+          if (match && match.default_pcs) {
+            handleChangePcsCount(match.default_pcs);
           }
-        } catch (e) {}
-
-        if (localPcs) {
-          handleChangePcsCount(localPcs);
         } else {
-          const cfgRes = await getMachineConfigs();
-          if (cfgRes.success && cfgRes.data) {
-            const match = cfgRes.data.find(c => c.nomor_mc.toUpperCase() === watchNomorMc.toUpperCase());
-            if (match && match.default_pcs) {
-              handleChangePcsCount(match.default_pcs);
+          let localPcs: number | null = null;
+          try {
+            const saved = localStorage.getItem("dji_machine_configs");
+            if (saved) {
+              const map = JSON.parse(saved);
+              const mcUpper = watchNomorMc.toUpperCase();
+              if (map[mcUpper] !== undefined) localPcs = parseInt(map[mcUpper]);
             }
+          } catch (e) {}
+
+          if (localPcs) {
+            handleChangePcsCount(localPcs);
           }
         }
       }

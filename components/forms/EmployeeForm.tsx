@@ -374,10 +374,16 @@ export default function EmployeeForm({
       const cfgRes = await getMachineConfigs();
       if (cfgRes.success && cfgRes.data) {
         const typeMap: Record<string, "PANEL" | "METER"> = {};
+        const pcsMap: Record<string, number> = {};
         cfgRes.data.forEach((c) => {
-          typeMap[c.nomor_mc.toUpperCase()] = c.input_type || "PANEL";
+          typeMap[c.nomor_mc.toUpperCase()] = c.input_type === "METER" ? "METER" : "PANEL";
+          pcsMap[c.nomor_mc.toUpperCase()] = c.default_pcs || 1;
         });
         setMachineInputTypes(typeMap);
+        try {
+          localStorage.setItem("dji_machine_input_types", JSON.stringify(typeMap));
+          localStorage.setItem("dji_machine_configs", JSON.stringify(pcsMap));
+        } catch (e) { }
       } else {
         let localTypes: Record<string, "PANEL" | "METER"> = {};
         try {

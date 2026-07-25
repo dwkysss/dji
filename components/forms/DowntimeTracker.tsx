@@ -5,6 +5,7 @@ import { useFieldArray, Control, UseFormSetValue, UseFormWatch } from "react-hoo
 import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info } from "lucide-react";
 import { ContinuousFormInput } from "@/lib/schemas";
 import { submitMechanicDowntime } from "@/actions/mechanic-actions";
+import BluetoothDowntimeTrigger from "./BluetoothDowntimeTrigger";
 
 const PROBLEM_CATEGORIES = [
   { id: "A", name: "Kode A: Masalah dan Perbaikan Benang" },
@@ -334,7 +335,8 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
     return () => clearInterval(interval);
   }, [isTimerRunning, timerStartRef]);
 
-  const handleStartTimer = () => {
+  const handleStartTimer = (source?: any) => {
+    if (isTimerRunning) return;
     const now = Date.now();
     setIsTimerRunning(true);
     setTimerStartRef(now);
@@ -386,9 +388,16 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
   };
 
 
-  const handleStopTimer = () => {
-    if (!timerStartRef) return;
-    const duration = Math.floor((Date.now() - timerStartRef) / 1000);
+  const handleStopTimer = (source?: any) => {
+    let duration = 0;
+    if (timerStartRef) {
+      duration = Math.max(0, Math.floor((Date.now() - timerStartRef) / 1000));
+    } else {
+      const savedStart = localStorage.getItem("dji_active_downtime_start");
+      if (savedStart) {
+        duration = Math.max(0, Math.floor((Date.now() - parseInt(savedStart)) / 1000));
+      }
+    }
     setIsTimerRunning(false);
     setTimerStartRef(null);
     localStorage.removeItem("dji_active_downtime_start");
@@ -798,6 +807,15 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
               {formatTimer(fields.reduce((acc, curr: any) => acc + (curr.durasiDetik || 0), 0))}
             </p>
           </div>
+        </div>
+
+        {/* Banner Bluetooth Trigger ESP32 */}
+        <div className="mb-4">
+          <BluetoothDowntimeTrigger
+            onStartTimer={handleStartTimer}
+            onStopTimer={handleStopTimer}
+            isTimerRunning={isTimerRunning}
+          />
         </div>
 
         {/* Banner Masalah Lanjut Shift (jika ada) */}

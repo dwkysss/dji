@@ -44,23 +44,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Fetch role from user_profiles table via server action to bypass RLS issues
           const result = await getUserProfile(session.user.id);
           const profile = result.success ? result.data : null;
-          const error = result.error;
 
-          if (profile && !error) {
-            const authUser: User = {
-              id: session.user.id,
-              email: session.user.email,
-              fullName: profile.full_name,
-              employeeId: profile.employee_id,
-              role: profile.role as UserRole,
-              forcePasswordChange: profile.force_password_change,
-            };
-            setUser(authUser);
-            setIsLoggedIn(true);
-          } else {
-            setUser(null);
-            setIsLoggedIn(false);
-          }
+          // Fallback to user_metadata if profile row in user_profiles table is not yet populated
+          const meta = session.user.user_metadata || {};
+          const role = (profile?.role || meta.role || "operator") as UserRole;
+          const fullName = profile?.full_name || meta.full_name || session.user.email?.split("@")[0] || "User";
+          const employeeId = profile?.employee_id || meta.employee_id || session.user.email?.split("@")[0] || "";
+          const forcePasswordChange = profile?.force_password_change || false;
+
+          const authUser: User = {
+            id: session.user.id,
+            email: session.user.email,
+            fullName,
+            employeeId,
+            role,
+            forcePasswordChange,
+          };
+          setUser(authUser);
+          setIsLoggedIn(true);
         } else {
           setUser(null);
           setIsLoggedIn(false);
@@ -88,14 +89,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (event === "SIGNED_IN") {
             const currentPath = window.location.pathname;
             if (currentPath === "/login") {
-              // We need to fetch role again quickly to determine redirect if not available yet
               let role = "operator";
+              let forceChange = false;
               if (session?.user) {
                 const result = await getUserProfile(session.user.id);
-                if (result.success && result.data) role = result.data.role;
+                if (result.success && result.data) {
+                  role = result.data.role;
+                  forceChange = !!result.data.force_password_change;
+                } else if (session.user.user_metadata?.role) {
+                  role = session.user.user_metadata.role;
+                }
                 
                 // Cek jika butuh ganti password
-                if (result?.success && result?.data?.force_password_change) {
+                if (forceChange) {
                   router.push("/change-password");
                   return; // Hentikan eksekusi redirect normal
                 }

@@ -932,8 +932,14 @@ export default function MachinesPage() {
                       const mapPcs: Record<string, number> = {};
                       const mapTypes: Record<string, string> = {};
                       configs.forEach((cfg) => {
-                        mapPcs[cfg.nomor_mc] = cfg.default_pcs;
-                        mapTypes[cfg.nomor_mc] = cfg.input_type;
+                        if (cfg.nomor_mc) {
+                          const mcRaw = cfg.nomor_mc.trim();
+                          const mcUpper = mcRaw.toUpperCase();
+                          mapPcs[mcRaw] = cfg.default_pcs;
+                          mapPcs[mcUpper] = cfg.default_pcs;
+                          mapTypes[mcRaw] = cfg.input_type;
+                          mapTypes[mcUpper] = cfg.input_type;
+                        }
                       });
                       localStorage.setItem("dji_machine_configs", JSON.stringify(mapPcs));
                       localStorage.setItem("dji_machine_input_types", JSON.stringify(mapTypes));

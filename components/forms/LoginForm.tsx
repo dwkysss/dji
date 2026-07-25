@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { resolveLoginEmail } from "@/actions/user-actions";
 
 export default function LoginForm() {
   const { login, isLoading } = useAuth();
@@ -20,12 +21,17 @@ export default function LoginForm() {
     }
 
     try {
-      const cleanNip = nip.trim().toLowerCase();
+      const cleanNip = nip.trim();
       const cleanPassword = password.trim();
-      const loginEmail = cleanNip.includes("@") ? cleanNip : `${cleanNip}@dji.local`;
+      const loginEmail = await resolveLoginEmail(cleanNip);
+
       const result = await login(loginEmail, cleanPassword);
       if (!result.success) {
-        setError(result.error || "Gagal masuk.");
+        if (result.error?.toLowerCase().includes("invalid login credentials")) {
+          setError("NIP/Email atau Password yang Anda masukkan salah.");
+        } else {
+          setError(result.error || "Gagal masuk.");
+        }
       }
     } catch (err) {
       setError("Terjadi kesalahan jaringan.");

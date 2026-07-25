@@ -29,6 +29,37 @@ export async function getUserProfile(userId: string) {
   }
 }
 
+export async function resolveLoginEmail(identifier: string): Promise<string> {
+  const clean = identifier.trim();
+  if (!clean) return "";
+  if (clean.includes("@")) return clean.toLowerCase();
+
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // 1. Search in user_profiles by employee_id (case-insensitive)
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("id")
+      .ilike("employee_id", clean)
+      .maybeSingle();
+
+    if (profile && profile.id && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const adminSupabase = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+        auth: { persistSession: false },
+      });
+      const { data: authUser } = await adminSupabase.auth.admin.getUserById(profile.id);
+      if (authUser?.user?.email) {
+        return authUser.user.email;
+      }
+    }
+  } catch (e) {}
+
+  return `${clean.toLowerCase()}@dji.local`;
+}
+
 export async function listAdminUsers() {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
