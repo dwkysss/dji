@@ -94,9 +94,10 @@ interface DowntimeTrackerProps {
   defaultPcsIndex?: string;
   operators?: { id: number | string; name: string; shift?: string }[];
   currentOperatorName?: string;
+  isEdit?: boolean;
 }
 
-export default function DowntimeTracker({ control, watch, setValue, showBlockInput, showMeterInput, defaultMeter, defaultPcsIndex, operators = [], currentOperatorName = "" }: DowntimeTrackerProps) {
+export default function DowntimeTracker({ control, watch, setValue, showBlockInput, showMeterInput, defaultMeter, defaultPcsIndex, operators = [], currentOperatorName = "", isEdit = false }: DowntimeTrackerProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: "downtimeEvents",
@@ -815,16 +816,18 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
         </div>
 
         {/* Banner Bluetooth Trigger ESP32 */}
-        <div className="mb-4">
-          <BluetoothDowntimeTrigger
-            onStartTimer={handleStartTimer}
-            onStopTimer={handleStopTimer}
-            isTimerRunning={isTimerRunning}
-          />
-        </div>
+        {!isEdit && (
+          <div className="mb-4">
+            <BluetoothDowntimeTrigger
+              onStartTimer={handleStartTimer}
+              onStopTimer={handleStopTimer}
+              isTimerRunning={isTimerRunning}
+            />
+          </div>
+        )}
 
         {/* Banner Masalah Lanjut Shift (jika ada) */}
-        {unresolvedDowntime && !isTimerRunning && (
+        {unresolvedDowntime && !isTimerRunning && !isEdit && (
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-2xl mb-4 flex flex-col gap-3 animate-fadeIn">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
@@ -848,23 +851,26 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
 
         <div className={`flex flex-col ${fields.length > 0 && showMeterInput ? "md:flex-row" : ""} gap-4 items-start`}>
           <div className={`p-4 bg-amber-50 border border-amber-100 rounded-2xl w-full ${fields.length > 0 && showMeterInput ? "md:w-1/3" : ""}`}>
-            {!isTimerRunning ? (
+            {isEdit ? (
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenModal}
+                  className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Tambah Masalah / Downtime
+                </button>
+              </div>
+            ) : !isTimerRunning ? (
               <div className="flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={handleStartTimer}
-                  className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98]"
+                  className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
                 >
                   <AlertTriangle className="w-4 h-4 fill-current" />
                   Mulai Timer Perbaikan
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenModal}
-                  className="flex items-center justify-center gap-2 w-full h-10 bg-white hover:bg-amber-50 text-amber-600 font-bold text-xs tracking-wide rounded-xl transition-all border border-amber-300 border-dashed active:scale-[0.98]"
-                >
-                  <Plus className="w-4 h-4" />
-                  Input Masalah Manual (Tanpa Timer)
                 </button>
               </div>
             ) : (
@@ -877,10 +883,10 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
                 <button
                   type="button"
                   onClick={handleStopTimer}
-                  className="flex items-center justify-center gap-2 w-full h-14 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-sm uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-emerald-500/20 active:scale-[0.98]"
+                  className="flex items-center justify-center gap-2 w-full h-14 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-sm uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-emerald-500/20 active:scale-[0.98] cursor-pointer"
                 >
                   <Play className="w-5 h-5 fill-current" />
-                  Stop
+                  Stop & Simpan
                 </button>
               </div>
             )}

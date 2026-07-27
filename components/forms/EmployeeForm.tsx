@@ -1386,6 +1386,7 @@ export default function EmployeeForm({
                     showBlockInput={true}
                     operators={activeOperators}
                     currentOperatorName={getOperatorName(watch("operatorId"))}
+                    isEdit={isEdit}
                   />
                 </div>
               </div>

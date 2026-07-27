@@ -1776,6 +1776,7 @@ export default function ContinuousForm({
                 defaultPcsIndex={defaultPcsIndex}
                 operators={activeOperators}
                 currentOperatorName={getOperatorName(watch("operatorId"))}
+                isEdit={isEdit}
               />
             </div>
           </div>
