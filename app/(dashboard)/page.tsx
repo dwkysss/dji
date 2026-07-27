@@ -1219,8 +1219,9 @@ export default function DashboardPage() {
       };
 
       const getCategoryForDetail = (detailStr: string, fallbackCategory?: string): string => {
+        const cleanStr = detailStr.replace(/\s*\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim();
         for (const [cat, details] of Object.entries(PROBLEM_DETAILS_MAP)) {
-          if (details.some(d => detailStr.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(detailStr.toLowerCase()))) {
+          if (details.some(d => cleanStr.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(cleanStr.toLowerCase()))) {
             return cat;
           }
         }
@@ -1255,10 +1256,14 @@ export default function DashboardPage() {
         const downtimeShare = detailsList.length > 0 ? downtime / detailsList.length : downtime;
 
         detailsList.forEach((det) => {
-          let formattedName = det;
-          if (!det.startsWith("[")) {
-            const cat = getCategoryForDetail(det, item.kategori_masalah);
-            formattedName = `[${cat}] ${det}`;
+          // Clean out (Titik: XXXm) suffix so defects at different meters aggregate into the SAME category!
+          const cleanDet = det.replace(/\s*\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim();
+          if (!cleanDet) return;
+
+          let formattedName = cleanDet;
+          if (!cleanDet.startsWith("[")) {
+            const cat = getCategoryForDetail(cleanDet, item.kategori_masalah);
+            formattedName = `[${cat}] ${cleanDet}`;
           }
           const key = formattedName;
           const existing = itemMap.get(key) || { count: 0, downtime: 0 };
@@ -4519,8 +4524,9 @@ export default function DashboardPage() {
                 <div className="relative w-full h-72 mx-auto flex items-center justify-center my-4 overflow-x-auto custom-scrollbar">
                   {list.length > 0 ? (
                     (() => {
-                      const maxValue = Math.max(...list.map((item) => item.value), 1);
-                      const svgWidth = Math.max(750, list.length * 90);
+                      const displayList = showAllParetoCards ? list : list.slice(0, 12);
+                      const maxValue = Math.max(...displayList.map((item) => item.value), 1);
+                      const svgWidth = Math.max(750, displayList.length * 80);
                       const svgHeight = 240;
                       const paddingLeft = 50;
                       const paddingRight = 50;
@@ -4529,12 +4535,12 @@ export default function DashboardPage() {
 
                       const chartWidth = svgWidth - paddingLeft - paddingRight;
                       const chartHeight = svgHeight - paddingTop - paddingBottom;
-                      const barSpacing = chartWidth / list.length;
+                      const barSpacing = chartWidth / displayList.length;
                       const barWidth = Math.max(16, Math.min(48, barSpacing * 0.5));
 
                       const y80 = paddingTop + chartHeight - 0.8 * chartHeight;
 
-                      const pointsStr = list
+                      const pointsStr = displayList
                         .map((item, idx) => {
                           const x = paddingLeft + barSpacing * idx + barSpacing / 2;
                           const y = paddingTop + chartHeight - (item.cumulativePct / 100) * chartHeight;
@@ -4624,8 +4630,9 @@ export default function DashboardPage() {
                             </text>
 
                             {/* Bars */}
-                            {list.map((item, idx) => {
-                              const barHeight = (item.value / maxValue) * chartHeight;
+                            {displayList.map((item, idx) => {
+                              const calcHeight = (item.value / maxValue) * chartHeight;
+                              const barHeight = item.value > 0 ? Math.max(10, calcHeight) : 0;
                               const x = paddingLeft + barSpacing * idx + (barSpacing - barWidth) / 2;
                               const y = paddingTop + chartHeight - barHeight;
                               const barColor = item.isVital80 ? (idx === 0 ? "#f59e0b" : "#fbbf24") : "#94a3b8";
@@ -4646,10 +4653,10 @@ export default function DashboardPage() {
                             })}
 
                             {/* Line & Dots */}
-                            {list.length > 0 && (
+                            {displayList.length > 0 && (
                               <>
                                 <polyline points={pointsStr} fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                {list.map((item, idx) => {
+                                {displayList.map((item, idx) => {
                                   const x = paddingLeft + barSpacing * idx + barSpacing / 2;
                                   const y = paddingTop + chartHeight - (item.cumulativePct / 100) * chartHeight;
                                   return (

@@ -5,6 +5,7 @@ import { useFieldArray, Control, UseFormSetValue, UseFormWatch } from "react-hoo
 import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info } from "lucide-react";
 import { ContinuousFormInput } from "@/lib/schemas";
 import { submitMechanicDowntime } from "@/actions/mechanic-actions";
+import { getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import BluetoothDowntimeTrigger from "./BluetoothDowntimeTrigger";
 
 const PROBLEM_CATEGORIES = [
@@ -149,6 +150,18 @@ export default function DowntimeTracker({
   ]);
   const [blockValidationError, setBlockValidationError] = useState<string | null>(null);
   const [showBlockInfo, setShowBlockInfo] = useState(false);
+  const [dynamicProblemDetails, setDynamicProblemDetails] = useState<Record<string, string[]>>(PROBLEM_DETAILS);
+
+  useEffect(() => {
+    getProblemDetailsGrouped().then((res) => {
+      if (res.success && res.grouped && Object.keys(res.grouped).length > 0) {
+        setDynamicProblemDetails((prev) => ({
+          ...prev,
+          ...res.grouped,
+        }));
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const loadRequiredDefects = () => {
@@ -1243,11 +1256,11 @@ export default function DowntimeTracker({
                         </div>
                       </label>
 
-                      {selectedCategories.includes(cat.id) && PROBLEM_DETAILS[cat.id] && (
+                      {selectedCategories.includes(cat.id) && (dynamicProblemDetails[cat.id] || PROBLEM_DETAILS[cat.id]) && (
                         <div className="pl-4 pr-2 py-2 border-l-2 border-sky-200 ml-2 animate-in slide-in-from-top-2">
                           <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Pilih Detail Masalah</label>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {PROBLEM_DETAILS[cat.id].map((detail) => (
+                            {(dynamicProblemDetails[cat.id] || PROBLEM_DETAILS[cat.id] || []).map((detail) => (
                               <label key={detail} className="cursor-pointer">
                                 <input
                                   type="checkbox"

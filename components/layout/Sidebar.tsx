@@ -29,6 +29,8 @@ import {
   ShieldCheck,
   Users,
   Megaphone,
+  ListFilter,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -190,6 +192,12 @@ export default function Sidebar() {
           roles: ["admin"],
         },
         {
+          name: "Parameter & Aturan Mesin",
+          href: "/machine-config",
+          icon: SlidersHorizontal,
+          roles: ["admin"],
+        },
+        {
           name: "Set Pengumuman",
           href: "/announcements",
           icon: Megaphone,
@@ -205,6 +213,12 @@ export default function Sidebar() {
           name: "Master Data",
           href: "/master-data",
           icon: FileSpreadsheet,
+          roles: ["admin", "manager"],
+        },
+        {
+          name: "Detail Masalah",
+          href: "/problem-details",
+          icon: ListFilter,
           roles: ["admin", "manager"],
         },
         {

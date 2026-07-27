@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getMachineStatuses, MachineStatus } from "@/actions/dashboard-actions";
 import { getMachineConfigs, upsertAllMachineConfigs, MachineConfig, getBlockRequiredDefects, saveBlockRequiredDefects } from "@/actions/machine-config-actions";
 import {
@@ -310,15 +311,6 @@ export default function MachinesPage() {
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setIsConfigModalOpen(true)}
-            className="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-          >
-            <Settings2 className="w-4 h-4 text-[#0070bc] shrink-0" />
-            <span>Default Mesin</span>
-          </button>
 
           <button
             type="button"
