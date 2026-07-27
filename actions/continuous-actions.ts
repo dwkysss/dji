@@ -9,43 +9,85 @@ async function resolveAutomaticMeterStart(input: {
   designId?: string | null;
   potonganKe?: string | null;
 }) {
+  if (!input.nomorMc) return 0;
+  const nomorMcClean = input.nomorMc.trim();
   const potonganKeNum = input.potonganKe ? parseInt(input.potonganKe) : null;
-  if (!input.nomorMc || !potonganKeNum) return 0;
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  // Menggunakan createAdminClient agar query mengabaikan RLS & selalu mendapatkan data terbaru
+  const supabase = await createAdminClient();
+
+  // 1. Cari record berdasarkan nomor_mc & potongan_ke
+  if (potonganKeNum) {
+    // Cek record paling akhir pada potongan ini untuk melihat apakah rol sudah dipotong
+    const { data: latestRecord } = await supabase
+      .from("production_headers")
+      .select("tanggal_potong")
+      .ilike("nomor_mc", nomorMcClean)
+      .eq("potongan_ke", potonganKeNum)
+      .order("tanggal_jam", { ascending: false })
+      .limit(1);
+
+    if (latestRecord && latestRecord.length > 0 && latestRecord[0].tanggal_potong) {
+      return 0; // Rol sudah dipotong, potongan baru mulai dari 0
+    }
+
+    // Cari laporan meter_akhir resmi yang > 0 untuk potongan ini
+    const { data: finishData } = await supabase
+      .from("production_headers")
+      .select("meter_akhir")
+      .ilike("nomor_mc", nomorMcClean)
+      .eq("potongan_ke", potonganKeNum)
+      .not("meter_akhir", "is", null)
+      .gt("meter_akhir", 0)
+      .order("tanggal_jam", { ascending: false })
+      .limit(1);
+
+    if (finishData && finishData.length > 0 && finishData[0].meter_akhir !== null) {
+      const finish = parseFloat(finishData[0].meter_akhir as any);
+      if (Number.isFinite(finish) && finish > 0) return finish;
+    }
+
+    // Cari laporan meter_awal yang > 0 untuk potongan ini jika meter_akhir belum ada
+    const { data: startData } = await supabase
+      .from("production_headers")
+      .select("meter_awal")
+      .ilike("nomor_mc", nomorMcClean)
+      .eq("potongan_ke", potonganKeNum)
+      .not("meter_awal", "is", null)
+      .gt("meter_awal", 0)
+      .order("tanggal_jam", { ascending: false })
+      .limit(1);
+
+    if (startData && startData.length > 0 && startData[0].meter_awal !== null) {
+      const start = parseFloat(startData[0].meter_awal as any);
+      if (Number.isFinite(start) && start > 0) return start;
+    }
+  }
+
+  // 2. Fallback: Cari record paling akhir dari mesin ini secara umum
+  const { data: latestGeneral } = await supabase
     .from("production_headers")
-    .select("meter_akhir, tanggal_potong, tanggal_jam, panel_no, production_details(meter_kain)")
-    .ilike("nomor_mc", input.nomorMc.trim())
-    .eq("potongan_ke", potonganKeNum)
+    .select("tanggal_potong")
+    .ilike("nomor_mc", nomorMcClean)
     .order("tanggal_jam", { ascending: false })
-    .limit(5);
+    .limit(1);
 
-  if (error)
-    throw new Error("Gagal mengambil meter start otomatis: " + error.message);
+  if (latestGeneral && latestGeneral.length > 0 && latestGeneral[0].tanggal_potong) {
+    return 0;
+  }
 
-  if (!data || data.length === 0) return 0;
+  const { data: latestFinishGeneral } = await supabase
+    .from("production_headers")
+    .select("meter_akhir")
+    .ilike("nomor_mc", nomorMcClean)
+    .not("meter_akhir", "is", null)
+    .gt("meter_akhir", 0)
+    .order("tanggal_jam", { ascending: false })
+    .limit(1);
 
-  for (const header of data) {
-    // 1. Cek meter_akhir di header
-    if (header.meter_akhir !== null && header.meter_akhir !== undefined) {
-      const lastFinish = parseFloat(header.meter_akhir as any);
-      if (Number.isFinite(lastFinish) && lastFinish > 0) return lastFinish;
-    }
-
-    // 2. Cek meter_kain dari detail
-    const detailMeters = header.production_details || [];
-    for (const d of detailMeters) {
-      if (d.meter_kain !== null && d.meter_kain !== undefined) {
-        const m = parseFloat(d.meter_kain);
-        if (Number.isFinite(m) && m > 0) return m;
-      }
-    }
-
-    // Jika record ini punya tanggal_potong, berarti potongan baru mulai dari 0
-    if (header.tanggal_potong) {
-      return 0;
-    }
+  if (latestFinishGeneral && latestFinishGeneral.length > 0 && latestFinishGeneral[0].meter_akhir !== null) {
+    const finish = parseFloat(latestFinishGeneral[0].meter_akhir as any);
+    if (Number.isFinite(finish) && finish > 0) return finish;
   }
 
   return 0;

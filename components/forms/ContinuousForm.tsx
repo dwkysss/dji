@@ -933,6 +933,12 @@ export default function ContinuousForm({
     }
   }, [watchJenisLaporan]);
 
+  useEffect(() => {
+    if (isMeterModalOpen) {
+      refreshAutomaticMeterStart();
+    }
+  }, [isMeterModalOpen]);
+
   const refreshAutomaticMeterStart = async () => {
     if (isEdit) return;
 
@@ -1798,7 +1804,10 @@ export default function ContinuousForm({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setIsMeterModalOpen(true)}
+                    onClick={async () => {
+                      await refreshAutomaticMeterStart();
+                      setIsMeterModalOpen(true);
+                    }}
                     className="w-full max-w-xs px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
                   >
                     <FileText className="w-5 h-5" />
