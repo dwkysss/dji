@@ -14,6 +14,7 @@ import {
 } from "@/actions/continuous-actions";
 import { getProductionPlan } from "@/actions/plan-actions";
 import { getMachineConfigs } from "@/actions/machine-config-actions";
+import { getOperatorsList } from "@/actions/operator-actions";
 import { createClient } from "@/lib/supabase/client";
 import {
   AlertCircle,
@@ -418,6 +419,22 @@ export default function ContinuousForm({
       }
     }
     loadMachineTypes();
+  }, []);
+
+  useEffect(() => {
+    async function loadOperators() {
+      const res = await getOperatorsList();
+      if (res.success && res.data && res.data.length > 0) {
+        setOperators(
+          res.data.map((op) => ({
+            id: op.id,
+            name: op.nama_operator,
+            shift: op.shift,
+          }))
+        );
+      }
+    }
+    loadOperators();
   }, []);
 
   // States untuk upload foto

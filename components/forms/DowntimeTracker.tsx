@@ -95,9 +95,26 @@ interface DowntimeTrackerProps {
   operators?: { id: number | string; name: string; shift?: string }[];
   currentOperatorName?: string;
   isEdit?: boolean;
+  onRegisterTimerControls?: (controls: {
+    isTimerRunning: boolean;
+    onStartTimer: (source?: any) => void;
+    onStopTimer: (source?: any) => void;
+  }) => void;
 }
 
-export default function DowntimeTracker({ control, watch, setValue, showBlockInput, showMeterInput, defaultMeter, defaultPcsIndex, operators = [], currentOperatorName = "", isEdit = false }: DowntimeTrackerProps) {
+export default function DowntimeTracker({
+  control,
+  watch,
+  setValue,
+  showBlockInput,
+  showMeterInput,
+  defaultMeter,
+  defaultPcsIndex,
+  operators = [],
+  currentOperatorName = "",
+  isEdit = false,
+  onRegisterTimerControls,
+}: DowntimeTrackerProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: "downtimeEvents",
@@ -335,6 +352,16 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
     }
     return () => clearInterval(interval);
   }, [isTimerRunning, timerStartRef]);
+
+  useEffect(() => {
+    if (onRegisterTimerControls) {
+      onRegisterTimerControls({
+        isTimerRunning,
+        onStartTimer: handleStartTimer,
+        onStopTimer: handleStopTimer,
+      });
+    }
+  }, [isTimerRunning, onRegisterTimerControls]);
 
   const handleStartTimer = (source?: any) => {
     if (isTimerRunning) return;
@@ -648,151 +675,164 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
 
   return (
     <div className={showMeterInput ? "grid grid-cols-1 sm:grid-cols-2 gap-4 items-start" : "flex flex-col space-y-4 h-full justify-between"}>
-      {/* 1. SEKSI BLOCK MESIN (SEKSUIL TERPISAH DI ATAS CARD DOWNTIME BIASA) */}
-      {!activeBlock ? (
-        <div className={`bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between ${showMeterInput ? "min-h-[195px]" : "min-h-[156px]"}`}>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
-                <Lock className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                    Block Mesin
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => setShowBlockInfo((prev) => !prev)}
-                    className="p-1 rounded-full text-sky-600 hover:bg-sky-100/80 transition-colors cursor-pointer"
-                    title="Klik untuk info Block Mesin"
-                  >
-                    <Info className="w-3.5 h-3.5" />
-                  </button>
+      {/* 1. SEKSI BLOCK MESIN & BLUETOOTH TRIGGER */}
+      <div className="flex flex-col gap-4 w-full">
+        {!activeBlock ? (
+          <div className={`bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between ${showMeterInput ? "min-h-[195px]" : "min-h-[156px]"}`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                      Block Mesin
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowBlockInfo((prev) => !prev)}
+                      className="p-1 rounded-full text-sky-600 hover:bg-sky-100/80 transition-colors cursor-pointer"
+                      title="Klik untuk info Block Mesin"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-            <span className="text-[9px] font-extrabold text-slate-700 bg-slate-200 px-2.5 py-1 rounded-full border border-slate-300 shrink-0 self-start sm:self-auto">
-              Mesin Stop
-            </span>
-          </div>
-
-          {showBlockInfo && (
-            <div className="my-2 p-2.5 bg-sky-50 border border-sky-200/80 rounded-xl text-[10px] font-medium text-sky-900 flex items-start gap-2 animate-fadeIn shadow-xs">
-              <Info className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
-              <p className="leading-relaxed flex-1">
-                Untuk perbaikan berat / mesin mati total lintas shift (tanpa produksi kain)
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowBlockInfo(false)}
-                className="text-sky-400 hover:text-sky-800 p-0.5 rounded cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={handleInitiateBlock}
-            className="flex items-center justify-center gap-2 w-full h-11 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-slate-800/20 active:scale-[0.98] cursor-pointer"
-          >
-            <Lock className="w-4 h-4" /> Block Mesin
-          </button>
-        </div>
-      ) : (
-        /* Banner Active Block Mesin (Multi Shift) - Minimalist & Sleek */
-        <div className="p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-3xl shadow-xs animate-fadeIn space-y-3">
-          <div className="flex items-start justify-between gap-2.5">
-            <div className="flex items-start gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-2xl bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                <Lock className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide truncate">
-                  Mesin Diblok (Dalam Perbaikan)
-                </h4>
-                <p className="text-[10px] font-semibold text-slate-500 mt-0.5 leading-snug">
-                  Mulai perbaikan {activeBlock.startDateStr} pkl {activeBlock.startTimeStr} • Pelapor: <strong className="text-slate-700">{activeBlock.initialReporter}</strong>
-                </p>
-              </div>
-            </div>
-
-            <div className="text-right shrink-0 bg-white/80 px-2.5 py-1 rounded-xl border border-slate-200/80 shadow-2xs">
-              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Total Stop:</span>
-              <span className="text-sm font-black text-slate-800 font-mono">
-                {formatTimer(blockLiveSeconds)}
+              <span className="text-[9px] font-extrabold text-slate-700 bg-slate-200 px-2.5 py-1 rounded-full border border-slate-300 shrink-0 self-start sm:self-auto">
+                Mesin Stop
               </span>
             </div>
-          </div>
 
-          {/* Handoff Logs List (Tampil HANYA jika ada lebih dari 1 log serah terima) */}
-          {activeBlock.handoffLogs && activeBlock.handoffLogs.length > 1 && (
-            <div className="bg-white rounded-2xl p-3 border border-slate-200 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
-              <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-slate-600 uppercase tracking-wider block">
-                <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
-                <span>Riwayat Serah Terima ({activeBlock.handoffLogs.length}):</span>
+            {showBlockInfo && (
+              <div className="my-2 p-2.5 bg-sky-50 border border-sky-200/80 rounded-xl text-[10px] font-medium text-sky-900 flex items-start gap-2 animate-fadeIn shadow-xs">
+                <Info className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+                <p className="leading-relaxed flex-1">
+                  Untuk perbaikan berat / mesin mati total lintas shift (tanpa produksi kain)
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowBlockInfo(false)}
+                  className="text-sky-400 hover:text-sky-800 p-0.5 rounded cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
-              {activeBlock.handoffLogs.map((log: any, lIdx: number) => (
-                <div key={log.id || lIdx} className="text-[10px] text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100 leading-relaxed">
-                  <div className="flex justify-between items-center text-[9px] font-extrabold text-slate-700 mb-0.5">
-                    <span className="flex items-center gap-1">
-                      <User className="w-3 h-3 text-slate-500" />
-                      {log.operatorName} ({formatShiftLabel(log.shift)})
-                    </span>
-                    <span className="text-slate-500">{log.dateStr} • {log.timestamp}</span>
-                  </div>
-                  <p className="text-slate-600 font-medium pl-4">{log.notes}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Action Buttons Container - Responsive Layout for Mobile, Tab, & Desktop */}
-          <div className="pt-1.5 space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAddNoteModal(true)}
-                className="w-full py-2 px-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-xs transition-all border border-slate-200/80 flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
-              >
-                <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span>Catat Progres</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowHandoffModal(true)}
-                className="w-full py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-xs transition-all border border-sky-200/70 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                <span>Serah Terima</span>
-              </button>
-            </div>
+            )}
 
             <button
               type="button"
-              onClick={handleUnblockMachine}
-              className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 active:scale-[0.98] cursor-pointer"
+              onClick={handleInitiateBlock}
+              className="flex items-center justify-center gap-2 w-full h-11 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-slate-800/20 active:scale-[0.98] cursor-pointer"
             >
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>UNBLOCK MESIN</span>
+              <Lock className="w-4 h-4" /> Block Mesin
             </button>
+          </div>
+        ) : (
+          /* Banner Active Block Mesin (Multi Shift) - Minimalist & Sleek */
+          <div className="p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-3xl shadow-xs animate-fadeIn space-y-3">
+            <div className="flex items-start justify-between gap-2.5">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-2xl bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide truncate">
+                    Mesin Diblok (Dalam Perbaikan)
+                  </h4>
+                  <p className="text-[10px] font-semibold text-slate-500 mt-0.5 leading-snug">
+                    Mulai perbaikan {activeBlock.startDateStr} pkl {activeBlock.startTimeStr} • Pelapor: <strong className="text-slate-700">{activeBlock.initialReporter}</strong>
+                  </p>
+                </div>
+              </div>
 
-            <div className="flex justify-center pt-0.5">
+              <div className="text-right shrink-0 bg-white/80 px-2.5 py-1 rounded-xl border border-slate-200/80 shadow-2xs">
+                <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Total Stop:</span>
+                <span className="text-sm font-black text-slate-800 font-mono">
+                  {formatTimer(blockLiveSeconds)}
+                </span>
+              </div>
+            </div>
+
+            {/* Handoff Logs List */}
+            {activeBlock.handoffLogs && activeBlock.handoffLogs.length > 1 && (
+              <div className="bg-white rounded-2xl p-3 border border-slate-200 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-slate-600 uppercase tracking-wider block">
+                  <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Riwayat Serah Terima ({activeBlock.handoffLogs.length}):</span>
+                </div>
+                {activeBlock.handoffLogs.map((log: any, lIdx: number) => (
+                  <div key={log.id || lIdx} className="text-[10px] text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100 leading-relaxed">
+                    <div className="flex justify-between items-center text-[9px] font-extrabold text-slate-700 mb-0.5">
+                      <span className="flex items-center gap-1">
+                        <User className="w-3 h-3 text-slate-500" />
+                        {log.operatorName} ({formatShiftLabel(log.shift)})
+                      </span>
+                      <span className="text-slate-500">{log.dateStr} • {log.timestamp}</span>
+                    </div>
+                    <p className="text-slate-600 font-medium pl-4">{log.notes}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Action Buttons Container */}
+            <div className="pt-1.5 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddNoteModal(true)}
+                  className="w-full py-2 px-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-xs transition-all border border-slate-200/80 flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <span>Catat Progres</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowHandoffModal(true)}
+                  className="w-full py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-xs transition-all border border-sky-200/70 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                  <span>Serah Terima</span>
+                </button>
+              </div>
+
               <button
                 type="button"
-                onClick={handleCancelBlock}
-                className="text-red-500 hover:text-red-700 hover:bg-red-50/80 font-bold text-[11px] transition-all flex items-center gap-1.5 px-3 py-1 rounded-lg cursor-pointer"
+                onClick={handleUnblockMachine}
+                className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 active:scale-[0.98] cursor-pointer"
               >
-                <X className="w-3.5 h-3.5 shrink-0" />
-                <span>Batalkan Block</span>
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>UNBLOCK MESIN</span>
               </button>
+
+              <div className="flex justify-center pt-0.5">
+                <button
+                  type="button"
+                  onClick={handleCancelBlock}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50/80 font-bold text-[11px] transition-all flex items-center gap-1.5 px-3 py-1 rounded-lg cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5 shrink-0" />
+                  <span>Batalkan Block</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Banner Bluetooth Trigger ESP32 (Tampil HANYA pada input METER di bawah Card Block Mesin) */}
+        {!isEdit && showMeterInput && (
+          <div className="w-full">
+            <BluetoothDowntimeTrigger
+              onStartTimer={handleStartTimer}
+              onStopTimer={handleStopTimer}
+              isTimerRunning={isTimerRunning}
+            />
+          </div>
+        )}
+      </div>
 
       {/* 2. CARD DOWNTIME BIASA */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative overflow-hidden">
@@ -814,17 +854,6 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
             </p>
           </div>
         </div>
-
-        {/* Banner Bluetooth Trigger ESP32 */}
-        {!isEdit && (
-          <div className="mb-4">
-            <BluetoothDowntimeTrigger
-              onStartTimer={handleStartTimer}
-              onStopTimer={handleStopTimer}
-              isTimerRunning={isTimerRunning}
-            />
-          </div>
-        )}
 
         {/* Banner Masalah Lanjut Shift (jika ada) */}
         {unresolvedDowntime && !isTimerRunning && !isEdit && (

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { getOperatorsList } from "@/actions/operator-actions";
 import {
   PowerOff,
   Save,
@@ -85,11 +86,29 @@ export default function StatusMesinForm() {
     }
   });
 
+  const [operators, setOperators] = useState(FALLBACK_OPERATORS);
+
+  useEffect(() => {
+    async function loadOperators() {
+      const res = await getOperatorsList();
+      if (res.success && res.data && res.data.length > 0) {
+        setOperators(
+          res.data.map((op) => ({
+            id: op.id,
+            name: op.nama_operator,
+            shift: op.shift,
+          }))
+        );
+      }
+    }
+    loadOperators();
+  }, []);
+
   const selectedGrupId = watch("grupId");
   const selectedMesin = watch("nomorMc");
   const selectedGroup = FALLBACK_GROUPS.find(g => g.id.toString() === selectedGrupId);
 
-  const filteredOperators = FALLBACK_OPERATORS.filter(op => {
+  const filteredOperators = operators.filter(op => {
     if (!selectedGroup) return false;
     return op.shift === selectedGroup.name;
   });
@@ -98,7 +117,7 @@ export default function StatusMesinForm() {
     setIsSubmitting(true);
     setErrorMsg(null);
     data.idempotencyKey = idempotencyKeyRef.current;
-    const operator = FALLBACK_OPERATORS.find(o => o.id.toString() === data.operatorId);
+    const operator = operators.find(o => o.id.toString() === data.operatorId);
     data.pic = operator ? operator.name : (user?.fullName || "");
     data.status = data.status ? data.status.toUpperCase() : "";
 

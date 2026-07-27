@@ -28,6 +28,13 @@ import {
   updateAdminUser,
   deleteAdminUser,
 } from "@/actions/user-actions";
+import {
+  getOperatorsList,
+  updateOperatorShift,
+  createOperator,
+  deleteOperator,
+  OperatorItem,
+} from "@/actions/operator-actions";
 
 const USER_TOUR_STEPS: ProductTourStep[] = [
   {
@@ -66,6 +73,7 @@ interface UserAccount {
 }
 
 export default function UserManagementPage() {
+  const [activeTab, setActiveTab] = useState<"users" | "operators">("users");
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -90,9 +98,87 @@ export default function UserManagementPage() {
   const [employeeId, setEmployeeId] = useState("");
   const [role, setRole] = useState("operator");
 
+  // Operator Team Management state
+  const [operatorsList, setOperatorsList] = useState<OperatorItem[]>([]);
+  const [operatorsLoading, setOperatorsLoading] = useState(false);
+  const [isAddOperatorModalOpen, setIsAddOperatorModalOpen] = useState(false);
+  const [newOperatorName, setNewOperatorName] = useState("");
+  const [newOperatorShift, setNewOperatorShift] = useState("A");
+
   useEffect(() => {
     fetchUsers();
+    fetchOperators();
   }, []);
+
+  const fetchOperators = async () => {
+    setOperatorsLoading(true);
+    try {
+      const res = await getOperatorsList();
+      if (res.success && res.data) {
+        setOperatorsList(res.data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setOperatorsLoading(false);
+    }
+  };
+
+  const handleUpdateOperatorShift = async (id: number, newShift: string) => {
+    try {
+      const res = await updateOperatorShift(id, newShift);
+      if (res.success) {
+        setOperatorsList((prev) =>
+          prev.map((op) => (op.id === id ? { ...op, shift: newShift } : op))
+        );
+      } else {
+        alert("Gagal memperbarui tim: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Terjadi kesalahan: " + err.message);
+    }
+  };
+
+  const handleAddOperatorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOperatorName.trim()) {
+      return alert("Nama operator wajib diisi!");
+    }
+    setActionLoading(true);
+    try {
+      const res = await createOperator(newOperatorName, newOperatorShift);
+      if (res.success && res.data) {
+        setOperatorsList((prev) => [...prev, res.data!]);
+        setIsAddOperatorModalOpen(false);
+        setNewOperatorName("");
+        setNewOperatorShift("A");
+        alert("Operator berhasil ditambahkan!");
+      } else {
+        alert("Gagal menambah operator: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Terjadi kesalahan: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteOperatorSubmit = async (op: OperatorItem) => {
+    if (!window.confirm(`Yakin ingin menghapus operator "${op.nama_operator}"?`)) {
+      return;
+    }
+    try {
+      const res = await deleteOperator(op.id);
+      if (res.success) {
+        setOperatorsList((prev) => prev.filter((o) => o.id !== op.id));
+        alert("Operator berhasil dihapus!");
+      } else {
+        alert("Gagal menghapus operator: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Terjadi kesalahan: " + err.message);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -323,15 +409,56 @@ export default function UserManagementPage() {
             <HelpCircle className="w-4 h-4" />
             Tutorial
           </button>
-          <button
-            onClick={handleOpenCreateModal}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4" />
-            Tambah Akun Baru
-          </button>
+          {activeTab === "users" ? (
+            <button
+              onClick={handleOpenCreateModal}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              Tambah Akun Baru
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsAddOperatorModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              Tambah Operator Baru
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Tab Switcher */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab("users")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+            activeTab === "users"
+              ? "bg-[#0070bc] text-white shadow-md shadow-sky-500/20"
+              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Akun Pengguna ({users.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("operators")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+            activeTab === "operators"
+              ? "bg-[#0070bc] text-white shadow-md shadow-sky-500/20"
+              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+          }`}
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          <span>Kelola Tim Operator ({operatorsList.length})</span>
+        </button>
+      </div>
+
+      {activeTab === "users" ? (
+        <>
 
       {/* Search & Filters */}
       <div
@@ -473,6 +600,116 @@ export default function UserManagementPage() {
           </table>
         </div>
       </div>
+      </>
+    ) : (
+      /* UI MANAJEMEN TIM OPERATOR (SHIFT A, B, C) */
+      <div className="space-y-6">
+        <div className="bg-sky-50 border border-sky-100 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+          <Shield className="w-5 h-5 text-[#0070bc] shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-xs font-bold text-sky-900 uppercase tracking-wide">
+              Pengaturan Rotasi & Tim Operator
+            </h4>
+            <p className="text-xs text-sky-700 mt-0.5 leading-relaxed font-medium">
+              Pindahkan operator antar Tim/Shift (A, B, C) kapan saja sesuai jadwal rotasi. Perubahan akan langsung tersinkronisasi otomatis ke form input operator di lapangan.
+            </p>
+          </div>
+        </div>
+
+        {operatorsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-[#0070bc] animate-spin" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { shift: "A", name: "Tim A", desc: "Shift Pagi (07:10 - 15:10)", color: "from-blue-500 to-sky-600" },
+              { shift: "B", name: "Tim B", desc: "Shift Sore (15:10 - 23:10)", color: "from-amber-500 to-orange-500" },
+              { shift: "C", name: "Tim C", desc: "Shift Malam (23:10 - 07:10)", color: "from-indigo-600 to-purple-600" },
+            ].map((team) => {
+              const teamOperators = operatorsList.filter((op) => op.shift === team.shift);
+              return (
+                <div key={team.shift} className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm flex flex-col justify-between">
+                  <div>
+                    {/* Card Header */}
+                    <div className={`p-4 bg-gradient-to-r ${team.color} text-white flex items-center justify-between`}>
+                      <div>
+                        <h3 className="font-black text-base uppercase tracking-tight">{team.name}</h3>
+                        <p className="text-[11px] text-white/80 font-medium">{team.desc}</p>
+                      </div>
+                      <span className="bg-white/20 backdrop-blur-md text-white font-black text-xs px-3 py-1 rounded-xl shadow-xs">
+                        {teamOperators.length} Operator
+                      </span>
+                    </div>
+
+                    {/* Operator List */}
+                    <div className="p-4 space-y-2.5 max-h-[500px] overflow-y-auto custom-scrollbar">
+                      {teamOperators.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-slate-400 font-medium">
+                          Belum ada operator di {team.name}
+                        </div>
+                      ) : (
+                        teamOperators.map((op, idx) => (
+                          <div key={op.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-slate-100/80 transition-all gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-xl bg-white border border-slate-200 flex items-center justify-center font-bold text-xs text-slate-600 shrink-0">
+                                {idx + 1}
+                              </div>
+                              <span className="font-bold text-slate-800 text-xs sm:text-sm truncate">
+                                {op.nama_operator}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Shift Select Dropdown */}
+                              <select
+                                value={op.shift}
+                                onChange={(e) => handleUpdateOperatorShift(op.id, e.target.value)}
+                                className="bg-white border border-slate-200 rounded-xl px-2 py-1 text-[11px] font-extrabold text-slate-700 focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-2xs"
+                                title="Pindahkan ke tim lain"
+                              >
+                                <option value="A">Tim A</option>
+                                <option value="B">Tim B</option>
+                                <option value="C">Tim C</option>
+                              </select>
+
+                              {/* Delete Operator */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteOperatorSubmit(op)}
+                                className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Hapus Operator"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom Add Operator Button */}
+                  <div className="p-3 bg-slate-50 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewOperatorShift(team.shift);
+                        setIsAddOperatorModalOpen(true);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl border border-dashed border-slate-300 hover:border-blue-400 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>+ Tambah ke {team.name}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    )}
 
       {/* CREATE MODAL */}
       {isCreateModalOpen && (
@@ -757,6 +994,79 @@ export default function UserManagementPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Tambah Operator Baru */}
+      {isAddOperatorModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-scaleUp">
+            <div className="p-6 bg-gradient-to-br from-blue-600 to-sky-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center">
+                  <UserPlus className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black uppercase">Tambah Operator Baru</h3>
+                  <p className="text-xs text-sky-100 font-medium mt-0.5">Daftarkan operator ke dalam tim/shift</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddOperatorModalOpen(false)}
+                className="text-white/80 hover:text-white p-1 rounded-xl hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddOperatorSubmit} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                  Nama Operator
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Budi Santoso"
+                  value={newOperatorName}
+                  onChange={(e) => setNewOperatorName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                  Pilih Tim / Shift Utama
+                </label>
+                <select
+                  value={newOperatorShift}
+                  onChange={(e) => setNewOperatorShift(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="A">Tim A (Shift Pagi)</option>
+                  <option value="B">Tim B (Shift Sore)</option>
+                  <option value="C">Tim C (Shift Malam)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddOperatorModalOpen(false)}
+                  className="py-3 px-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wide transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wide shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                >
+                  {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Simpan Operator"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

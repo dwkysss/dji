@@ -13,6 +13,7 @@ import {
 } from "@/actions/employee-actions";
 import { getProductionPlan } from "@/actions/plan-actions";
 import { getMachineConfigs } from "@/actions/machine-config-actions";
+import { getOperatorsList } from "@/actions/operator-actions";
 import { createClient } from "@/lib/supabase/client";
 import {
   AlertCircle,
@@ -46,6 +47,7 @@ import { useRouter } from "next/navigation";
 import HeaderSummaryCard from "./HeaderSummaryCard";
 import ProductionHeaderModal from "./ProductionHeaderModal";
 import DowntimeTracker from "./DowntimeTracker";
+import BluetoothDowntimeTrigger from "./BluetoothDowntimeTrigger";
 
 // DATA FALLBACK DARI EXCEL
 const FALLBACK_OPERATORS = [
@@ -355,6 +357,11 @@ export default function EmployeeForm({
   const [highlightOperator, setHighlightOperator] = useState(false);
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
   const [activeInfo, setActiveInfo] = useState<string | null>(null);
+  const [timerControls, setTimerControls] = useState<{
+    isTimerRunning: boolean;
+    onStartTimer: (source?: any) => void;
+    onStopTimer: (source?: any) => void;
+  } | null>(null);
 
   const handleCancelAdvancedActions = () => {
     setIsLastPanel(false);
@@ -394,6 +401,22 @@ export default function EmployeeForm({
       }
     }
     loadMachineTypes();
+  }, []);
+
+  useEffect(() => {
+    async function loadOperators() {
+      const res = await getOperatorsList();
+      if (res.success && res.data && res.data.length > 0) {
+        setOperators(
+          res.data.map((op) => ({
+            id: op.id,
+            name: op.nama_operator,
+            shift: op.shift,
+          }))
+        );
+      }
+    }
+    loadOperators();
   }, []);
 
   // States untuk upload foto
@@ -1373,6 +1396,17 @@ export default function EmployeeForm({
                     </span>
                   )}
                 </div>
+
+                {/* Banner Bluetooth Trigger ESP32 (Disimpan tepat di bawah Card Nomor Panel) */}
+                {!isEdit && timerControls && (
+                  <div className="w-full">
+                    <BluetoothDowntimeTrigger
+                      onStartTimer={timerControls.onStartTimer}
+                      onStopTimer={timerControls.onStopTimer}
+                      isTimerRunning={timerControls.isTimerRunning}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Kolom Kanan: Downtime Tracker */}
@@ -1387,6 +1421,7 @@ export default function EmployeeForm({
                     operators={activeOperators}
                     currentOperatorName={getOperatorName(watch("operatorId"))}
                     isEdit={isEdit}
+                    onRegisterTimerControls={setTimerControls}
                   />
                 </div>
               </div>
