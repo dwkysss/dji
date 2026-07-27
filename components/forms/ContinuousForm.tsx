@@ -748,7 +748,9 @@ export default function ContinuousForm({
         potonganKe: String(initialData.potongan_ke || ""),
         course: initialData.course || "",
         pic: initialData.pic || "",
-        totalDowntime: String(initialData.total_downtime_detik || ""),
+        totalDowntime: parsedDowntimeEvents.length > 0 
+          ? String(parsedDowntimeEvents.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0))
+          : "0",
         meterAwal: String(initialData.meter_awal || ""),
         meterAkhir: String(initialData.meter_akhir || ""),
         hasilProduksiMeter: String(initialData.total_produksi_meter || ""),
@@ -835,8 +837,8 @@ export default function ContinuousForm({
       }
     } else if (targetCount < fields.length) {
       if (forceDirect) {
-        while (fields.length > targetCount) {
-          remove(fields.length - 1);
+        for (let i = fields.length - 1; i >= targetCount; i--) {
+          remove(i);
         }
       } else {
         // Show confirmation dialog before reducing PCS count since it deletes data
@@ -1334,6 +1336,7 @@ export default function ContinuousForm({
     if (window.confirm("Yakin ingin mereset/mengosongkan data Header?")) {
       localStorage.removeItem("dji_form_header");
       localStorage.removeItem("dji_form_draft_continuous");
+      localStorage.removeItem("dji_active_downtime_start");
       reset({
         ...watch(), // Keep current panel inputs
         nomorMc: "",
@@ -1458,6 +1461,7 @@ export default function ContinuousForm({
     setIsTimerRunning(false);
     setTimerStartRef(null);
     setTimerStopRef(null);
+    localStorage.removeItem("dji_active_downtime_start");
     setFirstProblemTime(null);
     setLiveTimerSeconds(0);
     setPreviews({ before: null, after: null });
@@ -1761,6 +1765,7 @@ export default function ContinuousForm({
 
           <div className="flex flex-col w-full mb-6">
             <div data-tour="downtime" className="w-full">
+              <input type="hidden" {...register("totalDowntime")} />
               <DowntimeTracker
                 control={control}
                 setValue={setValue}

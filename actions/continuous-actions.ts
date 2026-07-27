@@ -667,6 +667,19 @@ export async function updateContinuousReport(
     if (headerError) throw new Error(headerError.message);
 
     // 2. Delete old details
+    const { data: oldDetails } = await supabase
+      .from("production_details")
+      .select("id")
+      .eq("header_id", headerId);
+
+    if (oldDetails && oldDetails.length > 0) {
+      const oldDetailIds = oldDetails.map((d: any) => d.id);
+      await supabase
+        .from("production_defects")
+        .delete()
+        .in("production_detail_id", oldDetailIds);
+    }
+
     const { error: delError } = await supabase
       .from("production_details")
       .delete()

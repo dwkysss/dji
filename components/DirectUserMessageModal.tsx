@@ -58,7 +58,7 @@ export default function DirectUserMessageModal() {
 
     const interval = setInterval(() => {
       checkUnreadMessages();
-    }, 5000);
+    }, 60000); // Diubah dari 5 detik menjadi 60 detik sebagai fallback (Realtime sudah aktif)
 
     const handleSync = () => checkUnreadMessages();
     window.addEventListener("storage", handleSync);

@@ -406,6 +406,36 @@ export default function EmployeeForm({
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [backupOperatorName, setBackupOperatorName] = useState("");
 
+  // Break Warning Modal state
+  const [breakWarningModal, setBreakWarningModal] = useState<{
+    isOpen: boolean;
+    timeStr: string;
+    shiftName: string;
+    allowedRange: string;
+    pendingEvent: any;
+  }>({
+    isOpen: false,
+    timeStr: "",
+    shiftName: "",
+    allowedRange: "",
+    pendingEvent: null,
+  });
+
+  const handleConfirmBreakWarning = () => {
+    if (breakWarningModal.pendingEvent) {
+      register("jenisLaporan").onChange(breakWarningModal.pendingEvent);
+    } else {
+      setValue("jenisLaporan", "Istirahat");
+    }
+    setBreakWarningModal({ isOpen: false, timeStr: "", shiftName: "", allowedRange: "", pendingEvent: null });
+    setShowBackupModal(true);
+  };
+
+  const handleCancelBreakWarning = () => {
+    setValue("jenisLaporan", "Normal");
+    setBreakWarningModal({ isOpen: false, timeStr: "", shiftName: "", allowedRange: "", pendingEvent: null });
+  };
+
   // Persist backupOperatorName to localStorage for drafts
   useEffect(() => {
     if (isEdit) return;
@@ -1026,8 +1056,9 @@ export default function EmployeeForm({
   const handleClearHeader = () => {
     if (window.confirm("Yakin ingin mereset/mengosongkan data Header?")) {
       localStorage.removeItem("dji_form_header");
-      localStorage.removeItem("dji_form_draft_panel"); localStorage.removeItem("dji_backup_operator_name");
+      localStorage.removeItem("dji_form_draft_panel"); 
       localStorage.removeItem("dji_backup_operator_name");
+      localStorage.removeItem("dji_active_downtime_start");
       reset({
         ...watch(), // Keep current panel inputs
         nomorMc: "",
@@ -1118,6 +1149,7 @@ export default function EmployeeForm({
       tanggalPotong: "",
       downtimeEvents: [],
     });
+    localStorage.removeItem("dji_active_downtime_start");
 
     // Refresh idempotency key setelah sukses submit
     idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -1346,6 +1378,7 @@ export default function EmployeeForm({
               {/* Kolom Kanan: Downtime Tracker */}
               <div className="flex flex-col w-full h-full">
                 <div data-tour="downtime" className="w-full h-full">
+                  <input type="hidden" {...register("totalDowntime")} />
                   <DowntimeTracker
                     control={control}
                     setValue={setValue}
@@ -1595,6 +1628,48 @@ export default function EmployeeForm({
                   value="Istirahat"
                   {...register("jenisLaporan")}
                   onChange={(e) => {
+                    const now = new Date();
+                    const currentHour = now.getHours();
+                    const currentMin = now.getMinutes();
+                    const timeVal = currentHour + currentMin / 60;
+
+                    let isAllowed = false;
+                    let shiftName = "";
+                    let allowedRange = "";
+
+                    if (timeVal >= 7.166 && timeVal < 15.166) {
+                      shiftName = "Shift 1";
+                      allowedRange = "10:00 - 13:00";
+                      if (timeVal >= 10.0 && timeVal < 13.0) {
+                        isAllowed = true;
+                      }
+                    } else if (timeVal >= 15.166 && timeVal < 23.166) {
+                      shiftName = "Shift 2";
+                      allowedRange = "18:00 - 21:00";
+                      if (timeVal >= 18.0 && timeVal < 21.0) {
+                        isAllowed = true;
+                      }
+                    } else {
+                      shiftName = "Shift 3";
+                      allowedRange = "02:00 - 05:00";
+                      if (currentHour >= 2 && currentHour < 5) {
+                        isAllowed = true;
+                      }
+                    }
+
+                    if (!isAllowed) {
+                      const timeStr = `${String(currentHour).padStart(2, "0")}:${String(currentMin).padStart(2, "0")}`;
+                      e.persist?.();
+                      setBreakWarningModal({
+                        isOpen: true,
+                        timeStr,
+                        shiftName,
+                        allowedRange,
+                        pendingEvent: e,
+                      });
+                      return;
+                    }
+
                     register("jenisLaporan").onChange(e);
                     setShowBackupModal(true);
                   }}
@@ -1828,6 +1903,64 @@ export default function EmployeeForm({
             </div>
           );
         })()}
+
+        {/* Modal Custom Peringatan Jam Istirahat */}
+        {breakWarningModal.isOpen && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-scaleUp">
+              {/* Banner / Header */}
+              <div className="p-6 bg-gradient-to-br from-amber-500 to-orange-500 text-white text-center relative overflow-hidden flex flex-col items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-3 shadow-inner">
+                  <AlertTriangle className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-base sm:text-lg font-black tracking-tight uppercase">Peringatan Jam Istirahat</h3>
+                <p className="text-xs text-amber-100 font-medium mt-1">
+                  Pencatatan istirahat terdeteksi di luar jam wajar
+                </p>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 sm:p-6 space-y-4">
+                <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-500 uppercase tracking-wider">Jam Saat Ini:</span>
+                    <span className="font-black font-mono text-amber-700 text-sm bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-200">
+                      {breakWarningModal.timeStr} WIB
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-500 uppercase tracking-wider">Jam Istirahat Wajar {breakWarningModal.shiftName}:</span>
+                    <span className="font-black text-slate-700 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">
+                      {breakWarningModal.allowedRange}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-600 font-semibold leading-relaxed text-center">
+                  Apakah Anda yakin tetap ingin memilih jenis laporan <strong>Istirahat</strong>?
+                </p>
+
+                {/* Buttons */}
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCancelBreakWarning}
+                    className="w-full py-3 px-4 rounded-xl border-2 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wide transition-all active:scale-95 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmBreakWarning}
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs uppercase tracking-wide shadow-md shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                  >
+                    Ya, Lanjutkan
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

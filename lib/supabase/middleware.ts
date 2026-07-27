@@ -24,8 +24,7 @@ export async function updateSession(request: NextRequest) {
             },
           });
           cookiesToSet.forEach(({ name, value, options }) => {
-            const sessionOptions = { ...options, maxAge: undefined, expires: undefined };
-            response.cookies.set(name, value, sessionOptions);
+            response.cookies.set(name, value, options);
           });
         },
       },

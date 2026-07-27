@@ -102,6 +102,8 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
     name: "downtimeEvents",
   });
 
+  const currentDowntimeEvents = watch("downtimeEvents");
+
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerStartRef, setTimerStartRef] = useState<number | null>(null);
   const [liveTimerSeconds, setLiveTimerSeconds] = useState(0);
@@ -293,8 +295,6 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
     setIsUnblockingBlock(true);
     setShowModal(true);
   };
-
-  const currentDowntimeEvents = watch("downtimeEvents");
 
   useEffect(() => {
     try {
@@ -600,6 +600,11 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
     }
 
     append(finalEvent);
+    if (setValue) {
+      const currentEvents = watch("downtimeEvents") || [];
+      const sum = [...currentEvents, finalEvent].reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
+      setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+    }
 
     setShowModal(false);
 
@@ -851,7 +856,15 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
                   className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98]"
                 >
                   <AlertTriangle className="w-4 h-4 fill-current" />
-                  Downtime Singkat
+                  Mulai Timer Perbaikan
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenModal}
+                  className="flex items-center justify-center gap-2 w-full h-10 bg-white hover:bg-amber-50 text-amber-600 font-bold text-xs tracking-wide rounded-xl transition-all border border-amber-300 border-dashed active:scale-[0.98]"
+                >
+                  <Plus className="w-4 h-4" />
+                  Input Masalah Manual (Tanpa Timer)
                 </button>
               </div>
             ) : (
@@ -972,7 +985,15 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
                     </div>
                     <button
                       type="button"
-                      onClick={() => remove(index)}
+                      onClick={() => {
+                        remove(index);
+                        if (setValue) {
+                          const currentEvents = watch("downtimeEvents") || [];
+                          const updated = currentEvents.filter((_: any, i: number) => i !== index);
+                          const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
+                          setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+                        }
+                      }}
                       className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -997,25 +1018,25 @@ export default function DowntimeTracker({ control, watch, setValue, showBlockInp
                 <div>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                     <h3 className="font-black text-slate-800 text-sm sm:text-base">Simpan Downtime</h3>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-orange-200/90 rounded-xl shadow-2xs">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Waktu Terhenti:</span>
-                      <div className="flex items-center font-mono font-black text-xs sm:text-sm text-orange-600">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-orange-200/90 rounded-xl shadow-2xs hover:bg-orange-50 transition-colors" title="Ketuk untuk mengubah durasi secara manual">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Durasi (Mnt:Dtk):</span>
+                      <div className="flex items-center font-mono font-black text-xs sm:text-sm text-orange-600 bg-orange-100/50 px-1.5 py-0.5 rounded-lg border border-orange-200/50">
                         <input
                           type="number"
                           min="0"
-                          className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black"
+                          className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black cursor-pointer hover:bg-orange-200/50 rounded transition-colors"
                           value={Math.floor(tempDuration / 60)}
                           onChange={(e) => {
                             const val = e.target.value === "" ? 0 : parseInt(e.target.value);
                             setTempDuration((isNaN(val) ? 0 : val) * 60 + (tempDuration % 60));
                           }}
                         />
-                        <span className="text-orange-400 font-bold mx-0.5 animate-pulse">:</span>
+                        <span className="text-orange-400 font-bold mx-0.5">:</span>
                         <input
                           type="number"
                           min="0"
                           max="59"
-                          className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black"
+                          className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black cursor-pointer hover:bg-orange-200/50 rounded transition-colors"
                           value={tempDuration % 60 < 10 && tempDuration % 60 !== 0 ? `0${tempDuration % 60}` : tempDuration % 60}
                           onChange={(e) => {
                             const val = e.target.value === "" ? 0 : parseInt(e.target.value);

@@ -1102,7 +1102,17 @@ export async function updateProductionReport(
       .select("*")
       .eq("header_id", headerId);
 
-    // 3. Delete old details (this will CASCADE delete old production_defects)
+    if (oldDetails && oldDetails.length > 0) {
+      const oldDetailIds = oldDetails.map(d => d.id);
+      // Hapus data cacat (defects) yang berelasi dengan details ini terlebih dahulu
+      // untuk mencegah error foreign key violation
+      await supabase
+        .from("production_defects")
+        .delete()
+        .in("production_detail_id", oldDetailIds);
+    }
+
+    // 3. Delete old details
     const { error: delError } = await supabase
       .from("production_details")
       .delete()

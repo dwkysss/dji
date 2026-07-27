@@ -792,6 +792,12 @@ export async function deleteProductionDetailRow(detailId: string) {
       }
 
       // 2. Delete ONLY the specific detail row
+      // We must delete production_defects first to prevent foreign key violation
+      await supabase
+        .from("production_defects")
+        .delete()
+        .eq("production_detail_id", detailId);
+
       const { error: delErr } = await supabase
         .from("production_details")
         .delete()
@@ -820,6 +826,11 @@ export async function deleteProductionDetailRow(detailId: string) {
       }
     } else {
       // If no header_id (unlikely), just delete the detail
+      await supabase
+        .from("production_defects")
+        .delete()
+        .eq("production_detail_id", detailId);
+
       const { error: delErr } = await supabase
         .from("production_details")
         .delete()
