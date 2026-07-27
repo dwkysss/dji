@@ -620,13 +620,13 @@ export default function MeterHistoryTable({
                 {item.displayNo}
               </td>
               <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100 border-b border-slate-100">
-                {item.hasIstirahat ? "" : (item.showTgl ? item.tglStr : "")}
+                {item.showTgl ? item.tglStr : ""}
               </td>
-              <td className="px-1 py-1.5 text-slate-600 text-center font-mono text-[11px] whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
-                {item.hasIstirahat ? "" : (item.jamStr || "-")}
+              <td className="px-1 py-1.5 text-slate-600 text-center font-mono text-[11px] whitespace-nowrap border-r border-slate-100 border-b border-slate-100 font-bold">
+                {item.jamStr || "-"}
               </td>
               <td className={`px-1 py-1.5 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100 font-medium text-slate-700`}>
-                {item.hasIstirahat ? "" : (item.showGrp ? item.grpStr : "")}
+                {item.grpStr || (item.showGrp ? item.grpStr : "")}
               </td>
               <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? "italic font-bold text-slate-500" : "font-medium text-slate-700"}`}>
                 {item.hasIstirahat ? "Istirahat" : (item.showOpr ? item.oprStr : "")}

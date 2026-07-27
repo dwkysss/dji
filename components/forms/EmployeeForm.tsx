@@ -811,6 +811,7 @@ export default function EmployeeForm({
   const watchPotonganKe = watch("potonganKe");
   const watchNomorMc = watch("nomorMc");
 
+  const prevNomorMcRef = useRef<string>("");
   // Standalone effect to sync Machine Config (Default PCS & Input Type) as soon as machine selection changes
   useEffect(() => {
     if (isEdit || !watchNomorMc) return;
@@ -820,18 +821,22 @@ export default function EmployeeForm({
       const cfgRes = await getMachineConfigs();
       if (!isMounted || !cfgRes.success || !cfgRes.data) return;
 
+      const currentMc = watchNomorMc.trim().toUpperCase();
       const match = cfgRes.data.find(
-        (c) => c.nomor_mc.trim().toUpperCase() === watchNomorMc.trim().toUpperCase()
+        (c) => c.nomor_mc.trim().toUpperCase() === currentMc
       );
 
       if (match) {
-        if (match.default_pcs && typeof match.default_pcs === "number") {
-          handleChangePcsCount(match.default_pcs, true);
+        if (prevNomorMcRef.current !== currentMc) {
+          prevNomorMcRef.current = currentMc;
+          if (match.default_pcs && typeof match.default_pcs === "number") {
+            handleChangePcsCount(match.default_pcs, true);
+          }
         }
         if (match.input_type) {
           setMachineInputTypes((prev) => ({
             ...prev,
-            [watchNomorMc.trim().toUpperCase()]: match.input_type === "METER" ? "METER" : "PANEL",
+            [currentMc]: match.input_type === "METER" ? "METER" : "PANEL",
           }));
         }
       }

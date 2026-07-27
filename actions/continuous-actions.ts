@@ -15,28 +15,40 @@ async function resolveAutomaticMeterStart(input: {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("production_headers")
-    .select("meter_akhir, tanggal_potong, tanggal_jam, panel_no")
-    .eq("nomor_mc", input.nomorMc)
+    .select("meter_akhir, tanggal_potong, tanggal_jam, panel_no, production_details(meter_kain)")
+    .ilike("nomor_mc", input.nomorMc.trim())
     .eq("potongan_ke", potonganKeNum)
-    .not("meter_akhir", "is", null)
     .order("tanggal_jam", { ascending: false })
-    .limit(1);
+    .limit(5);
+
   if (error)
     throw new Error("Gagal mengambil meter start otomatis: " + error.message);
 
-  const lastHeader = data?.[0] as any;
-  if (!lastHeader) return 0;
+  if (!data || data.length === 0) return 0;
 
-  // Jika record terakhir punya tanggal_potong, berarti ada potong kain (potongan baru)
-  // maka meter start harus 0
-  if (lastHeader.tanggal_potong) {
-    return 0;
+  for (const header of data) {
+    // 1. Cek meter_akhir di header
+    if (header.meter_akhir !== null && header.meter_akhir !== undefined) {
+      const lastFinish = parseFloat(header.meter_akhir as any);
+      if (Number.isFinite(lastFinish) && lastFinish > 0) return lastFinish;
+    }
+
+    // 2. Cek meter_kain dari detail
+    const detailMeters = header.production_details || [];
+    for (const d of detailMeters) {
+      if (d.meter_kain !== null && d.meter_kain !== undefined) {
+        const m = parseFloat(d.meter_kain);
+        if (Number.isFinite(m) && m > 0) return m;
+      }
+    }
+
+    // Jika record ini punya tanggal_potong, berarti potongan baru mulai dari 0
+    if (header.tanggal_potong) {
+      return 0;
+    }
   }
 
-  // Jika belum ada potong kain, lanjut potongan yang sama
-  // meter start = meter finish dari shift sebelumnya
-  const lastFinish = parseFloat(lastHeader.meter_akhir as any);
-  return Number.isFinite(lastFinish) ? lastFinish : 0;
+  return 0;
 }
 
 export async function getLastMeterStartByBatch(input: {
@@ -226,16 +238,22 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
               })
             : null);
 
+    const effectiveMeterStart = startMeterInput !== null ? startMeterInput : autoMeterStart;
+
     const totalProduksiMeter =
-      finishMeterNum !== null && autoMeterStart !== null
-        ? (validated.nomorMc === "T2A" ? autoMeterStart - finishMeterNum : finishMeterNum - autoMeterStart)
+      finishMeterNum !== null && effectiveMeterStart !== null
+        ? (validated.nomorMc === "T2A" ? effectiveMeterStart - finishMeterNum : finishMeterNum - effectiveMeterStart)
         : null;
 
-    if (totalProduksiMeter !== null && totalProduksiMeter < 0) {
+    if (finishMeterNum !== null && effectiveMeterStart !== null) {
       if (validated.nomorMc === "T2A") {
-        throw new Error(`Finish Meter (${finishMeterNum}) tidak boleh lebih besar dari Target (${autoMeterStart}).`);
+        if (finishMeterNum > effectiveMeterStart) {
+          throw new Error(`Finish Meter (${finishMeterNum}m) tidak boleh lebih besar dari Target (${effectiveMeterStart}m).`);
+        }
       } else {
-        throw new Error(`Finish Meter (${finishMeterNum}) tidak boleh lebih kecil dari Start Meter (${autoMeterStart}).`);
+        if (finishMeterNum <= effectiveMeterStart) {
+          throw new Error(`Finish Meter (${finishMeterNum}m) harus lebih besar dari Start Meter (${effectiveMeterStart}m).`);
+        }
       }
     }
 
@@ -420,15 +438,20 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
         kategoriStr = "X";
       }
 
-      let keteranganStr: string | null = null;
-      if (blokStr) {
-        keteranganStr = blokStr;
+      let keteranganStr: string | null = blokStr || null;
+      const hasSpecificEvents = validated.downtimeEvents && validated.downtimeEvents.length > 0;
+      if (!hasSpecificEvents || matchedEvents.length > 0) {
+        if (validated.jenisLaporan === "Mulai Istirahat") {
+          keteranganStr = keteranganStr ? keteranganStr + " [SEBELUM ISTIRAHAT]" : "[SEBELUM ISTIRAHAT]";
+        }
+        if (validated.jenisLaporan === "Selesai Istirahat") {
+          keteranganStr = keteranganStr ? keteranganStr + " [LAPORAN ISTIRAHAT]" : "[LAPORAN ISTIRAHAT]";
+        }
       }
-      if (validated.jenisLaporan === "Mulai Istirahat") {
-        keteranganStr = keteranganStr ? keteranganStr + " [SEBELUM ISTIRAHAT]" : "[SEBELUM ISTIRAHAT]";
-      }
-      if (validated.jenisLaporan === "Selesai Istirahat") {
-        keteranganStr = keteranganStr ? keteranganStr + " [LAPORAN ISTIRAHAT]" : "[LAPORAN ISTIRAHAT]";
+
+      let meterKainVal = pcsItem.meterKain || null;
+      if (!meterKainVal && !hasSpecificEvents && (validated.jenisLaporan === "Mulai Istirahat" || validated.jenisLaporan === "Selesai Istirahat")) {
+        meterKainVal = pcsDataToProcess[0]?.meterKain || (finishMeterNum !== null ? String(finishMeterNum) : null);
       }
 
       return {
@@ -441,7 +464,7 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
         detail_masalah: detailStr,
         spesifik_masalah: null,
         keterangan_cacat: keteranganStr,
-        meter_kain: pcsItem.meterKain || null,
+        meter_kain: meterKainVal,
         roll_no: pcsItem.rollNo || null,
       };
     });
@@ -449,9 +472,8 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
     // Filter out completely empty rows (no yield and no problems) to prevent cluttering the database and QC table
     const finalDetailData = detailData.filter(d => {
       if (d.jml_hasil_produksi > 0) return true;
-      if (d.kategori_masalah || d.detail_masalah || d.keterangan_cacat || d.indikator_stop || d.meter_kain) return true;
-      // Untuk mesin METERAN (di mana operator mengisi meterAkhir), kita HARUS menyimpan semua baris PCS
-      // (termasuk PCS 2, 3 dst) agar laporan meteran (seperti 70m-100m) tersimpan untuk setiap roll.
+      if (d.kategori_masalah || d.detail_masalah || d.indikator_stop) return true;
+      if (d.keterangan_cacat && (d.keterangan_cacat.includes("ISTIRAHAT"))) return true;
       if (validated.meterAkhir) return true;
       return false;
     });

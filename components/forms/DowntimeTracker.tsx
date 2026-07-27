@@ -363,12 +363,26 @@ export default function DowntimeTracker({
     }
   }, [isTimerRunning, onRegisterTimerControls]);
 
+  const [showCancelTimerConfirmModal, setShowCancelTimerConfirmModal] = useState(false);
+
   const handleStartTimer = (source?: any) => {
     if (isTimerRunning) return;
     const now = Date.now();
     setIsTimerRunning(true);
     setTimerStartRef(now);
     localStorage.setItem("dji_active_downtime_start", now.toString());
+  };
+
+  const handleCancelTimer = () => {
+    setShowCancelTimerConfirmModal(true);
+  };
+
+  const executeCancelTimer = () => {
+    setIsTimerRunning(false);
+    setTimerStartRef(null);
+    setLiveTimerSeconds(0);
+    localStorage.removeItem("dji_active_downtime_start");
+    setShowCancelTimerConfirmModal(false);
   };
 
   // Pre-fill meter input when the modal opens and defaultMeter is provided
@@ -426,9 +440,7 @@ export default function DowntimeTracker({
         duration = Math.max(0, Math.floor((Date.now() - parseInt(savedStart)) / 1000));
       }
     }
-    setIsTimerRunning(false);
-    setTimerStartRef(null);
-    localStorage.removeItem("dji_active_downtime_start");
+    // Catatan: Timer TETAP BERJALAN di background (seperti Block Mesin) sampai masalah benar-benar disimpan atau dibatalkan.
     setIsUnblockingBlock(false);
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
@@ -841,10 +853,20 @@ export default function DowntimeTracker({
             <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100">
               <Timer className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-slate-800">
                 Downtime
               </h3>
+              {isTimerRunning && (
+                <button
+                  type="button"
+                  onClick={handleCancelTimer}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold text-[11px] transition-all flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200/60 cursor-pointer ml-1 animate-fadeIn"
+                >
+                  <X className="w-3.5 h-3.5 shrink-0" />
+                  <span>Batalkan Timer</span>
+                </button>
+              )}
             </div>
           </div>
           <div className="text-right">
@@ -1141,10 +1163,14 @@ export default function DowntimeTracker({
                           {showMeterInput && isSelected && (
                             <input
                               type="text"
+                              inputMode="decimal"
                               value={inputMeters[pcsKey] || ""}
-                              onChange={(e) => setInputMeters(prev => ({ ...prev, [pcsKey]: e.target.value }))}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+                                setInputMeters(prev => ({ ...prev, [pcsKey]: val }));
+                              }}
                               placeholder="Meter..."
-                              className="w-full h-8 px-2 text-center rounded-lg border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-[10px] font-bold text-slate-700 bg-emerald-50 animate-fadeIn"
+                              className="w-full h-8 px-2 text-center rounded-lg border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-[10px] font-bold text-slate-700 bg-emerald-50 animate-fadeIn font-mono"
                             />
                           )}
                         </div>
@@ -1505,6 +1531,44 @@ export default function DowntimeTracker({
                 >
                   <X className="w-4 h-4" />
                   <span>Ya, Batalkan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Batalkan Timer Downtime */}
+      {showCancelTimerConfirmModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-red-100 overflow-hidden">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-800 uppercase tracking-wide">
+                  Batalkan Timer Downtime?
+                </h3>
+                <p className="text-xs font-medium text-slate-500 mt-2 leading-relaxed">
+                  Apakah Anda yakin ingin membatalkan timer perbaikan ini? Waktu terhitung (<strong className="text-red-600 font-mono">{formatTimer(liveTimerSeconds)}</strong>) akan direset dan <span className="underline decoration-red-400">tidak akan disimpan</span>.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCancelTimerConfirmModal(false)}
+                  className="h-11 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Tidak, Lanjutkan
+                </button>
+                <button
+                  type="button"
+                  onClick={executeCancelTimer}
+                  className="h-11 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs transition-all shadow-md shadow-red-600/20 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Ya, Batalkan Timer</span>
                 </button>
               </div>
             </div>
