@@ -173,16 +173,16 @@ export default function ProductionHeaderModal({
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">RPM</label>
-                <input type="text" {...register("rpm")} className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all uppercase" />
+                <input type="number" inputMode="numeric" onWheel={(e) => (e.target as HTMLElement).blur()} {...register("rpm")} placeholder="Misal: 540" className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Pick</label>
-                  <input type="text" {...register("pick")} className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all uppercase" />
+                  <input type="number" inputMode="numeric" onWheel={(e) => (e.target as HTMLElement).blur()} {...register("pick")} placeholder="Misal: 16" className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all" />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Course</label>
-                  <input type="text" {...register("course")} className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all uppercase" />
+                  <input type="number" inputMode="numeric" onWheel={(e) => (e.target as HTMLElement).blur()} {...register("course")} placeholder="Misal: 546" className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -192,7 +192,7 @@ export default function ProductionHeaderModal({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">No. Customer</label>
-                  <input type="text" {...register("noCustomer")} placeholder="Customer..." className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all uppercase" />
+                  <input type="number" inputMode="numeric" onWheel={(e) => (e.target as HTMLElement).blur()} {...register("noCustomer")} placeholder="Customer..." className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all" />
                 </div>
               </div>
             </div>
@@ -203,7 +203,7 @@ export default function ProductionHeaderModal({
                 <label className={`text-[10px] font-black uppercase tracking-wider ${highlightPotonganKe ? 'text-amber-800' : 'text-sky-700'}`}>
                   Potongan Ke * {highlightPotonganKe && <span className="text-emerald-600 ml-1 animate-pulse">(+1 Otomatis Karena Potong Kain)</span>}
                 </label>
-                <input type="text" {...register("potonganKe")} className={`h-11 px-4 rounded-xl bg-white border text-sm font-black focus:ring-4 outline-none shadow-sm transition-all placeholder:font-medium ${highlightPotonganKe ? 'border-amber-400 text-amber-900 focus:border-amber-500 focus:ring-amber-400/20' : 'border-sky-300 text-sky-900 focus:border-sky-500 focus:ring-sky-400/20'}`} placeholder="Misal: 288 (Wajib diisi)" />
+                <input type="number" inputMode="numeric" onWheel={(e) => (e.target as HTMLElement).blur()} {...register("potonganKe")} className={`h-11 px-4 rounded-xl bg-white border text-sm font-black focus:ring-4 outline-none shadow-sm transition-all placeholder:font-medium ${highlightPotonganKe ? 'border-amber-400 text-amber-900 focus:border-amber-500 focus:ring-amber-400/20' : 'border-sky-300 text-sky-900 focus:border-sky-500 focus:ring-sky-400/20'}`} placeholder="Misal: 288 (Wajib diisi)" />
                 {errors.potonganKe && <span className="text-red-500 text-[10px] font-bold mt-1">{errors.potonganKe.message as string}</span>}
               </div>
 
