@@ -406,6 +406,7 @@ export default function DowntimeTracker({
     setIsTimerRunning(false);
     setTimerStartRef(null);
     setLiveTimerSeconds(0);
+    setTempDuration(0);
     localStorage.removeItem("dji_active_downtime_start");
     setShowCancelTimerConfirmModal(false);
   };
@@ -513,8 +514,20 @@ export default function DowntimeTracker({
       }
     }
 
-    // Set duration AFTER all state resets so it doesn't get wiped
-    setTempDuration(duration);
+    // Calculate cumulative duration: if modal is already open/active with previous un-saved downtime,
+    // accumulate new duration segment on top of tempDuration so previous downtime is NEVER overwritten!
+    setTempDuration((prevDuration) => {
+      if (prevDuration > 0) {
+        // If duration was calculated from original start, it will be >= prevDuration
+        if (duration >= prevDuration) {
+          return duration;
+        }
+        // Otherwise add the new segment duration to previous accumulated duration
+        return prevDuration + duration;
+      }
+      return duration;
+    });
+
     setShowModal(true);
   };
 
@@ -691,6 +704,7 @@ export default function DowntimeTracker({
     setIsTimerRunning(false);
     setTimerStartRef(null);
     setLiveTimerSeconds(0);
+    setTempDuration(0);
     localStorage.removeItem("dji_active_downtime_start");
     setIsUnblockingBlock(false);
     setDikerjakanOleh("Operator");
