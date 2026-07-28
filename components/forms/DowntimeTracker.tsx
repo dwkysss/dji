@@ -346,6 +346,15 @@ export default function DowntimeTracker({
     : ["1"];
   const pcsCount = pcsKeys.length;
 
+  const hasMissingMeter = Boolean(
+    showMeterInput &&
+    dikerjakanOleh === "Operator" &&
+    !isUnblockingBlock &&
+    (pcsKeys.length === 1
+      ? (!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "")
+      : (selectedPcsKeList.length > 0 && selectedPcsKeList.some((k) => !inputMeters[k] || inputMeters[k].trim() === "")))
+  );
+
   useEffect(() => {
     // 1. Recover saved timer if it exists (for long downtimes)
     const savedStart = localStorage.getItem("dji_active_downtime_start");
@@ -420,6 +429,7 @@ export default function DowntimeTracker({
       });
     }
   }, [showModal, defaultMeter, pcsKeys.join(",")]);
+
   const handleOpenModal = () => {
     setTempDuration(0);
     setSelectedCategories([]);
@@ -503,6 +513,7 @@ export default function DowntimeTracker({
   const handleSaveEvent = async () => {
     if (selectedCategories.length === 0) return;
     if (dikerjakanOleh === "Operator" && selectedPcsKeList.length === 0) return;
+    if (hasMissingMeter) return;
 
     // Validate mandatory block number
     for (const catId of selectedCategories) {
@@ -699,7 +710,7 @@ export default function DowntimeTracker({
   };
 
   return (
-    <div className={showMeterInput ? "grid grid-cols-1 sm:grid-cols-2 gap-4 items-start" : "flex flex-col space-y-4 h-full justify-between"}>
+    <div className={showMeterInput ? "grid grid-cols-1 sm:grid-cols-2 gap-4 items-start" : "flex flex-col gap-3 sm:gap-4 lg:gap-5 w-full self-start"}>
       {/* 1. SEKSI BLOCK MESIN & BLUETOOTH TRIGGER */}
       <div className="flex flex-col gap-4 w-full">
         {!activeBlock ? (
@@ -1150,6 +1161,7 @@ export default function DowntimeTracker({
                     }`}>
                     {pcsKeys.map((pcsKey) => {
                       const isSelected = selectedPcsKeList.includes(pcsKey);
+                      const isMeterEmpty = isSelected && showMeterInput && (!inputMeters[pcsKey] || inputMeters[pcsKey].trim() === "");
                       return (
                         <div key={pcsKey} className="flex flex-col gap-1.5 w-full">
                           <button
@@ -1186,37 +1198,62 @@ export default function DowntimeTracker({
                                 setInputMeters(prev => ({ ...prev, [pcsKey]: val }));
                               }}
                               placeholder="Meter..."
-                              className="w-full h-8 px-2 text-center rounded-lg border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-[10px] font-bold text-slate-700 bg-emerald-50 animate-fadeIn font-mono"
+                              className={`w-full h-8 px-2 text-center rounded-lg border text-[10px] font-bold font-mono transition-all animate-fadeIn ${
+                                isMeterEmpty
+                                  ? "border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500 text-rose-700 bg-rose-50 placeholder:text-rose-300"
+                                  : "border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-emerald-50"
+                              }`}
                             />
                           )}
                         </div>
                       );
                     })}
                   </div>
-                  {selectedPcsKeList.length === 0 && (
+                  {selectedPcsKeList.length === 0 ? (
                     <p className="text-[10px] text-red-500 font-bold mt-2 animate-pulse">
                       * Wajib memilih minimal 1 PCS yang bermasalah!
                     </p>
-                  )}
+                  ) : showMeterInput && selectedPcsKeList.some((k) => !inputMeters[k] || inputMeters[k].trim() === "") ? (
+                    <p className="text-[10px] text-rose-600 font-bold mt-2 animate-pulse flex items-center gap-1">
+                      ⚠️ Wajib mengisi nilai meter untuk setiap PCS yang dipilih!
+                    </p>
+                  ) : null}
                 </div>
               )}
 
               {dikerjakanOleh === "Operator" && !isUnblockingBlock && showMeterInput && pcsKeys.length === 1 && (
-                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200/60 shadow-sm animate-fadeIn">
-                  <label className="text-[10px] font-black text-emerald-800 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
-                    <Box className="w-4 h-4" />
-                    Posisi Letak Meter (Wajib Diisi)
+                <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn ${
+                  !inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
+                    ? "bg-rose-50/70 border-rose-300"
+                    : "bg-emerald-50 border-emerald-200/60"
+                }`}>
+                  <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
+                    <Box className="w-4 h-4 text-emerald-600" />
+                    Posisi Letak Meter <span className="text-rose-500 font-black">* (Wajib Diisi)</span>
                   </label>
-                  <p className="text-[9px] text-emerald-600/80 font-semibold mb-3">
+                  <p className="text-[9px] text-slate-500 font-semibold mb-3">
                     Isi dengan angka desimal, misal 15.5 atau 20
                   </p>
                   <input
                     type="text"
+                    inputMode="decimal"
                     value={inputMeters[pcsKeys[0]] || ""}
-                    onChange={(e) => setInputMeters(prev => ({ ...prev, [pcsKeys[0]]: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+                      setInputMeters(prev => ({ ...prev, [pcsKeys[0]]: val }));
+                    }}
                     placeholder="Contoh: 15.5"
-                    className="w-full h-11 px-4 rounded-xl border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-slate-700 placeholder:font-medium placeholder:text-slate-400 bg-white shadow-inner transition-all"
+                    className={`w-full h-11 px-4 rounded-xl border focus:outline-none focus:ring-2 text-sm font-bold text-slate-700 placeholder:font-medium placeholder:text-slate-400 bg-white shadow-inner transition-all ${
+                      !inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
+                        ? "border-rose-400 focus:ring-rose-500"
+                        : "border-emerald-300 focus:ring-emerald-500"
+                    }`}
                   />
+                  {(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (
+                    <p className="text-[10px] font-bold text-rose-600 mt-2 flex items-center gap-1 animate-pulse">
+                      ⚠️ Nilai meter wajib diisi sebelum menyimpan downtime!
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1362,7 +1399,8 @@ export default function DowntimeTracker({
                 disabled={
                   selectedCategories.length === 0 ||
                   selectedCategories.some(cat => !selectedDetails[cat] || selectedDetails[cat].length === 0) ||
-                  (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0)
+                  (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) ||
+                  hasMissingMeter
                 }
                 className="flex-[2] h-12 bg-sky-500 text-white font-bold rounded-xl hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >

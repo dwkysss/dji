@@ -1013,3 +1013,78 @@ export async function updateContinuousReport(
     };
   }
 }
+
+export async function getRecentShiftInputHistory(
+  nomorMc?: string,
+  limitCount: number = 25,
+  panelType?: "METERAN" | "PANEL" | "ALL",
+  potonganKe?: string | number
+): Promise<{
+  success: boolean;
+  data: any[];
+  error?: string;
+}> {
+  try {
+    const supabase = await createAdminClient();
+    let query = supabase
+      .from("production_headers")
+      .select(`
+        id,
+        tgl,
+        tanggal_jam,
+        nomor_mc,
+        group_id,
+        design_id,
+        course,
+        rpm,
+        panel_no,
+        potongan_ke,
+        pcs,
+        tanggal_potong,
+        meter_awal,
+        meter_akhir,
+        total_produksi_meter,
+        total_downtime_detik,
+        created_by_name,
+        pic,
+        operator_backup,
+        operators (id, nama_operator),
+        groups (id, nama_grup),
+        downtime_events,
+        production_details (*)
+      `)
+      .order("tanggal_jam", { ascending: false })
+      .limit(limitCount);
+
+    if (panelType === "METERAN") {
+      query = query.eq("panel_no", "METERAN");
+    } else if (panelType === "PANEL") {
+      query = query.or("panel_no.neq.METERAN,panel_no.is.null");
+    }
+
+    if (potonganKe && !isNaN(parseInt(potonganKe.toString()))) {
+      query = query.eq("potongan_ke", parseInt(potonganKe.toString()));
+    }
+
+    if (nomorMc && nomorMc.trim() !== "") {
+      const cleanMc = nomorMc.trim();
+      const numOnly = cleanMc.replace(/[^0-9]/g, "");
+      if (numOnly) {
+        query = query.or(`nomor_mc.ilike.*${cleanMc}*,nomor_mc.eq.${numOnly},nomor_mc.eq.R${numOnly},nomor_mc.eq.R0${numOnly}`);
+      } else {
+        query = query.ilike("nomor_mc", `%${cleanMc}%`);
+      }
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("Error fetching shift input history:", error);
+      return { success: false, data: [], error: error.message };
+    }
+
+    return { success: true, data: data || [] };
+  } catch (err: any) {
+    console.error("Failed to get shift input history:", err);
+    return { success: false, data: [], error: err.message };
+  }
+}

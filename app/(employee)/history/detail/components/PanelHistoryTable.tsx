@@ -437,8 +437,16 @@ export default function PanelHistoryTable({
               masalahLines.push(`QC: ${detail.keterangan_qc}`);
             }
 
-            if (hasIstirahat && itemHeader?.operator_backup) {
-              backupOpName = itemHeader.operator_backup;
+            if (hasIstirahat) {
+              if (itemHeader?.operator_backup) {
+                backupOpName = itemHeader.operator_backup;
+              } else {
+                const searchStr = `${itemHeader?.pic || ""} ${itemHeader?.jenis_laporan || ""} ${detail?.keterangan_cacat || ""} ${detail?.detail_masalah || ""}`;
+                const match = searchStr.match(/Backup:\s*([^)\],]+)/i);
+                if (match && match[1]) {
+                  backupOpName = match[1].trim();
+                }
+              }
             }
           }
           
@@ -459,8 +467,8 @@ export default function PanelHistoryTable({
               <td className={`px-1 py-1 font-medium text-center text-slate-700 border-r border-slate-100`}>
                 {displayGrp}
               </td>
-              <td className={`px-1 py-1 leading-tight text-slate-700 border-r border-slate-100 ${hasIstirahat && !item.showOpr ? "italic font-bold text-slate-500" : "font-medium"}`}>
-                {item.showOpr ? (item.oprStr || "-") : (hasIstirahat ? "Istirahat" : "")}
+              <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${hasIstirahat ? "italic font-bold text-amber-700" : "font-medium text-slate-700"}`}>
+                {hasIstirahat ? "Istirahat" : (item.showOpr ? (item.oprStr || "-") : "")}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100">
                 {isIstirahatOnly ? (

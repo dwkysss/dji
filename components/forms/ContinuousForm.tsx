@@ -16,6 +16,7 @@ import { getProductionPlan } from "@/actions/plan-actions";
 import { getMachineConfigs } from "@/actions/machine-config-actions";
 import { getOperatorsList } from "@/actions/operator-actions";
 import { createClient } from "@/lib/supabase/client";
+import ContinuousHistoryDrawer from "./ContinuousHistoryDrawer";
 import {
   AlertCircle,
   RefreshCw,
@@ -28,6 +29,7 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  History,
   CheckCircle2,
   Save,
   Plus,
@@ -447,6 +449,7 @@ export default function ContinuousForm({
     after: string | null;
   }>({ before: null, after: null });
   const [isMeterAwalLocked, setIsMeterAwalLocked] = useState(true);
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [originalT2ATarget, setOriginalT2ATarget] = useState<number | null>(
     null,
   );
@@ -1662,13 +1665,24 @@ export default function ContinuousForm({
         </div>
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-slate-100 pb-4 mb-6 gap-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">
-              Form Input Produksi (Meteran)
-            </h3>
-            <p className="text-xs text-slate-400 font-normal mt-1">
-              Data Header akan otomatis tersimpan untuk roll/meteran berikutnya.
-            </p>
+          <div className="flex items-center justify-between w-full sm:w-auto gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Form Input Produksi (Meteran)
+              </h3>
+              <p className="text-xs text-slate-400 font-normal mt-1">
+                Data Header akan otomatis tersimpan untuk roll/meteran berikutnya.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsHistoryDrawerOpen(true)}
+              className="px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 text-xs font-black shadow-md shadow-amber-200 transition-all flex items-center gap-2 cursor-pointer shrink-0"
+            >
+              <History className="w-4 h-4 stroke-[2.5]" />
+              <span>Riwayat Shift Ini</span>
+            </button>
           </div>
 
           {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "PANEL" && (
@@ -2737,6 +2751,14 @@ export default function ContinuousForm({
             </div>
           </div>
         )}
+
+        {/* SLIDE-OVER DRAWER RIWAYAT SHIFT */}
+        <ContinuousHistoryDrawer
+          isOpen={isHistoryDrawerOpen}
+          onClose={() => setIsHistoryDrawerOpen(false)}
+          currentNomorMc={watch("nomorMc")}
+          currentPotonganKe={watch("potonganKe")}
+        />
       </div>
     </div>
   );

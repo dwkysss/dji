@@ -42,12 +42,14 @@ import {
   Lock,
   AlertTriangle,
   Hash,
+  History,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import HeaderSummaryCard from "./HeaderSummaryCard";
 import ProductionHeaderModal from "./ProductionHeaderModal";
 import DowntimeTracker from "./DowntimeTracker";
 import BluetoothDowntimeTrigger from "./BluetoothDowntimeTrigger";
+import ContinuousHistoryDrawer from "./ContinuousHistoryDrawer";
 
 // DATA FALLBACK DARI EXCEL
 const FALLBACK_OPERATORS = [
@@ -538,6 +540,8 @@ export default function EmployeeForm({
     setIsTourOpen(false);
     setTourStepIndex(0);
   };
+
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
 
 
   // Hubungkan ke Supabase secara dinamis
@@ -1317,13 +1321,23 @@ export default function EmployeeForm({
         </div>
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-slate-100 pb-4 mb-6 gap-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">
-              Form Input Produksi
-            </h3>
-            <p className="text-xs text-slate-400 font-normal mt-1">
-              Data Header akan otomatis tersimpan untuk panel berikutnya.
-            </p>
+          <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Form Input Produksi (Jenis Panel)
+              </h3>
+              <p className="text-xs text-slate-400 font-normal mt-1">
+                Data Header akan otomatis tersimpan untuk panel berikutnya.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsHistoryDrawerOpen(true)}
+              className="px-3.5 py-2 rounded-2xl bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 text-xs font-black shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <History className="w-4 h-4 stroke-[2.5]" />
+              <span>Riwayat Shift Ini</span>
+            </button>
           </div>
 
           {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "METER" && (
@@ -1415,8 +1429,8 @@ export default function EmployeeForm({
               </div>
 
               {/* Kolom Kanan: Downtime Tracker */}
-              <div className="flex flex-col w-full h-full">
-                <div data-tour="downtime" className="w-full h-full">
+              <div className="flex flex-col w-full self-start">
+                <div data-tour="downtime" className="w-full">
                   <input type="hidden" {...register("totalDowntime")} />
                   <DowntimeTracker
                     control={control}
@@ -2003,6 +2017,12 @@ export default function EmployeeForm({
           </div>
         )}
 
+        <ContinuousHistoryDrawer
+          isOpen={isHistoryDrawerOpen}
+          onClose={() => setIsHistoryDrawerOpen(false)}
+          currentNomorMc={watch("nomorMc")}
+          currentPotonganKe={watch("potonganKe")}
+        />
       </div>
     </div>
   );

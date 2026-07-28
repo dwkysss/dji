@@ -424,8 +424,9 @@ export default function MeterHistoryTable({
       if (hasIstirahat) {
         if (backupOp) {
           backupOpName = backupOp;
-        } else if (item.keterangan_cacat) {
-          const match = item.keterangan_cacat.match(/\(Backup:\s*([^)]+)\)/i);
+        } else {
+          const searchStr = `${h.operator_backup || ""} ${h.pic || ""} ${h.jenis_laporan || ""} ${item.keterangan_cacat || ""} ${item.detail_masalah || ""}`;
+          const match = searchStr.match(/Backup:\s*([^)\],]+)/i);
           if (match && match[1]) {
             backupOpName = match[1].trim();
           }
@@ -628,7 +629,7 @@ export default function MeterHistoryTable({
               <td className={`px-1 py-1.5 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100 font-medium text-slate-700`}>
                 {item.grpStr || (item.showGrp ? item.grpStr : "")}
               </td>
-              <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? "italic font-bold text-slate-500" : "font-medium text-slate-700"}`}>
+              <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? "italic font-bold text-amber-700" : "font-medium text-slate-700"}`}>
                 {item.hasIstirahat ? "Istirahat" : (item.showOpr ? item.oprStr : "")}
               </td>
               <td className="px-1 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100 border-b border-slate-100">
