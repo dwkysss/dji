@@ -388,7 +388,10 @@ export default function DowntimeTracker({
   const [showCancelTimerConfirmModal, setShowCancelTimerConfirmModal] = useState(false);
 
   const handleStartTimer = (source?: any) => {
-    if (isTimerRunning) return;
+    if (isTimerRunning && timerStartRef) {
+      console.log("[DowntimeTracker] Mesin mati kembali sebelum masalah disimpan. Akumulasi durasi perbaikan dilanjutkan.");
+      return;
+    }
     const now = Date.now();
     setIsTimerRunning(true);
     setTimerStartRef(now);
@@ -452,7 +455,6 @@ export default function DowntimeTracker({
     setShowModal(true);
   };
 
-
   const handleStopTimer = (source?: any) => {
     let duration = 0;
     if (timerStartRef) {
@@ -462,6 +464,13 @@ export default function DowntimeTracker({
       if (savedStart) {
         duration = Math.max(0, Math.floor((Date.now() - parseInt(savedStart)) / 1000));
       }
+    }
+
+    // Threshold 10-Second Filter: Ignore brief test spins / pulses (< 10s) from automatic trigger
+    const srcStr = typeof source === "string" ? source : "";
+    if (duration < 10 && (srcStr.includes("ESP32") || srcStr.includes("BLE"))) {
+      console.log(`[DowntimeTracker] Mesin nyala singkat (${duration}s < 10s). Timer dilanjutkan tanpa di-reset.`);
+      return;
     }
     // Catatan: Timer TETAP BERJALAN di background (seperti Block Mesin) sampai masalah benar-benar disimpan atau dibatalkan.
     setIsUnblockingBlock(false);

@@ -132,11 +132,11 @@ export default function BluetoothDowntimeTrigger({
 
       if (valueStr === "START") {
         setSensorState("MATI");
-        addLog("START", 'Sinyal BLE: "START" (Relay LOW / Mesin Mati) -> Memulai Timer Downtime');
+        addLog("START", 'Sinyal BLE: "START" (Relay LOW / Mesin Mati) -> Memulai / Melanjutkan Akumulasi Timer Downtime');
         onStartTimer("ESP32 BLE (Relay Mesin Mati)");
       } else if (valueStr === "STOP") {
         setSensorState("NYALA");
-        addLog("STOP", 'Sinyal BLE: "STOP" (Relay HIGH / Mesin Nyala) -> Menghentikan Timer & Buka Pop-up Kendala');
+        addLog("STOP", 'Sinyal BLE: "STOP" (Relay HIGH / Mesin Nyala) -> Evaluasi Nyala (Threshold 10s) & Buka Pop-up Kendala');
         onStopTimer("ESP32 BLE (Relay Mesin Nyala)");
       } else {
         addLog("INFO", `Data BLE diterima: "${valueStr}"`);
