@@ -388,10 +388,6 @@ export default function DowntimeTracker({
   const [showCancelTimerConfirmModal, setShowCancelTimerConfirmModal] = useState(false);
 
   const handleStartTimer = (source?: any) => {
-    if (isTimerRunning && timerStartRef) {
-      console.log("[DowntimeTracker] Mesin mati kembali sebelum masalah disimpan. Akumulasi durasi perbaikan dilanjutkan.");
-      return;
-    }
     const now = Date.now();
     setIsTimerRunning(true);
     setTimerStartRef(now);
@@ -467,13 +463,11 @@ export default function DowntimeTracker({
       }
     }
 
-    // Threshold 10-Second Filter: Ignore brief test spins / pulses (< 10s) from automatic trigger
-    const srcStr = typeof source === "string" ? source : "";
-    if (duration < 10 && (srcStr.includes("ESP32") || srcStr.includes("BLE"))) {
-      console.log(`[DowntimeTracker] Mesin nyala singkat (${duration}s < 10s). Timer dilanjutkan tanpa di-reset.`);
-      return;
-    }
-    // Catatan: Timer TETAP BERJALAN di background (seperti Block Mesin) sampai masalah benar-benar disimpan atau dibatalkan.
+    // Reset timer start reference so current segment is finished
+    setIsTimerRunning(false);
+    setTimerStartRef(null);
+    localStorage.removeItem("dji_active_downtime_start");
+
     setIsUnblockingBlock(false);
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
@@ -499,8 +493,8 @@ export default function DowntimeTracker({
       } else {
         setSelectedPcsKeList([]);
       }
-    } else {
-      // Reset modal state WITHOUT resetting tempDuration (duration was just captured above)
+    } else if (!showModal) {
+      // Reset modal selection state ONLY if modal was not already open
       setSelectedCategories([]);
       setSelectedDetails({});
       setInputBloks({});
@@ -514,20 +508,8 @@ export default function DowntimeTracker({
       }
     }
 
-    // Calculate cumulative duration: if modal is already open/active with previous un-saved downtime,
-    // accumulate new duration segment on top of tempDuration so previous downtime is NEVER overwritten!
-    setTempDuration((prevDuration) => {
-      if (prevDuration > 0) {
-        // If duration was calculated from original start, it will be >= prevDuration
-        if (duration >= prevDuration) {
-          return duration;
-        }
-        // Otherwise add the new segment duration to previous accumulated duration
-        return prevDuration + duration;
-      }
-      return duration;
-    });
-
+    // Add duration of current stop pulse directly to previous accumulated tempDuration
+    setTempDuration((prevDuration) => Math.max(1, prevDuration + duration));
     setShowModal(true);
   };
 
