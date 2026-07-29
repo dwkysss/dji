@@ -44,7 +44,16 @@ const buildCacatText = (item: any): string => {
     });
   } else {
     const k = item.kategori_masalah || ""; const d = item.detail_masalah || "";
-    if (k && d) lines.push(`${k} - ${d}`); else if (k) lines.push(k); else if (d) lines.push(d);
+    let line = k && d ? `${k} - ${d}` : (k || d);
+    let ketCacat = (item.keterangan_cacat || "").replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
+    if (ketCacat) {
+      const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
+      if (cleanB) {
+        if (line) line += ` (Blok ${cleanB})`;
+        else line = `(Blok ${cleanB})`;
+      }
+    }
+    if (line) lines.push(line);
   }
   return lines.length > 0 ? lines.join("; ") : "-";
 };

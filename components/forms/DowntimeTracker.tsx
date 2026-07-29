@@ -6,6 +6,7 @@ import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2,
 import { ContinuousFormInput } from "@/lib/schemas";
 import { submitMechanicDowntime } from "@/actions/mechanic-actions";
 import { getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
+import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import BluetoothDowntimeTrigger from "./BluetoothDowntimeTrigger";
 
 const PROBLEM_CATEGORIES = [
@@ -154,6 +155,7 @@ export default function DowntimeTracker({
   const [dynamicProblemDetails, setDynamicProblemDetails] = useState<Record<string, string[]>>(PROBLEM_DETAILS);
 
   useEffect(() => {
+    if (!showModal) return;
     getProblemDetailsGrouped().then((res) => {
       if (res.success && res.grouped && Object.keys(res.grouped).length > 0) {
         setDynamicProblemDetails((prev) => ({
@@ -162,10 +164,10 @@ export default function DowntimeTracker({
         }));
       }
     });
-  }, []);
+  }, [showModal]);
 
   useEffect(() => {
-    const loadRequiredDefects = () => {
+    const loadRequiredDefects = async () => {
       try {
         const saved = localStorage.getItem("dji_required_block_defects");
         if (saved) {
@@ -175,6 +177,16 @@ export default function DowntimeTracker({
           }
         }
       } catch (e) { }
+
+      try {
+        const res = await getBlockRequiredDefects();
+        if (res.success && res.data && Array.isArray(res.data) && res.data.length > 0) {
+          setRequiredBlockDefects(res.data);
+          try {
+            localStorage.setItem("dji_required_block_defects", JSON.stringify(res.data));
+          } catch (e) {}
+        }
+      } catch (e) {}
     };
 
     loadRequiredDefects();

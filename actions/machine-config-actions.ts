@@ -40,7 +40,7 @@ export async function getMachineConfigs(): Promise<{ success: boolean; data: Mac
     const configMap = new Map<string, { rawName: string; pcs: number; input_type?: "PANEL" | "METER" }>();
     if (data && Array.isArray(data)) {
       data.forEach((item: any) => {
-        if (item.nomor_mc) {
+        if (item.nomor_mc && !String(item.nomor_mc).startsWith("REQUIRED_BLOCK:")) {
           const rawName = String(item.nomor_mc).trim();
           configMap.set(rawName.toUpperCase(), {
             rawName,
@@ -136,23 +136,32 @@ export async function upsertAllMachineConfigs(configs: MachineConfig[]) {
 export async function getBlockRequiredDefects(): Promise<{ success: boolean; data: string[] }> {
   try {
     const supabase = await createClient();
-    const { data } = await supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", "required_block_defects")
-      .single();
+    const { data, error } = await supabase
+      .from("machine_configs")
+      .select("nomor_mc")
+      .like("nomor_mc", "REQUIRED_BLOCK:%");
 
-    if (data && data.value && Array.isArray(data.value)) {
-      return { success: true, data: data.value };
+    if (!error && data && Array.isArray(data) && data.length > 0) {
+      const list = data.map((r: any) => String(r.nomor_mc).replace("REQUIRED_BLOCK:", ""));
+      return { success: true, data: list };
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("Error in getBlockRequiredDefects:", e);
+  }
 
   const defaultList = [
-    "L1/L2/L3 Benang timbul putus",
+    "L1 Benang timbul putus",
+    "L2 Benang timbul putus",
+    "L3 Benang timbul putus",
     "Benang lolos",
     "Bolong corak",
     "Jarum pattern patah/bengkok",
-    "Ganti Jacquard",
+    "Keluar Jarum",
+    "Error design",
+    "Error Servo Drive",
+    "Sensor Benang/Laser Stop",
+    "Ganti motor servo",
+    "Konsleting",
   ];
   return { success: true, data: defaultList };
 }
@@ -160,16 +169,36 @@ export async function getBlockRequiredDefects(): Promise<{ success: boolean; dat
 export async function saveBlockRequiredDefects(defects: string[]) {
   try {
     const supabase = await createClient();
-    const payload = {
-      key: "required_block_defects",
-      value: defects,
-      updated_at: new Date().toISOString(),
-    };
 
-    await supabase.from("app_settings").upsert(payload, { onConflict: "key" });
+    // 1. Clear previous REQUIRED_BLOCK rows
+    await supabase
+      .from("machine_configs")
+      .delete()
+      .like("nomor_mc", "REQUIRED_BLOCK:%");
+
+    // 2. Insert new REQUIRED_BLOCK rows
+    if (defects && defects.length > 0) {
+      const payloads = defects.map((d) => ({
+        nomor_mc: `REQUIRED_BLOCK:${d}`,
+        default_pcs: 1,
+        input_type: "REQUIRED",
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error } = await supabase
+        .from("machine_configs")
+        .upsert(payloads, { onConflict: "nomor_mc" });
+
+      if (error) {
+        console.error("Error saving block required defects to DB:", error);
+        return { success: false, error: error.message };
+      }
+    }
+
     return { success: true };
   } catch (err: any) {
-    return { success: true }; // graceful fallback to local storage
+    console.error("Error in saveBlockRequiredDefects:", err);
+    return { success: false, error: err.message };
   }
 }
 

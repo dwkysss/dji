@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import {
   getMachineConfigs,
   upsertAllMachineConfigs,
+  getBlockRequiredDefects,
+  saveBlockRequiredDefects,
   MachineConfig,
 } from "@/actions/machine-config-actions";
 import {
@@ -27,7 +29,9 @@ const FALLBACK_CATEGORIES: Record<string, { desc: string; items: string[] }> = {
   A: {
     desc: "Masalah & Perbaikan Benang",
     items: [
-      "L1/L2/L3 Benang timbul putus",
+      "L1 Benang timbul putus",
+      "L2 Benang timbul putus",
+      "L3 Benang timbul putus",
       "Benang lolos",
       "Bolong corak",
       "Benang narik/Kendor",
@@ -141,9 +145,11 @@ export default function MachineConfigPage() {
       if (catRes.success && catRes.categories && detRes.success && detRes.grouped) {
         const dynamicMap: Record<string, { desc: string; items: string[] }> = {};
         catRes.categories.forEach((cat) => {
+          const dbItems = detRes.grouped[cat.kode];
+          const fallbackItems = FALLBACK_CATEGORIES[cat.kode]?.items || [];
           dynamicMap[cat.kode] = {
             desc: cat.label,
-            items: detRes.grouped[cat.kode] || [],
+            items: dbItems && dbItems.length > 0 ? dbItems : fallbackItems,
           };
         });
         if (Object.keys(dynamicMap).length > 0) {
@@ -151,27 +157,21 @@ export default function MachineConfigPage() {
         }
       }
 
-      // 3. Load Saved Block Defects
-      const savedBlock = localStorage.getItem("dji_required_block_defects");
-      if (savedBlock) {
+      // 3. Load Saved Block Defects from Database (Supabase)
+      const blockRes = await getBlockRequiredDefects();
+      if (blockRes.success && blockRes.data && Array.isArray(blockRes.data)) {
+        setRequiredBlockDefects(blockRes.data);
         try {
-          const parsed = JSON.parse(savedBlock);
-          if (Array.isArray(parsed)) setRequiredBlockDefects(parsed);
+          localStorage.setItem("dji_required_block_defects", JSON.stringify(blockRes.data));
         } catch (e) {}
       } else {
-        // Default required block defects
-        setRequiredBlockDefects([
-          "L1/L2/L3 Benang timbul putus",
-          "Benang lolos",
-          "Bolong corak",
-          "Jarum pattern patah/bengkok",
-          "Keluar Jarum",
-          "Error design",
-          "Error Servo Drive",
-          "Sensor Benang/Laser Stop",
-          "Ganti motor servo",
-          "Konsleting",
-        ]);
+        const savedBlock = localStorage.getItem("dji_required_block_defects");
+        if (savedBlock) {
+          try {
+            const parsed = JSON.parse(savedBlock);
+            if (Array.isArray(parsed)) setRequiredBlockDefects(parsed);
+          } catch (e) {}
+        }
       }
     } catch (err: any) {
       console.error("Failed to load machine config page data:", err);
@@ -213,9 +213,13 @@ export default function MachineConfigPage() {
       localStorage.setItem("dji_required_block_defects", JSON.stringify(requiredBlockDefects));
       window.dispatchEvent(new Event("storage_dji_required_block_defects"));
 
-      const res = await upsertAllMachineConfigs(configs);
-      if (res.success) {
-        setToastMsg({ type: "success", text: "Pengaturan & Aturan Mesin berhasil disimpan!" });
+      const [res, blockSaveRes] = await Promise.all([
+        upsertAllMachineConfigs(configs),
+        saveBlockRequiredDefects(requiredBlockDefects),
+      ]);
+
+      if (res.success && blockSaveRes.success) {
+        setToastMsg({ type: "success", text: "Pengaturan & Aturan Mesin berhasil disimpan ke Database!" });
       } else {
         setToastMsg({ type: "error", text: res.error || "Gagal menyimpan ke database" });
       }
@@ -232,6 +236,14 @@ export default function MachineConfigPage() {
       c.nomor_mc.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [configs, searchQuery]);
+
+  const totalActiveRequiredCount = useMemo(() => {
+    const allCategoryItems = new Set<string>();
+    Object.values(categoriesMap).forEach((group) => {
+      group.items.forEach((item) => allCategoryItems.add(item));
+    });
+    return requiredBlockDefects.filter((d) => allCategoryItems.has(d)).length;
+  }, [categoriesMap, requiredBlockDefects]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -329,7 +341,7 @@ export default function MachineConfigPage() {
               <Box className="w-4 h-4 text-rose-400" />
               <span>Aturan Wajib Nomor Blok</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-900 text-rose-200">
-                {requiredBlockDefects.length} Wajib
+                {totalActiveRequiredCount} Wajib
               </span>
             </button>
           </div>

@@ -16,7 +16,7 @@ import { getProductionPlan } from "@/actions/plan-actions";
 import { getMachineConfigs } from "@/actions/machine-config-actions";
 import { getOperatorsList } from "@/actions/operator-actions";
 import { createClient } from "@/lib/supabase/client";
-import ContinuousHistoryDrawer from "./ContinuousHistoryDrawer";
+
 import {
   AlertCircle,
   RefreshCw,
@@ -48,8 +48,17 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import HeaderSummaryCard from "./HeaderSummaryCard";
-import ProductionHeaderModal from "./ProductionHeaderModal";
+import dynamic from "next/dynamic";
+
+// Dynamic imports: code-split heavy components to reduce initial JS bundle
+const ProductionHeaderModal = dynamic(() => import("./ProductionHeaderModal"), {
+  ssr: false,
+});
 import DowntimeTracker from "./DowntimeTracker";
+const ContinuousHistoryDrawer = dynamic(
+  () => import("./ContinuousHistoryDrawer"),
+  { ssr: false }
+);
 
 // DATA FALLBACK DARI EXCEL
 const FALLBACK_OPERATORS = [
@@ -630,6 +639,7 @@ export default function ContinuousForm({
     trigger,
     formState: { errors },
   } = useForm<ContinuousFormInput>({
+    mode: "onBlur",
     resolver: zodResolver(continuousFormSchema),
     defaultValues: {
       operatorId: "3",
@@ -1095,42 +1105,19 @@ export default function ContinuousForm({
       try {
         const parsed = JSON.parse(savedHeader);
         Object.keys(parsed).forEach((key) => {
-          if (key === "lastRollNo") {
-            const rollVal = parsed[key];
-            if (rollVal) {
-              const currentPcs = [
-                {
-                  pcsIndex: "1",
-                  jmlHasilProduksi: "1",
-                  meterKain: "",
-                  rollNo: rollVal,
-                },
-              ];
-              setValue("pcsData", currentPcs);
-            }
-          } else if (key === "pcsCount") {
-            // Restore the number of PCS rows (with empty meter values)
-            const count = parseInt(parsed[key], 10);
-            if (!isNaN(count) && count > 1) {
-              const restoredPcs = Array.from({ length: count }, (_, i) => ({
-                pcsIndex: (i + 1).toString(),
-                jmlHasilProduksi: "0",
-                meterKain: "",
-                rollNo: "",
-              }));
-              setValue("pcsData", restoredPcs);
-            }
-          } else if (key === "tanggalPotong") {
-            // Hindari tanggal potong lama terbawa ke submit berikutnya.
-            setValue("tanggalPotong", "");
-          } else if (key === "meterAwal") {
-            // Jangan set meterAwal di sini - biarkan watchNomorMc/potonganKe effect fetch dari database
-            // Ini memastikan selalu ambil nilai terbaru dari database sesuai dengan mesin dan potongan
-          } else {
-            setValue(key as keyof ContinuousFormInput, parsed[key]);
+          if (
+            key !== "lastRollNo" &&
+            key !== "pcsCount" &&
+            key !== "tanggalPotong" &&
+            key !== "meterAwal"
+          ) {
+            setValue(key as keyof ContinuousFormInput, parsed[key], {
+              shouldValidate: false,
+              shouldDirty: false,
+            });
           }
         });
-        // Jika ada header yang di-load, tutup modal header
+        setValue("tanggalPotong", "", { shouldValidate: false, shouldDirty: false });
         setIsHeaderModalOpen(false);
       } catch (e) {
         console.error("Gagal load header dari storage", e);
@@ -1626,7 +1613,7 @@ export default function ContinuousForm({
   return (
     <div className="w-full bg-gradient-to-br from-emerald-50/40 via-white to-white border border-[#e9ecef] rounded-[24px] p-6 sm:p-8 shadow-[0_8px_30px_rgba(16,185,129,0.06)] text-slate-800 relative overflow-hidden">
       {/* Decorative background shape */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-100/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10"></div>
+      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-100/30 via-emerald-50/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10"></div>
 
       <div className="relative">
         {/* Segmented Control for Mode Switching */}

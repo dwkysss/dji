@@ -38,6 +38,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
+    // Restore cached user right after hydration to guarantee 0 hydration mismatch (Fix React Error #418)
+    try {
+      const saved = localStorage.getItem("dji_cached_user");
+      if (saved) {
+        setUser(JSON.parse(saved));
+        setIsLoggedIn(true);
+        setIsLoading(false);
+      }
+    } catch (e) {}
     const fetchUser = async (session: any) => {
       try {
         if (session?.user) {
@@ -62,14 +71,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           setUser(authUser);
           setIsLoggedIn(true);
+          try {
+            localStorage.setItem("dji_cached_user", JSON.stringify(authUser));
+          } catch (e) {}
         } else {
           setUser(null);
           setIsLoggedIn(false);
+          try {
+            localStorage.removeItem("dji_cached_user");
+          } catch (e) {}
         }
       } catch (err) {
         console.error("Failed to fetch user:", err);
-        setUser(null);
-        setIsLoggedIn(false);
       } finally {
         setIsLoading(false);
       }
@@ -122,6 +135,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
           setIsLoggedIn(false);
           setIsLoading(false);
+          try {
+            localStorage.removeItem("dji_cached_user");
+          } catch (e) {}
           router.push("/login");
         }
       }
@@ -161,6 +177,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     setIsLoading(true);
+    try {
+      localStorage.removeItem("dji_cached_user");
+    } catch (e) {}
     await supabase.auth.signOut();
   };
 

@@ -167,14 +167,49 @@ export default function PanelHistoryTable({
             if (isIstirahatOnly) {
               // break rows have no defects, so masalahLines remains empty (rendering as "-")
             } else {
-              let dtEvents: any[] = [];
-              try {
-                if (itemHeader.downtime_events) {
-                  dtEvents = typeof itemHeader.downtime_events === 'string'
-                    ? JSON.parse(itemHeader.downtime_events)
-                    : itemHeader.downtime_events;
-                }
-              } catch (e) { }
+              if (detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0) {
+                const groupedMap = new Map<string, Set<string>>();
+                const orderList: string[] = [];
+
+                detail.production_defects.forEach((d: any) => {
+                  if ((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT")) return;
+                  const k = d.kategori || "";
+                  const det = d.detail || "";
+                  const key = k && det ? `${k} - ${det}` : (k || det);
+                  if (!key) return;
+
+                  if (!groupedMap.has(key)) {
+                    groupedMap.set(key, new Set<string>());
+                    orderList.push(key);
+                  }
+
+                  if (d.blok) {
+                    const cleanB = String(d.blok).replace(/blok\s*/gi, "").trim();
+                    if (cleanB) {
+                      cleanB.split(",").forEach((bStr) => {
+                        const trimmed = bStr.trim();
+                        if (trimmed) groupedMap.get(key)!.add(trimmed);
+                      });
+                    }
+                  }
+                });
+
+                masalahLines = orderList.map((key) => {
+                  const blocks = Array.from(groupedMap.get(key) || []);
+                  if (blocks.length > 0) {
+                    return `${key} (Blok ${blocks.join(", ")})`;
+                  }
+                  return key;
+                });
+              } else {
+                let dtEvents: any[] = [];
+                try {
+                  if (itemHeader.downtime_events) {
+                    dtEvents = typeof itemHeader.downtime_events === 'string'
+                      ? JSON.parse(itemHeader.downtime_events)
+                      : itemHeader.downtime_events;
+                  }
+                } catch (e) { }
 
               const matchedEvents = dtEvents.filter((e: any) =>
                 !e.pcsKe || e.pcsKe === "Semua" || e.pcsKe == detail.pcs_index
@@ -337,6 +372,7 @@ export default function PanelHistoryTable({
                   }
                 }
               }
+            }
 
               if (detail.keterangan_qc && detail.keterangan_qc !== "-") {
                 masalahLines.push(`QC: ${detail.keterangan_qc}`);
@@ -355,8 +391,11 @@ export default function PanelHistoryTable({
 
             return (
               <tr key={item.id || idx} className={`${hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
-                <td className="px-1 py-1 font-bold text-slate-800 text-center border-r border-slate-100">
-                  {item.displayNo}
+                <td className="px-1 py-1 font-bold text-slate-800 text-center border-r border-slate-100 flex flex-col items-center justify-center">
+                  <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
+                  {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
+                    <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                  )}
                 </td>
                 <td className="px-1 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100">
                   {displayTgl}

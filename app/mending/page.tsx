@@ -401,22 +401,35 @@ export default function MendingPage() {
 
         if (ketCacat) {
           if (cacatLines.length > 0) {
-            const parts = ketCacat.split(",").map((s: string) => s.trim());
-            cacatLines = cacatLines.map((line, i) => {
-              const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
-              let partIndex = i;
-              const katsRaw2 = item.kategori_masalah; const kats2 = katsRaw2 ? (Array.isArray(katsRaw2) ? katsRaw2 : katsRaw2.split(",").map((s: any) => s.trim())) : []; if (lineKat && kats2.includes(lineKat)) {
-                 partIndex = kats2.indexOf(lineKat);
-              }
-              if (parts[partIndex] && parts[partIndex] !== "") {
-                const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                return `${line} (Blok ${cleanB})`;
-              } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                 const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                 return `${line} (Blok ${cleanB})`;
-              }
-              return line;
-            });
+            const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
+            if (cacatLines.length === 1 && parts.length > 1) {
+              const cleanAllBlocks = parts
+                .map((p: string) => p.replace(/blok\s*/gi, "").trim())
+                .filter(Boolean)
+                .join(", ");
+              cacatLines = cacatLines.map((line) =>
+                line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanAllBlocks})`
+              );
+            } else {
+              cacatLines = cacatLines.map((line, i) => {
+                if (line.match(/\(Blok/i)) return line;
+                const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
+                let partIndex = i;
+                const katsRaw2 = item.kategori_masalah;
+                const kats2 = katsRaw2 ? (Array.isArray(katsRaw2) ? katsRaw2 : katsRaw2.split(",").map((s: any) => s.trim())) : [];
+                if (lineKat && kats2.includes(lineKat)) {
+                  partIndex = kats2.indexOf(lineKat);
+                }
+                if (parts[partIndex] && parts[partIndex] !== "") {
+                  const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
+                  return `${line} (Blok ${cleanB})`;
+                } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
+                  const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
+                  return `${line} (Blok ${cleanB})`;
+                }
+                return line;
+              });
+            }
           } else {
             const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
             cacatLines.push(`(Blok ${cleanB})`);
@@ -682,22 +695,35 @@ export default function MendingPage() {
 
       if (ketCacat) {
         if (cacatLines.length > 0) {
-          const parts = ketCacat.split(",").map((s: string) => s.trim());
-          cacatLines = cacatLines.map((line, i) => {
-            const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
-            let partIndex = i;
-            const katsRaw2 = item.kategori_masalah; const kats2 = katsRaw2 ? (Array.isArray(katsRaw2) ? katsRaw2 : katsRaw2.split(",").map((s: any) => s.trim())) : []; if (lineKat && kats2.includes(lineKat)) {
-              partIndex = kats2.indexOf(lineKat);
-            }
-            if (parts[partIndex] && parts[partIndex] !== "") {
-              const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-              return `${line} (Blok ${cleanB})`;
-            } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-              const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-              return `${line} (Blok ${cleanB})`;
-            }
-            return line;
-          });
+          const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
+          if (cacatLines.length === 1 && parts.length > 1) {
+            const cleanAllBlocks = parts
+              .map((p: string) => p.replace(/blok\s*/gi, "").trim())
+              .filter(Boolean)
+              .join(", ");
+            cacatLines = cacatLines.map((line) =>
+              line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanAllBlocks})`
+            );
+          } else {
+            cacatLines = cacatLines.map((line, i) => {
+              if (line.match(/\(Blok/i)) return line;
+              const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
+              let partIndex = i;
+              const katsRaw2 = item.kategori_masalah;
+              const kats2 = katsRaw2 ? (Array.isArray(katsRaw2) ? katsRaw2 : katsRaw2.split(",").map((s: any) => s.trim())) : [];
+              if (lineKat && kats2.includes(lineKat)) {
+                partIndex = kats2.indexOf(lineKat);
+              }
+              if (parts[partIndex] && parts[partIndex] !== "") {
+                const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
+                return `${line} (Blok ${cleanB})`;
+              } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
+                const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
+                return `${line} (Blok ${cleanB})`;
+              }
+              return line;
+            });
+          }
         } else {
           const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
           cacatLines.push(`(Blok ${cleanB})`);

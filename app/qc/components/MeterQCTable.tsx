@@ -98,20 +98,40 @@ export default function MeterQCTable({
       let defectMeterStr = "";
       
       if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
-        item.production_defects.forEach((defect: any) => {
-          const k = defect.kategori;
-          const d = defect.detail;
-          const b = defect.blok;
-          
-          let lineStr = "";
-          if (k && d) lineStr = `${k} - ${d}`;
-          else if (k) lineStr = k;
-          else if (d) lineStr = d;
-          
-          if (b) lineStr += ` (Blok ${b})`;
-          
-          if (lineStr) cacatLines.push(lineStr);
-          if (defect.meter) defectMeterStr = defect.meter;
+        const groupedMap = new Map<string, Set<string>>();
+        const orderList: string[] = [];
+
+        item.production_defects.forEach((d: any) => {
+          if ((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT")) return;
+          const k = d.kategori || "";
+          const det = d.detail || "";
+          const key = k && det ? `${k} - ${det}` : (k || det);
+          if (!key) return;
+
+          if (!groupedMap.has(key)) {
+            groupedMap.set(key, new Set<string>());
+            orderList.push(key);
+          }
+
+          if (d.blok) {
+            const cleanB = String(d.blok).replace(/blok\s*/gi, "").trim();
+            if (cleanB) {
+              cleanB.split(",").forEach((bStr) => {
+                const trimmed = bStr.trim();
+                if (trimmed) groupedMap.get(key)!.add(trimmed);
+              });
+            }
+          }
+
+          if (d.meter) defectMeterStr = d.meter;
+        });
+
+        cacatLines = orderList.map((key) => {
+          const blocks = Array.from(groupedMap.get(key) || []);
+          if (blocks.length > 0) {
+            return `${key} (Blok ${blocks.join(", ")})`;
+          }
+          return key;
         });
       } else {
         // Fallback to legacy string parsing
@@ -192,22 +212,35 @@ export default function MeterQCTable({
 
       if (ketCacat) {
         if (cacatLines.length > 0) {
-          const parts = ketCacat.split(",").map((s: string) => s.trim());
-          cacatLines = cacatLines.map((line, i) => {
-            const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
-            let partIndex = i;
-            const katsRaw2 = item.kategori_masalah; const kats2 = katsRaw2 ? (Array.isArray(katsRaw2) ? katsRaw2 : katsRaw2.split(",").map((s: any) => s.trim())) : []; if (lineKat && kats2.includes(lineKat)) {
-              partIndex = kats2.indexOf(lineKat);
-            }
-            if (parts[partIndex] && parts[partIndex] !== "") {
-              const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-              return line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanB})`;
-            } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-              const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-              return line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanB})`;
-            }
-            return line;
-          });
+          const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
+          if (cacatLines.length === 1 && parts.length > 1) {
+            const cleanAllBlocks = parts
+              .map((p: string) => p.replace(/blok\s*/gi, "").trim())
+              .filter(Boolean)
+              .join(", ");
+            cacatLines = cacatLines.map((line) =>
+              line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanAllBlocks})`
+            );
+          } else {
+            cacatLines = cacatLines.map((line, i) => {
+              if (line.match(/\(Blok/i)) return line;
+              const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
+              let partIndex = i;
+              const katsRaw2 = item.kategori_masalah;
+              const kats2 = katsRaw2 ? (Array.isArray(katsRaw2) ? katsRaw2 : katsRaw2.split(",").map((s: any) => s.trim())) : [];
+              if (lineKat && kats2.includes(lineKat)) {
+                partIndex = kats2.indexOf(lineKat);
+              }
+              if (parts[partIndex] && parts[partIndex] !== "") {
+                const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
+                return `${line} (Blok ${cleanB})`;
+              } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
+                const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
+                return `${line} (Blok ${cleanB})`;
+              }
+              return line;
+            });
+          }
         } else {
           const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
           cacatLines.push(`(Blok ${cleanB})`);

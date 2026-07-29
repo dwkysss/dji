@@ -8,35 +8,20 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function EmployeeInputPage() {
   const { user } = useAuth();
-  const [isDbConnected, setIsDbConnected] = useState(false);
+  const [isDbConnected, setIsDbConnected] = useState(
+    Boolean(
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        !process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")
+    )
+  );
   const [showHeaderInfo, setShowHeaderInfo] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("last_input_route", "/input");
-    async function checkDb() {
-      try {
-        const supabase = createClient();
-        if (
-          !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-          process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")
-        ) {
-          setIsDbConnected(false);
-          return;
-        }
-        const { error } = await supabase
-          .from("operators")
-          .select("id")
-          .limit(1);
-        setIsDbConnected(!error);
-      } catch (err) {
-        setIsDbConnected(false);
-      }
-    }
-    checkDb();
   }, []);
 
   return (
-    <div className="flex-1 flex flex-col items-center animate-fadeIn py-8 px-4 w-full">
+    <div className="flex-1 flex flex-col items-center py-8 px-4 w-full">
       {/* Title Header Card */}
       <div className="w-full bg-white border border-[#e9ecef] rounded-[24px] p-6 sm:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5 relative z-10 mb-6">
         <div className="flex flex-col gap-2 relative z-10">

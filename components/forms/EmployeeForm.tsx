@@ -44,12 +44,24 @@ import {
   Hash,
   History,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import HeaderSummaryCard from "./HeaderSummaryCard";
-import ProductionHeaderModal from "./ProductionHeaderModal";
+
+// Dynamic imports: these components are code-split into separate JS chunks.
+// They are NOT downloaded on initial page load, reducing TBT significantly.
+const ProductionHeaderModal = dynamic(() => import("./ProductionHeaderModal"), {
+  ssr: false,
+});
 import DowntimeTracker from "./DowntimeTracker";
-import BluetoothDowntimeTrigger from "./BluetoothDowntimeTrigger";
-import ContinuousHistoryDrawer from "./ContinuousHistoryDrawer";
+const BluetoothDowntimeTrigger = dynamic(
+  () => import("./BluetoothDowntimeTrigger"),
+  { ssr: false }
+);
+const ContinuousHistoryDrawer = dynamic(
+  () => import("./ContinuousHistoryDrawer"),
+  { ssr: false }
+);
 
 // DATA FALLBACK DARI EXCEL
 const FALLBACK_OPERATORS = [
@@ -327,6 +339,10 @@ export default function EmployeeForm({
       ? crypto.randomUUID()
       : Math.random().toString(36).substring(2, 15)
   );
+  // Cache machine configs in a ref to avoid re-fetching on every machine change
+  const machineConfigsRef = useRef<any[]>([]);
+  // Timer ref for debouncing localStorage draft saves
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<
     (ProductionFormInput & { id?: string }) | null
@@ -379,9 +395,15 @@ export default function EmployeeForm({
   const [machineInputTypes, setMachineInputTypes] = useState<Record<string, "PANEL" | "METER">>({});
 
   useEffect(() => {
-    async function loadMachineTypes() {
-      const cfgRes = await getMachineConfigs();
+    async function loadAllData() {
+      // Fetch machine configs and operators in parallel at mount
+      const [cfgRes, opRes] = await Promise.all([
+        getMachineConfigs(),
+        getOperatorsList(),
+      ]);
+
       if (cfgRes.success && cfgRes.data) {
+        machineConfigsRef.current = cfgRes.data;
         const typeMap: Record<string, "PANEL" | "METER"> = {};
         const pcsMap: Record<string, number> = {};
         cfgRes.data.forEach((c) => {
@@ -401,16 +423,10 @@ export default function EmployeeForm({
         } catch (e) { }
         setMachineInputTypes(localTypes);
       }
-    }
-    loadMachineTypes();
-  }, []);
 
-  useEffect(() => {
-    async function loadOperators() {
-      const res = await getOperatorsList();
-      if (res.success && res.data && res.data.length > 0) {
+      if (opRes.success && opRes.data && opRes.data.length > 0) {
         setOperators(
-          res.data.map((op) => ({
+          opRes.data.map((op) => ({
             id: op.id,
             name: op.nama_operator,
             shift: op.shift,
@@ -418,7 +434,7 @@ export default function EmployeeForm({
         );
       }
     }
-    loadOperators();
+    loadAllData();
   }, []);
 
   // States untuk upload foto
@@ -544,50 +560,34 @@ export default function EmployeeForm({
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
 
 
-  // Hubungkan ke Supabase secara dinamis
+  // Load designs & groups from Supabase lazily when the Header Modal opens
   useEffect(() => {
-    async function loadDbData() {
+    if (!isHeaderModalOpen) return;
+    async function loadDesignsAndGroups() {
       try {
-        const supabase = createClient();
         if (
           !process.env.NEXT_PUBLIC_SUPABASE_URL ||
           process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")
         ) {
           return;
         }
-
-        const { data: opData } = await supabase
-          .from("operators")
-          .select("id, nama_operator");
-        if (opData && opData.length > 0) {
-          // KITA GUNAKAN FALLBACK DULU KARENA MINTA SESUAI GAMBAR BARU (SHIFT A,B,C)
-          // setOperators(opData.map((o: any) => ({ id: o.id, name: o.nama_operator })));
+        const supabase = createClient();
+        const [dsResult, gpResult] = await Promise.all([
+          supabase.from("designs").select("id, nama_design"),
+          supabase.from("groups").select("id, nama_grup"),
+        ]);
+        if (dsResult.data && dsResult.data.length > 0) {
+          setDesigns(dsResult.data.map((d: any) => ({ id: d.id, name: d.nama_design })));
         }
-
-        const { data: dsData } = await supabase
-          .from("designs")
-          .select("id, nama_design");
-        if (dsData && dsData.length > 0) {
-          setDesigns(
-            dsData.map((d: any) => ({ id: d.id, name: d.nama_design })),
-          );
-        }
-
-        const { data: gpData } = await supabase
-          .from("groups")
-          .select("id, nama_grup");
-        if (gpData && gpData.length > 0) {
-          setGroups(gpData.map((g: any) => ({ id: g.id, name: g.nama_grup })));
+        if (gpResult.data && gpResult.data.length > 0) {
+          setGroups(gpResult.data.map((g: any) => ({ id: g.id, name: g.nama_grup })));
         }
       } catch (err) {
-        console.warn(
-          "Koneksi Supabase real gagal atau belum disemai, menggunakan data fallback dari Excel.",
-          err,
-        );
+        console.warn("Gagal load designs/groups dari Supabase, menggunakan fallback.", err);
       }
     }
-    loadDbData();
-  }, []);
+    loadDesignsAndGroups();
+  }, [isHeaderModalOpen]);
 
   const {
     register,
@@ -599,6 +599,7 @@ export default function EmployeeForm({
     getValues,
     formState: { errors },
   } = useForm<ProductionFormInput>({
+    mode: "onBlur",
     resolver: zodResolver(productionFormSchema),
     defaultValues: {
       operatorId: "3",
@@ -780,22 +781,13 @@ export default function EmployeeForm({
       try {
         const parsed = JSON.parse(savedHeader);
         Object.keys(parsed).forEach((key) => {
-          if (key === "lastRollNo") {
-            const rollVal = parsed[key];
-            if (rollVal) {
-              const currentPcs = [
-                {
-                  pcsIndex: "1",
-                  jmlHasilProduksi: "1",
-                },
-              ];
-              setValue("pcsData", currentPcs);
-            }
-          } else {
-            setValue(key as keyof ProductionFormInput, parsed[key]);
+          if (key !== "lastRollNo" && key !== "nextPanelNo") {
+            setValue(key as keyof ProductionFormInput, parsed[key], {
+              shouldValidate: false,
+              shouldDirty: false,
+            });
           }
         });
-        // Jika ada header yang di-load, tutup modal header
         setIsHeaderModalOpen(false);
       } catch (e) {
         console.error("Gagal load header dari storage", e);
@@ -803,53 +795,60 @@ export default function EmployeeForm({
     }
   }, [setValue, isEdit, reset]);
 
-  // Subscribe to all form changes to save draft
+  // Subscribe to all form changes to save draft (debounced to avoid blocking main thread on every keystroke)
   useEffect(() => {
     if (isEdit) return;
     const subscription = watch((value) => {
-      localStorage.setItem("dji_form_draft_panel", JSON.stringify(value));
+      clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = setTimeout(() => {
+        localStorage.setItem("dji_form_draft_panel", JSON.stringify(value));
+      }, 300);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(draftSaveTimerRef.current);
+      subscription.unsubscribe();
+    };
   }, [watch, isEdit]);
 
   const watchPotonganKe = watch("potonganKe");
   const watchNomorMc = watch("nomorMc");
+  const watchOperatorId = watch("operatorId");
+  const watchPanelNo = watch("panelNo");
 
   const prevNomorMcRef = useRef<string>("");
-  // Standalone effect to sync Machine Config (Default PCS & Input Type) as soon as machine selection changes
+  // Sync machine config from cached ref (no extra network request)
   useEffect(() => {
     if (isEdit || !watchNomorMc) return;
 
-    let isMounted = true;
-    async function syncMachineConfig() {
-      const cfgRes = await getMachineConfigs();
-      if (!isMounted || !cfgRes.success || !cfgRes.data) return;
+    const currentMc = watchNomorMc.trim().toUpperCase();
+    if (prevNomorMcRef.current === currentMc) return;
+    prevNomorMcRef.current = currentMc;
 
-      const currentMc = watchNomorMc.trim().toUpperCase();
-      const match = cfgRes.data.find(
-        (c) => c.nomor_mc.trim().toUpperCase() === currentMc
-      );
+    // Use cached configs from mount if available, else fallback to localStorage
+    const configs = machineConfigsRef.current.length > 0
+      ? machineConfigsRef.current
+      : (() => {
+          try {
+            const saved = localStorage.getItem("dji_machine_configs");
+            return saved ? JSON.parse(saved) : [];
+          } catch { return []; }
+        })();
 
-      if (match) {
-        if (prevNomorMcRef.current !== currentMc) {
-          prevNomorMcRef.current = currentMc;
-          if (match.default_pcs && typeof match.default_pcs === "number") {
-            handleChangePcsCount(match.default_pcs, true);
-          }
-        }
-        if (match.input_type) {
-          setMachineInputTypes((prev) => ({
-            ...prev,
-            [currentMc]: match.input_type === "METER" ? "METER" : "PANEL",
-          }));
-        }
+    const match = Array.isArray(configs)
+      ? configs.find((c: any) => c.nomor_mc?.trim().toUpperCase() === currentMc)
+      : null;
+
+    if (match) {
+      if (match.default_pcs && typeof match.default_pcs === "number") {
+        handleChangePcsCount(match.default_pcs, true);
+      }
+      if (match.input_type) {
+        setMachineInputTypes((prev) => ({
+          ...prev,
+          [currentMc]: match.input_type === "METER" ? "METER" : "PANEL",
+        }));
       }
     }
-
-    syncMachineConfig();
-    return () => {
-      isMounted = false;
-    };
   }, [watchNomorMc, isEdit]);
 
   // Fetch the next panelNo when potonganKe or nomorMc changes
@@ -925,7 +924,7 @@ export default function EmployeeForm({
   };
 
   const onSubmit = async (data: ProductionFormInput) => {
-    const currentMc = data.nomorMc || watch("nomorMc") || "";
+    const currentMc = data.nomorMc || watchNomorMc || "";
     if (currentMc && machineInputTypes[currentMc.toUpperCase()] === "METER") {
       setIsSubmitting(false);
       setErrorMsg(`Mesin ${currentMc} telah dikunci oleh Admin khusus untuk input METER. Anda tidak dapat mengisi form Panel untuk mesin ini.`);
@@ -1153,11 +1152,11 @@ export default function EmployeeForm({
       jmlHasilProduksi: "1",
     }));
 
-    const currentPotongan = parseInt(watch("potonganKe") || "0");
+    const currentPotongan = parseInt(watchPotonganKe || "0");
     const nextPotongan =
       wasLastPanel && !isNaN(currentPotongan)
         ? String(currentPotongan + 1)
-        : watch("potonganKe");
+        : watchPotonganKe;
 
     // Jika mesinMasihStop, gunakan panelNo yang sama (dari localStorage yang sudah disimpan dengan nextPanelNo = currentPanelNo)
     // nextPanelNo dari localStorage sudah memegang nomor panel yang sama
@@ -1279,10 +1278,14 @@ export default function EmployeeForm({
   const getDesignName = (id: string) =>
     designs.find((d) => d.id.toString() === id)?.name || id;
 
+  // Pre-compute values used multiple times in JSX to avoid repeated watch() calls
+  const currentOperatorName = getOperatorName(watchOperatorId);
+  const isMeterMachine = watchNomorMc ? machineInputTypes[watchNomorMc.toUpperCase()] === "METER" : false;
+
   return (
     <div className="w-full max-w-5xl mx-auto bg-gradient-to-br from-blue-50/40 via-white to-white border border-[#e9ecef] rounded-[24px] p-4 sm:p-6 lg:p-8 shadow-[0_8px_30px_rgba(0,112,188,0.06)] text-slate-800 relative overflow-hidden">
       {/* Decorative background shape */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10"></div>
+      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-100/30 via-blue-50/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10"></div>
 
       <div className="relative">
         {/* Segmented Control for Mode Switching */}
@@ -1340,7 +1343,7 @@ export default function EmployeeForm({
             </button>
           </div>
 
-          {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "METER" && (
+          {isMeterMachine && (
             <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-amber-100/80 flex items-center justify-center shrink-0">
@@ -1348,7 +1351,7 @@ export default function EmployeeForm({
                 </div>
                 <div>
                   <h4 className="text-xs font-black text-amber-900 uppercase tracking-wide leading-none">
-                    Mesin {watch("nomorMc")} Di-set Input METER
+                    Mesin {watchNomorMc} Di-set Input METER
                   </h4>
                   <p className="text-[11px] font-medium text-amber-700 leading-snug mt-1">
                     Admin mengatur mesin ini khusus untuk pelaporan <strong>Meteran / Roll</strong>.
@@ -1356,7 +1359,7 @@ export default function EmployeeForm({
                 </div>
               </div>
               <a
-                href={`/input-meter?mc=${encodeURIComponent(watch("nomorMc"))}`}
+                href={`/input-meter?mc=${encodeURIComponent(watchNomorMc)}`}
                 className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
               >
                 <span>Pindah Form Meter</span>
@@ -1373,12 +1376,12 @@ export default function EmployeeForm({
               <div className="flex flex-col gap-3 sm:gap-4 lg:gap-5 self-start sm:min-h-[345px]">
                 <div data-tour="header-summary" className="w-full">
                   <HeaderSummaryCard
-                    operatorName={getOperatorName(watch("operatorId"))}
+                    operatorName={currentOperatorName}
                     shiftName={activeShiftName}
-                    nomorMc={watch("nomorMc") || ""}
+                    nomorMc={watchNomorMc || ""}
                     design={watch("designId") || ""}
                     statusMatching={watch("statusMatching") || ""}
-                    potonganKe={watch("potonganKe")}
+                    potonganKe={watchPotonganKe}
                     onEdit={() => setIsHeaderModalOpen(true)}
                     showEditButton
                     showEditButtonPlacement="bottom"
@@ -1405,7 +1408,7 @@ export default function EmployeeForm({
                   {/* Kanan: Angka */}
                   <div className="flex items-center justify-center p-4">
                     <span className="text-5xl sm:text-6xl font-black text-slate-800 leading-none">
-                      {String(watch("panelNo") || "-")}
+                      {String(watchPanelNo || "-")}
                     </span>
                   </div>
 
@@ -1438,7 +1441,7 @@ export default function EmployeeForm({
                     watch={watch}
                     showBlockInput={true}
                     operators={activeOperators}
-                    currentOperatorName={getOperatorName(watch("operatorId"))}
+                    currentOperatorName={currentOperatorName}
                     isEdit={isEdit}
                     onRegisterTimerControls={setTimerControls}
                   />
@@ -1752,14 +1755,14 @@ export default function EmployeeForm({
           </div>
 
           {/* Kirim Button */}
-          {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "METER" ? (
+          {isMeterMachine ? (
             <button
               type="button"
               disabled
               className="w-full h-12 rounded-xl bg-slate-200 text-slate-500 font-extrabold text-xs uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2 border border-slate-300"
             >
               <Lock className="w-4 h-4 text-slate-500" />
-              <span>Ditolak: Mesin {watch("nomorMc")} Khusus Input METER</span>
+              <span>Ditolak: Mesin {watchNomorMc} Khusus Input METER</span>
             </button>
           ) : (
             <button
@@ -1916,7 +1919,7 @@ export default function EmployeeForm({
 
         {/* Modal Backup Operator */}
         {showBackupModal && (() => {
-          const currentOperatorId = watch("operatorId");
+          const currentOperatorId = watchOperatorId;
           const currentOperator = operators.find((o: any) => o.id.toString() === currentOperatorId);
           const currentShift = currentOperator?.shift;
           const backupOperators = operators.filter((o: any) => o.shift === currentShift && o.id.toString() !== currentOperatorId);
@@ -2020,8 +2023,8 @@ export default function EmployeeForm({
         <ContinuousHistoryDrawer
           isOpen={isHistoryDrawerOpen}
           onClose={() => setIsHistoryDrawerOpen(false)}
-          currentNomorMc={watch("nomorMc")}
-          currentPotonganKe={watch("potonganKe")}
+          currentNomorMc={watchNomorMc}
+          currentPotonganKe={watchPotonganKe}
         />
       </div>
     </div>

@@ -21,7 +21,7 @@ interface HeaderSummaryCardProps {
   showEditButtonPlacement?: "right" | "bottom";
 }
 
-export default function HeaderSummaryCard({
+function HeaderSummaryCard({
   operatorName,
   shiftName,
   nomorMc,
@@ -237,3 +237,5 @@ export default function HeaderSummaryCard({
     </div>
   );
 }
+
+export default React.memo(HeaderSummaryCard);
