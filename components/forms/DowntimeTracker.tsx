@@ -1411,23 +1411,24 @@ export default function DowntimeTracker({
                                     )}
                                   </label>
 
-                                  <div className="space-y-1.5">
+                                  <div className="flex flex-wrap items-center gap-2">
                                     {blockList.map((itemVal, bIdx) => (
-                                      <div key={bIdx} className="flex items-center gap-1.5">
+                                      <div key={bIdx} className="flex items-center gap-1">
                                         <input
                                           type="text"
-                                          inputMode="text"
+                                          inputMode="numeric"
+                                          maxLength={2}
                                           value={itemVal}
                                           onChange={(e) => {
-                                            const val = e.target.value;
+                                            const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
                                             const nextList = [...blockList];
                                             nextList[bIdx] = val;
                                             updateBlockList(nextList);
                                           }}
-                                          placeholder={bIdx === 0 ? "Nomor blok (misal 15 atau 1-5)" : `Blok ke-${bIdx + 1}...`}
-                                          className={`flex-1 h-9 px-3 rounded-lg border focus:outline-none focus:ring-2 text-xs font-bold text-slate-800 placeholder:font-medium placeholder:text-slate-400 bg-white ${isMissing
-                                            ? "border-rose-400 focus:ring-rose-500"
-                                            : "border-sky-200 focus:ring-sky-500"
+                                          placeholder={bIdx === 0 ? "Blok (15)" : `Blok ${bIdx + 1}`}
+                                          className={`w-28 h-9 px-3 rounded-lg border text-center font-bold text-xs text-slate-800 placeholder:font-medium placeholder:text-slate-400 bg-white ${isMissing
+                                            ? "border-rose-400 focus:ring-2 focus:ring-rose-500"
+                                            : "border-sky-200 focus:ring-2 focus:ring-sky-500"
                                             }`}
                                         />
                                         {blockList.length > 1 && (
@@ -1451,9 +1452,9 @@ export default function DowntimeTracker({
                                       onClick={() => {
                                         updateBlockList([...blockList, ""]);
                                       }}
-                                      className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] font-bold text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"
+                                      className="h-9 px-3 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] font-bold text-xs uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-1 shrink-0"
                                     >
-                                      <Plus className="w-3 h-3" />
+                                      <Plus className="w-3.5 h-3.5" />
                                       <span>Tambah Blok</span>
                                     </button>
                                   </div>
