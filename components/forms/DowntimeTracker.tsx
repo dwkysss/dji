@@ -1452,10 +1452,10 @@ export default function DowntimeTracker({
                                       onClick={() => {
                                         updateBlockList([...blockList, ""]);
                                       }}
-                                      className="h-9 px-3 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] font-bold text-xs uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-1 shrink-0"
+                                      className="w-9 h-9 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+                                      title="Tambah Blok"
                                     >
-                                      <Plus className="w-3.5 h-3.5" />
-                                      <span>Tambah Blok</span>
+                                      <Plus className="w-4 h-4" />
                                     </button>
                                   </div>
 
