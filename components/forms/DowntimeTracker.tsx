@@ -897,18 +897,18 @@ export default function DowntimeTracker({
       {/* 2. CARD DOWNTIME BIASA */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative overflow-hidden">
         <div className="flex flex-col gap-2 mb-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100 shrink-0">
-                <Timer className="w-5 h-5" />
+          <div className="flex items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100 shrink-0">
+                <Timer className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <h3 className="text-sm font-black text-slate-800 truncate">
+              <h3 className="text-xs sm:text-sm font-black text-slate-800 whitespace-nowrap">
                 Downtime
               </h3>
             </div>
             <div className="text-right shrink-0">
-              <span className="text-xs font-bold text-slate-400">Total: </span>
-              <span className="text-base sm:text-lg font-black text-amber-600">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-400">Total: </span>
+              <span className="text-sm sm:text-base font-black text-amber-600">
                 {formatTimer(fields.reduce((acc, curr: any) => acc + (curr.durasiDetik || 0), 0))}
               </span>
             </div>
