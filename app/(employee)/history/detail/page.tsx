@@ -5,10 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { searchEmployeeHistory } from "@/actions/employee-actions";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
-import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight } from "lucide-react";
+import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import PanelHistoryTable from "./components/PanelHistoryTable";
 import MeterHistoryTable from "./components/MeterHistoryTable";
+import PrintableProductionReport from "@/components/reports/PrintableProductionReport";
 
 function HistoryDetailContent() {
   const router = useRouter();
@@ -23,6 +24,7 @@ function HistoryDetailContent() {
   const [detailData, setDetailData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   useEffect(() => {
     if (!nomor_mc || !potongan_ke) {
@@ -109,21 +111,33 @@ function HistoryDetailContent() {
   return (
     <div className="flex-1 w-full min-w-0 animate-fadeIn">
       {/* Header Nav */}
-      <div className="flex items-center gap-2 mb-6">
-        <button
-          onClick={() => router.push("/history")}
-          className="h-9 w-9 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 flex items-center justify-center transition-colors shadow-sm"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
-          <span
-            className="hover:text-[#0070bc] cursor-pointer transition-colors"
+      <div className="flex items-center justify-between gap-2 mb-6 no-print">
+        <div className="flex items-center gap-2">
+          <button
             onClick={() => router.push("/history")}
-          >Riwayat</span>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-          <span className="text-slate-700 font-black">Detail Laporan</span>
+            className="h-9 w-9 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
+            <span
+              className="hover:text-[#0070bc] cursor-pointer transition-colors"
+              onClick={() => router.push("/history")}
+            >Riwayat</span>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+            <span className="text-slate-700 font-black">Detail Laporan</span>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setIsPrintModalOpen(true)}
+          className="h-9 px-3.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-black text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
+          title="Cetak Laporan / Simpan PDF"
+        >
+          <Printer className="w-4 h-4" />
+          <span>Cetak Laporan</span>
+        </button>
       </div>
 
 
@@ -566,7 +580,13 @@ function HistoryDetailContent() {
            );
          })()}
 
-      </div>
+       </div>
+
+      <PrintableProductionReport
+        detailData={detailData}
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+      />
     </div>
   );
 }

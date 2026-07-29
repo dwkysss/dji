@@ -15,6 +15,34 @@ function generateExcelStyleId(): string {
   return result;
 }
 
+function expandBlockNumbers(blokInput?: string | null): string[] {
+  if (!blokInput || typeof blokInput !== "string") return [];
+  const parts = blokInput.split(",").map(p => p.trim()).filter(Boolean);
+  const blocks: string[] = [];
+
+  for (const part of parts) {
+    const rangeMatch = part.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1], 10);
+      const end = parseInt(rangeMatch[2], 10);
+      if (!isNaN(start) && !isNaN(end) && start <= end && end - start <= 100) {
+        for (let b = start; b <= end; b++) {
+          blocks.push(String(b));
+        }
+        continue;
+      }
+    }
+    const numMatch = part.match(/\d+/);
+    if (numMatch) {
+      blocks.push(numMatch[0]);
+    } else if (part) {
+      blocks.push(part);
+    }
+  }
+
+  return Array.from(new Set(blocks));
+}
+
 export async function createProductionReport(
   inputData: ProductionFormInput,
 ): Promise<{
@@ -195,22 +223,49 @@ export async function createProductionReport(
               if (p.details && Array.isArray(p.details)) {
                 p.details.forEach((d: string) => {
                   allDetails.add(d);
+                  
+                  const expanded = expandBlockNumbers(p.blok);
+                  if (expanded.length > 0) {
+                    expanded.forEach(b => {
+                      productionDefectsData.push({
+                        production_detail_id: detailId,
+                        kategori: p.kategori,
+                        detail: d,
+                        meter: null,
+                        blok: b
+                      });
+                    });
+                  } else {
+                    productionDefectsData.push({
+                      production_detail_id: detailId,
+                      kategori: p.kategori,
+                      detail: d,
+                      meter: null,
+                      blok: p.blok || null
+                    });
+                  }
+                });
+              } else if (p.kategori) {
+                const expanded = expandBlockNumbers(p.blok);
+                if (expanded.length > 0) {
+                  expanded.forEach(b => {
+                    productionDefectsData.push({
+                      production_detail_id: detailId,
+                      kategori: p.kategori,
+                      detail: null,
+                      meter: null,
+                      blok: b
+                    });
+                  });
+                } else {
                   productionDefectsData.push({
                     production_detail_id: detailId,
                     kategori: p.kategori,
-                    detail: d,
+                    detail: null,
                     meter: null,
                     blok: p.blok || null
                   });
-                });
-              } else if (p.kategori) {
-                productionDefectsData.push({
-                  production_detail_id: detailId,
-                  kategori: p.kategori,
-                  detail: null,
-                  meter: null,
-                  blok: p.blok || null
-                });
+                }
               }
             });
           } else if (e.kategori) {
@@ -218,13 +273,26 @@ export async function createProductionReport(
             if (e.detail) allDetails.add(e.detail);
             if (e.blok) allBloks.add(`Blok ${e.blok}`);
 
-            productionDefectsData.push({
-              production_detail_id: detailId,
-              kategori: e.kategori,
-              detail: e.detail || null,
-              meter: null,
-              blok: e.blok || null
-            });
+            const expanded = expandBlockNumbers(e.blok);
+            if (expanded.length > 0) {
+              expanded.forEach(b => {
+                productionDefectsData.push({
+                  production_detail_id: detailId,
+                  kategori: e.kategori,
+                  detail: e.detail || null,
+                  meter: null,
+                  blok: b
+                });
+              });
+            } else {
+              productionDefectsData.push({
+                production_detail_id: detailId,
+                kategori: e.kategori,
+                detail: e.detail || null,
+                meter: null,
+                blok: e.blok || null
+              });
+            }
           }
         });
 

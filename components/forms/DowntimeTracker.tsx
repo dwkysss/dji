@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useFieldArray, Control, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info } from "lucide-react";
 import { ContinuousFormInput } from "@/lib/schemas";
@@ -130,6 +130,7 @@ export default function DowntimeTracker({
   // Modal State
   const [showModal, setShowModal] = useState(false);
   const [tempDuration, setTempDuration] = useState(0);
+  const accumulatedSecRef = useRef<number>(0);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedDetails, setSelectedDetails] = useState<Record<string, string[]>>({});
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
@@ -402,6 +403,7 @@ export default function DowntimeTracker({
     setIsTimerRunning(false);
     setTimerStartRef(null);
     setLiveTimerSeconds(0);
+    accumulatedSecRef.current = 0;
     setTempDuration(0);
     localStorage.removeItem("dji_active_downtime_start");
     setShowCancelTimerConfirmModal(false);
@@ -431,6 +433,7 @@ export default function DowntimeTracker({
   }, [showModal, defaultMeter, pcsKeys.join(",")]);
 
   const handleOpenModal = () => {
+    accumulatedSecRef.current = 0;
     setTempDuration(0);
     setSelectedCategories([]);
     setSelectedDetails({});
@@ -508,8 +511,11 @@ export default function DowntimeTracker({
       }
     }
 
-    // Add duration of current stop pulse directly to previous accumulated tempDuration
-    setTempDuration((prevDuration) => Math.max(1, prevDuration + duration));
+    // Accumulate duration in ref (ref is immune to stale closures)
+    accumulatedSecRef.current += duration;
+    if (accumulatedSecRef.current < 1) accumulatedSecRef.current = 1;
+
+    setTempDuration(accumulatedSecRef.current);
     setShowModal(true);
   };
 
@@ -686,6 +692,7 @@ export default function DowntimeTracker({
     setIsTimerRunning(false);
     setTimerStartRef(null);
     setLiveTimerSeconds(0);
+    accumulatedSecRef.current = 0;
     setTempDuration(0);
     localStorage.removeItem("dji_active_downtime_start");
     setIsUnblockingBlock(false);
@@ -947,14 +954,35 @@ export default function DowntimeTracker({
               </div>
             ) : !isTimerRunning ? (
               <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={handleStartTimer}
-                  className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
-                >
-                  <AlertTriangle className="w-4 h-4 fill-current" />
-                  Mulai Timer Perbaikan
-                </button>
+                {tempDuration > 0 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowModal(true)}
+                      className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                    >
+                      <AlertTriangle className="w-4 h-4 fill-current" />
+                      <span>Lanjutkan Simpan Downtime ({formatTimer(tempDuration)})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelTimer}
+                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 font-bold text-[11px] transition-all flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200/80 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5 shrink-0" />
+                      <span>Hapus Hitungan ({formatTimer(tempDuration)})</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStartTimer}
+                    className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                  >
+                    <AlertTriangle className="w-4 h-4 fill-current" />
+                    Mulai
+                  </button>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-3">
@@ -1203,11 +1231,10 @@ export default function DowntimeTracker({
                                 setInputMeters(prev => ({ ...prev, [pcsKey]: val }));
                               }}
                               placeholder="Meter..."
-                              className={`w-full h-8 px-2 text-center rounded-lg border text-[10px] font-bold font-mono transition-all animate-fadeIn ${
-                                isMeterEmpty
+                              className={`w-full h-8 px-2 text-center rounded-lg border text-[10px] font-bold font-mono transition-all animate-fadeIn ${isMeterEmpty
                                   ? "border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500 text-rose-700 bg-rose-50 placeholder:text-rose-300"
                                   : "border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-emerald-50"
-                              }`}
+                                }`}
                             />
                           )}
                         </div>
@@ -1220,18 +1247,17 @@ export default function DowntimeTracker({
                     </p>
                   ) : showMeterInput && selectedPcsKeList.some((k) => !inputMeters[k] || inputMeters[k].trim() === "") ? (
                     <p className="text-[10px] text-rose-600 font-bold mt-2 animate-pulse flex items-center gap-1">
-                      ⚠️ Wajib mengisi nilai meter untuk setiap PCS yang dipilih!
+                      Wajib mengisi nilai meter untuk setiap PCS yang dipilih!
                     </p>
                   ) : null}
                 </div>
               )}
 
               {dikerjakanOleh === "Operator" && !isUnblockingBlock && showMeterInput && pcsKeys.length === 1 && (
-                <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn ${
-                  !inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
+                <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn ${!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
                     ? "bg-rose-50/70 border-rose-300"
                     : "bg-emerald-50 border-emerald-200/60"
-                }`}>
+                  }`}>
                   <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
                     <Box className="w-4 h-4 text-emerald-600" />
                     Posisi Letak Meter <span className="text-rose-500 font-black">* (Wajib Diisi)</span>
@@ -1248,15 +1274,14 @@ export default function DowntimeTracker({
                       setInputMeters(prev => ({ ...prev, [pcsKeys[0]]: val }));
                     }}
                     placeholder="Contoh: 15.5"
-                    className={`w-full h-11 px-4 rounded-xl border focus:outline-none focus:ring-2 text-sm font-bold text-slate-700 placeholder:font-medium placeholder:text-slate-400 bg-white shadow-inner transition-all ${
-                      !inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
+                    className={`w-full h-11 px-4 rounded-xl border focus:outline-none focus:ring-2 text-sm font-bold text-slate-700 placeholder:font-medium placeholder:text-slate-400 bg-white shadow-inner transition-all ${!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
                         ? "border-rose-400 focus:ring-rose-500"
                         : "border-emerald-300 focus:ring-emerald-500"
-                    }`}
+                      }`}
                   />
                   {(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (
                     <p className="text-[10px] font-bold text-rose-600 mt-2 flex items-center gap-1 animate-pulse">
-                      ⚠️ Nilai meter wajib diisi sebelum menyimpan downtime!
+                      Nilai meter wajib diisi sebelum menyimpan downtime!
                     </p>
                   )}
                 </div>
@@ -1341,46 +1366,94 @@ export default function DowntimeTracker({
 
                             const isMissing = isRequired && (!inputBloks[cat.id] || inputBloks[cat.id]?.trim() === "");
 
-                            return (
-                              <div className={`mt-3 p-3 rounded-xl border transition-all ${isMissing
-                                ? "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
-                                : "bg-sky-50 border-sky-100"
-                                }`}>
-                                <label className="text-[10px] font-extrabold uppercase mb-1.5 flex items-center justify-between">
-                                  <span className="flex items-center gap-1.5 text-slate-800">
-                                    <Box className="w-3.5 h-3.5 text-[#0070bc]" />
-                                    Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
-                                  </span>
-                                  {isRequired ? (
-                                    <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                      Wajib Diisi
+                            return (() => {
+                              const currentBlokVal = inputBloks[cat.id] || "";
+                              const blockList = currentBlokVal
+                                ? currentBlokVal.split(",").map((s) => s.trim())
+                                : [""];
+
+                              const updateBlockList = (newList: string[]) => {
+                                setBlockValidationError(null);
+                                const joined = newList
+                                  .map((s) => s.replace(/[^0-9\-,\s]/g, ""))
+                                  .join(", ");
+                                setInputBloks((prev) => ({ ...prev, [cat.id]: joined }));
+                              };
+
+                              return (
+                                <div className={`mt-3 p-3 rounded-xl border transition-all ${isMissing
+                                  ? "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
+                                  : "bg-sky-50 border-sky-100"
+                                  }`}>
+                                  <label className="text-[10px] font-extrabold uppercase mb-1.5 flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5 text-slate-800">
+                                      <Box className="w-3.5 h-3.5 text-[#0070bc]" />
+                                      Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
                                     </span>
-                                  ) : (
-                                    <span className="text-slate-400 font-bold text-[9px]">Opsional</span>
+                                    {isRequired ? (
+                                      <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                        Wajib Diisi
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400 font-bold text-[9px]">Opsional</span>
+                                    )}
+                                  </label>
+
+                                  <div className="space-y-1.5">
+                                    {blockList.map((itemVal, bIdx) => (
+                                      <div key={bIdx} className="flex items-center gap-1.5">
+                                        <input
+                                          type="text"
+                                          inputMode="text"
+                                          value={itemVal}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            const nextList = [...blockList];
+                                            nextList[bIdx] = val;
+                                            updateBlockList(nextList);
+                                          }}
+                                          placeholder={bIdx === 0 ? "Nomor blok (misal 15 atau 1-5)" : `Blok ke-${bIdx + 1}...`}
+                                          className={`flex-1 h-9 px-3 rounded-lg border focus:outline-none focus:ring-2 text-xs font-bold text-slate-800 placeholder:font-medium placeholder:text-slate-400 bg-white ${isMissing
+                                            ? "border-rose-400 focus:ring-rose-500"
+                                            : "border-sky-200 focus:ring-sky-500"
+                                            }`}
+                                        />
+                                        {blockList.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const nextList = blockList.filter((_, i) => i !== bIdx);
+                                              updateBlockList(nextList);
+                                            }}
+                                            className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition-colors shrink-0"
+                                            title="Hapus blok"
+                                          >
+                                            <X className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        updateBlockList([...blockList, ""]);
+                                      }}
+                                      className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] font-bold text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      <span>Tambah Blok</span>
+                                    </button>
+                                  </div>
+
+                                  {isMissing && (
+                                    <p className="text-[10px] font-bold text-rose-600 mt-1.5">
+                                      Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
+                                    </p>
                                   )}
-                                </label>
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  value={inputBloks[cat.id] || ""}
-                                  onChange={(e) => {
-                                    setBlockValidationError(null);
-                                    const filtered = e.target.value.replace(/[^0-9\-]/g, "");
-                                    setInputBloks((prev) => ({ ...prev, [cat.id]: filtered }));
-                                  }}
-                                  placeholder="Contoh: 15 atau 1-61"
-                                  className={`w-full h-10 px-3 rounded-lg border focus:outline-none focus:ring-2 text-xs font-bold text-slate-800 placeholder:font-medium placeholder:text-slate-400 bg-white ${isMissing
-                                    ? "border-rose-400 focus:ring-rose-500"
-                                    : "border-sky-200 focus:ring-sky-500"
-                                    }`}
-                                />
-                                {isMissing && (
-                                  <p className="text-[10px] font-bold text-rose-600 mt-1">
-                                    ⚠️ Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
-                                  </p>
-                                )}
-                              </div>
-                            );
+                                </div>
+                              );
+                            })();
                           })()}
                         </div>
                       )}

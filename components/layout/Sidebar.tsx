@@ -468,12 +468,12 @@ function SidebarInner({
   return (
     <>
       {/* DESKTOP SIDEBAR */}
-      <aside className="hidden md:flex flex-col w-20 hover:w-64 h-[calc(100vh-2rem)] fixed top-4 left-4 z-30 transition-all duration-300 ease-in-out group">
+      <aside className="print:hidden no-print hidden md:flex flex-col w-20 hover:w-64 h-[calc(100vh-2rem)] fixed top-4 left-4 z-30 transition-all duration-300 ease-in-out group">
         {SidebarContent()}
       </aside>
 
       {/* MOBILE HEADER */}
-      <header className="md:hidden h-16 w-full fixed top-0 left-0 bg-white border-b border-[#e9ecef] shadow-xs z-30 flex items-center justify-between px-4">
+      <header className="print:hidden no-print md:hidden h-16 w-full fixed top-0 left-0 bg-white border-b border-[#e9ecef] shadow-xs z-30 flex items-center justify-between px-4">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-xs overflow-hidden">
             <img
@@ -504,13 +504,13 @@ function SidebarInner({
       {isMobileOpen && (
         <div
           onClick={() => setIsMobileOpen(false)}
-          className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-30 animate-fadeIn"
+          className="print:hidden no-print md:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-30 animate-fadeIn"
         />
       )}
 
       {/* MOBILE DRAWER SIDEBAR */}
       <div
-        className={`md:hidden fixed inset-y-0 left-0 w-64 h-full z-40 transform transition-transform duration-300 ease-out bg-[#f0f2f5] ${
+        className={`print:hidden no-print md:hidden fixed inset-y-0 left-0 w-64 h-full z-40 transform transition-transform duration-300 ease-out bg-[#f0f2f5] ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

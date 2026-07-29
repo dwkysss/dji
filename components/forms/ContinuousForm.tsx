@@ -1892,12 +1892,12 @@ export default function ContinuousForm({
                 setShowAdvancedActions(true);
               }
             }}
-            className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-slate-200 border-dashed text-slate-500 font-bold text-sm hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all duration-200"
+            className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-rose-300 border-dashed text-rose-600 font-bold text-sm hover:bg-rose-50 hover:text-rose-700 hover:border-rose-400 transition-all duration-200"
           >
             {showAdvancedActions ? (
               <>Tutup Opsi Lanjutan</>
             ) : (
-              <>Buka Opsi Lanjutan (Potong Kain)</>
+              <>Potong Kain & BS</>
             )}
           </button>
 
@@ -2157,10 +2157,10 @@ export default function ContinuousForm({
                     </div>
                     <div>
                       <h3 className="text-base font-black text-slate-800">
-                        Laporan Meteran
+                        {isLastRoll ? "Laporan Potong Kain" : "Laporan Meteran"}
                       </h3>
                       <p className="text-[10px] text-slate-500 font-medium">
-                        Isi di akhir shift atau potong roll
+                        {isLastRoll ? "Isi meteran untuk potong kain" : "Isi di akhir shift"}
                       </p>
                     </div>
                   </div>
@@ -2324,78 +2324,82 @@ export default function ContinuousForm({
                     Jenis Laporan Meter
                   </label>
                   <input type="hidden" id="jenisLaporan" {...register("jenisLaporan")} />
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
-                      className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-[0.98] ${
-                        watchJenisLaporan === ""
-                          ? "border-[#0070bc] bg-sky-50 text-[#0070bc] scale-[1.01]"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className="block font-black uppercase">Laporan Normal</span>
-                      <span className="block text-[9px] font-medium text-slate-400">Akhir Shift / Potong</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isLastRoll}
-                      onClick={() => setValue("jenisLaporan", "Mulai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                      className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${
-                        isLastRoll
-                          ? "border-slate-200 bg-slate-100 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none grayscale"
-                          : watchJenisLaporan === "Mulai Istirahat"
-                            ? "border-amber-500 bg-amber-50 text-amber-700 scale-[1.01]"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-                      }`}
-                    >
-                      <span className="block font-black uppercase">Mulai Istirahat</span>
-                      <span className="block text-[9px] font-medium text-slate-400">Akan Ditinggal</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isLastRoll}
-                      onClick={() => setValue("jenisLaporan", "Selesai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                      className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${
-                        isLastRoll
-                          ? "border-slate-200 bg-slate-100 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none grayscale"
-                          : watchJenisLaporan === "Selesai Istirahat"
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.01]"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-                      }`}
-                    >
-                      <span className="block font-black uppercase">Selesai Istirahat</span>
-                      <span className="block text-[9px] font-medium text-slate-400">Kembali Bekerja</span>
-                    </button>
-                  </div>
-
-                  {watchJenisLaporan === "Mulai Istirahat" && (
-                    <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                      <label className="text-[10px] font-black text-amber-800 uppercase block mb-1">
-                        Siapa yang menjaga mesin (Backup)?
-                      </label>
-                      <select
-                        value={backupOperator}
-                        onChange={(e) => setBackupOperator(e.target.value)}
-                        className="w-full h-10 px-3 rounded-lg border border-amber-300 text-sm font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-amber-400 outline-none"
+                  {isLastRoll ? (
+                    <div className="grid grid-cols-1 gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
+                        className="w-full px-3 py-3 rounded-xl border-2 border-[#0070bc] bg-sky-50 text-[#0070bc] text-xs font-bold transition-all flex items-center justify-center text-center gap-1 shadow-sm"
                       >
-                        <option value="">-- Pilih Operator --</option>
-                        {(() => {
-                          const currentOperatorId = watch("operatorId");
-                          const currentOp = operators.find(o => o.id.toString() === currentOperatorId);
-                          const backupOps = currentOp?.shift 
-                            ? operators.filter(o => o.shift === currentOp.shift && o.id.toString() !== currentOperatorId)
-                            : operators;
-                          return backupOps.map(op => (
-                            <option key={op.id} value={op.name}>{op.name}</option>
-                          ));
-                        })()}
-                      </select>
+                        <span className="block font-black uppercase">Laporan Potong Kain</span>
+                      </button>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
+                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-[0.98] ${
+                            watchJenisLaporan === ""
+                              ? "border-[#0070bc] bg-sky-50 text-[#0070bc] scale-[1.01]"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className="block font-black uppercase">Laporan Oper Shift</span>
+                        </button>
 
+                        <button
+                          type="button"
+                          onClick={() => setValue("jenisLaporan", "Mulai Istirahat", { shouldDirty: true, shouldValidate: true })}
+                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${
+                            watchJenisLaporan === "Mulai Istirahat"
+                              ? "border-amber-500 bg-amber-50 text-amber-700 scale-[1.01]"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+                          }`}
+                        >
+                          <span className="block font-black uppercase">Mulai Istirahat</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setValue("jenisLaporan", "Selesai Istirahat", { shouldDirty: true, shouldValidate: true })}
+                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${
+                            watchJenisLaporan === "Selesai Istirahat"
+                              ? "border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.01]"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+                          }`}
+                        >
+                          <span className="block font-black uppercase">Selesai Istirahat</span>
+                        </button>
+                      </div>
+
+                      {watchJenisLaporan === "Mulai Istirahat" && (
+                        <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                          <label className="text-[10px] font-black text-amber-800 uppercase block mb-1">
+                            Siapa yang menjaga mesin (Backup)?
+                          </label>
+                          <select
+                            value={backupOperator}
+                            onChange={(e) => setBackupOperator(e.target.value)}
+                            className="w-full h-10 px-3 rounded-lg border border-amber-300 text-sm font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-amber-400 outline-none"
+                          >
+                            <option value="">-- Pilih Operator --</option>
+                            {(() => {
+                              const currentOperatorId = watch("operatorId");
+                              const currentOp = operators.find(o => o.id.toString() === currentOperatorId);
+                              const backupOps = currentOp?.shift 
+                                ? operators.filter(o => o.shift === currentOp.shift && o.id.toString() !== currentOperatorId)
+                                : operators;
+                              return backupOps.map(op => (
+                                <option key={op.id} value={op.name}>{op.name}</option>
+                              ));
+                            })()}
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div className="flex gap-3 mt-6 relative z-10">

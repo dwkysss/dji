@@ -1487,12 +1487,12 @@ export default function EmployeeForm({
                 setShowAdvancedActions(true);
               }
             }}
-            className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-slate-200 border-dashed text-slate-500 font-bold text-sm hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all duration-200"
+            className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-rose-300 border-dashed text-rose-600 font-bold text-sm hover:bg-rose-50 hover:text-rose-700 hover:border-rose-400 transition-all duration-200"
           >
             {showAdvancedActions ? (
               <>Tutup Opsi Lanjutan</>
             ) : (
-              <>Buka Opsi Lanjutan (Potong / Tandai BS)</>
+              <>Potong Kain & BS</>
             )}
           </button>
 

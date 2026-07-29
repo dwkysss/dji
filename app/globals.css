@@ -52,3 +52,42 @@ body {
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+/* ── Global Print Styles ── */
+@media print {
+  aside,
+  header,
+  nav,
+  .no-print,
+  button:not(.print-keep),
+  .sidebar-container {
+    display: none !important;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  main, .flex-1, div {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+  }
+}

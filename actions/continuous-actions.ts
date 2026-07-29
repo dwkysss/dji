@@ -18,19 +18,6 @@ async function resolveAutomaticMeterStart(input: {
 
   // 1. Cari record berdasarkan nomor_mc & potongan_ke
   if (potonganKeNum) {
-    // Cek record paling akhir pada potongan ini untuk melihat apakah rol sudah dipotong
-    const { data: latestRecord } = await supabase
-      .from("production_headers")
-      .select("tanggal_potong")
-      .ilike("nomor_mc", nomorMcClean)
-      .eq("potongan_ke", potonganKeNum)
-      .order("tanggal_jam", { ascending: false })
-      .limit(1);
-
-    if (latestRecord && latestRecord.length > 0 && latestRecord[0].tanggal_potong) {
-      return 0; // Rol sudah dipotong, potongan baru mulai dari 0
-    }
-
     // Cari laporan meter_akhir resmi yang > 0 untuk potongan ini
     const { data: finishData } = await supabase
       .from("production_headers")
@@ -62,6 +49,9 @@ async function resolveAutomaticMeterStart(input: {
       const start = parseFloat(startData[0].meter_awal as any);
       if (Number.isFinite(start) && start > 0) return start;
     }
+
+    // Jika potongan ini belum memiliki record meter > 0 (potongan baru), mulai dari 0
+    return 0;
   }
 
   // 2. Fallback: Cari record paling akhir dari mesin ini secara umum
@@ -156,6 +146,34 @@ function parseOptionalMeter(value: string | null | undefined): number | null {
   }
   const num = parseFloat(String(value));
   return Number.isFinite(num) ? num : null;
+}
+
+function expandBlockNumbers(blokInput?: string | null): string[] {
+  if (!blokInput || typeof blokInput !== "string") return [];
+  const parts = blokInput.split(",").map(p => p.trim()).filter(Boolean);
+  const blocks: string[] = [];
+
+  for (const part of parts) {
+    const rangeMatch = part.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1], 10);
+      const end = parseInt(rangeMatch[2], 10);
+      if (!isNaN(start) && !isNaN(end) && start <= end && end - start <= 100) {
+        for (let b = start; b <= end; b++) {
+          blocks.push(String(b));
+        }
+        continue;
+      }
+    }
+    const numMatch = part.match(/\d+/);
+    if (numMatch) {
+      blocks.push(numMatch[0]);
+    } else if (part) {
+      blocks.push(part);
+    }
+  }
+
+  return Array.from(new Set(blocks));
 }
 
 async function applyT2ACutDateUpdate(
@@ -437,22 +455,48 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
                   }
                   allDetails.add(detailText);
                   
+                  const expanded = expandBlockNumbers(p.blok);
+                  if (expanded.length > 0) {
+                    expanded.forEach(b => {
+                      productionDefectsData.push({
+                        production_detail_id: detailId,
+                        kategori: p.kategori,
+                        detail: d,
+                        meter: meterForThisPcs || null,
+                        blok: b
+                      });
+                    });
+                  } else {
+                    productionDefectsData.push({
+                      production_detail_id: detailId,
+                      kategori: p.kategori,
+                      detail: d,
+                      meter: meterForThisPcs || null,
+                      blok: p.blok || null
+                    });
+                  }
+                });
+              } else if (p.kategori) {
+                const expanded = expandBlockNumbers(p.blok);
+                if (expanded.length > 0) {
+                  expanded.forEach(b => {
+                    productionDefectsData.push({
+                      production_detail_id: detailId,
+                      kategori: p.kategori,
+                      detail: null,
+                      meter: meterForThisPcs || null,
+                      blok: b
+                    });
+                  });
+                } else {
                   productionDefectsData.push({
                     production_detail_id: detailId,
                     kategori: p.kategori,
-                    detail: d,
+                    detail: null,
                     meter: meterForThisPcs || null,
                     blok: p.blok || null
                   });
-                });
-              } else if (p.kategori) {
-                productionDefectsData.push({
-                  production_detail_id: detailId,
-                  kategori: p.kategori,
-                  detail: null,
-                  meter: meterForThisPcs || null,
-                  blok: p.blok || null
-                });
+                }
               }
             });
           } else if (e.kategori) {
@@ -460,13 +504,26 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
             if (e.detail) allDetails.add(e.detail);
             if (e.blok) allBloks.add(`Blok ${e.blok}`);
             
-            productionDefectsData.push({
-              production_detail_id: detailId,
-              kategori: e.kategori,
-              detail: e.detail || null,
-              meter: null,
-              blok: e.blok || null
-            });
+            const expanded = expandBlockNumbers(e.blok);
+            if (expanded.length > 0) {
+              expanded.forEach(b => {
+                productionDefectsData.push({
+                  production_detail_id: detailId,
+                  kategori: e.kategori,
+                  detail: e.detail || null,
+                  meter: null,
+                  blok: b
+                });
+              });
+            } else {
+              productionDefectsData.push({
+                production_detail_id: detailId,
+                kategori: e.kategori,
+                detail: e.detail || null,
+                meter: null,
+                blok: e.blok || null
+              });
+            }
           }
         });
         
