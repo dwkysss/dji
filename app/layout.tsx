@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { BluetoothProvider } from "@/lib/bluetooth-context";
 import GlobalWidgets from "@/components/GlobalWidgets";
 
 const inter = Inter({
@@ -35,10 +36,12 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-[var(--background)] text-[#1f2d3d] flex flex-col font-sans">
         <AuthProvider>
-          <GlobalWidgets />
-          <div className="min-h-full flex flex-col flex-1">
-            {children}
-          </div>
+          <BluetoothProvider>
+            <GlobalWidgets />
+            <div className="min-h-full flex flex-col flex-1">
+              {children}
+            </div>
+          </BluetoothProvider>
         </AuthProvider>
       </body>
     </html>
