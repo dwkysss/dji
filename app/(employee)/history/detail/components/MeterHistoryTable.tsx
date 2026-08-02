@@ -322,20 +322,30 @@ export default function MeterHistoryTable({
       const isStartRow = item.keterangan_cacat === "START" || (!item.kategori_masalah && !item.detail_masalah && item.meter_kain === 0 && !isIstirahat);
 
       let meterDisplay = "-";
-      if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
-        meterDisplay = cleanMeterVal(item.meter_kain);
-      } else if (defectMeterStr) {
-        meterDisplay = cleanMeterVal(defectMeterStr);
-      } else if (item.detail_masalah) {
-        const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
-        if (meterMatch && meterMatch[1]) {
-          meterDisplay = cleanMeterVal(meterMatch[1]);
+      if (isIstirahat || isFinishReport) {
+        if (h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "") {
+          meterDisplay = cleanMeterVal(h.meter_akhir);
+        } else if (h.meter_awal !== null && h.meter_awal !== undefined && String(h.meter_awal).trim() !== "") {
+          meterDisplay = cleanMeterVal(h.meter_awal);
+        } else if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+          meterDisplay = cleanMeterVal(item.meter_kain);
         }
-      }
-      
-      if (meterDisplay === "-") {
-        if ((isIstirahat || isFinishReport) && (h.meter_akhir || h.meter_awal)) {
-          meterDisplay = cleanMeterVal(h.meter_akhir || h.meter_awal);
+      } else {
+        if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+          meterDisplay = cleanMeterVal(item.meter_kain);
+        } else if (defectMeterStr) {
+          meterDisplay = cleanMeterVal(defectMeterStr);
+        } else if (item.detail_masalah) {
+          const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+          if (meterMatch && meterMatch[1]) {
+            meterDisplay = cleanMeterVal(meterMatch[1]);
+          }
+        }
+
+        if (meterDisplay === "-") {
+          if (h.meter_akhir || h.meter_awal) {
+            meterDisplay = cleanMeterVal(h.meter_akhir || h.meter_awal);
+          }
         }
       }
 
@@ -671,15 +681,15 @@ export default function MeterHistoryTable({
                  {item.downtimeDisplay || "-"}
                </td>
                <td className="px-1 py-1.5 text-center w-12 border-b border-slate-100">
-                 {hasMeterDefect && item.header_id && (
-                   <Link
-                     href={`/edit/${item.header_id}${item.meterDisplay && item.meterDisplay !== '-' ? `?meter=${encodeURIComponent(item.meterDisplay)}&pcs=${item.pcs_index}` : `?pcs=${item.pcs_index}`}`}
-                     className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
-                     title="Edit Data"
-                   >
-                     <Edit className="w-3.5 h-3.5" />
-                   </Link>
-                 )}
+                  {item.header_id && !item.isStartRow && item.cacatDisplay !== "START" && (
+                    <Link
+                      href={`/edit/${item.header_id}${item.meterDisplay && item.meterDisplay !== '-' ? `?meter=${encodeURIComponent(item.meterDisplay)}&pcs=${item.pcs_index}` : `?pcs=${item.pcs_index}`}`}
+                      className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
+                      title="Edit Data"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
                </td>
             </tr>
           );

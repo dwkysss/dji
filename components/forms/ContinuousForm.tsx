@@ -696,6 +696,16 @@ export default function ContinuousForm({
       if (isLaporanIstirahat) jenisLaporanVal = "Selesai Istirahat";
       else if (isSebelumIstirahat) jenisLaporanVal = "Mulai Istirahat";
       
+      const isMeterAkhirEdit = defaultMeter && (
+        String(initialData.meter_akhir) === String(defaultMeter) ||
+        String(initialData.meter_awal) === String(defaultMeter)
+      );
+      const hasMeterAkhirOnly = initialData.meter_akhir !== null && initialData.meter_akhir !== undefined && (!initialData.details || initialData.details.length === 0 || isLaporanIstirahat || isSebelumIstirahat);
+
+      if (isMeterAkhirEdit || isLaporanIstirahat || isSebelumIstirahat || hasMeterAkhirOnly) {
+        setIsMeterModalOpen(true);
+      }
+      
       let parsedDowntimeEvents: any[] = [];
       try {
         if (initialData.downtime_events) {
@@ -829,7 +839,7 @@ export default function ContinuousForm({
         })()
       });
     }
-  }, [initialData, isEdit, reset]);
+  }, [initialData, isEdit, reset, defaultMeter]);
 
   const watchGroupId = watch("groupId");
   const watchJenisLaporan = watch("jenisLaporan") || "";

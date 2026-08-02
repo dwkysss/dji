@@ -952,7 +952,7 @@ export async function updateContinuousReport(
           kategori_masalah: kategoriStr,
           detail_masalah: detailStr,
           keterangan_cacat: keteranganStr,
-          meter_kain: pcsItem.meterKain || null,
+          meter_kain: pcsItem.meterKain || ((data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat") ? data.meterAkhir : null) || null,
           roll_no: pcsItem.rollNo || null,
         };
       });
