@@ -1186,13 +1186,15 @@ export default function DowntimeTracker({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => { setShowModal(false); setIsUnblockingBlock(false); }}
-                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              {!isPanelType && (
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(false); setIsUnblockingBlock(false); }}
+                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
 
             <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4 sm:space-y-5">
