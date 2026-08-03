@@ -41,7 +41,7 @@ export default function AnnouncementAdminModal({ isOpen, onClose }: Announcement
         localActive = parsed.is_active !== undefined ? !!parsed.is_active : true;
         localRoles = Array.isArray(parsed.target_roles) ? parsed.target_roles : localRoles;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     const res = await getAnnouncement();
     if (res?.success && res?.data && res.data.updated_at) {
@@ -89,7 +89,7 @@ export default function AnnouncementAdminModal({ isOpen, onClose }: Announcement
       localStorage.setItem("dji_app_announcement", JSON.stringify(payload));
       window.dispatchEvent(new Event("storage"));
       window.dispatchEvent(new Event("dji_announcement_updated"));
-    } catch (e) {}
+    } catch (e) { }
 
     await updateAnnouncement(message, isActive, targetRoles);
 
@@ -145,14 +145,12 @@ export default function AnnouncementAdminModal({ isOpen, onClose }: Announcement
             <button
               type="button"
               onClick={() => setIsActive(!isActive)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                isActive ? "bg-emerald-600" : "bg-slate-300"
-              }`}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isActive ? "bg-emerald-600" : "bg-slate-300"
+                }`}
             >
               <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  isActive ? "translate-x-5" : "translate-x-0"
-                }`}
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isActive ? "translate-x-5" : "translate-x-0"
+                  }`}
               />
             </button>
           </div>
@@ -176,11 +174,10 @@ export default function AnnouncementAdminModal({ isOpen, onClose }: Announcement
                     key={role.key}
                     type="button"
                     onClick={() => toggleTargetRole(role.key)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
-                      isSelected
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${isSelected
                         ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
                         : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
-                    }`}
+                      }`}
                   >
                     {role.label}
                   </button>

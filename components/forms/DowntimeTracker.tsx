@@ -978,16 +978,14 @@ export default function DowntimeTracker({
                       <AlertTriangle className="w-4 h-4 fill-current" />
                       <span>Lanjutkan Simpan Downtime ({formatTimer(tempDuration)})</span>
                     </button>
-                    {!isPanelType && (
-                      <button
-                        type="button"
-                        onClick={handleCancelTimer}
-                        className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 font-bold text-[11px] transition-all flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200/80 cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5 shrink-0" />
-                        <span>Hapus Hitungan ({formatTimer(tempDuration)})</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleCancelTimer}
+                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 font-bold text-[11px] transition-all flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200/80 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5 shrink-0" />
+                      <span>Hapus Hitungan ({formatTimer(tempDuration)})</span>
+                    </button>
                   </>
                 ) : (
                   <button
@@ -1116,23 +1114,21 @@ export default function DowntimeTracker({
                         </div>
                       ))}
                     </div>
-                      {!isPanelType && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            remove(index);
-                            if (setValue) {
-                              const currentEvents = watch("downtimeEvents") || [];
-                              const updated = currentEvents.filter((_: any, i: number) => i !== index);
-                              const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
-                              setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
-                            }
-                          }}
-                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          remove(index);
+                          if (setValue) {
+                            const currentEvents = watch("downtimeEvents") || [];
+                            const updated = currentEvents.filter((_: any, i: number) => i !== index);
+                            const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
+                            setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+                          }
+                        }}
+                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                   </div>
                 ))}
               </div>
@@ -1186,15 +1182,13 @@ export default function DowntimeTracker({
                   </p>
                 </div>
               </div>
-              {!isPanelType && (
-                <button
-                  type="button"
-                  onClick={() => { setShowModal(false); setIsUnblockingBlock(false); }}
-                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => { setShowModal(false); setIsUnblockingBlock(false); }}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4 sm:space-y-5">
@@ -1485,15 +1479,13 @@ export default function DowntimeTracker({
             </div>
 
             <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
-              {!isPanelType && (
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 h-12 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors"
-                >
-                  Batal
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="flex-1 h-12 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
               <button
                 type="button"
                 onClick={handleSaveEvent}
@@ -1503,7 +1495,7 @@ export default function DowntimeTracker({
                   (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) ||
                   hasMissingMeter
                 }
-                className={`${isPanelType ? "w-full" : "flex-[2]"} h-12 bg-sky-500 text-white font-bold rounded-xl hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
+                className="flex-[2] h-12 bg-sky-500 text-white font-bold rounded-xl hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
               >
                 {isSavingMechanic ? "Mengirim..." : (unresolvedDowntime ? "Selesaikan Perbaikan" : "Simpan Masalah")}
               </button>
