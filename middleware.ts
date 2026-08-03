@@ -10,9 +10,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(`https://${host}${request.nextUrl.pathname}${request.nextUrl.search}`, 301);
   }
 
-  const response = await updateSession(request);
-  response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-  return response;
+  try {
+    const response = await updateSession(request);
+    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    return response;
+  } catch (err) {
+    const res = NextResponse.next();
+    res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    return res;
+  }
 }
 
 export const config = {

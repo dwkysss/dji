@@ -31,8 +31,12 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Jalankan getUser() untuk me-refresh token sesi secara otomatis
-  await supabase.auth.getUser();
+  // Jalankan getUser() untuk me-refresh token sesi secara otomatis (dengan try-catch agar tidak freeze)
+  try {
+    await supabase.auth.getUser();
+  } catch (e) {
+    // Abaikan error jaringan auth di edge middleware agar halaman tidak membeku
+  }
 
   return response;
 }
