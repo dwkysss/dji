@@ -102,6 +102,7 @@ interface DowntimeTrackerProps {
     onStartTimer: (source?: any) => void;
     onStopTimer: (source?: any) => void;
   }) => void;
+  isPanelType?: boolean;
 }
 
 export default function DowntimeTracker({
@@ -116,6 +117,7 @@ export default function DowntimeTracker({
   currentOperatorName = "",
   isEdit = false,
   onRegisterTimerControls,
+  isPanelType = false,
 }: DowntimeTrackerProps) {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -976,14 +978,16 @@ export default function DowntimeTracker({
                       <AlertTriangle className="w-4 h-4 fill-current" />
                       <span>Lanjutkan Simpan Downtime ({formatTimer(tempDuration)})</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleCancelTimer}
-                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 font-bold text-[11px] transition-all flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200/80 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5 shrink-0" />
-                      <span>Hapus Hitungan ({formatTimer(tempDuration)})</span>
-                    </button>
+                    {!isPanelType && (
+                      <button
+                        type="button"
+                        onClick={handleCancelTimer}
+                        className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 font-bold text-[11px] transition-all flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200/80 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5 shrink-0" />
+                        <span>Hapus Hitungan ({formatTimer(tempDuration)})</span>
+                      </button>
+                    )}
                   </>
                 ) : (
                   <button
@@ -1112,21 +1116,23 @@ export default function DowntimeTracker({
                         </div>
                       ))}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        remove(index);
-                        if (setValue) {
-                          const currentEvents = watch("downtimeEvents") || [];
-                          const updated = currentEvents.filter((_: any, i: number) => i !== index);
-                          const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
-                          setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
-                        }
-                      }}
-                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      {!isPanelType && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            remove(index);
+                            if (setValue) {
+                              const currentEvents = watch("downtimeEvents") || [];
+                              const updated = currentEvents.filter((_: any, i: number) => i !== index);
+                              const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
+                              setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+                            }
+                          }}
+                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                   </div>
                 ))}
               </div>
@@ -1477,13 +1483,15 @@ export default function DowntimeTracker({
             </div>
 
             <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="flex-1 h-12 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors"
-              >
-                Batal
-              </button>
+              {!isPanelType && (
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 h-12 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors"
+                >
+                  Batal
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleSaveEvent}
@@ -1493,7 +1501,7 @@ export default function DowntimeTracker({
                   (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) ||
                   hasMissingMeter
                 }
-                className="flex-[2] h-12 bg-sky-500 text-white font-bold rounded-xl hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                className={`${isPanelType ? "w-full" : "flex-[2]"} h-12 bg-sky-500 text-white font-bold rounded-xl hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
               >
                 {isSavingMechanic ? "Mengirim..." : (unresolvedDowntime ? "Selesaikan Perbaikan" : "Simpan Masalah")}
               </button>

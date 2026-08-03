@@ -1858,6 +1858,7 @@ export default function ContinuousForm({
                 operators={activeOperators}
                 currentOperatorName={getOperatorName(watch("operatorId"))}
                 isEdit={isEdit}
+                isPanelType={false}
               />
             </div>
           </div>

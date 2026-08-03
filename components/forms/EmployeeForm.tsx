@@ -1444,6 +1444,7 @@ export default function EmployeeForm({
                     currentOperatorName={currentOperatorName}
                     isEdit={isEdit}
                     onRegisterTimerControls={setTimerControls}
+                    isPanelType={true}
                   />
                 </div>
               </div>
