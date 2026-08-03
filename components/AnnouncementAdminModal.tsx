@@ -55,6 +55,7 @@ export default function AnnouncementAdminModal({ isOpen, onClose }: Announcement
     }
   };
 
+
   const toggleTargetRole = (roleKey: string) => {
     if (roleKey === "all") {
       setTargetRoles(["all"]);
@@ -175,8 +176,8 @@ export default function AnnouncementAdminModal({ isOpen, onClose }: Announcement
                     type="button"
                     onClick={() => toggleTargetRole(role.key)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${isSelected
-                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                        : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                      : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
                       }`}
                   >
                     {role.label}
