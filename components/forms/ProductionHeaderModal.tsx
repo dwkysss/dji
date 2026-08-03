@@ -178,7 +178,7 @@ export default function ProductionHeaderModal({
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Pick</label>
-                  <input type="number" inputMode="numeric" onWheel={(e) => (e.target as HTMLElement).blur()} {...register("pick")} placeholder="Misal: 16" className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all" />
+                  <input type="text" {...register("pick")} placeholder="Misal: 16 atau 18, 8" className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all" />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Course</label>
