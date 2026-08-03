@@ -54,8 +54,8 @@ const ProductionHeaderModal = dynamic(() => import("./ProductionHeaderModal"), {
   ssr: false,
 });
 import DowntimeTracker from "./DowntimeTracker";
-const BluetoothDowntimeTrigger = dynamic(
-  () => import("./BluetoothDowntimeTrigger"),
+const WifiDowntimeTrigger = dynamic(
+  () => import("./WifiDowntimeTrigger"),
   { ssr: false }
 );
 const ContinuousHistoryDrawer = dynamic(
@@ -736,24 +736,28 @@ export default function EmployeeForm({
   });
 
   const handleChangePcsCount = (targetCount: number, forceDirect = false) => {
-    if (targetCount > fields.length) {
+    const validCount = Math.max(1, Math.min(100, Math.floor(Number(targetCount) || 1)));
+    if (validCount > fields.length) {
       // Append directly without confirmation for increasing
-      for (let i = fields.length; i < targetCount; i++) {
+      for (let i = fields.length; i < validCount; i++) {
         append({
           pcsIndex: String(i + 1),
           jmlHasilProduksi: "1",
         });
       }
-    } else if (targetCount < fields.length) {
+    } else if (validCount < fields.length) {
       if (forceDirect) {
-        while (fields.length > targetCount) {
-          remove(fields.length - 1);
+        const countToRemove = fields.length - validCount;
+        for (let i = 0; i < countToRemove; i++) {
+          if (fields.length - 1 - i >= 0) {
+            remove(fields.length - 1 - i);
+          }
         }
       } else {
         // Show confirmation dialog before reducing PCS count since it deletes data
         setPcsConfirmModal({
           isOpen: true,
-          targetCount,
+          targetCount: validCount,
           actionType: "decrement",
         });
       }
@@ -1391,7 +1395,7 @@ export default function EmployeeForm({
                 {/* Data Panel Umum */}
                 <div
                   data-tour="panel-info"
-                  className="w-full flex-1 bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden relative min-h-[100px] grid grid-cols-2"
+                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden relative grid grid-cols-2"
                 >
                   <input type="hidden" {...register("panelNo")} />
 
@@ -1419,10 +1423,11 @@ export default function EmployeeForm({
                   )}
                 </div>
 
-                {/* Banner Bluetooth Trigger ESP32 (Disimpan tepat di bawah Card Nomor Panel) */}
+                {/* Banner Wi-Fi Trigger ESP32 (Disimpan tepat di bawah Card Nomor Panel) */}
                 {!isEdit && timerControls && (
                   <div className="w-full">
-                    <BluetoothDowntimeTrigger
+                    <WifiDowntimeTrigger
+                      selectedMachineCode={watch("nomorMc")}
                       onStartTimer={timerControls.onStartTimer}
                       onStopTimer={timerControls.onStopTimer}
                       isTimerRunning={timerControls.isTimerRunning}

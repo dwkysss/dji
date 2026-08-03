@@ -7,7 +7,7 @@ import { ContinuousFormInput } from "@/lib/schemas";
 import { submitMechanicDowntime } from "@/actions/mechanic-actions";
 import { getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
-import BluetoothDowntimeTrigger from "./BluetoothDowntimeTrigger";
+import WifiDowntimeTrigger from "./WifiDowntimeTrigger";
 
 const PROBLEM_CATEGORIES = [
   { id: "A", name: "Kode A: Masalah dan Perbaikan Benang" },
@@ -134,6 +134,7 @@ export default function DowntimeTracker({
   const [showModal, setShowModal] = useState(false);
   const [tempDuration, setTempDuration] = useState(0);
   const accumulatedSecRef = useRef<number>(0);
+  const activeTimerStartRef = useRef<number | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedDetails, setSelectedDetails] = useState<Record<string, string[]>>({});
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
@@ -374,7 +375,9 @@ export default function DowntimeTracker({
     // 1. Recover saved timer if it exists (for long downtimes)
     const savedStart = localStorage.getItem("dji_active_downtime_start");
     if (savedStart && !isTimerRunning) {
-      setTimerStartRef(parseInt(savedStart));
+      const parsed = parseInt(savedStart);
+      activeTimerStartRef.current = parsed;
+      setTimerStartRef(parsed);
       setIsTimerRunning(true);
     }
 
@@ -403,7 +406,12 @@ export default function DowntimeTracker({
   const [showCancelTimerConfirmModal, setShowCancelTimerConfirmModal] = useState(false);
 
   const handleStartTimer = (source?: any) => {
+    if (activeTimerStartRef.current !== null) {
+      // Abaikan sinkron: timer sudah aktif berjalan
+      return;
+    }
     const now = Date.now();
+    activeTimerStartRef.current = now;
     setIsTimerRunning(true);
     setTimerStartRef(now);
     localStorage.setItem("dji_active_downtime_start", now.toString());
@@ -414,6 +422,7 @@ export default function DowntimeTracker({
   };
 
   const executeCancelTimer = () => {
+    activeTimerStartRef.current = null;
     setIsTimerRunning(false);
     setTimerStartRef(null);
     setLiveTimerSeconds(0);
@@ -470,24 +479,26 @@ export default function DowntimeTracker({
   };
 
   const handleStopTimer = (source?: any) => {
-    let duration = 0;
-    if (timerStartRef) {
-      duration = Math.max(0, Math.floor((Date.now() - timerStartRef) / 1000));
-    } else {
-      const savedStart = localStorage.getItem("dji_active_downtime_start");
-      if (savedStart) {
-        duration = Math.max(0, Math.floor((Date.now() - parseInt(savedStart)) / 1000));
-      }
+    const savedStartStr = localStorage.getItem("dji_active_downtime_start");
+    const startTimestamp = activeTimerStartRef.current || (savedStartStr ? parseInt(savedStartStr) : null);
+
+    // Abaikan sinkron: timer tidak sedang aktif
+    if (startTimestamp === null) {
+      return;
     }
 
-    // Reset timer start reference so current segment is finished
+    // Langsung hapus ref dan storage secara sinkron agar panggilan berulang 1ms berikutnya langsung terblokir
+    activeTimerStartRef.current = null;
+    localStorage.removeItem("dji_active_downtime_start");
+
     setIsTimerRunning(false);
     setTimerStartRef(null);
-    localStorage.removeItem("dji_active_downtime_start");
 
     setIsUnblockingBlock(false);
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
+
+    const duration = Math.max(0, Math.floor((Date.now() - startTimestamp) / 1000));
 
     // Pre-fill if resuming from previous shift
     if (unresolvedDowntime) {
@@ -525,7 +536,7 @@ export default function DowntimeTracker({
       }
     }
 
-    // Accumulate duration in ref (ref is immune to stale closures)
+    // Akumulasi durasi dalam ref (fitur akumulasi multi-segmen)
     accumulatedSecRef.current += duration;
     if (accumulatedSecRef.current < 1) accumulatedSecRef.current = 1;
 
@@ -671,6 +682,8 @@ export default function DowntimeTracker({
           setIsTimerRunning(false);
           setTimerStartRef(null);
           setLiveTimerSeconds(0);
+          accumulatedSecRef.current = 0;
+          setTempDuration(0);
           localStorage.removeItem("dji_active_downtime_start");
           setIsSavingMechanic(false);
           setIsUnblockingBlock(false);
@@ -884,16 +897,7 @@ export default function DowntimeTracker({
           </div>
         )}
 
-        {/* Banner Bluetooth Trigger ESP32 (Tampil HANYA pada input METER di bawah Card Block Mesin) */}
-        {!isEdit && showMeterInput && (
-          <div className="w-full">
-            <BluetoothDowntimeTrigger
-              onStartTimer={handleStartTimer}
-              onStopTimer={handleStopTimer}
-              isTimerRunning={isTimerRunning}
-            />
-          </div>
-        )}
+
       </div>
 
       {/* 2. CARD DOWNTIME BIASA */}

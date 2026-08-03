@@ -866,25 +866,29 @@ export default function ContinuousForm({
   });
 
   const handleChangePcsCount = (targetCount: number, forceDirect = false) => {
-    if (targetCount > fields.length) {
+    const validCount = Math.max(1, Math.min(100, Math.floor(Number(targetCount) || 1)));
+    if (validCount > fields.length) {
       // Append directly without confirmation for increasing
-      for (let i = fields.length; i < targetCount; i++) {
+      for (let i = fields.length; i < validCount; i++) {
         append({
           pcsIndex: String(i + 1),
           jmlHasilProduksi: "1",
           meterKain: "",
         });
       }
-    } else if (targetCount < fields.length) {
+    } else if (validCount < fields.length) {
       if (forceDirect) {
-        for (let i = fields.length - 1; i >= targetCount; i--) {
-          remove(i);
+        const countToRemove = fields.length - validCount;
+        for (let i = 0; i < countToRemove; i++) {
+          if (fields.length - 1 - i >= 0) {
+            remove(fields.length - 1 - i);
+          }
         }
       } else {
         // Show confirmation dialog before reducing PCS count since it deletes data
         setPcsConfirmModal({
           isOpen: true,
-          targetCount,
+          targetCount: validCount,
           actionType: "decrement",
         });
       }
