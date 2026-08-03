@@ -1,6 +1,6 @@
 /*
  * =================================================================================
- * PROYEK: ESP32 WI-FI LOKAL DUAL MACHINE DOWNTIME TIMER
+ * PROYEK: ESP32 WI-FI LOKAL DUAL MACHINE DOWNTIME TIMER (STATIC IP)
  * Deskripsi: Program ESP32 untuk memantau 2 Mesin sekaligus via Wi-Fi Lokal & WebSocket.
  *            - Mesin 1 (M1): GPIO 4 (Relay Sakelar M1)
  *            - Mesin 2 (M2): GPIO 5 (Relay Sakelar M2)
@@ -21,9 +21,16 @@
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 
-// --- KONFIGURASI JARINGAN WI-FI (Sesuaikan SSID & Password Anda) ---
+// --- KONFIGURASI JARINGAN WI-FI ---
 const char* ssid     = "Tenda_6854B0";
 const char* password = "rtomh99555";
+
+// --- KONFIGURASI STATIC IP (IP Tetap Permanen ESP32) ---
+IPAddress local_IP(192, 168, 2, 171);
+IPAddress gateway(192, 168, 2, 1);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress primaryDNS(8, 8, 8, 8);
+IPAddress secondaryDNS(8, 8, 4, 4);
 
 // Domain mDNS lokal -> http://esp32-timer.local
 const char* mdns_hostname = "esp32-timer";
@@ -128,7 +135,14 @@ void setup() {
   Serial.println("  ESP32 DUAL MACHINE WI-FI TIMER STARTING... ");
   Serial.println("=============================================");
 
-  // 2. Hubungkan ke Wi-Fi
+  // 2. Konfigurasi Static IP Permanen (192.168.2.171)
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
+    Serial.println("[Wi-Fi] Gagal mengonfigurasi Static IP!");
+  } else {
+    Serial.println("[Wi-Fi] Static IP diatur ke: 192.168.2.171");
+  }
+
+  // 3. Hubungkan ke Wi-Fi
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.print("[Wi-Fi] Menghubungkan ke: ");
@@ -143,7 +157,7 @@ void setup() {
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\n[Wi-Fi] Terhubung!");
-    Serial.print("[Wi-Fi] IP Address ESP32: ");
+    Serial.print("[Wi-Fi] IP Address ESP32 (STATIC): ");
     Serial.println(WiFi.localIP());
 
     // Inisialisasi mDNS (Domain: http://esp32-timer.local)
@@ -158,13 +172,13 @@ void setup() {
     Serial.println("\n[Wi-Fi] Gagal terhubung! Periksa SSID & Password.");
   }
 
-  // 3. Jalankan HTTP REST Server
+  // 4. Jalankan HTTP REST Server
   httpServer.on("/api/status", handleApiStatus);
   httpServer.onNotFound(handleNotFound);
   httpServer.begin();
   Serial.println("[HTTP] Server berjalan di Port 80 (/api/status)");
 
-  // 4. Jalankan WebSocket Server
+  // 5. Jalankan WebSocket Server
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
   Serial.println("[WebSocket] Server berjalan di Port 81");
@@ -183,10 +197,6 @@ void loop() {
       Serial.println("[Wi-Fi] Mencoba menghubungkan kembali...");
       WiFi.reconnect();
     }
-  } else {
-    #if defined(ESP32)
-    // Keep mDNS active
-    #endif
   }
 
   unsigned long currentMillis = millis();

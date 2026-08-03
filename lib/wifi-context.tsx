@@ -29,9 +29,9 @@ export const MACHINE_ESP32_MAP: Record<string, { host: string; channel: "M1" | "
 };
 
 export function getEsp32ConfigForMachine(machineCode?: string) {
-  if (!machineCode) return { host: "esp32-timer.local", channel: "M1" as const };
+  if (!machineCode) return { host: "192.168.2.171", channel: "M1" as const };
   const normalized = machineCode.trim().toUpperCase();
-  return MACHINE_ESP32_MAP[normalized] || { host: `esp32-${normalized.toLowerCase().replace(/\s+/g, "-")}.local`, channel: "M1" as const };
+  return MACHINE_ESP32_MAP[normalized] || { host: "192.168.2.171", channel: "M1" as const };
 }
 
 interface WifiContextType {
@@ -72,7 +72,7 @@ interface WifiContextType {
 
 const WifiContext = createContext<WifiContextType | undefined>(undefined);
 
-const DEFAULT_HOSTNAME = "esp32-timer.local";
+const DEFAULT_HOSTNAME = "192.168.2.171";
 const STORAGE_KEY = "wifi_esp32_target";
 
 export function WifiProvider({ children }: { children: React.ReactNode }) {
