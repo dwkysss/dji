@@ -332,19 +332,14 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop]
   );
 
-  // Auto-Connect On Load
+  // Load Hostname from LocalStorage on mount (Standby mode, connect on demand)
   useEffect(() => {
-    let savedHost = DEFAULT_HOSTNAME;
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        savedHost = stored;
         setTargetHostState(stored);
       }
     }
-
-    // Auto-Connect on page load
-    connect(savedHost);
 
     return () => {
       if (autoReconnectTimerRef.current) {

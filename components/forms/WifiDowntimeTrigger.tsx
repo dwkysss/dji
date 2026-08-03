@@ -135,21 +135,25 @@ export default function WifiDowntimeTrigger({
 
           <span className="text-[11px] font-black text-slate-800 shrink-0">ESP32</span>
 
-          <span
-            className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold truncate max-w-[85px] sm:max-w-[120px] ${
+          <button
+            type="button"
+            onClick={() => connectionStatus === "terputus" && connect()}
+            disabled={connectionStatus !== "terputus"}
+            className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold truncate max-w-[85px] sm:max-w-[120px] transition-all ${
               connectionStatus === "terhubung"
                 ? "bg-emerald-100 text-emerald-800"
                 : connectionStatus === "menghubungkan"
                 ? "bg-amber-100 text-amber-800 animate-pulse"
-                : "bg-rose-100 text-rose-800"
+                : "bg-rose-100 hover:bg-rose-200 text-rose-800 cursor-pointer active:scale-95"
             }`}
+            title={connectionStatus === "terputus" ? "Klik untuk Menghubungkan ke ESP32 Wi-Fi" : ""}
           >
             {connectionStatus === "terhubung"
               ? "Terhubung"
               : connectionStatus === "menghubungkan"
               ? "Koneksi..."
-              : "Terputus"}
-          </span>
+              : "Hubungkan"}
+          </button>
         </div>
 
         <button
