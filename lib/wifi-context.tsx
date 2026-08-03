@@ -95,7 +95,7 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
   // Refs for persistent connection management
   const socketRef = useRef<WebSocket | null>(null);
   const autoReconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isManualDisconnectRef = useRef<boolean>(false);
+  const isManualDisconnectRef = useRef<boolean>(true);
   const signalListenersRef = useRef<Set<WifiSignalListener>>(new Set());
 
   // Log Helper

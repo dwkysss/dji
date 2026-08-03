@@ -1,27 +1,19 @@
 /*
- * ==================================================================================
- * ESP32 DUAL MACHINE TIMER FIRMWARE (Wi-Fi WebSocket & mDNS)
- * ==================================================================================
- * Deskripsi:
- * Firmware ESP32 untuk memantau 2 Mesin sekaligus secara real-time via Wi-Fi Lokal.
+ * =================================================================================
+ * PROYEK: ESP32 WI-FI LOKAL DUAL MACHINE DOWNTIME TIMER
+ * Deskripsi: Program ESP32 untuk memantau 2 Mesin sekaligus via Wi-Fi Lokal & WebSocket.
+ *            - Mesin 1 (M1): GPIO 4 (Relay Sakelar M1)
+ *            - Mesin 2 (M2): GPIO 5 (Relay Sakelar M2)
  * 
- * Fitur:
- * 1. WebSocketsServer di Port 81 (Real-time Broadcast Event status mesin).
- * 2. WebServer HTTP di Port 80 (/api/status untuk REST check).
- * 3. mDNS Server: http://esp32-timer.local
- * 4. Dual Machine Monitoring dengan Software Debounce 500ms:
- *    - Mesin 1 (M1): GPIO 4 (INPUT_PULLUP, Aktif LOW = START, HIGH = STOP)
- *    - Mesin 2 (M2): GPIO 5 (INPUT_PULLUP, Aktif LOW = START, HIGH = STOP)
- *    - Ground Bersama (Common Ground ke kontak COM relay/sakelar)
+ * Aturan Trigger:
+ * - KETIKA RELAY MESIN AKTIF (LOW)  -> Kirim WebSocket {"machine":"M1","status":"START"}
+ * - KETIKA RELAY MESIN OFF   (HIGH) -> Kirim WebSocket {"machine":"M1","status":"STOP"}
+ * =================================================================================
  * 
- * Format Payload WebSocket JSON:
- * - {"machine":"M1","status":"START"} atau {"machine":"M1","status":"STOP"}
- * - {"machine":"M2","status":"START"} atau {"machine":"M2","status":"STOP"}
- * 
- * Library Dependencies (Install via Arduino Library Manager):
- * - WebSockets by Markus Sattler (v2.3.0+)
- * - Built-in ESP32 libraries: WiFi.h, ESPmDNS.h, WebServer.h
- * ==================================================================================
+ * DEPENDENSI ARDUINO LIBRARIES:
+ * 1. WebSockets by Markus Sattler (Install via Arduino Library Manager)
+ * 2. Built-in ESP32 libraries: WiFi.h, ESPmDNS.h, WebServer.h
+ * =================================================================================
  */
 
 #include <WiFi.h>
@@ -29,87 +21,66 @@
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 
-// ----------------------------------------------------------------------------------
-// KONFIGURASI WI-FI (Sesuaikan SSID & Password Wi-Fi Lokal Anda)
-// ----------------------------------------------------------------------------------
-const char* WIFI_SSID     = "DJI_PRODUCTION_NET";
-const char* WIFI_PASSWORD = "production123";
+// --- KONFIGURASI JARINGAN WI-FI (Sesuaikan SSID & Password Anda) ---
+const char* ssid     = "Tenda_6854B0";
+const char* password = "rtomh99555";
 
-// Hostname mDNS -> http://esp32-timer.local
-const char* MDNS_HOSTNAME = "esp32-timer";
+// Domain mDNS lokal -> http://esp32-timer.local
+const char* mdns_hostname = "esp32-timer";
 
-// ----------------------------------------------------------------------------------
-// KONFIGURASI HARDWARE GPIO
-// ----------------------------------------------------------------------------------
-const int PIN_M1 = 4; // GPIO 4 untuk Sakelar/Relay Mesin 1
-const int PIN_M2 = 5; // GPIO 5 untuk Sakelar/Relay Mesin 2
+// --- KONFIGURASI HARDWARE PIN ---
+const int MESIN_1_PIN = 4;   // GPIO 4 (Input Relay Mesin 1)
+const int MESIN_2_PIN = 5;   // GPIO 5 (Input Relay Mesin 2)
+const int LED_M1_PIN  = 2;   // Onboard LED ESP32 (Indikator Mesin 1)
 
-// Timing Software Debounce (500ms)
-const unsigned long DEBOUNCE_DELAY = 500;
+// --- SERVER INSTANCES ---
+WebServer httpServer(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
 
-// State Tracking Mesin 1 & Mesin 2 (Initial LOW / HIGH)
-int lastPinStateM1 = HIGH;
-int currentPinStateM1 = HIGH;
-unsigned long lastDebounceTimeM1 = 0;
+// --- STATE PELACAK DOWNTIME MESIN ---
+bool m1_active = false;
+bool m2_active = false;
 
-int lastPinStateM2 = HIGH;
-int currentPinStateM2 = HIGH;
-unsigned long lastDebounceTimeM2 = 0;
+// Debounce state Mesin 1
+int m1_lastRawState = HIGH;
+unsigned long m1_lastDebounceTime = 0;
 
-// ----------------------------------------------------------------------------------
-// INSTANSISASI SERVER
-// ----------------------------------------------------------------------------------
-WebServer server(80);           // HTTP REST API di Port 80
-WebSocketsServer webSocket(81); // WebSocket Server di Port 81
+// Debounce state Mesin 2
+int m2_lastRawState = HIGH;
+unsigned long m2_lastDebounceTime = 0;
 
-// ----------------------------------------------------------------------------------
-// HELPER BROADCAST WEBSOCKET
-// ----------------------------------------------------------------------------------
-void sendMachineEvent(const char* machine, const char* status) {
-  String json = "{\"machine\":\"";
-  json += machine;
-  json += "\",\"status\":\"";
-  json += status;
-  json += "\"}";
+const unsigned long debounceDelay = 500; // Stabilisasi sinyal 500ms
 
-  webSocket.broadcastTXT(json);
-  Serial.print("[WebSocket Broadcast] ");
-  Serial.println(json);
-}
-
-// ----------------------------------------------------------------------------------
-// WEBSOCKET EVENT HANDLER
-// ----------------------------------------------------------------------------------
+// --- HANDLER WEBSOCKET EVENT ---
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
-  switch(type) {
+  switch (type) {
     case WStype_DISCONNECTED:
-      Serial.printf("[WebSocket] Client #%u Terputus\n", num);
+      Serial.printf("[WebSocket] Client [%u] Terputus!\n", num);
       break;
 
     case WStype_CONNECTED: {
       IPAddress ip = webSocket.remoteIP(num);
-      Serial.printf("[WebSocket] Client #%u Terhubung dari IP %d.%d.%d.%d\n", num, ip[0], ip[1], ip[2], ip[3]);
-      
-      // Send initial status payload for both machines upon connection
-      String statusM1Str = (currentPinStateM1 == LOW) ? "START" : "STOP";
-      String statusM2Str = (currentPinStateM2 == LOW) ? "START" : "STOP";
-      
-      String initM1 = "{\"machine\":\"M1\",\"status\":\"" + statusM1Str + "\"}";
-      String initM2 = "{\"machine\":\"M2\",\"status\":\"" + statusM2Str + "\"}";
-      
-      webSocket.sendTXT(num, initM1);
-      webSocket.sendTXT(num, initM2);
+      Serial.printf("[WebSocket] Client [%u] Terhubung dari %d.%d.%d.%d\n", num, ip[0], ip[1], ip[2], ip[3]);
+
+      // Kirimkan status fisik terkini M1 & M2 ke client yang baru terkoneksi
+      String payloadM1 = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\"}";
+      String payloadM2 = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\"}";
+
+      webSocket.sendTXT(num, payloadM1);
+      webSocket.sendTXT(num, payloadM2);
       break;
     }
 
     case WStype_TEXT:
-      Serial.printf("[WebSocket] Client #%u Pesan: %s\n", num, payload);
-      // Optional ping/pong handler or manual command trigger from web client
-      if (strcmp((char*)payload, "GET_STATUS") == 0) {
-        String statusM1Str = (currentPinStateM1 == LOW) ? "START" : "STOP";
-        String statusM2Str = (currentPinStateM2 == LOW) ? "START" : "STOP";
-        webSocket.sendTXT(num, "{\"machine\":\"M1\",\"status\":\"" + statusM1Str + "\"}");
-        webSocket.sendTXT(num, "{\"machine\":\"M2\",\"status\":\"" + statusM2Str + "\"}");
+      Serial.printf("[WebSocket] Pesan dari [%u]: %s\n", num, payload);
+      // Tanggapi perintah PING atau GET_STATUS dari client web
+      if (strcmp((char*)payload, "PING") == 0) {
+        webSocket.sendTXT(num, "PONG");
+      } else if (strcmp((char*)payload, "GET_STATUS") == 0) {
+        String payloadM1 = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\"}";
+        String payloadM2 = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\"}";
+        webSocket.sendTXT(num, payloadM1);
+        webSocket.sendTXT(num, payloadM2);
       }
       break;
 
@@ -118,147 +89,150 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
   }
 }
 
-// ----------------------------------------------------------------------------------
-// HTTP REST API HANDLERS (Port 80)
-// ----------------------------------------------------------------------------------
+// --- HANDLER HTTP API REST STATUS (PORT 80) ---
 void handleApiStatus() {
-  String statusM1 = (currentPinStateM1 == LOW) ? "START" : "STOP";
-  String statusM2 = (currentPinStateM2 == LOW) ? "START" : "STOP";
-
-  String json = "{";
-  json += "\"status\":\"OK\",";
-  json += "\"mdns\":\"http://esp32-timer.local\",";
-  json += "\"websocket_port\":81,";
-  json += "\"machines\":{";
-  json += "\"M1\":{\"gpio\":4,\"status\":\"" + statusM1 + "\"},";
-  json += "\"M2\":{\"gpio\":5,\"status\":\"" + statusM2 + "\"}";
-  json += "}}";
-
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "application/json", json);
+  String json = "{\"status\":\"OK\",\"m1\":\"" + String(m1_active ? "START" : "STOP") + 
+                "\", \"m2\":\"" + String(m2_active ? "START" : "STOP") + 
+                "\", \"ip\":\"" + WiFi.localIP().toString() + 
+                "\", \"mdns\":\"http://esp32-timer.local\"}";
+  
+  // Header CORS agar dapat diakses oleh browser/Vercel tanpa terblokir Policy CORS
+  httpServer.sendHeader("Access-Control-Allow-Origin", "*");
+  httpServer.send(200, "application/json", json);
 }
 
 void handleNotFound() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(404, "text/plain", "404 Not Found - Use /api/status or WebSocket Port 81");
+  httpServer.sendHeader("Access-Control-Allow-Origin", "*");
+  httpServer.send(404, "text/plain", "404 Not Found - Akses /api/status atau WebSocket Port 81");
 }
 
-// ----------------------------------------------------------------------------------
-// SETUP
-// ----------------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
   delay(500);
 
-  Serial.println("\n=== INTIASI ESP32 DUAL MACHINE TIMER ===");
+  // 1. Konfigurasi Input Pin dengan Pull-Up Internal
+  pinMode(MESIN_1_PIN, INPUT_PULLUP);
+  pinMode(MESIN_2_PIN, INPUT_PULLUP);
 
-  // 1. Inisialisasi GPIO Pin dengan Internal INPUT_PULLUP
-  pinMode(PIN_M1, INPUT_PULLUP);
-  pinMode(PIN_M2, INPUT_PULLUP);
+  pinMode(LED_M1_PIN, OUTPUT);
+  digitalWrite(LED_M1_PIN, LOW);
 
-  currentPinStateM1 = digitalRead(PIN_M1);
-  lastPinStateM1    = currentPinStateM1;
+  // Inisialisasi state awal dari fisik pin
+  m1_lastRawState = digitalRead(MESIN_1_PIN);
+  m1_active       = (m1_lastRawState == LOW);
 
-  currentPinStateM2 = digitalRead(PIN_M2);
-  lastPinStateM2    = currentPinStateM2;
+  m2_lastRawState = digitalRead(MESIN_2_PIN);
+  m2_active       = (m2_lastRawState == LOW);
 
-  // 2. Koneksi Wi-Fi
+  Serial.println("\n=============================================");
+  Serial.println("  ESP32 DUAL MACHINE WI-FI TIMER STARTING... ");
+  Serial.println("=============================================");
+
+  // 2. Hubungkan ke Wi-Fi
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Menghubungkan ke Wi-Fi: ");
-  Serial.println(WIFI_SSID);
+  WiFi.begin(ssid, password);
+  Serial.print("[Wi-Fi] Menghubungkan ke: ");
+  Serial.println(ssid);
 
-  int wifiRetries = 0;
-  while (WiFi.status() != WL_CONNECTED && wifiRetries < 20) {
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
     delay(500);
     Serial.print(".");
-    wifiRetries++;
+    attempts++;
   }
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\n[Wi-Fi] Terhubung!");
     Serial.print("[Wi-Fi] IP Address ESP32: ");
     Serial.println(WiFi.localIP());
+
+    // Inisialisasi mDNS (Domain: http://esp32-timer.local)
+    if (MDNS.begin(mdns_hostname)) {
+      Serial.printf("[mDNS] Domain lokal aktif: http://%s.local\n", mdns_hostname);
+      MDNS.addService("http", "tcp", 80);
+      MDNS.addService("ws", "tcp", 81);
+    } else {
+      Serial.println("[mDNS] Gagal memulai mDNS Server!");
+    }
   } else {
-    Serial.println("\n[Wi-Fi] Gagal terhubung (Timeout). Menjalankan mode AP/Standby.");
+    Serial.println("\n[Wi-Fi] Gagal terhubung! Periksa SSID & Password.");
   }
 
-  // 3. Inisialisasi mDNS Server (esp32-timer.local)
-  if (MDNS.begin(MDNS_HOSTNAME)) {
-    Serial.printf("[mDNS] Server mDNS Berhasil Aktif: http://%s.local\n", MDNS_HOSTNAME);
-    MDNS.addService("http", "tcp", 80);
-    MDNS.addService("ws", "tcp", 81);
-  } else {
-    Serial.println("[mDNS] Gagal memulai mDNS Server!");
-  }
+  // 3. Jalankan HTTP REST Server
+  httpServer.on("/api/status", handleApiStatus);
+  httpServer.onNotFound(handleNotFound);
+  httpServer.begin();
+  Serial.println("[HTTP] Server berjalan di Port 80 (/api/status)");
 
-  // 4. Start WebSocket Server di Port 81
+  // 4. Jalankan WebSocket Server
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-  Serial.println("[WebSocket] Server Aktif di Port 81");
-
-  // 5. Start HTTP Server di Port 80
-  server.on("/api/status", HTTP_GET, handleApiStatus);
-  server.onNotFound(handleNotFound);
-  server.begin();
-  Serial.println("[HTTP API] Server REST Aktif di Port 80 (/api/status)");
-
-  Serial.println("==================================================");
-  Serial.println("Sistem Pemantau Dual Mesin Siap Beroperasi!");
-  Serial.println("==================================================");
+  Serial.println("[WebSocket] Server berjalan di Port 81");
 }
 
-// ----------------------------------------------------------------------------------
-// MAIN LOOP & DEBOUNCE MONITORING
-// ----------------------------------------------------------------------------------
 void loop() {
-  // Handler WebSocket & WebServer
+  // Selalu jalankan listener HTTP & WebSocket
+  httpServer.handleClient();
   webSocket.loop();
-  server.handleClient();
 
-  unsigned long now = millis();
-
-  // --------------------------------------------------------------------------------
-  // MONITORING MESIN 1 (GPIO 4) dengan 500ms Software Debounce
-  // --------------------------------------------------------------------------------
-  int readingM1 = digitalRead(PIN_M1);
-  if (readingM1 != lastPinStateM1) {
-    lastDebounceTimeM1 = now;
-    lastPinStateM1 = readingM1;
+  // Auto Reconnect Wi-Fi jika terputus sementara di jaringan
+  if (WiFi.status() != WL_CONNECTED) {
+    static unsigned long lastWiFiRetry = 0;
+    if (millis() - lastWiFiRetry > 10000) {
+      lastWiFiRetry = millis();
+      Serial.println("[Wi-Fi] Mencoba menghubungkan kembali...");
+      WiFi.reconnect();
+    }
+  } else {
+    #if defined(ESP32)
+    // Keep mDNS active
+    #endif
   }
 
-  if ((now - lastDebounceTimeM1) > DEBOUNCE_DELAY) {
-    if (readingM1 != currentPinStateM1) {
-      currentPinStateM1 = readingM1;
-      // LOW = Sakelar tertutup/terhubung ke GND -> MESIN START
-      // HIGH = Sakelar terbuka -> MESIN STOP
-      if (currentPinStateM1 == LOW) {
-        sendMachineEvent("M1", "START");
-      } else {
-        sendMachineEvent("M1", "STOP");
-      }
+  unsigned long currentMillis = millis();
+
+  // -------------------------------------------------------------
+  // MONITORING MESIN 1 (GPIO 4)
+  // -------------------------------------------------------------
+  int currentM1State = digitalRead(MESIN_1_PIN);
+  if (currentM1State != m1_lastRawState) {
+    m1_lastDebounceTime = currentMillis;
+    m1_lastRawState = currentM1State;
+  }
+
+  if ((currentMillis - m1_lastDebounceTime) > debounceDelay) {
+    bool currentM1Active = (currentM1State == LOW);
+    if (currentM1Active != m1_active) {
+      m1_active = currentM1Active;
+      digitalWrite(LED_M1_PIN, m1_active ? HIGH : LOW);
+
+      String payload = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\"}";
+      Serial.printf("[SENSOR M1] Status Baru: %s => Broadcast WS: %s\n", m1_active ? "AKTIF" : "OFF", payload.c_str());
+      
+      webSocket.broadcastTXT(payload);
     }
   }
 
-  // --------------------------------------------------------------------------------
-  // MONITORING MESIN 2 (GPIO 5) dengan 500ms Software Debounce
-  // --------------------------------------------------------------------------------
-  int readingM2 = digitalRead(PIN_M2);
-  if (readingM2 != lastPinStateM2) {
-    lastDebounceTimeM2 = now;
-    lastPinStateM2 = readingM2;
+  // -------------------------------------------------------------
+  // MONITORING MESIN 2 (GPIO 5)
+  // -------------------------------------------------------------
+  int currentM2State = digitalRead(MESIN_2_PIN);
+  if (currentM2State != m2_lastRawState) {
+    m2_lastDebounceTime = currentMillis;
+    m2_lastRawState = currentM2State;
   }
 
-  if ((now - lastDebounceTimeM2) > DEBOUNCE_DELAY) {
-    if (readingM2 != currentPinStateM2) {
-      currentPinStateM2 = readingM2;
-      // LOW = Sakelar tertutup/terhubung ke GND -> MESIN START
-      // HIGH = Sakelar terbuka -> MESIN STOP
-      if (currentPinStateM2 == LOW) {
-        sendMachineEvent("M2", "START");
-      } else {
-        sendMachineEvent("M2", "STOP");
-      }
+  if ((currentMillis - m2_lastDebounceTime) > debounceDelay) {
+    bool currentM2Active = (currentM2State == LOW);
+    if (currentM2Active != m2_active) {
+      m2_active = currentM2Active;
+
+      String payload = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\"}";
+      Serial.printf("[SENSOR M2] Status Baru: %s => Broadcast WS: %s\n", m2_active ? "AKTIF" : "OFF", payload.c_str());
+      
+      webSocket.broadcastTXT(payload);
     }
   }
+
+  delay(10);
 }
