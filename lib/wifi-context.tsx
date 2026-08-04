@@ -332,19 +332,14 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop]
   );
 
-  // Auto-Connect On Load (Langsung mencari Wi-Fi ESP32 saat web dibuka)
+  // Load Hostname from LocalStorage on mount (Standby mode, connect on demand when input form opens)
   useEffect(() => {
-    let savedHost = DEFAULT_HOSTNAME;
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        savedHost = stored;
         setTargetHostState(stored);
       }
     }
-
-    // Langsung terhubung/mencari Wi-Fi ESP32 saat pertama dibuka
-    connect(savedHost);
 
     return () => {
       if (autoReconnectTimerRef.current) {
@@ -354,7 +349,7 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
         socketRef.current.close();
       }
     };
-  }, []); // Run once on mount
+  }, []);
 
   const registerSignalListener = useCallback((listener: WifiSignalListener) => {
     signalListenersRef.current.add(listener);
