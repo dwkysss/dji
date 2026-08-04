@@ -67,16 +67,11 @@ export default function WifiController() {
             )}
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                Kontrol Koneksi ESP32 Wi-Fi
-              </h2>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200">
-                mDNS / WebSocket
-              </span>
-            </div>
+            <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+              Koneksi Wi-Fi ESP32
+            </h2>
             <p className="text-xs text-slate-500 font-medium">
-              Kelola alamat mDNS lokal & pantau sinyal WebSocket real-time Port 81
+              Sensor Otomatis Pemicu Timer Mesin
             </p>
           </div>
         </div>
@@ -110,7 +105,7 @@ export default function WifiController() {
         </div>
       </div>
 
-      {/* 1. Panel Input IP / Hostname & Action Buttons */}
+      {/* 1. Panel Input IP Address */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -126,18 +121,18 @@ export default function WifiController() {
                 handleConnect(e);
               }
             }}
-            placeholder="esp32-timer.local atau IP address (192.168.1.X)"
+            placeholder="IP Address ESP32 (contoh: 192.168.2.171)"
             className="w-full pl-10 pr-24 py-2.5 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all"
           />
           <button
             type="button"
             onClick={() => {
-              setInputHost("esp32-timer.local");
-              setTargetHost("esp32-timer.local");
+              setInputHost("192.168.2.171");
+              setTargetHost("192.168.2.171");
             }}
-            className="absolute inset-y-1 right-1 px-2.5 text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors"
+            className="absolute inset-y-1 right-1 px-2.5 text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors cursor-pointer"
           >
-            Default
+            IP Default
           </button>
         </div>
 
@@ -174,26 +169,23 @@ export default function WifiController() {
         </div>
       </div>
 
-      {/* Target URL Info Banner */}
+      {/* Alamat Target Info Banner */}
       {wsUrl && (
-        <div className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-mono text-slate-600 flex items-center justify-between">
-          <span className="truncate">Target WebSocket Endpoint: <strong>{wsUrl}</strong></span>
-          <span className="text-slate-400 font-sans text-[10px] shrink-0 ml-2">REST API: Port 80 (/api/status)</span>
+        <div className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-600 flex items-center justify-between">
+          <span className="truncate">Alamat Target: <strong className="font-mono text-slate-800">{targetHost}</strong></span>
         </div>
       )}
 
-
-
-      {/* 3. Terminal Live Activity Log */}
+      {/* 3. Log Aktivitas Sinyal */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={() => setShowLogs(!showLogs)}
-            className="flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-slate-900 transition-colors"
+            className="flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-slate-900 transition-colors cursor-pointer"
           >
             <Terminal className="w-4 h-4 text-sky-600" />
-            <span>Terminal Live Activity Log ({logs.length})</span>
+            <span>Log Aktivitas Sinyal ({logs.length})</span>
           </button>
           {logs.length > 0 && (
             <button

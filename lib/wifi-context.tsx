@@ -95,7 +95,7 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
   // Refs for persistent connection management
   const socketRef = useRef<WebSocket | null>(null);
   const autoReconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isManualDisconnectRef = useRef<boolean>(true);
+  const isManualDisconnectRef = useRef<boolean>(false);
   const signalListenersRef = useRef<Set<WifiSignalListener>>(new Set());
 
   // Log Helper
@@ -332,14 +332,19 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop]
   );
 
-  // Load Hostname from LocalStorage on mount (Standby mode, connect on demand)
+  // Auto-Connect On Load (Langsung mencari Wi-Fi ESP32 saat web dibuka)
   useEffect(() => {
+    let savedHost = DEFAULT_HOSTNAME;
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
+        savedHost = stored;
         setTargetHostState(stored);
       }
     }
+
+    // Langsung terhubung/mencari Wi-Fi ESP32 saat pertama dibuka
+    connect(savedHost);
 
     return () => {
       if (autoReconnectTimerRef.current) {
