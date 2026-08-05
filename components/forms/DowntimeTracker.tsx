@@ -8,6 +8,7 @@ import { submitMechanicDowntime } from "@/actions/mechanic-actions";
 import { getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import WifiDowntimeTrigger from "./WifiDowntimeTrigger";
+import { useWifiContext } from "@/lib/wifi-context";
 
 const PROBLEM_CATEGORIES = [
   { id: "A", name: "Kode A: Masalah dan Perbaikan Benang" },
@@ -119,6 +120,9 @@ export default function DowntimeTracker({
   onRegisterTimerControls,
   isPanelType = false,
 }: DowntimeTrackerProps) {
+  const { connectionStatus } = useWifiContext();
+  const isWifiConnected = connectionStatus === "terhubung";
+
   const { fields, append, remove } = useFieldArray({
     control,
     name: "downtimeEvents",
@@ -129,6 +133,9 @@ export default function DowntimeTracker({
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerStartRef, setTimerStartRef] = useState<number | null>(null);
   const [liveTimerSeconds, setLiveTimerSeconds] = useState(0);
+
+  const timerSourceRef = useRef<string>("Manual");
+  const [currentTimerSource, setCurrentTimerSource] = useState<string>("Manual");
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -415,6 +422,13 @@ export default function DowntimeTracker({
     setIsTimerRunning(true);
     setTimerStartRef(now);
     localStorage.setItem("dji_active_downtime_start", now.toString());
+
+    const srcStr = typeof source === "string" ? source : (source?.source || "Manual");
+    const isEsp32 = srcStr.includes("ESP32") || srcStr.includes("mDNS") || srcStr.includes("WebSocket") || srcStr.includes("Wi-Fi");
+    const normalizedSource = isEsp32 ? "ESP32_WiFi" : "Manual";
+    timerSourceRef.current = normalizedSource;
+    setCurrentTimerSource(normalizedSource);
+    localStorage.setItem("dji_active_timer_source", normalizedSource);
   };
 
   const handleCancelTimer = () => {
@@ -429,6 +443,7 @@ export default function DowntimeTracker({
     accumulatedSecRef.current = 0;
     setTempDuration(0);
     localStorage.removeItem("dji_active_downtime_start");
+    localStorage.removeItem("dji_active_timer_source");
     setShowCancelTimerConfirmModal(false);
   };
 
@@ -465,6 +480,7 @@ export default function DowntimeTracker({
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
     setIsUnblockingBlock(false);
+    setCurrentTimerSource("Manual");
 
     // Automatically select the default PCS if provided via URL
     if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
@@ -487,9 +503,16 @@ export default function DowntimeTracker({
       return;
     }
 
+    const savedSource = localStorage.getItem("dji_active_timer_source");
+    const srcStr = typeof source === "string" ? source : (source?.source || savedSource || timerSourceRef.current || "Manual");
+    const isEsp32 = srcStr.includes("ESP32") || srcStr.includes("mDNS") || srcStr.includes("WebSocket") || srcStr.includes("Wi-Fi");
+    const finalSource = isEsp32 ? "ESP32_WiFi" : "Manual";
+    setCurrentTimerSource(finalSource);
+
     // Langsung hapus ref dan storage secara sinkron agar panggilan berulang 1ms berikutnya langsung terblokir
     activeTimerStartRef.current = null;
     localStorage.removeItem("dji_active_downtime_start");
+    localStorage.removeItem("dji_active_timer_source");
 
     setIsTimerRunning(false);
     setTimerStartRef(null);
@@ -544,6 +567,53 @@ export default function DowntimeTracker({
     setShowModal(true);
   };
 
+  const handleSaveNonDefectStop = () => {
+    const pcsKeStr = dikerjakanOleh === "Operator"
+      ? (selectedPcsKeList.length === pcsCount ? "Semua" : (selectedPcsKeList.length > 0 ? selectedPcsKeList.join(", ") : "Semua"))
+      : "Semua";
+
+    const dikerjakanGabungan = `Operator (${currentOperatorName || "Operator Aktif"})`;
+
+    const nonDefectProblems = [
+      {
+        kategori: "G",
+        details: ["Gagal Cacat (Kain Normal)"],
+      },
+    ];
+
+    const finalEvent: any = {
+      id: Date.now().toString(),
+      durasiDetik: tempDuration,
+      pcsKe: pcsKeStr,
+      dikerjakanOleh: dikerjakanGabungan,
+      problems: nonDefectProblems,
+      triggerSource: currentTimerSource,
+    };
+
+    append(finalEvent);
+    if (setValue) {
+      const currentEvents = watch("downtimeEvents") || [];
+      const sum = [...currentEvents, finalEvent].reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
+      setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+    }
+
+    setShowModal(false);
+
+    if (activeBlock) {
+      localStorage.removeItem(`dji_machine_block_${targetMc}`);
+      setActiveBlock(null);
+    }
+
+    setIsTimerRunning(false);
+    setTimerStartRef(null);
+    setLiveTimerSeconds(0);
+    accumulatedSecRef.current = 0;
+    setTempDuration(0);
+    localStorage.removeItem("dji_active_downtime_start");
+    setIsUnblockingBlock(false);
+    setDikerjakanOleh("Operator");
+    setNamaPenanganan("");
+  };
 
   const handleSaveEvent = async () => {
     if (selectedCategories.length === 0) return;
@@ -598,6 +668,7 @@ export default function DowntimeTracker({
       dikerjakanOleh: dikerjakanGabungan,
       problems: problems,
       handoffLogs: activeBlock?.handoffLogs || undefined,
+      triggerSource: currentTimerSource,
     };
 
     if (dikerjakanOleh !== "Operator") {
@@ -920,7 +991,7 @@ export default function DowntimeTracker({
             </div>
           </div>
 
-          {isTimerRunning && (
+          {isTimerRunning && !(currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32")) && (
             <div className="flex justify-start pt-1">
               <button
                 type="button"
@@ -991,6 +1062,16 @@ export default function DowntimeTracker({
                       <span>Hapus Hitungan ({formatTimer(tempDuration)})</span>
                     </button>
                   </>
+                ) : isWifiConnected ? (
+                  <div className="flex flex-col items-center justify-center p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center gap-1.5">
+                    <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>ESP32 Wi-Fi Terhubung</span>
+                    </div>
+                    <p className="text-[10px] text-emerald-600/90 font-medium leading-tight">
+                      Timer downtime dikontrol otomatis oleh sensor mesin.
+                    </p>
+                  </div>
                 ) : (
                   <button
                     type="button"
@@ -998,7 +1079,7 @@ export default function DowntimeTracker({
                     className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
                   >
                     <AlertTriangle className="w-4 h-4 fill-current" />
-                    Mulai
+                    Mulai Manual
                   </button>
                 )}
               </div>
@@ -1009,14 +1090,26 @@ export default function DowntimeTracker({
                     {formatTimer(liveTimerSeconds)}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleStopTimer}
-                  className="flex items-center justify-center gap-2 w-full h-14 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-sm uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-emerald-500/20 active:scale-[0.98] cursor-pointer"
-                >
-                  <Play className="w-5 h-5 fill-current" />
-                  Stop & Simpan
-                </button>
+                {currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32") ? (
+                  <div className="flex flex-col items-center justify-center p-3 bg-amber-100/90 border border-amber-300 rounded-2xl text-center gap-1">
+                    <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                      <span>Sensor ESP32 Berjalan</span>
+                    </div>
+                    <p className="text-[10px] text-amber-800 font-medium leading-tight">
+                      Timer akan berhenti & membuka form secara otomatis saat mesin nyala kembali.
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStopTimer}
+                    className="flex items-center justify-center gap-2 w-full h-14 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-sm uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-emerald-500/20 active:scale-[0.98] cursor-pointer"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    Stop & Simpan
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1118,21 +1211,31 @@ export default function DowntimeTracker({
                         </div>
                       ))}
                     </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          remove(index);
-                          if (setValue) {
-                            const currentEvents = watch("downtimeEvents") || [];
-                            const updated = currentEvents.filter((_: any, i: number) => i !== index);
-                            const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
-                            setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
-                          }
-                        }}
-                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {event.triggerSource === "ESP32_WiFi" || event.triggerSource?.includes("ESP32") ? (
+                        <div
+                          className="p-1.5 text-slate-400 bg-slate-100 rounded-lg shrink-0 self-start cursor-not-allowed border border-slate-200"
+                          title="Data downtime otomatis dari sensor ESP32 tidak dapat dihapus"
+                        >
+                          <Lock className="w-3.5 h-3.5 text-slate-500" />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            remove(index);
+                            if (setValue) {
+                              const currentEvents = watch("downtimeEvents") || [];
+                              const updated = currentEvents.filter((_: any, i: number) => i !== index);
+                              const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
+                              setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+                            }
+                          }}
+                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start cursor-pointer"
+                          title="Hapus Downtime Manual"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                   </div>
                 ))}
               </div>
@@ -1143,7 +1246,14 @@ export default function DowntimeTracker({
 
       {/* Modal Input Masalah */}
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !(currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32"))) {
+              setShowModal(false);
+            }
+          }}
+        >
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh]">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/90">
               <div className="flex items-center gap-3">
@@ -1186,13 +1296,15 @@ export default function DowntimeTracker({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => { setShowModal(false); setIsUnblockingBlock(false); }}
-                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              {!(currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32")) && (
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(false); setIsUnblockingBlock(false); }}
+                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
 
             <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4 sm:space-y-5">
@@ -1485,10 +1597,12 @@ export default function DowntimeTracker({
             <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
               <button
                 type="button"
-                onClick={() => setShowModal(false)}
-                className="flex-1 h-12 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                onClick={handleSaveNonDefectStop}
+                className="flex-1 h-12 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-extrabold text-xs sm:text-sm rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 px-3 text-center"
+                title="Simpan sebagai Gagal Cacat / Kain Normal"
               >
-                Batal
+                <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Gagal Cacat</span>
               </button>
               <button
                 type="button"
@@ -1499,7 +1613,7 @@ export default function DowntimeTracker({
                   (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) ||
                   hasMissingMeter
                 }
-                className="flex-[2] h-12 bg-sky-500 text-white font-bold rounded-xl hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
+                className="flex-1 h-12 bg-sky-500 text-white font-bold text-xs sm:text-sm rounded-xl hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
               >
                 {isSavingMechanic ? "Mengirim..." : (unresolvedDowntime ? "Selesaikan Perbaikan" : "Simpan Masalah")}
               </button>

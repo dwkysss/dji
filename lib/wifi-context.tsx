@@ -245,7 +245,12 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
   // Connect WebSocket function
   const connect = useCallback(
     (customHost?: string) => {
-      const host = (customHost || targetHost).trim() || DEFAULT_HOSTNAME;
+      let host = customHost;
+      if (!host && typeof window !== "undefined") {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) host = stored;
+      }
+      host = (host || targetHost).trim() || DEFAULT_HOSTNAME;
       if (customHost && customHost !== targetHost) {
         setTargetHost(host);
       }
@@ -332,14 +337,18 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop]
   );
 
-  // Load Hostname from LocalStorage on mount (Standby mode, connect on demand when input form opens)
+  // Load Hostname & Auto-connect on mount
   useEffect(() => {
+    let savedHost = DEFAULT_HOSTNAME;
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
+        savedHost = stored;
         setTargetHostState(stored);
       }
     }
+
+    connect(savedHost);
 
     return () => {
       if (autoReconnectTimerRef.current) {

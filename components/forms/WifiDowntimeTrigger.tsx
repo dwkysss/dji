@@ -89,12 +89,7 @@ export default function WifiDowntimeTrigger({
     }
   }, [selectedMachineCode, selectedMachine]);
 
-  // Otomatis mencari dan terhubung ke ESP32 hanya ketika halaman/komponen form input ini dibuka
-  useEffect(() => {
-    if (connectionStatus === "terputus") {
-      connect();
-    }
-  }, [connectionStatus, connect]);
+
 
   const currentStatus = selectedMachine === "M1" ? statusM1 : statusM2;
   const currentElapsed = selectedMachine === "M1" ? elapsedM1 : elapsedM2;

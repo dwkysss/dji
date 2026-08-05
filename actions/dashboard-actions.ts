@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getShiftDate } from "@/lib/shift-utils";
 
 export interface RealProductionItem {
   id: string;
@@ -41,41 +42,7 @@ function getHariFromTanggal(tglStr: string): string {
   }
 }
 
-function getShiftDate(tglStr: string, timestampStr?: string): string {
-  try {
-    if (!timestampStr) return tglStr || new Date().toISOString().split("T")[0];
 
-    let dt: Date;
-    if (timestampStr.includes("T")) {
-      dt = new Date(timestampStr);
-    } else if (timestampStr.includes(" ")) {
-      const parts = timestampStr.split(" ");
-      dt = new Date(`${parts[0]}T${parts[1]}+07:00`);
-    } else {
-      dt = new Date(timestampStr);
-    }
-
-    if (isNaN(dt.getTime())) return tglStr || new Date().toISOString().split("T")[0];
-
-    // Check time in WIB
-    const hourStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", hour: "2-digit", hour12: false });
-    const minStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", minute: "2-digit" });
-    const hour = parseInt(hourStr);
-    const min = parseInt(minStr);
-    const totalMinutes = (isNaN(hour) ? 0 : hour) * 60 + (isNaN(min) ? 0 : min);
-
-    // Shift 3 runs 23:10 - 07:10.
-    // Entries between 00:00 and 07:10 AM (< 430 minutes) belong to Shift 3 of PREVIOUS DAY!
-    if (totalMinutes < 430) {
-      const prevDt = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
-      return prevDt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
-    }
-
-    return dt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
-  } catch {
-    return tglStr || new Date().toISOString().split("T")[0];
-  }
-}
 
 export async function getRealProductionsData(): Promise<{
   success: boolean;
@@ -135,8 +102,9 @@ export async function getRealProductionsData(): Promise<{
       const isDummyDowntime = rawPanelNo.includes("Downtime") || rawPanelNo === "BERHENTI";
       const parsedPanelNo = !isNaN(parseInt(rawPanelNo)) ? parseInt(rawPanelNo) : undefined;
       
-      const ts = headerTimeMap.get(String(item.header_id));
-      const shiftTanggal = getShiftDate(item.tanggal, ts);
+      const headerTs = headerTimeMap.get(String(item.header_id));
+      const targetTs = item.tanggal_jam || item.created_at || headerTs || item.tanggal;
+      const shiftTanggal = getShiftDate(targetTs);
 
       return {
         id: item.id || `header_${item.header_id}_${Math.random().toString().slice(2, 8)}`,

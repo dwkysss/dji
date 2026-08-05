@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getShiftDate, parseAsWibDate } from "@/lib/shift-utils";
 
 export interface MonthlyMachineReportData {
   tanggal: number;
@@ -106,51 +107,13 @@ export async function getMonthlyMachineReport(
 
     // Helper to determine shift date for a record (Shift 3: 23:10 - 07:10 belongs to start date)
     function getShiftDayForHeader(tglStr: string, timestampStr?: string): { day: number; month: number; year: number } {
-      let dt: Date;
-      if (timestampStr) {
-        if (timestampStr.includes("T")) {
-          dt = new Date(timestampStr);
-        } else if (timestampStr.includes(" ")) {
-          const parts = timestampStr.split(" ");
-          dt = new Date(`${parts[0]}T${parts[1]}+07:00`);
-        } else {
-          dt = new Date(timestampStr);
-        }
-      } else {
-        dt = new Date(tglStr);
-      }
-
-      if (isNaN(dt.getTime())) {
-        const d = new Date(tglStr);
-        return { day: d.getDate(), month: d.getMonth() + 1, year: d.getFullYear() };
-      }
-
-      // Check time in WIB
-      const hourStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", hour: "2-digit", hour12: false });
-      const minStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", minute: "2-digit" });
-      const hour = parseInt(hourStr);
-      const min = parseInt(minStr);
-      const totalMinutes = (isNaN(hour) ? 0 : hour) * 60 + (isNaN(min) ? 0 : min);
-
-      // Shift 3 runs 23:10 - 07:10.
-      // Entries between 00:00 and 07:10 AM (< 430 minutes) belong to Shift 3 of PREVIOUS DAY!
-      if (totalMinutes < 430) {
-        const prevDt = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
-        const prevDateStr = prevDt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
-        const prevParts = prevDateStr.split("-");
-        return {
-          year: parseInt(prevParts[0]),
-          month: parseInt(prevParts[1]),
-          day: parseInt(prevParts[2]),
-        };
-      }
-
-      const dateStr = dt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
-      const parts = dateStr.split("-");
+      const targetStr = timestampStr || tglStr;
+      const shiftDateStr = getShiftDate(targetStr);
+      const parts = shiftDateStr.split("-");
       return {
-        year: parseInt(parts[0]),
-        month: parseInt(parts[1]),
-        day: parseInt(parts[2]),
+        year: parseInt(parts[0]) || 2026,
+        month: parseInt(parts[1]) || 1,
+        day: parseInt(parts[2]) || 1,
       };
     }
 
@@ -432,22 +395,7 @@ export async function getMonthlyMachineReport(
     function getShift1TeamFromRecord(teamName: string, dateStr?: string): string {
       if (!dateStr) return teamName;
       try {
-        let str = String(dateStr).trim();
-        let dt: Date;
-        if (str.includes("T")) {
-          if (!str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) {
-            str = str + "Z";
-          }
-          dt = new Date(str);
-        } else if (str.includes(" ")) {
-          const parts = str.split(" ");
-          dt = new Date(`${parts[0]}T${parts[1]}+07:00`);
-        } else {
-          dt = new Date(str);
-        }
-
-        if (isNaN(dt.getTime())) return teamName;
-
+        const dt = parseAsWibDate(dateStr);
         const hourStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", hour: "2-digit", hour12: false });
         const minStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", minute: "2-digit" });
         const hour = parseInt(hourStr);
