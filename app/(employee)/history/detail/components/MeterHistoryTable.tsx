@@ -650,8 +650,8 @@ export default function MeterHistoryTable({
               <td className={`px-1 py-1.5 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100 font-medium text-slate-700`}>
                 {item.grpStr || (item.showGrp ? item.grpStr : "")}
               </td>
-              <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? "italic font-bold text-amber-700" : "font-medium text-slate-700"}`}>
-                {item.hasIstirahat ? "Istirahat" : (item.showOpr ? item.oprStr : "")}
+              <td className="px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 font-medium text-slate-700">
+                {item.showOpr ? item.oprStr : ""}
               </td>
               <td className="px-1 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100 border-b border-slate-100">
                 {item.meterDisplay}

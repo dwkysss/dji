@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useFieldArray, Control, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info } from "lucide-react";
+import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info, Edit3 } from "lucide-react";
 import { ContinuousFormInput } from "@/lib/schemas";
 import { submitMechanicDowntime } from "@/actions/mechanic-actions";
-import { getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
+import { getProblemDetailsGrouped, createProblemDetail } from "@/actions/problem-detail-actions";
 import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import WifiDowntimeTrigger from "./WifiDowntimeTrigger";
 import { useWifiContext } from "@/lib/wifi-context";
@@ -104,6 +104,7 @@ interface DowntimeTrackerProps {
     onStopTimer: (source?: any) => void;
   }) => void;
   isPanelType?: boolean;
+  viewMode?: "all" | "timer_only" | "events_only";
 }
 
 export default function DowntimeTracker({
@@ -119,11 +120,20 @@ export default function DowntimeTracker({
   isEdit = false,
   onRegisterTimerControls,
   isPanelType = false,
+  viewMode = "all",
 }: DowntimeTrackerProps) {
-  const { connectionStatus } = useWifiContext();
+  const {
+    connectionStatus,
+    isSimulationMode,
+    toggleSimulationMode,
+    triggerM1Start,
+    triggerM1Stop,
+    triggerM2Start,
+    triggerM2Stop,
+  } = useWifiContext();
   const isWifiConnected = connectionStatus === "terhubung";
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update, replace } = useFieldArray({
     control,
     name: "downtimeEvents",
   });
@@ -147,7 +157,11 @@ export default function DowntimeTracker({
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
   const [inputMeters, setInputMeters] = useState<Record<string, string>>({});
   const [selectedPcsKeList, setSelectedPcsKeList] = useState<string[]>([]);
+  const [selectedUnclassifiedIds, setSelectedUnclassifiedIds] = useState<string[]>([]);
+  const [batchClassifyIds, setBatchClassifyIds] = useState<string[]>([]);
 
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [dikerjakanOleh, setDikerjakanOleh] = useState<string>("Operator");
   const [namaPenanganan, setNamaPenanganan] = useState<string>("");
   const [unresolvedDowntime, setUnresolvedDowntime] = useState<any>(null);
@@ -163,6 +177,42 @@ export default function DowntimeTracker({
   const [blockValidationError, setBlockValidationError] = useState<string | null>(null);
   const [showBlockInfo, setShowBlockInfo] = useState(false);
   const [dynamicProblemDetails, setDynamicProblemDetails] = useState<Record<string, string[]>>(PROBLEM_DETAILS);
+  const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
+
+  const handleAddManualDetail = (catId: string) => {
+    const text = (manualInputDetails[catId] || "").trim();
+    if (!text) return;
+
+    if (!selectedCategories.includes(catId)) {
+      setSelectedCategories((prev) => [...prev, catId]);
+    }
+
+    setSelectedDetails((prev) => {
+      const current = prev[catId] || [];
+      if (current.includes(text)) return prev;
+      return {
+        ...prev,
+        [catId]: [...current, text],
+      };
+    });
+
+    setManualInputDetails((prev) => ({
+      ...prev,
+      [catId]: "",
+    }));
+
+    try {
+      createProblemDetail({ kategori: catId, nama_detail: text }).then((res) => {
+        if (res.success) {
+          setDynamicProblemDetails((prev) => {
+            const list = prev[catId] || [];
+            if (list.includes(text)) return prev;
+            return { ...prev, [catId]: [...list, text] };
+          });
+        }
+      });
+    } catch (e) {}
+  };
 
   useEffect(() => {
     if (!showModal) return;
@@ -383,9 +433,17 @@ export default function DowntimeTracker({
     const savedStart = localStorage.getItem("dji_active_downtime_start");
     if (savedStart && !isTimerRunning) {
       const parsed = parseInt(savedStart);
-      activeTimerStartRef.current = parsed;
-      setTimerStartRef(parsed);
-      setIsTimerRunning(true);
+      const elapsedSec = (Date.now() - parsed) / 1000;
+      // Jika timer tersimpan di local storage sudah berumur > 24 jam (86.400 detik), anggap basi/dibuang!
+      if (elapsedSec > 24 * 3600) {
+        localStorage.removeItem("dji_active_downtime_start");
+        localStorage.removeItem("dji_active_timer_source");
+        activeTimerStartRef.current = null;
+      } else {
+        activeTimerStartRef.current = parsed;
+        setTimerStartRef(parsed);
+        setIsTimerRunning(true);
+      }
     }
 
     // 2. Setup the interval for live ticking
@@ -413,14 +471,24 @@ export default function DowntimeTracker({
   const [showCancelTimerConfirmModal, setShowCancelTimerConfirmModal] = useState(false);
 
   const handleStartTimer = (source?: any) => {
-    if (activeTimerStartRef.current !== null) {
-      // Abaikan sinkron: timer sudah aktif berjalan
-      return;
-    }
     const now = Date.now();
+    if (activeTimerStartRef.current !== null) {
+      const elapsedSec = (now - activeTimerStartRef.current) / 1000;
+      // Jika timer aktif di background berjalan kurang dari 24 jam, tetap gunakan timer tersebut
+      if (elapsedSec < 24 * 3600) {
+        return;
+      }
+      // Jika > 24 jam, buang timer lama dan timpa dengan timer baru 'now'
+    }
+
+    if (showModal) {
+      handleCloseModal();
+    }
+
     activeTimerStartRef.current = now;
     setIsTimerRunning(true);
     setTimerStartRef(now);
+    setLiveTimerSeconds(0);
     localStorage.setItem("dji_active_downtime_start", now.toString());
 
     const srcStr = typeof source === "string" ? source : (source?.source || "Manual");
@@ -471,6 +539,7 @@ export default function DowntimeTracker({
   }, [showModal, defaultMeter, pcsKeys.join(",")]);
 
   const handleOpenModal = () => {
+    setEditingIndex(null);
     accumulatedSecRef.current = 0;
     setTempDuration(0);
     setSelectedCategories([]);
@@ -482,7 +551,162 @@ export default function DowntimeTracker({
     setIsUnblockingBlock(false);
     setCurrentTimerSource("Manual");
 
-    // Automatically select the default PCS if provided via URL
+    if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
+      setSelectedPcsKeList([defaultPcsIndex]);
+    } else if (pcsKeys.length === 1) {
+      setSelectedPcsKeList([...pcsKeys]);
+    } else {
+      setSelectedPcsKeList([]);
+    }
+
+    setShowModal(true);
+  };
+
+  const updateFormDowntimeEvents = (nextEvents: any[]) => {
+    if (setValue) {
+      const sum = nextEvents.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
+      setValue("downtimeEvents", nextEvents, { shouldDirty: true, shouldValidate: true });
+      setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingIndex(null);
+    setTempDuration(0);
+    setIsUnblockingBlock(false);
+    setBatchClassifyIds([]);
+    setSelectedCategories([]);
+    setSelectedDetails({});
+    setInputBloks({});
+    setInputMeters({});
+    setDikerjakanOleh("Operator");
+    setNamaPenanganan("");
+  };
+
+  const handleResolveSensorGlitch = (index: number) => {
+    const currentList = watch("downtimeEvents") || fields || [];
+    const targetEvent = currentList[index] || fields[index];
+    if (!targetEvent) return;
+
+    const updatedEvent = {
+      ...targetEvent,
+      isResolved: true,
+      isSensorGlitch: true,
+      problems: [
+        {
+          kategori: "G",
+          details: ["Gagal Cacat"],
+        },
+      ],
+    };
+
+    const updatedList = [...currentList];
+    updatedList[index] = updatedEvent;
+    update(index, updatedEvent);
+    updateFormDowntimeEvents(updatedList);
+  };
+
+  const handleOpenClassifyModal = (index: number, fallbackEvent?: any) => {
+    const currentList = watch("downtimeEvents") || fields || [];
+    const targetEvent = currentList[index] || fields[index] || fallbackEvent;
+    if (!targetEvent) return;
+
+    setEditingIndex(index);
+    setTempDuration(targetEvent.durasiDetik || 0);
+    accumulatedSecRef.current = targetEvent.durasiDetik || 0;
+    setCurrentTimerSource(targetEvent.triggerSource || "Manual");
+    setSelectedCategories([]);
+    setSelectedDetails({});
+    setInputBloks({});
+    setInputMeters({});
+    setDikerjakanOleh("Operator");
+    setNamaPenanganan("");
+    setIsUnblockingBlock(false);
+
+    if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
+      setSelectedPcsKeList([defaultPcsIndex]);
+    } else if (pcsKeys.length === 1) {
+      setSelectedPcsKeList([...pcsKeys]);
+    } else {
+      setSelectedPcsKeList([]);
+    }
+
+    setShowModal(true);
+  };
+
+  const handleToggleSelectAllUnclassified = () => {
+    const currentList = watch("downtimeEvents") || fields || [];
+    const unclassifiedItems = currentList
+      .map((evt: any, index: number) => ({
+        id: evt.id || `evt-${index}`,
+        isPending: evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0))
+      }))
+      .filter((item: any) => item.isPending);
+
+    const allSelected = unclassifiedItems.length > 0 && unclassifiedItems.every((item: any) => selectedUnclassifiedIds.includes(item.id));
+
+    if (allSelected) {
+      setSelectedUnclassifiedIds([]);
+    } else {
+      setSelectedUnclassifiedIds(unclassifiedItems.map((item: any) => item.id));
+    }
+  };
+
+  const handleToggleSelectUnclassified = (id: string) => {
+    setSelectedUnclassifiedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleBatchResolveSensorGlitch = () => {
+    if (selectedUnclassifiedIds.length === 0) return;
+    const currentList = watch("downtimeEvents") || fields || [];
+    const updatedList = [...currentList];
+
+    selectedUnclassifiedIds.forEach((targetId) => {
+      const index = updatedList.findIndex((e: any, idx: number) => (e.id || `evt-${idx}`) === targetId);
+      if (index !== -1) {
+        updatedList[index] = {
+          ...updatedList[index],
+          isResolved: true,
+          isSensorGlitch: true,
+          problems: [
+            {
+              kategori: "G",
+              details: ["Gagal Cacat"],
+            },
+          ],
+        };
+        update(index, updatedList[index]);
+      }
+    });
+
+    setSelectedUnclassifiedIds([]);
+    updateFormDowntimeEvents(updatedList);
+  };
+
+  const handleOpenBatchClassifyModal = () => {
+    if (selectedUnclassifiedIds.length === 0) return;
+    setBatchClassifyIds([...selectedUnclassifiedIds]);
+    setEditingIndex(null);
+
+    const currentList = watch("downtimeEvents") || fields || [];
+    const totalSelectedSec = selectedUnclassifiedIds.reduce((sum: number, id: string) => {
+      const item = currentList.find((e: any, idx: number) => (e.id || `evt-${idx}`) === id);
+      return sum + (item?.durasiDetik || 0);
+    }, 0);
+
+    setTempDuration(totalSelectedSec);
+    setCurrentTimerSource("Manual");
+    setSelectedCategories([]);
+    setSelectedDetails({});
+    setInputBloks({});
+    setInputMeters({});
+    setDikerjakanOleh("Operator");
+    setNamaPenanganan("");
+    setIsUnblockingBlock(false);
+
     if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
       setSelectedPcsKeList([defaultPcsIndex]);
     } else if (pcsKeys.length === 1) {
@@ -498,7 +722,6 @@ export default function DowntimeTracker({
     const savedStartStr = localStorage.getItem("dji_active_downtime_start");
     const startTimestamp = activeTimerStartRef.current || (savedStartStr ? parseInt(savedStartStr) : null);
 
-    // Abaikan sinkron: timer tidak sedang aktif
     if (startTimestamp === null) {
       return;
     }
@@ -509,62 +732,57 @@ export default function DowntimeTracker({
     const finalSource = isEsp32 ? "ESP32_WiFi" : "Manual";
     setCurrentTimerSource(finalSource);
 
-    // Langsung hapus ref dan storage secara sinkron agar panggilan berulang 1ms berikutnya langsung terblokir
     activeTimerStartRef.current = null;
     localStorage.removeItem("dji_active_downtime_start");
     localStorage.removeItem("dji_active_timer_source");
 
     setIsTimerRunning(false);
     setTimerStartRef(null);
+    setLiveTimerSeconds(0);
+    accumulatedSecRef.current = 0;
 
     setIsUnblockingBlock(false);
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
 
-    const duration = Math.max(0, Math.floor((Date.now() - startTimestamp) / 1000));
+    const rawDuration = Math.max(0, Math.floor((Date.now() - startTimestamp) / 1000));
+    // Batasi durasi maksimum 24 jam (86.400 detik) agar perbaikan lama sah tetap tercatat utuh 100%
+    const MAX_ALLOWED_SEC = 24 * 3600;
+    const finalDuration = rawDuration > MAX_ALLOWED_SEC ? MAX_ALLOWED_SEC : (rawDuration < 1 ? 1 : rawDuration);
 
-    // Pre-fill if resuming from previous shift
-    if (unresolvedDowntime) {
-      const problems = unresolvedDowntime.problems || [];
-      const cats = problems.map((p: any) => p.kategori);
-      setSelectedCategories(cats);
-      const details: Record<string, string[]> = {};
-      const bloks: Record<string, string> = {};
-      problems.forEach((p: any) => {
-        details[p.kategori] = p.details || [];
-        if (p.blok) bloks[p.kategori] = p.blok;
-      });
-      setSelectedDetails(details);
-      setInputBloks(bloks);
+    const startTimeStr = new Date(startTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const newUnclassifiedEvent: any = {
+      id: Date.now().toString(),
+      durasiDetik: finalDuration,
+      pcsKe: "Semua",
+      dikerjakanOleh: currentOperatorName || "Operator",
+      problems: [],
+      triggerSource: finalSource,
+      stopStartTime: startTimeStr,
+      isResolved: false,
+    };
 
-      if (unresolvedDowntime.pcsKe === "Semua") {
-        setSelectedPcsKeList([...pcsKeys]);
-      } else if (unresolvedDowntime.pcsKe) {
-        setSelectedPcsKeList(unresolvedDowntime.pcsKe.split(", ").map((s: string) => s.trim()));
+    const currentList = watch("downtimeEvents") || fields || [];
+    const newIndex = currentList.length;
+    const updatedList = [...currentList, newUnclassifiedEvent];
+    append(newUnclassifiedEvent);
+    updateFormDowntimeEvents(updatedList);
+
+    const pendingItems = updatedList.filter(
+      (evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0))
+    );
+
+    if (isEsp32) {
+      if (pendingItems.length === 1) {
+        // Jika baru 1 event antrean dari ESP32, langsung buka modal klasifikasi
+        handleOpenClassifyModal(newIndex, newUnclassifiedEvent);
       } else {
-        setSelectedPcsKeList([]);
+        // Jika ada lebih dari 1 event antrean beruntun, tutup modal dan alihkan semua ke antrean
+        handleCloseModal();
       }
-    } else if (!showModal) {
-      // Reset modal selection state ONLY if modal was not already open
-      setSelectedCategories([]);
-      setSelectedDetails({});
-      setInputBloks({});
-      setInputMeters({});
-      if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
-        setSelectedPcsKeList([defaultPcsIndex]);
-      } else if (pcsKeys.length === 1) {
-        setSelectedPcsKeList([...pcsKeys]);
-      } else {
-        setSelectedPcsKeList([]);
-      }
+    } else {
+      handleOpenClassifyModal(newIndex, newUnclassifiedEvent);
     }
-
-    // Akumulasi durasi dalam ref (fitur akumulasi multi-segmen)
-    accumulatedSecRef.current += duration;
-    if (accumulatedSecRef.current < 1) accumulatedSecRef.current = 1;
-
-    setTempDuration(accumulatedSecRef.current);
-    setShowModal(true);
   };
 
   const handleSaveNonDefectStop = () => {
@@ -572,7 +790,7 @@ export default function DowntimeTracker({
       ? (selectedPcsKeList.length === pcsCount ? "Semua" : (selectedPcsKeList.length > 0 ? selectedPcsKeList.join(", ") : "Semua"))
       : "Semua";
 
-    const dikerjakanGabungan = `Operator (${currentOperatorName || "Operator Aktif"})`;
+    const dikerjakanGabungan = currentOperatorName || "Operator";
 
     const nonDefectProblems = [
       {
@@ -581,22 +799,52 @@ export default function DowntimeTracker({
       },
     ];
 
+    const currentList = watch("downtimeEvents") || fields || [];
+    const targetObj = editingIndex !== null ? currentList[editingIndex] : null;
+
     const finalEvent: any = {
-      id: Date.now().toString(),
+      id: targetObj?.id || Date.now().toString(),
       durasiDetik: tempDuration,
       pcsKe: pcsKeStr,
       dikerjakanOleh: dikerjakanGabungan,
       problems: nonDefectProblems,
-      triggerSource: currentTimerSource,
+      triggerSource: targetObj?.triggerSource || currentTimerSource,
+      isResolved: true,
+      isSensorGlitch: true,
     };
 
-    append(finalEvent);
-    if (setValue) {
-      const currentEvents = watch("downtimeEvents") || [];
-      const sum = [...currentEvents, finalEvent].reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
-      setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+    let updatedList = [...currentList];
+    if (batchClassifyIds.length > 0) {
+      updatedList = currentList.map((e: any, i: number) => {
+        const id = e.id || `evt-${i}`;
+        if (batchClassifyIds.includes(id)) {
+          return {
+            ...e,
+            pcsKe: pcsKeStr,
+            dikerjakanOleh: dikerjakanGabungan,
+            problems: nonDefectProblems,
+            isResolved: true,
+            isSensorGlitch: true,
+          };
+        }
+        return e;
+      });
+      batchClassifyIds.forEach((targetId) => {
+        const idx = currentList.findIndex((e: any, i: number) => (e.id || `evt-${i}`) === targetId);
+        if (idx !== -1) update(idx, updatedList[idx]);
+      });
+    } else if (editingIndex !== null) {
+      updatedList[editingIndex] = finalEvent;
+      update(editingIndex, finalEvent);
+    } else {
+      updatedList.push(finalEvent);
+      append(finalEvent);
     }
 
+    updateFormDowntimeEvents(updatedList);
+    handleCloseModal();
+
+    setEditingIndex(null);
     setShowModal(false);
 
     if (activeBlock) {
@@ -620,7 +868,6 @@ export default function DowntimeTracker({
     if (dikerjakanOleh === "Operator" && selectedPcsKeList.length === 0) return;
     if (hasMissingMeter) return;
 
-    // Validate mandatory block number
     for (const catId of selectedCategories) {
       const details = selectedDetails[catId] || [];
       const reqDetails = details.filter((d) => requiredBlockDefects.includes(d));
@@ -641,34 +888,47 @@ export default function DowntimeTracker({
         .map(([pcs, val]) => `PCS ${pcs}: ${val.trim()}`)
         .join(", ");
 
-    const problems = selectedCategories.map(catId => ({
-      kategori: catId,
-      details: selectedDetails[catId] || [],
-      blok: inputBloks[catId]?.trim() !== "" ? inputBloks[catId]?.trim() : undefined,
-      meter: dikerjakanOleh === "Operator" ? (meterStr || undefined) : undefined,
-    }));
+    const problems = selectedCategories.map(catId => {
+      let details = [...(selectedDetails[catId] || [])];
+      const manualText = (manualInputDetails[catId] || "").trim();
+      if (manualText && !details.includes(manualText)) {
+        details.push(manualText);
+        try {
+          createProblemDetail({ kategori: catId, nama_detail: manualText });
+        } catch (e) {}
+      }
+      return {
+        kategori: catId,
+        details: details,
+        blok: inputBloks[catId]?.trim() !== "" ? inputBloks[catId]?.trim() : undefined,
+        meter: dikerjakanOleh === "Operator" ? (meterStr || undefined) : undefined,
+      };
+    });
 
-    // If all PCS keys are selected or if Downtime Khusus, use "Semua"
     const pcsKeStr = dikerjakanOleh === "Operator"
       ? (selectedPcsKeList.length === pcsCount ? "Semua" : selectedPcsKeList.join(", "))
       : "Semua";
 
     let dikerjakanGabungan = dikerjakanOleh;
     if (dikerjakanOleh === "Operator") {
-      dikerjakanGabungan = `Operator (${currentOperatorName || "Operator Aktif"})`;
+      dikerjakanGabungan = currentOperatorName || "Operator";
     } else {
       const pj = namaPenanganan || currentOperatorName || "Operator";
       dikerjakanGabungan = `Perbaikan Khusus (${pj})`;
     }
 
+    const currentList = watch("downtimeEvents") || fields || [];
+    const targetObj = editingIndex !== null ? currentList[editingIndex] : null;
+
     let finalEvent: any = {
-      id: Date.now().toString(),
+      id: targetObj?.id || Date.now().toString(),
       durasiDetik: tempDuration,
       pcsKe: pcsKeStr,
       dikerjakanOleh: dikerjakanGabungan,
       problems: problems,
       handoffLogs: activeBlock?.handoffLogs || undefined,
-      triggerSource: currentTimerSource,
+      triggerSource: targetObj?.triggerSource || currentTimerSource,
+      isResolved: true,
     };
 
     if (dikerjakanOleh !== "Operator") {
@@ -678,7 +938,6 @@ export default function DowntimeTracker({
           const logs = activeBlock.handoffLogs;
           const unblockTime = Date.now();
 
-          // Loop each shift log and calculate its exact portion of downtime
           for (let i = 0; i < logs.length; i++) {
             const currentLog = logs[i];
             const logStart = currentLog.startTime || activeBlock.startTime || (unblockTime - (tempDuration || 60) * 1000);
@@ -713,6 +972,7 @@ export default function DowntimeTracker({
           }
 
           setShowModal(false);
+          setEditingIndex(null);
           localStorage.removeItem(`dji_machine_block_${targetMc}`);
           setActiveBlock(null);
           if (unresolvedDowntime) {
@@ -742,6 +1002,7 @@ export default function DowntimeTracker({
         });
         if (res.success) {
           setShowModal(false);
+          setEditingIndex(null);
           if (activeBlock) {
             localStorage.removeItem(`dji_machine_block_${targetMc}`);
             setActiveBlock(null);
@@ -771,33 +1032,48 @@ export default function DowntimeTracker({
       return;
     }
 
-    append(finalEvent);
-    if (setValue) {
-      const currentEvents = watch("downtimeEvents") || [];
-      const sum = [...currentEvents, finalEvent].reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
-      setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+    let updatedList = [...currentList];
+    if (batchClassifyIds.length > 0) {
+      updatedList = currentList.map((e: any, i: number) => {
+        const id = e.id || `evt-${i}`;
+        if (batchClassifyIds.includes(id)) {
+          return {
+            ...e,
+            pcsKe: pcsKeStr,
+            dikerjakanOleh: dikerjakanGabungan,
+            problems: problems,
+            handoffLogs: activeBlock?.handoffLogs || undefined,
+            triggerSource: e.triggerSource || currentTimerSource,
+            isResolved: true,
+          };
+        }
+        return e;
+      });
+      batchClassifyIds.forEach((targetId) => {
+        const idx = currentList.findIndex((e: any, i: number) => (e.id || `evt-${i}`) === targetId);
+        if (idx !== -1) update(idx, updatedList[idx]);
+      });
+    } else if (editingIndex !== null) {
+      updatedList[editingIndex] = finalEvent;
+      update(editingIndex, finalEvent);
+    } else {
+      updatedList.push(finalEvent);
+      append(finalEvent);
     }
 
-    setShowModal(false);
+    updateFormDowntimeEvents(updatedList);
+    handleCloseModal();
 
-    // Clear active machine block if active
     if (activeBlock) {
       localStorage.removeItem(`dji_machine_block_${targetMc}`);
       setActiveBlock(null);
     }
 
-    // Stop and reset live timer after saving Downtime Biasa
     setIsTimerRunning(false);
     setTimerStartRef(null);
     setLiveTimerSeconds(0);
     accumulatedSecRef.current = 0;
-    setTempDuration(0);
     localStorage.removeItem("dji_active_downtime_start");
-    setIsUnblockingBlock(false);
-    setDikerjakanOleh("Operator");
-    setNamaPenanganan("");
-
-    // Hapus status tertunda (unresolved) setelah berhasil disave
     if (unresolvedDowntime) {
       setUnresolvedDowntime(null);
       localStorage.removeItem("dji_unresolved_downtime");
@@ -821,8 +1097,10 @@ export default function DowntimeTracker({
 
   return (
     <div className={showMeterInput ? "grid grid-cols-1 sm:grid-cols-2 gap-4 items-start" : "flex flex-col gap-3 sm:gap-4 lg:gap-5 w-full self-start"}>
-      {/* 1. SEKSI BLOCK MESIN & BLUETOOTH TRIGGER */}
-      <div className="flex flex-col gap-4 w-full">
+      {viewMode !== "events_only" && (
+        <>
+          {/* 1. SEKSI BLOCK MESIN & BLUETOOTH TRIGGER */}
+          <div className="flex flex-col gap-4 w-full">
         {!activeBlock ? (
           <div className={`bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between ${showMeterInput ? "min-h-[195px]" : "min-h-[156px]"}`}>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
@@ -967,294 +1245,509 @@ export default function DowntimeTracker({
             </div>
           </div>
         )}
-
-
       </div>
 
-      {/* 2. CARD DOWNTIME BIASA */}
-      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative overflow-hidden">
-        <div className="flex flex-col gap-2 mb-4">
-          <div className="flex items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100 shrink-0">
-                <Timer className="w-4 h-4 sm:w-5 sm:h-5" />
+          {/* 2. CARD DOWNTIME UTAMA (KHUSUS TIMER & KONTROL MESIN) */}
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative overflow-hidden mb-4">
+            <div className="flex flex-col gap-2 mb-4">
+              <div className="flex items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100 shrink-0">
+                    <Timer className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  <h3 className="text-xs sm:text-sm font-black text-slate-800 whitespace-nowrap">
+                    Downtime
+                  </h3>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-400">Total: </span>
+                  <span className="text-sm sm:text-base font-black text-amber-600">
+                    {formatTimer((watch("downtimeEvents") || fields || []).reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0))}
+                  </span>
+                </div>
               </div>
-              <h3 className="text-xs sm:text-sm font-black text-slate-800 whitespace-nowrap">
-                Downtime
-              </h3>
-            </div>
-            <div className="text-right shrink-0">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-400">Total: </span>
-              <span className="text-sm sm:text-base font-black text-amber-600">
-                {formatTimer(fields.reduce((acc, curr: any) => acc + (curr.durasiDetik || 0), 0))}
-              </span>
-            </div>
-          </div>
 
-          {isTimerRunning && !(currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32")) && (
-            <div className="flex justify-start pt-1">
-              <button
-                type="button"
-                onClick={handleCancelTimer}
-                className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold text-[11px] transition-all flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-red-200/80 cursor-pointer animate-fadeIn shadow-sm"
-              >
-                <X className="w-3.5 h-3.5 shrink-0" />
-                <span>Batalkan Timer</span>
-              </button>
+              {isTimerRunning && !(currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32")) && (
+                <div className="flex justify-start pt-1">
+                  <button
+                    type="button"
+                    onClick={handleCancelTimer}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold text-[11px] transition-all flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-red-200/80 cursor-pointer animate-fadeIn shadow-sm"
+                  >
+                    <X className="w-3.5 h-3.5 shrink-0" />
+                    <span>Batalkan Timer</span>
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Banner Masalah Lanjut Shift (jika ada) */}
-        {unresolvedDowntime && !isTimerRunning && !isEdit && (
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-2xl mb-4 flex flex-col gap-3 animate-fadeIn">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h4 className="text-xs font-black text-yellow-800 uppercase">Terdapat Masalah Tertunda</h4>
-                <p className="text-[10px] font-medium text-yellow-700 leading-relaxed mt-0.5">
-                  Shift sebelumnya meninggalkan catatan masalah yang belum selesai.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleStartTimer}
-              className="flex items-center justify-center gap-2 w-full h-10 bg-yellow-500 hover:bg-yellow-600 text-white font-bold text-xs uppercase tracking-wide rounded-xl transition-all shadow-sm"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              Mulai Lanjutkan Perbaikan
-            </button>
-          </div>
-        )}
-
-        <div className={`flex flex-col ${fields.length > 0 && showMeterInput ? "md:flex-row" : ""} gap-4 items-start`}>
-          <div className={`p-4 bg-amber-50 border border-amber-100 rounded-2xl w-full ${fields.length > 0 && showMeterInput ? "md:w-1/3" : ""}`}>
-            {isEdit ? (
-              <div className="flex flex-col gap-2">
+            {/* Banner Masalah Lanjut Shift (jika ada) */}
+            {unresolvedDowntime && !isTimerRunning && !isEdit && (
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-2xl mb-4 flex flex-col gap-3 animate-fadeIn">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="text-xs font-black text-yellow-800 uppercase">Terdapat Masalah Tertunda</h4>
+                    <p className="text-[10px] font-medium text-yellow-700 leading-relaxed mt-0.5">
+                      Shift sebelumnya meninggalkan catatan masalah yang belum selesai.
+                    </p>
+                  </div>
+                </div>
                 <button
                   type="button"
-                  onClick={handleOpenModal}
-                  className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                  onClick={handleStartTimer}
+                  className="flex items-center justify-center gap-2 w-full h-10 bg-yellow-500 hover:bg-yellow-600 text-white font-bold text-xs uppercase tracking-wide rounded-xl transition-all shadow-sm"
                 >
-                  <Plus className="w-4 h-4" />
-                  Tambah Masalah / Downtime
+                  <Play className="w-4 h-4 fill-current" />
+                  Mulai Lanjutkan Perbaikan
                 </button>
               </div>
-            ) : !isTimerRunning ? (
-              <div className="flex flex-col gap-2">
-                {tempDuration > 0 ? (
-                  <>
+            )}
+
+            <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl w-full">
+              {isEdit ? (
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenModal}
+                    className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Tambah Masalah / Downtime
+                  </button>
+                </div>
+              ) : !isTimerRunning ? (
+                <div className="flex flex-col gap-2">
+                  {tempDuration > 0 && (editingIndex !== null || batchClassifyIds.length > 0) ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowModal(true)}
+                        className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                      >
+                        <AlertTriangle className="w-4 h-4 fill-current" />
+                        <span>Lanjutkan Simpan Downtime ({formatTimer(tempDuration)})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelTimer}
+                        className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 font-bold text-[11px] transition-all flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200/80 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5 shrink-0" />
+                        <span>Hapus Hitungan ({formatTimer(tempDuration)})</span>
+                      </button>
+                    </>
+                  ) : isWifiConnected ? (
+                    <div className="flex flex-col items-center justify-center p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center gap-1.5">
+                      <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>ESP32 Wi-Fi Terhubung</span>
+                      </div>
+                      <p className="text-[10px] text-emerald-600/90 font-medium leading-tight">
+                        Timer downtime dikontrol otomatis oleh sensor mesin.
+                      </p>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => setShowModal(true)}
+                      onClick={handleStartTimer}
                       className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
                     >
                       <AlertTriangle className="w-4 h-4 fill-current" />
-                      <span>Lanjutkan Simpan Downtime ({formatTimer(tempDuration)})</span>
+                      Mulai Manual
                     </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="w-full bg-white border-2 border-amber-200 rounded-2xl h-14 flex items-center justify-center">
+                    <span className="text-2xl font-black text-amber-600 font-mono tracking-wider animate-pulse">
+                      {formatTimer(liveTimerSeconds)}
+                    </span>
+                  </div>
+                  {currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32") ? (
+                    <div className="flex flex-col items-center justify-center p-3 bg-amber-100/90 border border-amber-300 rounded-2xl text-center gap-1">
+                      <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                        <span>Sensor ESP32 Berjalan</span>
+                      </div>
+                      <p className="text-[10px] text-amber-800 font-medium leading-tight">
+                        Timer akan berhenti & membuka form secara otomatis saat mesin nyala kembali.
+                      </p>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={handleCancelTimer}
-                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 font-bold text-[11px] transition-all flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200/80 cursor-pointer"
+                      onClick={handleStopTimer}
+                      className="flex items-center justify-center gap-2 w-full h-14 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-sm uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-emerald-500/20 active:scale-[0.98] cursor-pointer"
                     >
-                      <X className="w-3.5 h-3.5 shrink-0" />
-                      <span>Hapus Hitungan ({formatTimer(tempDuration)})</span>
+                      <Play className="w-5 h-5 fill-current" />
+                      Stop & Simpan
                     </button>
-                  </>
-                ) : isWifiConnected ? (
-                  <div className="flex flex-col items-center justify-center p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center gap-1.5">
-                    <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>ESP32 Wi-Fi Terhubung</span>
-                    </div>
-                    <p className="text-[10px] text-emerald-600/90 font-medium leading-tight">
-                      Timer downtime dikontrol otomatis oleh sensor mesin.
-                    </p>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleStartTimer}
-                    className="flex items-center justify-center gap-2 w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
-                  >
-                    <AlertTriangle className="w-4 h-4 fill-current" />
-                    Mulai Manual
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <div className="w-full bg-white border-2 border-amber-200 rounded-2xl h-14 flex items-center justify-center">
-                  <span className="text-2xl font-black text-amber-600 font-mono tracking-wider animate-pulse">
-                    {formatTimer(liveTimerSeconds)}
-                  </span>
+                  )}
                 </div>
-                {currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32") ? (
-                  <div className="flex flex-col items-center justify-center p-3 bg-amber-100/90 border border-amber-300 rounded-2xl text-center gap-1">
-                    <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
-                      <span>Sensor ESP32 Berjalan</span>
-                    </div>
-                    <p className="text-[10px] text-amber-800 font-medium leading-tight">
-                      Timer akan berhenti & membuka form secara otomatis saat mesin nyala kembali.
-                    </p>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleStopTimer}
-                    className="flex items-center justify-center gap-2 w-full h-14 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-sm uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-emerald-500/20 active:scale-[0.98] cursor-pointer"
-                  >
-                    <Play className="w-5 h-5 fill-current" />
-                    Stop & Simpan
-                  </button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
+        </>
+      )}
 
-          {fields.length > 0 && (
-            <div className={`space-y-1.5 w-full ${showMeterInput ? "md:w-2/3" : ""}`}>
-              <div className="flex items-center justify-between mb-1.5">
-                <h4 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Riwayat Berhenti:</h4>
-                <span className="bg-slate-100 text-slate-500 text-[9px] px-2 py-0.5 rounded-full border border-slate-200 uppercase tracking-wider font-bold">
-                  {fields.length} Kejadian
-                </span>
-              </div>
-              <div className="flex flex-col gap-2 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
-                {fields.map((event: any, index) => (
-                  <div key={event.id} className="flex flex-row items-start justify-between p-2.5 bg-slate-50 border border-slate-100 rounded-xl gap-2">
-                    <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                        <span className="text-[10px] font-bold text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-sm">
-                          {formatTimer(event.durasiDetik)}
-                        </span>
-                        {(() => {
-                          const meterStr = event.meter || (event.problems && event.problems.length > 0 ? event.problems[0]?.meter : null);
+      {/* 3. CARD ANTREAN & RIWAYAT KENDALA MESIN (SATUAN CARD MANDIRI) */}
+      {viewMode !== "timer_only" && (fields.length > 0 || (() => {
+        const currentList = watch("downtimeEvents") || fields || [];
+        return currentList.some((evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0)));
+      })()) && (
+        <div className="bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border border-slate-200/90 border-t-4 border-t-amber-400 mb-4 relative overflow-hidden animate-fadeIn">
+          <div className={viewMode === "events_only" ? "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 items-start" : "flex flex-col gap-4"}>
+            {/* SECTION A: ANTREAN EVENT BELUM DIKLASIFIKASI */}
+            {(() => {
+              const currentList = watch("downtimeEvents") || fields || [];
+              const unclassifiedItems = currentList
+                .map((evt: any, index: number) => {
+                  const isPending = evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0));
+                  return { evt, index, id: evt.id || `evt-${index}`, isPending };
+                })
+                .filter((item: any) => item.isPending);
 
-                          if (!event.pcsKe || event.pcsKe === "Semua") {
-                            if (meterStr) {
-                              return (
-                                <span className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100/80 px-1.5 py-0.5 rounded">
-                                  {meterStr.includes("PCS") ? meterStr : `Meter: ${meterStr}`}
-                                </span>
-                              );
-                            }
-                            return null;
-                          }
+              if (unclassifiedItems.length === 0) return null;
 
-                          const pcsArray = event.pcsKe.split(",").map((s: string) => s.trim());
-                          const meterMap: Record<string, string> = {};
+              const isAllSelected = unclassifiedItems.length > 0 && unclassifiedItems.every((item: any) => selectedUnclassifiedIds.includes(item.id));
+              const hasResolvedEvents = currentList.some((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
 
-                          if (meterStr) {
-                            if (meterStr.includes("PCS")) {
-                              meterStr.split(",").forEach((m: string) => {
-                                const match = m.match(/PCS (\d+):\s*(.+)/);
-                                if (match) {
-                                  meterMap[match[1]] = match[2];
-                                }
-                              });
-                            } else {
-                              meterMap[pcsArray[0]] = meterStr;
-                            }
-                          }
+              const sectionAClass = viewMode === "events_only"
+                ? (hasResolvedEvents ? "border-b sm:border-b-0 sm:border-r border-amber-100 pb-3 sm:pb-0 sm:pr-3 min-w-0" : "sm:col-span-2")
+                : (hasResolvedEvents ? "pb-3 border-b border-amber-100" : "");
 
-                          return pcsArray.map((pcs: string) => (
-                            <span key={pcs} className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100/80 px-1.5 py-0.5 rounded">
-                              PCS {pcs} {meterMap[pcs] ? `(${meterMap[pcs]}m)` : ""}
-                            </span>
-                          ));
-                        })()}
+              return (
+                <div className={sectionAClass}>
+                  {/* Concise Header Bar */}
+                  <div className="flex items-center justify-between gap-1.5 mb-2.5 min-w-0 flex-wrap">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                      <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider whitespace-nowrap">
+                        ANTREAN
+                      </h4>
+                      <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-2xs whitespace-nowrap">
+                        {unclassifiedItems.length} Event
+                      </span>
+                    </div>
+
+                    <label className="flex items-center gap-1 cursor-pointer bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg border border-amber-300/80 text-[10px] font-extrabold text-amber-950 shadow-2xs transition-all select-none shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={handleToggleSelectAllUnclassified}
+                        className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <span>Pilih Semua</span>
+                    </label>
+                  </div>
+
+                  {/* Batch Action Bar */}
+                  {selectedUnclassifiedIds.length > 0 && (
+                    <div className="flex flex-col bg-amber-100/90 border border-amber-300 rounded-2xl p-2 mb-2.5 gap-1.5 animate-fadeIn min-w-0">
+                      <span className="text-[10px] font-black text-amber-950">
+                        📌 Terpilih {selectedUnclassifiedIds.length} dari {unclassifiedItems.length} Event
+                      </span>
+                      <div className="flex flex-col gap-1 w-full">
+                        <button
+                          type="button"
+                          onClick={handleBatchResolveSensorGlitch}
+                          className="w-full py-1.5 px-2 text-[10px] font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1"
+                          title="Tandai semua event terpilih sebagai Gagal Cacat"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>Semua Gagal Cacat</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleOpenBatchClassifyModal}
+                          className="w-full py-1.5 px-2 text-[10px] font-black text-white bg-sky-500 hover:bg-sky-600 border border-sky-600 rounded-xl transition-all shadow-md shadow-sky-500/20 cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1"
+                          title="Isi detail kendala/cacat untuk semua event terpilih"
+                        >
+                          <span>Klasifikasi Sekaligus ({selectedUnclassifiedIds.length})</span>
+                        </button>
                       </div>
+                    </div>
+                  )}
 
-                      {event.dikerjakanOleh && (
-                        <div className="mb-1 flex items-center">
-                          <span className={`inline-flex text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-sm border ${event.dikerjakanOleh === 'Operator' ? 'bg-indigo-500 text-white border-indigo-600' :
-                            (event.dikerjakanOleh === 'Mekanik/Teknisi' || event.dikerjakanOleh === 'Perbaikan Khusus') ? 'bg-fuchsia-500 text-white border-fuchsia-600' :
-                              'bg-slate-500 text-white border-slate-600'
-                            }`}>
-                            {event.dikerjakanOleh}
-                          </span>
-                          {event.isSubmitted && (
-                            <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 ml-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Terkirim
+                  {/* Event Items List */}
+                  <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar min-w-0">
+                    {unclassifiedItems.map(({ evt: event, index, id: eventId }: { evt: any; index: number; id: string }) => {
+                      const isSelected = selectedUnclassifiedIds.includes(eventId);
+
+                      return (
+                        <div
+                          key={eventId}
+                          className={`flex flex-col p-2 border rounded-xl gap-1.5 transition-all min-w-0 ${
+                            isSelected
+                              ? "bg-amber-100/90 border-amber-400 ring-2 ring-amber-300/60 shadow-xs"
+                              : "bg-amber-50/50 border-amber-200/90 hover:bg-amber-100/50 shadow-2xs"
+                          }`}
+                        >
+                          {/* Row 1: Checkbox + Duration + Time */}
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectUnclassified(eventId)}
+                              className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer shrink-0"
+                            />
+                            <span className="text-[10px] font-mono font-black text-amber-950 bg-amber-100/90 px-1.5 py-0.5 rounded border border-amber-300/80 shadow-2xs">
+                              {formatTimer(event.durasiDetik)}
                             </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Handle backward compatibility for old data struct (kategori/detail as strings) */}
-                      {event.kategori && typeof event.kategori === "string" && (
-                        <div className="text-[11px] text-slate-650 pl-0.5 leading-relaxed break-words">
-                          <span className="font-black text-slate-800">{event.kategori}:</span> {event.detail}
-                          {event.blok && (
-                            <span className="inline-flex font-bold text-sky-700 bg-sky-50/50 px-1 py-0.5 rounded items-center gap-0.5 text-[9px] ml-1.5 border border-sky-100/60">
-                              <Box className="w-2.5 h-2.5" /> Blok {event.blok}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Handle new array-based problems struct */}
-                      {event.problems && event.problems.map((prob: any, pIdx: number) => (
-                        <div key={pIdx} className="pl-1.5 border-l border-slate-300/80 ml-0.5 mb-0.5 text-[11px] text-slate-650 leading-relaxed break-words flex flex-col gap-1">
-                          <div>
-                            <span className="font-black text-slate-850">{prob.kategori}:</span> {prob.details.join(", ")}
-                            {prob.blok && (
-                              <span className="inline-flex font-bold text-sky-700 bg-sky-50/50 px-1 py-0.5 rounded items-center gap-0.5 text-[9px] ml-1.5 border border-sky-100/60">
-                                <Box className="w-2.5 h-2.5" /> Blok {prob.blok}
+                            {event.stopStartTime && (
+                              <span className="text-[10px] text-slate-600 font-bold truncate">
+                                • Jam {event.stopStartTime}
                               </span>
                             )}
                           </div>
+
+                          {/* Row 2: Action Buttons */}
+                          <div className="flex items-center gap-1.5 w-full pt-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleResolveSensorGlitch(index);
+                              }}
+                              className="flex-1 py-1 px-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-100/80 hover:bg-emerald-200/90 border border-emerald-300/80 rounded-lg transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95 text-center whitespace-nowrap"
+                              title="Tandai sebagai false alarm (gagal cacat)"
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>Gagal Cacat</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenClassifyModal(index);
+                              }}
+                              className="flex-1 py-1 px-1.5 text-[10px] font-black text-white bg-amber-500 hover:bg-amber-600 border border-amber-600 rounded-lg transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95 text-center whitespace-nowrap"
+                              title="Isi detail kendala/cacat kain"
+                            >
+                              <span>+ Klasifikasi</span>
+                            </button>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                      {event.triggerSource === "ESP32_WiFi" || event.triggerSource?.includes("ESP32") ? (
-                        <div
-                          className="p-1.5 text-slate-400 bg-slate-100 rounded-lg shrink-0 self-start cursor-not-allowed border border-slate-200"
-                          title="Data downtime otomatis dari sensor ESP32 tidak dapat dihapus"
-                        >
-                          <Lock className="w-3.5 h-3.5 text-slate-500" />
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            remove(index);
-                            if (setValue) {
-                              const currentEvents = watch("downtimeEvents") || [];
-                              const updated = currentEvents.filter((_: any, i: number) => i !== index);
-                              const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
-                              setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
-                            }
-                          }}
-                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start cursor-pointer"
-                          title="Hapus Downtime Manual"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
+              );
+            })()}
+
+            {/* SECTION B: RIWAYAT KENDALA MESIN (YANG SUDAH DIKLASIFIKASI) */}
+            {(() => {
+              const currentList = watch("downtimeEvents") || fields || [];
+              const resolvedEvents = currentList.filter((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
+              if (resolvedEvents.length === 0) return null;
+
+              const hasPending = currentList.some((evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0)));
+
+              return (
+                <div className={viewMode === "events_only" ? (hasPending ? "" : "sm:col-span-2") : ""}>
+                  <div className="flex items-center justify-between mb-2.5 min-w-0">
+                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
+                      <span>RIWAYAT BERHENTI:</span>
+                    </h4>
+                    <span className="bg-slate-100/80 text-slate-700 text-[9px] px-2.5 py-0.5 rounded-full border border-slate-200 uppercase tracking-wider font-extrabold whitespace-nowrap">
+                      {resolvedEvents.length} KEJADIAN
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
+                    {currentList.map((event: any, index: number) => {
+                      const isResolved = event.isResolved !== false && (event.isResolved || (event.problems && event.problems.length > 0));
+                      if (!isResolved) return null;
+
+                      return (
+                        <div key={event.id || index} className="flex flex-row items-start justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl gap-2 shadow-2xs">
+                          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-xs font-mono">
+                                {formatTimer(event.durasiDetik)}
+                              </span>
+                              {(() => {
+                                const meterStr = event.meter || (event.problems && event.problems.length > 0 ? event.problems[0]?.meter : null);
+
+                                if (!event.pcsKe || event.pcsKe === "Semua") {
+                                  if (meterStr) {
+                                    return (
+                                      <span className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100/80 px-1.5 py-0.5 rounded">
+                                        {meterStr.includes("PCS") ? meterStr : `Meter: ${meterStr}`}
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                }
+
+                                const pcsArray = event.pcsKe.split(",").map((s: string) => s.trim());
+                                const meterMap: Record<string, string> = {};
+
+                                if (meterStr) {
+                                  if (meterStr.includes("PCS")) {
+                                    meterStr.split(",").forEach((m: string) => {
+                                      const match = m.match(/PCS (\d+):\s*(.+)/);
+                                      if (match) {
+                                        meterMap[match[1]] = match[2];
+                                      }
+                                    });
+                                  } else {
+                                    meterMap[pcsArray[0]] = meterStr;
+                                  }
+                                }
+
+                                return pcsArray.map((pcs: string) => (
+                                  <span key={pcs} className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100/80 px-1.5 py-0.5 rounded">
+                                    PCS {pcs} {meterMap[pcs] ? `(${meterMap[pcs]}m)` : ""}
+                                  </span>
+                                ));
+                              })()}
+
+                              {event.dikerjakanOleh && (() => {
+                                const isSpecial = event.dikerjakanOleh.includes('Mekanik') || 
+                                                  event.dikerjakanOleh.includes('Teknisi') || 
+                                                  event.dikerjakanOleh.includes('Perbaikan Khusus');
+                                const cleanName = event.dikerjakanOleh.replace(/^Operator\s*/i, "").replace(/^\((.*)\)$/, "$1").trim();
+                                return (
+                                  <span className={`inline-flex text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs border ${
+                                    isSpecial ? 'bg-fuchsia-600 text-white border-fuchsia-700' : 'bg-indigo-600 text-white border-indigo-700'
+                                  }`}>
+                                    {cleanName}
+                                  </span>
+                                );
+                              })()}
+
+                              {event.isSubmitted && (
+                                <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Terkirim
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Handle backward compatibility for old data struct */}
+                            {event.kategori && typeof event.kategori === "string" && (
+                              <div className="text-[11px] text-slate-650 pl-0.5 leading-relaxed break-words">
+                                <span className="font-black text-slate-800">{event.kategori}:</span> {event.detail}
+                                {event.blok && (
+                                  <span className="inline-flex font-bold text-sky-700 bg-sky-50/50 px-1 py-0.5 rounded items-center gap-0.5 text-[9px] ml-1.5 border border-sky-100/60">
+                                    <Box className="w-2.5 h-2.5" /> Blok {event.blok}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Handle array-based problems struct */}
+                            {event.problems && event.problems.map((prob: any, pIdx: number) => {
+                              const codeLabel = `${prob.kategori}:`;
+                              const detailStr = Array.isArray(prob.details) ? prob.details.join(", ") : (prob.details || "");
+
+                              return (
+                                <div key={pIdx} className="pl-2 border-l-2 border-slate-200/90 ml-0.5 my-1 text-[11px] text-slate-800 leading-relaxed break-words">
+                                  <span className="font-black text-slate-900 mr-1">{codeLabel}</span>
+                                  <span className="font-medium text-slate-700">{detailStr}</span>
+                                  {prob.blok && (
+                                    <span className="inline-flex font-bold text-sky-700 bg-sky-50/50 px-1 py-0.5 rounded items-center gap-0.5 text-[9px] ml-1.5 border border-sky-100/60">
+                                      <Box className="w-2.5 h-2.5" /> Blok {prob.blok}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                        {event.triggerSource === "ESP32_WiFi" || event.triggerSource?.includes("ESP32") ? (
+                          <div
+                            className="p-1.5 text-slate-400 bg-slate-100 rounded-lg shrink-0 self-start cursor-not-allowed border border-slate-200"
+                            title="Data downtime otomatis dari sensor ESP32 tidak dapat dihapus"
+                          >
+                            <Lock className="w-3.5 h-3.5 text-slate-500" />
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              remove(index);
+                              if (setValue) {
+                                const currentEvents = watch("downtimeEvents") || [];
+                                const updated = currentEvents.filter((_: any, i: number) => i !== index);
+                                const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
+                                setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+                              }
+                            }}
+                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start cursor-pointer"
+                            title="Hapus Downtime Manual"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal Input Masalah */}
       {showModal && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm"
           onClick={(e) => {
-            if (e.target === e.currentTarget && !(currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32"))) {
-              setShowModal(false);
+            if (e.target === e.currentTarget) {
+              handleCloseModal();
             }
           }}
         >
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh]">
+            {/* Top Bar Simulasi ESP32 di Dalam Modal (Disembunyikan, ubah false ke true jika ingin mengaktifkan kembali) */}
+            {false && (
+              <div className="bg-purple-950 text-white px-3.5 py-2 flex items-center justify-between gap-2 border-b border-purple-800 text-xs shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping shrink-0" />
+                  <span className="text-[10px] font-black uppercase tracking-wider truncate text-purple-200">Simulasi ESP32:</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isSimulationMode) toggleSimulationMode(true);
+                      const mc = watch("nomorMc") || "";
+                      const isM2 = mc.endsWith("11") || mc.includes("M2");
+                      const src = "ESP32_WiFi";
+                      if (isM2) triggerM2Start(src);
+                      else triggerM1Start(src);
+                    }}
+                    className="py-1 px-2.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-extrabold rounded-lg transition-all shadow-xs cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap"
+                    title="Simulasikan mesin terhenti kembali saat modal masih terbuka"
+                  >
+                    <Square className="w-3 h-3 fill-current shrink-0" />
+                    <span>Simulasi Stop Mesin</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const mc = watch("nomorMc") || "";
+                      const isM2 = mc.endsWith("11") || mc.includes("M2");
+                      const src = "ESP32_WiFi";
+                      if (isM2) triggerM2Stop(src);
+                      else triggerM1Stop(src);
+                    }}
+                    className="py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold rounded-lg transition-all shadow-xs cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap"
+                    title="Simulasikan mesin menyala kembali"
+                  >
+                    <Play className="w-3 h-3 fill-current shrink-0" />
+                    <span>Simulasi Nyala Mesin</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/90">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center shrink-0 shadow-xs">
@@ -1262,9 +1755,13 @@ export default function DowntimeTracker({
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-                    <h3 className="font-black text-slate-800 text-sm sm:text-base">Simpan Downtime</h3>
+                    <h3 className="font-black text-slate-800 text-sm sm:text-base">
+                      {batchClassifyIds.length > 0 ? `Klasifikasi Sekaligus (${batchClassifyIds.length} Event)` : "Simpan Downtime"}
+                    </h3>
                     <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-orange-200/90 rounded-xl shadow-2xs hover:bg-orange-50 transition-colors" title="Ketuk untuk mengubah durasi secara manual">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Durasi (Mnt:Dtk):</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        {batchClassifyIds.length > 0 ? "Total Durasi:" : "Durasi (Mnt:Dtk):"}
+                      </span>
                       <div className="flex items-center font-mono font-black text-xs sm:text-sm text-orange-600 bg-orange-100/50 px-1.5 py-0.5 rounded-lg border border-orange-200/50">
                         <input
                           type="number"
@@ -1291,20 +1788,15 @@ export default function DowntimeTracker({
                       </div>
                     </div>
                   </div>
-                  <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1">
-                    Isi detail masalah yang menyebabkan mesin terhenti.
-                  </p>
                 </div>
               </div>
-              {!(currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32")) && (
-                <button
-                  type="button"
-                  onClick={() => { setShowModal(false); setIsUnblockingBlock(false); }}
-                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4 sm:space-y-5">
@@ -1485,7 +1977,67 @@ export default function DowntimeTracker({
                                 </div>
                               </label>
                             ))}
+
+                            {(selectedDetails[cat.id] || [])
+                              .filter((d) => !(dynamicProblemDetails[cat.id] || PROBLEM_DETAILS[cat.id] || []).includes(d))
+                              .map((customDetail) => (
+                                <div key={customDetail} className="relative flex items-center">
+                                  <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-xs font-semibold flex items-center justify-between shadow-xs">
+                                    <span className="truncate">{customDetail}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedDetails((prev) => ({
+                                          ...prev,
+                                          [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
+                                        }));
+                                      }}
+                                      className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
+                                      title="Hapus detail manual"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
                           </div>
+
+                          {cat.id === "G" && (
+                            <div className="mt-3 pt-3 border-t border-sky-100">
+                              <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
+                                <span className="flex items-center gap-1 text-slate-700">
+                                  <Edit3 className="w-3 h-3 text-sky-600" />
+                                  Input Masalah Manual (Jika tidak ada di pilihan)
+                                </span>
+                              </label>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={manualInputDetails[cat.id] || ""}
+                                  onChange={(e) =>
+                                    setManualInputDetails((prev) => ({ ...prev, [cat.id]: e.target.value }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      handleAddManualDetail(cat.id);
+                                    }
+                                  }}
+                                  placeholder="Ketik detail masalah manual di sini..."
+                                  className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-slate-800 placeholder:text-slate-400"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddManualDetail(cat.id)}
+                                  disabled={!(manualInputDetails[cat.id] || "").trim()}
+                                  className="px-3 py-2 bg-sky-500 text-white font-bold text-xs rounded-lg hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Tambah</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
 
                           {showBlockInput !== false && (() => {
                             const details = selectedDetails[cat.id] || [];
@@ -1609,7 +2161,11 @@ export default function DowntimeTracker({
                 onClick={handleSaveEvent}
                 disabled={
                   selectedCategories.length === 0 ||
-                  selectedCategories.some(cat => !selectedDetails[cat] || selectedDetails[cat].length === 0) ||
+                  selectedCategories.some(cat => {
+                    const hasDetails = (selectedDetails[cat] || []).length > 0;
+                    const hasManual = !!(manualInputDetails[cat] || "").trim();
+                    return !hasDetails && !hasManual;
+                  }) ||
                   (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) ||
                   hasMissingMeter
                 }

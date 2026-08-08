@@ -16,10 +16,12 @@ import {
   ChevronRight,
   ArrowLeft,
   Box,
+  Edit3,
 } from "lucide-react";
 import QCInspectionModal from "@/components/forms/QCInspectionModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
+import { createProblemDetail } from "@/actions/problem-detail-actions";
 import {
   getAvailableQCFilters,
   addQCDefectDetail,
@@ -196,6 +198,7 @@ export default function QCPage() {
   const [selectedDetails, setSelectedDetails] = useState<Record<string, string[]>>({});
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
   const [insertPanelKeterangan, setInsertPanelKeterangan] = useState<string>("");
+  const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
 
   // Add Defect Modal State (METERAN only)
   const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
@@ -205,6 +208,35 @@ export default function QCPage() {
   const [defectKeterangan, setDefectKeterangan] = useState("");
   const [isSubmittingDefect, setIsSubmittingDefect] = useState(false);
   const [defectError, setDefectError] = useState<string | null>(null);
+  const [qcDefectManualInput, setQcDefectManualInput] = useState<Record<string, string>>({});
+
+  const handleAddQcDefectManual = (catId: string) => {
+    const text = (qcDefectManualInput[catId] || "").trim();
+    if (!text) return;
+    setDefectDetailMap((prev) => {
+      const current = prev[catId] || [];
+      if (current.includes(text)) return prev;
+      return { ...prev, [catId]: [...current, text] };
+    });
+    setQcDefectManualInput((prev) => ({ ...prev, [catId]: "" }));
+    try {
+      createProblemDetail({ kategori: catId, nama_detail: text });
+    } catch (e) {}
+  };
+
+  const handleAddPanelManualDetail = (catId: string) => {
+    const text = (manualInputDetails[catId] || "").trim();
+    if (!text) return;
+    setSelectedDetails((prev) => {
+      const current = prev[catId] || [];
+      if (current.includes(text)) return prev;
+      return { ...prev, [catId]: [...current, text] };
+    });
+    setManualInputDetails((prev) => ({ ...prev, [catId]: "" }));
+    try {
+      createProblemDetail({ kategori: catId, nama_detail: text });
+    } catch (e) {}
+  };
 
   useEffect(() => {
     const loadFilters = async () => {
@@ -464,7 +496,20 @@ export default function QCPage() {
     setIsSubmittingDefect(true);
     setDefectError(null);
     try {
-      const combinedDetails = defectKategori.flatMap((cat) => defectDetailMap[cat] || []).join(", ");
+      const combinedDetailsList: string[] = [];
+      defectKategori.forEach((cat) => {
+        const details = [...(defectDetailMap[cat] || [])];
+        const manual = (qcDefectManualInput[cat] || "").trim();
+        if (manual && !details.includes(manual)) {
+          details.push(manual);
+          try { createProblemDetail({ kategori: cat, nama_detail: manual }); } catch (e) {}
+        }
+        if (details.length > 0) {
+          combinedDetailsList.push(details.join(", "));
+        }
+      });
+      const combinedDetails = combinedDetailsList.join(" | ");
+
       const res = await addQCDefectDetail({
         headerId: targetHeaderId,
         meterKain: defectMeterKain,
@@ -475,7 +520,7 @@ export default function QCPage() {
       });
       if (res.success && activeQcPcs) {
         setIsDefectModalOpen(false);
-        setDefectMeterKain(""); setDefectKategori([]); setDefectDetailMap({}); setDefectKeterangan("");
+        setDefectMeterKain(""); setDefectKategori([]); setDefectDetailMap({}); setDefectKeterangan(""); setQcDefectManualInput({});
         
         // Refresh active table data
         const refreshRes = await getPendingQCDetailsByBatch(activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke);
@@ -546,7 +591,16 @@ export default function QCPage() {
 
       // Format detail_masalah as "detail1, detail2 | detail3"
       const detailMasalahStr = selectedCategories
-        .map((catId) => (selectedDetails[catId] || []).join(", "))
+        .map((catId) => {
+          let details = selectedDetails[catId] || [];
+          const manual = (manualInputDetails[catId] || "").trim();
+          if (manual && !details.includes(manual)) {
+            details = [...details, manual];
+            try { createProblemDetail({ kategori: catId, nama_detail: manual }); } catch (e) {}
+          }
+          return details.join(", ");
+        })
+        .filter(Boolean)
         .join(" | ");
 
       // Format keterangan_cacat to include block numbers
@@ -822,7 +876,7 @@ export default function QCPage() {
                             <div className="pl-4 pr-2 py-2 border-l-2 border-rose-200 ml-2 animate-fadeIn mt-1 flex flex-col gap-1.5">
                               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Pilih Detail Masalah</label>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                {(PROBLEM_DETAILS[c.id] || []).map((p) => {
+                                 {(PROBLEM_DETAILS[c.id] || []).map((p) => {
                                   const currentList = defectDetailMap[c.id] || [];
                                   const isDetailChecked = currentList.includes(p);
                                   return (
@@ -852,7 +906,67 @@ export default function QCPage() {
                                     </label>
                                   );
                                 })}
+
+                                {(defectDetailMap[c.id] || [])
+                                  .filter((p) => !(PROBLEM_DETAILS[c.id] || []).includes(p))
+                                  .map((customDetail) => (
+                                    <div key={`${c.id}-${customDetail}`} className="relative flex items-center">
+                                      <div className="flex-1 p-2.5 rounded-xl border border-rose-450 bg-rose-50/30 text-rose-700 text-[11px] font-semibold flex items-center justify-between shadow-sm">
+                                        <span className="truncate">{customDetail}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDefectDetailMap((prev) => ({
+                                              ...prev,
+                                              [c.id]: (prev[c.id] || []).filter((d) => d !== customDetail),
+                                            }));
+                                          }}
+                                          className="ml-1 p-0.5 hover:bg-rose-100 rounded text-rose-600 cursor-pointer"
+                                          title="Hapus detail manual"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
                               </div>
+
+                              {c.id === "G" && (
+                                <div className="mt-2 pt-2 border-t border-rose-100 col-span-full">
+                                  <label className="text-[10px] font-bold text-slate-600 uppercase mb-1 flex items-center justify-between">
+                                    <span className="flex items-center gap-1 text-slate-700">
+                                      <Edit3 className="w-3 h-3 text-rose-500" />
+                                      Input Masalah Manual (Jika tidak ada di pilihan)
+                                    </span>
+                                  </label>
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      value={qcDefectManualInput[c.id] || ""}
+                                      onChange={(e) =>
+                                        setQcDefectManualInput((prev) => ({ ...prev, [c.id]: e.target.value }))
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          handleAddQcDefectManual(c.id);
+                                        }
+                                      }}
+                                      placeholder="Ketik detail masalah manual di sini..."
+                                      className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-rose-450 font-medium text-slate-800 placeholder:text-slate-400"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddQcDefectManual(c.id)}
+                                      disabled={!(qcDefectManualInput[c.id] || "").trim()}
+                                      className="px-3 py-1.5 bg-rose-500 text-white font-bold text-xs rounded-lg hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                      <span>Tambah</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1040,7 +1154,7 @@ export default function QCPage() {
                                 Pilih Detail Masalah
                               </label>
                               <div className="grid grid-cols-2 gap-2">
-                                {PROBLEM_DETAILS[cat.id].map((detail) => (
+                                 {PROBLEM_DETAILS[cat.id].map((detail) => (
                                   <label key={detail} className="cursor-pointer">
                                     <input
                                       type="checkbox"
@@ -1066,7 +1180,67 @@ export default function QCPage() {
                                     </div>
                                   </label>
                                 ))}
+
+                                {(selectedDetails[cat.id] || [])
+                                  .filter((d) => !(PROBLEM_DETAILS[cat.id] || []).includes(d))
+                                  .map((customDetail) => (
+                                    <div key={customDetail} className="relative flex items-center">
+                                      <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
+                                        <span className="truncate">{customDetail}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedDetails((prev) => ({
+                                              ...prev,
+                                              [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
+                                            }));
+                                          }}
+                                          className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
+                                          title="Hapus detail manual"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
                               </div>
+
+                              {cat.id === "G" && (
+                                <div className="mt-3 pt-3 border-t border-sky-100">
+                                  <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
+                                    <span className="flex items-center gap-1 text-slate-700">
+                                      <Edit3 className="w-3 h-3 text-sky-600" />
+                                      Input Masalah Manual (Jika tidak ada di pilihan)
+                                    </span>
+                                  </label>
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      value={manualInputDetails[cat.id] || ""}
+                                      onChange={(e) =>
+                                        setManualInputDetails((prev) => ({ ...prev, [cat.id]: e.target.value }))
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          handleAddPanelManualDetail(cat.id);
+                                        }
+                                      }}
+                                      placeholder="Ketik detail masalah manual di sini..."
+                                      className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-slate-800 placeholder:text-slate-400"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddPanelManualDetail(cat.id)}
+                                      disabled={!(manualInputDetails[cat.id] || "").trim()}
+                                      className="px-3 py-2 bg-sky-500 text-white font-bold text-xs rounded-lg hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                      <span>Tambah</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
 
                               {(cat.id === "A" || cat.id === "B") && selectedDetails[cat.id]?.length > 0 && (
                                 <div className="mt-3 p-3 bg-sky-50 border border-sky-100 rounded-xl">
@@ -1118,7 +1292,11 @@ export default function QCPage() {
                   disabled={
                     isInsertingPanel || 
                     (insertPanelMode === "insert" && !insertPanelAt) ||
-                    (insertPanelHasDefect && selectedCategories.some(cat => !selectedDetails[cat] || selectedDetails[cat].length === 0))
+                    (insertPanelHasDefect && selectedCategories.some(cat => {
+                      const hasDetails = (selectedDetails[cat] || []).length > 0;
+                      const hasManual = !!(manualInputDetails[cat] || "").trim();
+                      return !hasDetails && !hasManual;
+                    }))
                   }
                   onClick={handleInsertPanel}
                   className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 disabled:opacity-50 text-white font-bold transition-all shadow-lg flex items-center gap-2"

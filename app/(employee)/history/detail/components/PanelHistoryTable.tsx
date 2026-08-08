@@ -495,8 +495,8 @@ export default function PanelHistoryTable({
               <td className={`px-1 py-1 font-medium text-center text-slate-700 border-r border-slate-100`}>
                 {displayGrp}
               </td>
-              <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${hasIstirahat ? "italic font-bold text-amber-700" : "font-medium text-slate-700"}`}>
-                {hasIstirahat ? "Istirahat" : (item.showOpr ? (item.oprStr || "-") : "")}
+              <td className="px-1 py-1 leading-tight border-r border-slate-100 font-medium text-slate-700">
+                {item.showOpr ? (item.oprStr || "-") : ""}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100">
                 {isIstirahatOnly ? (

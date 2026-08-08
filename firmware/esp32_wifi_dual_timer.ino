@@ -1,18 +1,26 @@
 /*
  * =================================================================================
- * PROYEK: ESP32 WI-FI LOKAL DUAL MACHINE DOWNTIME TIMER (STATIC IP)
+ * PROYEK: ESP32 WI-FI LOKAL DUAL MACHINE DOWNTIME TIMER
+ *         (WIFIMANAGER + DYNAMIC CAPTIVE PORTAL + STATIC IP + HEARTBEAT WS)
  * Deskripsi: Program ESP32 untuk memantau 2 Mesin sekaligus via Wi-Fi Lokal & WebSocket.
  *            - Mesin 1 (M1): GPIO 4 (Relay Sakelar M1)
  *            - Mesin 2 (M2): GPIO 5 (Relay Sakelar M2)
  * 
- * Aturan Trigger:
+ * Aturan Trigger Sinyal Mesin:
  * - KETIKA RELAY MESIN AKTIF (LOW)  -> Kirim WebSocket {"machine":"M1","status":"START"}
  * - KETIKA RELAY MESIN OFF   (HIGH) -> Kirim WebSocket {"machine":"M1","status":"STOP"}
+ * 
+ * CARA PENGATURAN WI-FI DARI HP:
+ * 1. Jika Wi-Fi pabrik terputus/baru, ESP32 memancarkan Hotspot: "SETUP-ESP32-TIMER"
+ * 2. Connect via HP dengan Password AP: "AdminPabrik123"
+ * 3. Halaman web Captive Portal akan otomatis muncul di HP (atau akses 192.168.4.1)
+ * 4. Pilih SSID Wi-Fi Pabrik, masukkan password, lalu klik Save.
  * =================================================================================
  * 
  * DEPENDENSI ARDUINO LIBRARIES:
- * 1. WebSockets by Markus Sattler (Install via Arduino Library Manager)
- * 2. Built-in ESP32 libraries: WiFi.h, ESPmDNS.h, WebServer.h
+ * 1. WiFiManager by tzapu (v2.0.15+ / install via Arduino Library Manager)
+ * 2. WebSockets by Markus Sattler (v2.3.0+)
+ * 3. Built-in ESP32 libraries: WiFi.h, ESPmDNS.h, WebServer.h
  * =================================================================================
  */
 
@@ -20,12 +28,9 @@
 #include <ESPmDNS.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
+#include <WiFiManager.h> // Library WiFiManager untuk Captive Portal via HP
 
-// --- KONFIGURASI JARINGAN WI-FI ---
-const char* ssid     = "Tenda_6854B0";
-const char* password = "rtomh99555";
-
-// --- KONFIGURASI STATIC IP (IP Tetap Permanen ESP32) ---
+// --- KONFIGURASI STATIC IP DEFAULT (IP Tetap Permanen ESP32 di Pabrik) ---
 IPAddress local_IP(192, 168, 2, 171);
 IPAddress gateway(192, 168, 2, 1);
 IPAddress subnet(255, 255, 255, 0);
@@ -38,15 +43,20 @@ const char* mdns_hostname = "esp32-timer";
 // --- KONFIGURASI HARDWARE PIN ---
 const int MESIN_1_PIN = 4;   // GPIO 4 (Input Relay Mesin 1)
 const int MESIN_2_PIN = 5;   // GPIO 5 (Input Relay Mesin 2)
-const int LED_M1_PIN  = 2;   // Onboard LED ESP32 (Indikator Mesin 1)
+const int LED_M1_PIN  = 2;   // Onboard LED ESP32 (Indikator Status Sinyal M1)
 
 // --- SERVER INSTANCES ---
 WebServer httpServer(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
+WiFiManager wm;
 
-// --- STATE PELACAK DOWNTIME MESIN ---
+// --- STATE PELACAK DOWNTIME MESIN & WI-FI ---
 bool m1_active = false;
 bool m2_active = false;
+
+bool wifiWasConnected = false;
+unsigned long lastWiFiRetry = 0;
+const unsigned long wifiRetryInterval = 5000; // Coba reconnect setiap 5 detik jika mati
 
 // Debounce state Mesin 1
 int m1_lastRawState = HIGH;
@@ -80,7 +90,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
     case WStype_TEXT:
       Serial.printf("[WebSocket] Pesan dari [%u]: %s\n", num, payload);
-      // Tanggapi perintah PING atau GET_STATUS dari client web
       if (strcmp((char*)payload, "PING") == 0) {
         webSocket.sendTXT(num, "PONG");
       } else if (strcmp((char*)payload, "GET_STATUS") == 0) {
@@ -103,7 +112,6 @@ void handleApiStatus() {
                 "\", \"ip\":\"" + WiFi.localIP().toString() + 
                 "\", \"mdns\":\"http://esp32-timer.local\"}";
   
-  // Header CORS agar dapat diakses oleh browser/Vercel tanpa terblokir Policy CORS
   httpServer.sendHeader("Access-Control-Allow-Origin", "*");
   httpServer.send(200, "application/json", json);
 }
@@ -135,32 +143,30 @@ void setup() {
   Serial.println("  ESP32 DUAL MACHINE WI-FI TIMER STARTING... ");
   Serial.println("=============================================");
 
-  // 2. Konfigurasi Static IP Permanen (192.168.2.171)
-  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
-    Serial.println("[Wi-Fi] Gagal mengonfigurasi Static IP!");
-  } else {
-    Serial.println("[Wi-Fi] Static IP diatur ke: 192.168.2.171");
-  }
-
-  // 3. Hubungkan ke Wi-Fi
+  // 2. Setup Mode Wi-Fi & Wi-Fi Manager
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  Serial.print("[Wi-Fi] Menghubungkan ke: ");
-  Serial.println(ssid);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
+  WiFi.setSleep(false); // MATIKAN SLEEP MODE AGAR ANTENA SELALU NYALA REAL-TIME
 
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
+  // Set Static IP untuk ESP32
+  wm.setSTAStaticIPConfig(local_IP, gateway, subnet, primaryDNS, secondaryDNS);
 
-  if (WiFi.status() == WL_CONNECTED) {
+  // Set Timeout Portal AP (3 menit / 180 detik) agar tidak menggantung jika tidak disetting
+  wm.setConfigPortalTimeout(180);
+
+  // Hubungkan ke Wi-Fi yang tersimpan. Jika belum/gagal, pancarkan Hotspot AP: "SETUP-ESP32-TIMER" Pass: "AdminPabrik123"
+  bool res = wm.autoConnect("SETUP-ESP32-TIMER", "AdminPabrik123");
+
+  if (!res) {
+    Serial.println("[Wi-Fi] Gagal terhubung ke Wi-Fi atau timeout portal tercapai. Melanjutkan dengan mode jaringan mandiri.");
+    wifiWasConnected = false;
+  } else {
+    wifiWasConnected = true;
     Serial.println("\n[Wi-Fi] Terhubung!");
     Serial.print("[Wi-Fi] IP Address ESP32 (STATIC): ");
     Serial.println(WiFi.localIP());
 
-    // Inisialisasi mDNS (Domain: http://esp32-timer.local)
     if (MDNS.begin(mdns_hostname)) {
       Serial.printf("[mDNS] Domain lokal aktif: http://%s.local\n", mdns_hostname);
       MDNS.addService("http", "tcp", 80);
@@ -168,20 +174,19 @@ void setup() {
     } else {
       Serial.println("[mDNS] Gagal memulai mDNS Server!");
     }
-  } else {
-    Serial.println("\n[Wi-Fi] Gagal terhubung! Periksa SSID & Password.");
   }
 
-  // 4. Jalankan HTTP REST Server
+  // 3. Jalankan HTTP REST Server
   httpServer.on("/api/status", handleApiStatus);
   httpServer.onNotFound(handleNotFound);
   httpServer.begin();
   Serial.println("[HTTP] Server berjalan di Port 80 (/api/status)");
 
-  // 5. Jalankan WebSocket Server
+  // 4. Jalankan WebSocket Server & Aktifkan Heartbeat (Ping 15s)
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-  Serial.println("[WebSocket] Server berjalan di Port 81");
+  webSocket.enableHeartbeat(15000, 3000, 2); // Auto ping client per 15 detik
+  Serial.println("[WebSocket] Server berjalan di Port 81 (Heartbeat Enabled)");
 }
 
 void loop() {
@@ -189,13 +194,33 @@ void loop() {
   httpServer.handleClient();
   webSocket.loop();
 
-  // Auto Reconnect Wi-Fi jika terputus sementara di jaringan
+  // -------------------------------------------------------------
+  // LOGIKA AUTO RECONNECT WI-FI OTOMATIS & RE-INITIALIZATION
+  // -------------------------------------------------------------
   if (WiFi.status() != WL_CONNECTED) {
-    static unsigned long lastWiFiRetry = 0;
-    if (millis() - lastWiFiRetry > 10000) {
-      lastWiFiRetry = millis();
-      Serial.println("[Wi-Fi] Mencoba menghubungkan kembali...");
+    if (wifiWasConnected) {
+      wifiWasConnected = false;
+      Serial.println("[Wi-Fi] Koneksi terputus! Memulai pencarian ulang Wi-Fi secara berkala...");
+    }
+
+    unsigned long currentMillis = millis();
+    if (currentMillis - lastWiFiRetry >= wifiRetryInterval) {
+      lastWiFiRetry = currentMillis;
+      Serial.println("[Wi-Fi] Mencari dan mengaktifkan kembali koneksi Wi-Fi...");
       WiFi.reconnect();
+    }
+  } else {
+    if (!wifiWasConnected) {
+      wifiWasConnected = true;
+      Serial.println("[Wi-Fi] Koneksi Wi-Fi berhasil pulih dan terhubung kembali!");
+      Serial.print("[Wi-Fi] IP Address (STATIC): ");
+      Serial.println(WiFi.localIP());
+
+      // Re-inisialisasi mDNS saat koneksi Wi-Fi pulih
+      if (MDNS.begin(mdns_hostname)) {
+        MDNS.addService("http", "tcp", 80);
+        MDNS.addService("ws", "tcp", 81);
+      }
     }
   }
 

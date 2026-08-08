@@ -66,6 +66,8 @@ export default function WifiDowntimeTrigger({
     triggerM2Start,
     triggerM2Stop,
     resetTimerM2,
+    isSimulationMode,
+    toggleSimulationMode,
   } = useWifiContext();
 
   // Sakelar Pilihan Mesin State
@@ -88,8 +90,6 @@ export default function WifiDowntimeTrigger({
       }
     }
   }, [selectedMachineCode, selectedMachine]);
-
-
 
   const currentStatus = selectedMachine === "M1" ? statusM1 : statusM2;
   const currentElapsed = selectedMachine === "M1" ? elapsedM1 : elapsedM2;
@@ -158,14 +158,32 @@ export default function WifiDowntimeTrigger({
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowControllerModal(!showControllerModal)}
-          className="w-7 h-7 p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors border border-slate-200 flex items-center justify-center shrink-0 cursor-pointer"
-          title="Pengaturan Wi-Fi & Terminal Log"
-        >
-          <Settings className="w-3.5 h-3.5 text-slate-600" />
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Sembunyikan Tombol Simulasi (Ubah false ke true jika ingin mengaktifkan kembali) */}
+          {false && (
+            <button
+              type="button"
+              onClick={() => toggleSimulationMode()}
+              className={`px-2 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wide transition-all border shrink-0 cursor-pointer ${
+                isSimulationMode
+                  ? "bg-purple-600 text-white border-purple-700 shadow-xs active:scale-95"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+              }`}
+              title="Aktifkan Mode Simulasi ESP32 jika tidak sedang di pabrik"
+            >
+              {isSimulationMode ? "Simulasi: ON" : "Simulasi"}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowControllerModal(!showControllerModal)}
+            className="w-7 h-7 p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors border border-slate-200 flex items-center justify-center shrink-0 cursor-pointer"
+            title="Pengaturan Wi-Fi & Terminal Log"
+          >
+            <Settings className="w-3.5 h-3.5 text-slate-600" />
+          </button>
+        </div>
       </div>
 
       {/* Baris 2: Badge Indikator Mesin Read-Only (Full Width Responsif 50%-50%) */}
@@ -198,6 +216,42 @@ export default function WifiDowntimeTrigger({
           )}
         </div>
       </div>
+
+      {/* Baris 3: Tombol Trigger Simulasi Signal Sinyal ESP32 (Disembunyikan, dapat diaktifkan kembali jika dibutuhkan) */}
+      {false && (
+        <div className="flex items-center gap-1.5 pt-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              if (!isSimulationMode && connectionStatus !== "terhubung") {
+                toggleSimulationMode(true);
+              }
+              const src = "ESP32_WiFi";
+              if (selectedMachine === "M1") triggerM1Start(src);
+              else triggerM2Start(src);
+            }}
+            className="flex-1 py-1 px-1.5 bg-rose-500 hover:bg-rose-600 text-white font-bold text-[10px] rounded-lg transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer active:scale-95 whitespace-nowrap"
+            title="Simulasikan sensor membaca MESIN STOP (Mulai hitung timer downtime ESP32)"
+          >
+            <Square className="w-3 h-3 fill-current shrink-0" />
+            <span>Simulasi Stop Mesin</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const src = "ESP32_WiFi";
+              if (selectedMachine === "M1") triggerM1Stop(src);
+              else triggerM2Stop(src);
+            }}
+            className="flex-1 py-1 px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer active:scale-95 whitespace-nowrap"
+            title="Simulasikan sensor membaca MESIN NYALA/JALAN (Selesai stop, simpan event ESP32)"
+          >
+            <Play className="w-3 h-3 fill-current shrink-0" />
+            <span>Simulasi Nyala Mesin</span>
+          </button>
+        </div>
+      )}
 
       {/* 4. Modal Dialog Popup Pengaturan ESP32 (Tampil Rapi di Tablet & HP) */}
       {showControllerModal && (

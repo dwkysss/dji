@@ -59,6 +59,8 @@ interface WifiContextType {
   addLog: (type: WifiLogEntry["type"], message: string, machine?: "M1" | "M2" | "SYSTEM") => void;
 
   // Web Simulator & Manual Triggers
+  isSimulationMode: boolean;
+  toggleSimulationMode: (enable?: boolean) => void;
   triggerM1Start: (source?: string) => void;
   triggerM1Stop: (source?: string) => void;
   triggerM2Start: (source?: string) => void;
@@ -78,6 +80,7 @@ const STORAGE_KEY = "wifi_esp32_target";
 export function WifiProvider({ children }: { children: React.ReactNode }) {
   const [targetHost, setTargetHostState] = useState<string>(DEFAULT_HOSTNAME);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("terputus");
+  const [isSimulationMode, setIsSimulationMode] = useState<boolean>(false);
   const [wsUrl, setWsUrl] = useState<string>("");
 
   // Machine 1 State
@@ -124,6 +127,14 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
   const clearLogs = useCallback(() => {
     setLogs([]);
   }, []);
+
+  const toggleSimulationMode = useCallback((enable?: boolean) => {
+    setIsSimulationMode((prev) => {
+      const nextVal = typeof enable === "boolean" ? enable : !prev;
+      addLog("INFO", nextVal ? "Mode Simulasi ESP32 diaktifkan (Demo Offline)" : "Mode Simulasi ESP32 dinonaktifkan", "SYSTEM");
+      return nextVal;
+    });
+  }, [addLog]);
 
   // Save hostname to localStorage
   const setTargetHost = useCallback((host: string) => {
@@ -367,12 +378,16 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const effectiveConnectionStatus = isSimulationMode ? "terhubung" : connectionStatus;
+
   return (
     <WifiContext.Provider
       value={{
         targetHost,
-        connectionStatus,
+        connectionStatus: effectiveConnectionStatus,
         wsUrl,
+        isSimulationMode,
+        toggleSimulationMode,
         statusM1,
         isTimerM1Running,
         elapsedM1,

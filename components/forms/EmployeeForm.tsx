@@ -448,6 +448,7 @@ export default function EmployeeForm({
   const [backupOperatorName, setBackupOperatorName] = useState("");
 
   // Break Warning Modal state
+  const [unclassifiedStopsModalCount, setUnclassifiedStopsModalCount] = useState<number | null>(null);
   const [breakWarningModal, setBreakWarningModal] = useState<{
     isOpen: boolean;
     timeStr: string;
@@ -937,6 +938,15 @@ export default function EmployeeForm({
 
     setIsSubmitting(true);
     setErrorMsg(null);
+    const unclassifiedStops = data.downtimeEvents?.filter(
+      (evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0))
+    ) || [];
+    if (unclassifiedStops.length > 0) {
+      setIsSubmitting(false);
+      setUnclassifiedStopsModalCount(unclassifiedStops.length);
+      return;
+    }
+
     const uppercaseFields: (keyof ProductionFormInput)[] = ["designId", "pick", "course", "noOrderBarang", "noCustomer", "jenisBenangDasar", "liner", "heavy", "shadow", "pinggiran", "rpm"];
     uppercaseFields.forEach(field => {
       if (typeof data[field] === "string") {
@@ -1436,7 +1446,7 @@ export default function EmployeeForm({
                 )}
               </div>
 
-              {/* Kolom Kanan: Downtime Tracker */}
+              {/* Kolom Kanan: Downtime Tracker (Timer & Blok) */}
               <div className="flex flex-col w-full self-start">
                 <div data-tour="downtime" className="w-full">
                   <input type="hidden" {...register("totalDowntime")} />
@@ -1450,9 +1460,25 @@ export default function EmployeeForm({
                     isEdit={isEdit}
                     onRegisterTimerControls={setTimerControls}
                     isPanelType={true}
+                    viewMode="timer_only"
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Section Merentang Penuh (Full Width): Antrean & Riwayat Kendala Mesin */}
+            <div className="w-full mt-4">
+              <DowntimeTracker
+                control={control}
+                setValue={setValue}
+                watch={watch}
+                showBlockInput={true}
+                operators={activeOperators}
+                currentOperatorName={currentOperatorName}
+                isEdit={isEdit}
+                isPanelType={true}
+                viewMode="events_only"
+              />
             </div>
 
             <ProductionHeaderModal
@@ -2022,6 +2048,32 @@ export default function EmployeeForm({
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Peringatan Antrean Event Belum Diklasifikasikan (Simpel & Minimalis) */}
+        {unclassifiedStopsModalCount !== null && unclassifiedStopsModalCount > 0 && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-white rounded-2xl max-w-sm w-full shadow-xl p-5 border border-slate-200 flex flex-col gap-4 text-center">
+              <div className="mx-auto w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <h3 className="font-extrabold text-slate-800 text-sm">
+                  Masih Ada Antrean Kendala
+                </h3>
+                <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                  Terdapat <strong>{unclassifiedStopsModalCount} peristiwa mesin stop</strong> yang belum diklasifikasikan. Mohon tentukan <strong>&quot;Gagal Cacat&quot;</strong> atau <strong>&quot;Klasifikasi&quot;</strong> sebelum menyimpan form.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUnclassifiedStopsModalCount(null)}
+                className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-xs"
+              >
+                Oke, Mengerti
+              </button>
             </div>
           </div>
         )}

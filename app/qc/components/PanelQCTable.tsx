@@ -411,8 +411,8 @@ export default function PanelQCTable({
               <td className="px-1 py-1 font-medium text-slate-700 text-center border-r border-slate-100">
                 {hasIstirahat ? "" : (showGrp ? grpStr : "")}
               </td>
-              <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${hasIstirahat ? "text-slate-500 italic font-bold" : "text-slate-700 font-medium"}`}>
-                {hasIstirahat ? "Istirahat" : (showOpr ? item.oprBase : "")}
+              <td className="px-1 py-1 leading-tight border-r border-slate-100 text-slate-700 font-medium">
+                {showOpr ? item.oprBase : ""}
               </td>
               <td className="px-1 py-1 text-center font-bold text-sm border-r border-slate-100">
                 {item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
