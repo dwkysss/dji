@@ -19,8 +19,15 @@ export default function PanelHistoryTable({
       const tgl = h.tgl || "";
       const operatorStr = (grp ? `(${grp}) ` : '') + opr;
 
-      const isIstirahatOnly = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") && !item.kategori_masalah && !item.detail_masalah;
-      const hasIstirahat = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT");
+      const isGagalCacat = (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") || (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT");
+      const hasIstirahat = !isGagalCacat && (
+        (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
+        (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
+      );
+      const isIstirahatOnly = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
       const isFinish = item.keterangan_cacat === "FINISH" || item.production_headers?.panel_no === "FINISH";
       const isStart = item.keterangan_cacat === "START" || item.production_headers?.panel_no === "START";
       const isGradable = !isIstirahatOnly && !isFinish && !isStart;
@@ -401,10 +408,10 @@ export default function PanelHistoryTable({
                   {displayTgl}
                 </td>
                 <td className={`px-1 py-1 font-medium text-center text-slate-700 border-r border-slate-100`}>
-                  {hasIstirahat ? "" : displayGrp}
+                  {item.showGrp ? displayGrp : ""}
                 </td>
-                <td className="px-1 py-1 leading-tight border-r border-slate-100 text-slate-700 font-medium">
-                  {displayOp}
+                <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(hasIstirahat && !item.showOpr) ? "italic font-bold text-slate-500 text-center" : "font-medium text-slate-700"}`}>
+                  {item.showOpr ? displayOp : (hasIstirahat ? "Istirahat" : "")}
                 </td>
                  <td className="px-1 py-1 text-center border-r border-slate-100">
                    {isIstirahatOnly ? (
@@ -418,8 +425,21 @@ export default function PanelHistoryTable({
                    )}
                  </td>
                  <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${hasIstirahat ? 'text-slate-500' : (masalahLines.length > 0 ? 'text-rose-600' : 'text-slate-700')}`}>
-                   {extractedBackupOp && hasIstirahat && <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>}
-                   {!isIstirahatOnly && (masalahLines.length > 0 ? masalahLines.join("\n") : "-")}
+                   {hasIstirahat && (
+                     <>
+                       {(extractedBackupOp && extractedBackupOp.trim().toLowerCase() !== (item.oprStr || "").trim().toLowerCase()) ? (
+                         <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>
+                       ) : item.showOpr ? (
+                         <div className="font-bold text-slate-700 mb-0.5">ISTIRAHAT</div>
+                       ) : (
+                         <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp || "-"}</div>
+                       )}
+                       {!isIstirahatOnly && masalahLines.length > 0 && (
+                         <div className="text-rose-600">{masalahLines.join("\n")}</div>
+                       )}
+                     </>
+                   )}
+                   {!hasIstirahat && (masalahLines.length > 0 ? masalahLines.join("\n") : "-")}
                  </td>
 
                 <td className="px-1 py-1 text-center border-r border-slate-100">

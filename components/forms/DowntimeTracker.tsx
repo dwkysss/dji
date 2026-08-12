@@ -795,7 +795,7 @@ export default function DowntimeTracker({
     const nonDefectProblems = [
       {
         kategori: "G",
-        details: ["Gagal Cacat (Kain Normal)"],
+        details: ["Gagal Cacat"],
       },
     ];
 
@@ -2151,7 +2151,7 @@ export default function DowntimeTracker({
                 type="button"
                 onClick={handleSaveNonDefectStop}
                 className="flex-1 h-12 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-extrabold text-xs sm:text-sm rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 px-3 text-center"
-                title="Simpan sebagai Gagal Cacat / Kain Normal"
+                title="Simpan sebagai Gagal Cacat"
               >
                 <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>Gagal Cacat</span>

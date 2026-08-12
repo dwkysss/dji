@@ -83,20 +83,15 @@ export default function PanelHistoryTable({
       const jamStr = rawJam ? formatWibTime(rawJam) : "-";
       const operatorStr = (grp ? `(${grp}) ` : '') + opr;
 
-      const hasIstirahatDetail = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT");
-      
-      let hasIstirahatBatch = false;
-      const hDetails = h.production_details || [];
-      if (hDetails.some((d: any) => (d.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT"))) {
-        hasIstirahatBatch = true;
-      }
-      const dRecs = h.downtime_records || [];
-      if (dRecs.some((r: any) => (r.kategori || "").toUpperCase().includes("ISTIRAHAT"))) {
-        hasIstirahatBatch = true;
-      }
-
-      const hasIstirahat = hasIstirahatDetail || hasIstirahatBatch;
-      const isIstirahatOnly = hasIstirahat && !item.kategori_masalah && !item.detail_masalah;
+      const isGagalCacat = (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") || (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT");
+      const hasIstirahat = !isGagalCacat && (
+        (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
+        (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
+      );
+      const isIstirahatOnly = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
 
       const isFinish = item.keterangan_cacat === "FINISH" || item.production_headers?.panel_no === "FINISH";
       const isStart = item.keterangan_cacat === "START" || item.production_headers?.panel_no === "START";
@@ -495,8 +490,8 @@ export default function PanelHistoryTable({
               <td className={`px-1 py-1 font-medium text-center text-slate-700 border-r border-slate-100`}>
                 {displayGrp}
               </td>
-              <td className="px-1 py-1 leading-tight border-r border-slate-100 font-medium text-slate-700">
-                {item.showOpr ? (item.oprStr || "-") : ""}
+              <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(hasIstirahat && !item.showOpr) ? "italic font-bold text-slate-500 text-center" : "font-medium text-slate-700"}`}>
+                {item.showOpr ? (item.oprStr || "-") : (hasIstirahat ? "Istirahat" : "")}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100">
                 {isIstirahatOnly ? (
@@ -509,11 +504,22 @@ export default function PanelHistoryTable({
                   )
                 )}
               </td>
-              <td className="px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100">
-                {backupOpName && <div className="text-slate-700 font-bold mb-0.5">{backupOpName}</div>}
-                <div className={hasDefect ? 'text-rose-600' : 'text-slate-400'}>
-                  {masalahLines.join("\n") || "-"}
-                </div>
+              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${hasIstirahat ? 'text-slate-500' : (hasDefect ? 'text-rose-600' : 'text-slate-400')}`}>
+                {hasIstirahat && (
+                  <>
+                    {(backupOpName && backupOpName.trim().toLowerCase() !== (item.oprStr || "").trim().toLowerCase()) ? (
+                      <div className="font-bold text-slate-700 mb-0.5">{backupOpName}</div>
+                    ) : item.showOpr ? (
+                      <div className="font-bold text-slate-700 mb-0.5">ISTIRAHAT</div>
+                    ) : (
+                      <div className="font-bold text-slate-700 mb-0.5">{backupOpName || "-"}</div>
+                    )}
+                    {!isIstirahatOnly && masalahLines.length > 0 && masalahLines[0] !== "-" && (
+                      <div className="text-rose-600">{masalahLines.join("\n")}</div>
+                    )}
+                  </>
+                )}
+                {!hasIstirahat && (masalahLines.length > 0 ? masalahLines.join("\n") : "-")}
               </td>
               <td className={`px-1 py-1 text-center text-[11px] font-bold border-r border-slate-100 ${downtimeDisplay && downtimeDisplay !== "-" ? "text-rose-600" : "text-slate-400"}`}>
                 {downtimeDisplay}

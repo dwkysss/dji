@@ -149,8 +149,8 @@ void setup() {
   WiFi.persistent(true);
   WiFi.setSleep(false); // MATIKAN SLEEP MODE AGAR ANTENA SELALU NYALA REAL-TIME
 
-  // Set Static IP untuk ESP32
-  wm.setSTAStaticIPConfig(local_IP, gateway, subnet, primaryDNS, secondaryDNS);
+  // Set Static IP untuk ESP32 (4 Parameter: IP, Gateway, Subnet, DNS)
+  wm.setSTAStaticIPConfig(local_IP, gateway, subnet, primaryDNS);
 
   // Set Timeout Portal AP (3 menit / 180 detik) agar tidak menggantung jika tidak disetting
   wm.setConfigPortalTimeout(180);

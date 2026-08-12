@@ -28,6 +28,40 @@ const extractDate = (ts: string) => {
   return ts;
 };
 
+function formatFullDateTime(dateVal?: string): string {
+  if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
+  try {
+    let str = String(dateVal).trim();
+    if (!str) return "-";
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}([:.]\d{2})?$/.test(str)) return str;
+    let dt: Date;
+    if (str.includes("T")) {
+      if (!str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) str = str + "Z";
+      dt = new Date(str);
+    } else if (str.includes(" ")) {
+      const parts = str.split(" ");
+      if (!str.includes("Z") && !str.includes("+")) dt = new Date(`${parts[0]}T${parts[1] || "00:00:00"}Z`);
+      else dt = new Date(str);
+    } else {
+      dt = new Date(str);
+    }
+    if (isNaN(dt.getTime())) return dateVal;
+    const year = dt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta", year: "numeric" });
+    const month = dt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta", month: "2-digit" });
+    const day = dt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta", day: "2-digit" });
+    const timeStr = dt.toLocaleTimeString("id-ID", {
+      timeZone: "Asia/Jakarta",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).replace(".", ":");
+    return `${year}-${month}-${day} ${timeStr}`;
+  } catch (e) {
+    return dateVal;
+  }
+}
+
 const cleanMeterVal = (val: any) =>
   val === null || val === undefined ? "" :
   String(val).replace(/PCS\s*\d+\s*:\s*/gi, "").replace(/[a-zA-Z\s]+$/g, "").trim();
@@ -39,23 +73,44 @@ const buildCacatText = (item: any): string => {
       if ((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT")) return;
       const k = d.kategori || ""; const det = d.detail || ""; const b = d.blok || "";
       let line = k && det ? `${k} - ${det}` : (k || det);
-      if (b) line += ` (Blok ${b.replace(/blok\s*/gi, "").trim()})`;
-      if (line) lines.push(line);
+      if (b) line += ` (b. ${b.replace(/blok\s*/gi, "").trim()})`;
+      if (line && !lines.includes(line)) lines.push(line);
     });
-  } else {
-    const k = item.kategori_masalah || ""; const d = item.detail_masalah || "";
-    let line = k && d ? `${k} - ${d}` : (k || d);
-    let ketCacat = (item.keterangan_cacat || "").replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
-    if (ketCacat) {
-      const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-      if (cleanB) {
-        if (line) line += ` (Blok ${cleanB})`;
-        else line = `(Blok ${cleanB})`;
-      }
-    }
-    if (line) lines.push(line);
   }
-  return lines.length > 0 ? lines.join("; ") : "-";
+
+  if (lines.length === 0) {
+    const k = item.kategori_masalah || ""; const d = item.detail_masalah || "";
+    let ketCacat = (item.keterangan_cacat || "").replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
+
+    const kList = k.split(",").map((s: string) => s.trim()).filter(Boolean);
+    const dList = d.split(",").map((s: string) => s.trim()).filter(Boolean);
+
+    if (kList.length > 1 || dList.length > 1) {
+      const maxLen = Math.max(kList.length, dList.length);
+      for (let i = 0; i < maxLen; i++) {
+        const cat = kList[i] || kList[0] || "";
+        const det = dList[i] || dList[0] || "";
+        let line = cat && det ? `${cat} - ${det}` : (cat || det);
+        if (ketCacat) {
+          const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
+          if (cleanB) line += ` (b. ${cleanB})`;
+        }
+        if (line && !lines.includes(line)) lines.push(line);
+      }
+    } else {
+      let line = k && d ? `${k} - ${d}` : (k || d);
+      if (ketCacat) {
+        const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
+        if (cleanB) {
+          if (line) line += ` (b. ${cleanB})`;
+          else line = `(b. ${cleanB})`;
+        }
+      }
+      if (line && !lines.includes(line)) lines.push(line);
+    }
+  }
+
+  return lines.length > 0 ? lines.join("\n").replace(/\bbenang\b/gi, "B.") : "-";
 };
 
 const formatDurationNice = (totalSec: number | string) => {
@@ -264,11 +319,19 @@ function buildMeterRows(panels: any[], shiftName: string) {
   });
 
   const filtered = details.filter((item: any) => {
-    const hasIstirahatRaw = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT");
+    const isGagalCacat = (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") || (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT");
+    const hasIstirahatRaw = !isGagalCacat && (
+      (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
+      (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+      (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+      (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
+      (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
+    );
     let hasRealDefects = false;
     (item.production_defects || []).forEach((d: any) => { if (!((d.kategori || "").toUpperCase().includes("ISTIRAHAT"))) hasRealDefects = true; });
     if (!item.production_defects?.length && item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT")) hasRealDefects = true;
-    const isIstirahat = hasIstirahatRaw && !hasRealDefects;
+    const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
+    const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
     if (isIstirahat) { const h = item.production_headers || {}; return h.meter_kain || h.meter_akhir || h.meter_awal; }
     return true;
   });
@@ -291,12 +354,19 @@ function buildMeterRows(panels: any[], shiftName: string) {
     const jamStr = formatWibTime(h.tanggal_jam || h.created_at || "");
     const oprStr = `${grp ? `(${grp}) ` : ""}${opr}`;
 
-    const hasIstirahatRaw = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT");
+    const isGagalCacat = (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") || (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT");
+    const hasIstirahatRaw = !isGagalCacat && (
+      (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
+      (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+      (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+      (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
+      (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
+    );
     let hasRealDefects = false;
     (item.production_defects || []).forEach((d: any) => { if (!((d.kategori || "").toUpperCase().includes("ISTIRAHAT"))) hasRealDefects = true; });
     if (!item.production_defects?.length && item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT")) hasRealDefects = true;
     const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
-    const isIstirahat = hasIstirahat && !item.kategori_masalah && !item.detail_masalah;
+    const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
 
     const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
     const cacatText = buildCacatText({ ...item, production_defects: item.production_defects || [] });
@@ -379,68 +449,64 @@ function buildMeterRows(panels: any[], shiftName: string) {
 
 // 3 separate grade columns at far right
 function GradeCols({ grade }: { grade: "A" | "B" | "BS" | "" }) {
-  const tick = <span className="text-slate-900 font-black text-[9px]">✓</span>;
+  const tick = <span className="text-slate-950 font-bold text-[9px]">✓</span>;
   return (
     <>
-      <td className="py-0.5 px-0.5 border-r border-slate-200 text-center w-5">{grade === "A" ? tick : ""}</td>
-      <td className="py-0.5 px-0.5 border-r border-slate-200 text-center w-5">{grade === "B" ? tick : ""}</td>
-      <td className="py-0.5 px-0.5 border-r border-slate-200 text-center w-6">{grade === "BS" ? tick : ""}</td>
+      <td className="py-0.5 px-0.5 border-r border-slate-300 text-center w-5">{grade === "A" ? tick : ""}</td>
+      <td className="py-0.5 px-0.5 border-r border-slate-300 text-center w-5">{grade === "B" ? tick : ""}</td>
+      <td className="py-0.5 px-0.5 border-r border-slate-300 text-center w-6">{grade === "BS" ? tick : ""}</td>
     </>
   );
 }
 
 function PanelPrintTable({ rows }: { rows: any[] }) {
   return (
-    <div className="border border-slate-300 rounded-lg overflow-hidden text-[8px]">
+    <div className="border border-slate-400 text-[7px]">
       <table className="w-full text-left border-collapse table-fixed">
-        <thead className="bg-slate-900 text-white font-black uppercase tracking-wider">
+        <thead className="bg-white text-slate-950 font-bold uppercase tracking-wider border-b border-slate-400 text-[7.5px]">
           <tr>
-            <th className="p-0.5 border-r border-slate-700 w-7 text-center">PNL</th>
-            <th className="p-0.5 border-r border-slate-700 w-14">TGL</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-5">GRP</th>
-            <th className="p-0.5 border-r border-slate-700 w-16">OPERATOR</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-6">KET</th>
-            <th className="p-0.5 border-r border-slate-700">KETERANGAN CACAT</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-8">DT</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-5 bg-emerald-900">A</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-5 bg-sky-900">B</th>
-            <th className="p-0.5 text-center w-6 bg-rose-900">BS</th>
+            <th className="p-0.5 border-r border-slate-400 w-7 text-center">PNL</th>
+            <th className="p-0.5 border-r border-slate-400 w-14">TGL</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-5">GRP</th>
+            <th className="p-0.5 border-r border-slate-400 w-16">OPERATOR</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-6">KET</th>
+            <th className="p-0.5 border-r border-slate-400 whitespace-nowrap">KETERANGAN CACAT</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-8">DT</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-5">A</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-5">B</th>
+            <th className="p-0.5 text-center w-6">BS</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200">
+        <tbody className="divide-y divide-slate-300">
           {rows.map((row, i) => (
-            <tr key={i} className={`leading-snug ${
-              row.isIstirahat ? "bg-amber-50 text-amber-950"
-              : row.isFinish ? "bg-slate-100 text-slate-500 italic"
-              : i % 2 === 1 ? "bg-slate-50/60" : ""
-            }`}>
-              <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-bold">{row.panelNo}</td>
-              <td className="py-0.5 px-0.5 border-r border-slate-200 text-slate-600 whitespace-nowrap">{row.showTgl ? row.tglStr : ""}</td>
-              <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-bold">{row.showGrp ? row.grpStr : ""}</td>
-              <td className="py-0.5 px-0.5 border-r border-slate-200 font-semibold truncate max-w-[64px]">
+            <tr key={i} className="leading-snug bg-white text-slate-950">
+              <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.panelNo}</td>
+              <td className="py-0.5 px-0.5 border-r border-slate-300 whitespace-nowrap">{row.showTgl ? row.tglStr : ""}</td>
+              <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.showGrp ? row.grpStr : ""}</td>
+              <td className="py-0.5 px-0.5 border-r border-slate-300 font-semibold truncate max-w-[64px]">
                 {row.isIstirahat
-                  ? <span className="text-amber-700 italic font-bold">Istirahat</span>
+                  ? <span className="italic font-bold">Istirahat</span>
                   : (row.showOpr ? row.oprStr : "")}
               </td>
               {/* KET: empty for FINISH */}
-              <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-black">
+              <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">
                 {row.isFinish ? "" : row.isGagal || row.hasDefect
-                  ? <span className="text-rose-600">✕</span>
+                  ? <span>✕</span>
                   : row.isIstirahat
-                    ? <span className="text-amber-500">-</span>
-                    : <span className="text-emerald-600">✓</span>}
+                    ? <span>-</span>
+                    : <span>✓</span>}
               </td>
               {/* KETERANGAN CACAT: backup name for istirahat, FINISH label, or cacat text */}
-              <td className="py-0.5 px-1 border-r border-slate-200 text-slate-700 max-w-[100px]">
+              <td className="py-0.5 px-1 border-r border-slate-300 text-[6px] leading-tight break-words whitespace-pre-line">
                 {row.isIstirahat && row.backupOpName
-                  ? <span className="text-amber-800 font-bold not-italic">{row.backupOpName}</span>
-                  : <span className="truncate block" title={row.cacatText}>{row.cacatText}</span>
+                  ? <span className="font-bold not-italic">{row.backupOpName}</span>
+                  : row.cacatText
                 }
               </td>
-              <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-bold text-amber-700 font-mono">{row.downtimeStr}</td>
+              <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold font-mono">{row.downtimeStr}</td>
               {/* Grade cols: empty for FINISH */}
               {row.isFinish
-                ? <><td className="border-r border-slate-200"></td><td className="border-r border-slate-200"></td><td></td></>
+                ? <><td className="border-r border-slate-300"></td><td className="border-r border-slate-300"></td><td></td></>
                 : <GradeCols grade={row.grade} />
               }
             </tr>
@@ -456,78 +522,79 @@ function PanelPrintTable({ rows }: { rows: any[] }) {
 function MeterPrintTable({ rows }: { rows: any[] }) {
   const totalCols = 10;
   return (
-    <div className="border border-slate-300 rounded-lg overflow-hidden text-[8px]">
+    <div className="border border-slate-400 text-[7px]">
       <table className="w-full text-left border-collapse">
-        <thead className="bg-slate-900 text-white font-black uppercase tracking-wider">
+        <thead className="bg-white text-slate-950 font-bold uppercase tracking-wider border-b border-slate-400 text-[7.5px]">
           <tr>
-            <th className="p-0.5 border-r border-slate-700 w-6 text-center">NO</th>
-            <th className="p-0.5 border-r border-slate-700 w-14">TGL</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-5">GRP</th>
-            <th className="p-0.5 border-r border-slate-700 w-16">OPERATOR</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-9">METER</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-6">KET</th>
-            <th className="p-0.5 border-r border-slate-700">KETERANGAN CACAT</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-5 bg-emerald-900">A</th>
-            <th className="p-0.5 border-r border-slate-700 text-center w-5 bg-sky-900">B</th>
-            <th className="p-0.5 text-center w-6 bg-rose-900">BS</th>
+            <th className="p-0.5 border-r border-slate-400 w-6 text-center">NO</th>
+            <th className="p-0.5 border-r border-slate-400 w-14">TGL</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-5">GRP</th>
+            <th className="p-0.5 border-r border-slate-400 w-16">OPERATOR</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-9">METER</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-6">KET</th>
+            <th className="p-0.5 border-r border-slate-400 whitespace-nowrap">KETERANGAN CACAT</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-5">A</th>
+            <th className="p-0.5 border-r border-slate-400 text-center w-5">B</th>
+            <th className="p-0.5 text-center w-6">BS</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200">
+        <tbody className="divide-y divide-slate-300">
           {rows.map((row, i) => {
             if (row.isTotalRow) return (
-              <tr key={i} className="bg-slate-100 border-t border-b border-slate-300">
-                <td colSpan={totalCols} className="px-2 py-0.5 text-center font-semibold text-slate-600">
-                  {row.totalLabel} <span className="font-extrabold text-slate-900">{row.totalMeter}</span>
+              <tr key={i} className="bg-white border-t border-b border-slate-400">
+                <td colSpan={totalCols} className="px-2 py-0.5 text-center font-semibold text-slate-950">
+                  {row.totalLabel} <span className="font-extrabold">{row.totalMeter}</span>
                 </td>
               </tr>
             );
             if (row.isStartRow) return (
-              <tr key={i} className="bg-sky-50/60">
-                <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-bold">{row.displayNo}</td>
-                <td className="py-0.5 px-0.5 border-r border-slate-200">{row.tglStr}</td>
-                <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-bold">{row.grpStr}</td>
-                <td className="py-0.5 px-0.5 border-r border-slate-200 font-semibold truncate max-w-[64px]">{row.oprStr}</td>
-                <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-bold text-sky-700">{row.meterDisplay}</td>
-                <td className="py-0.5 px-0.5 border-r border-slate-200 text-center"></td>
-                <td className="py-0.5 px-0.5 border-r border-slate-200 text-slate-400 italic">START</td>
-                <td className="py-0.5 border-r border-slate-200"></td>
-                <td className="py-0.5 border-r border-slate-200"></td>
+              <tr key={i} className="bg-white text-slate-950">
+                <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.displayNo}</td>
+                <td className="py-0.5 px-0.5 border-r border-slate-300">{row.tglStr}</td>
+                <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.grpStr}</td>
+                <td className="py-0.5 px-0.5 border-r border-slate-300 font-semibold truncate max-w-[64px]">{row.oprStr}</td>
+                <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.meterDisplay}</td>
+                <td className="py-0.5 px-0.5 border-r border-slate-300 text-center"></td>
+                <td className="py-0.5 px-0.5 border-r border-slate-300 italic text-[6px]">START</td>
+                <td className="py-0.5 border-r border-slate-300"></td>
+                <td className="py-0.5 border-r border-slate-300"></td>
                 <td className="py-0.5"></td>
               </tr>
             );
             const hasMeterDefect = !row.isFinish && row.cacatDisplay && row.cacatDisplay !== "-" && row.cacatDisplay !== "START" && row.cacatDisplay !== "FINISH";
             return (
-              <tr key={i} className={`leading-snug ${
-                row.hasIstirahat ? "bg-amber-50 text-amber-950"
-                : row.isFinish ? "bg-slate-100 text-slate-500 italic"
-                : i % 2 === 1 ? "bg-slate-50/60" : ""
-              }`}>
-                <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-bold">{row.displayNo}</td>
-                <td className="py-0.5 px-0.5 border-r border-slate-200 whitespace-nowrap">{row.showTgl ? row.tglStr : ""}</td>
-                <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-medium text-slate-700">{row.grpStr}</td>
-                <td className={`py-0.5 px-0.5 border-r border-slate-200 truncate max-w-[64px] ${row.hasIstirahat ? "italic font-bold text-amber-700" : "font-medium text-slate-700"}`}>
-                  {row.hasIstirahat ? "Istirahat" : (row.showOpr ? row.oprStr : "")}
+              <tr key={i} className="leading-snug bg-white text-slate-950">
+                <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.displayNo}</td>
+                <td className="py-0.5 px-0.5 border-r border-slate-300 whitespace-nowrap">{row.showTgl ? row.tglStr : ""}</td>
+                <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-medium">{row.grpStr}</td>
+                <td className={`py-0.5 px-0.5 border-r border-slate-300 truncate max-w-[64px] ${(row.hasIstirahat && !row.showOpr) ? "italic font-bold" : "font-medium"}`}>
+                  {row.showOpr ? row.oprStr : (row.hasIstirahat ? "Istirahat" : "")}
                 </td>
-                <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-bold text-sky-700">{row.meterDisplay}</td>
+                <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.meterDisplay}</td>
                 {/* KET: empty for FINISH */}
-                <td className="py-0.5 px-0.5 border-r border-slate-200 text-center font-black">
+                <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">
                   {row.isFinish ? "" : row.hasIstirahat
-                    ? <span className="text-amber-500">-</span>
+                    ? <span>-</span>
                     : hasMeterDefect
-                      ? <span className="text-rose-600">✕</span>
-                      : <span className="text-emerald-600">✓</span>
+                      ? <span>✕</span>
+                      : <span>✓</span>
                   }
                 </td>
                 {/* KETERANGAN CACAT */}
-                <td className="py-0.5 px-1 border-r border-slate-200 text-slate-700 max-w-[100px]">
-                  {row.hasIstirahat && row.backupOpName
-                    ? <span className="text-amber-800 font-bold not-italic">{row.backupOpName}</span>
-                    : <span className="truncate block" title={row.cacatDisplay}>{row.cacatDisplay}</span>
-                  }
+                <td className="py-0.5 px-1 border-r border-slate-300 text-[6px] leading-tight break-words whitespace-pre-line">
+                  {row.hasIstirahat ? (
+                    (row.backupOpName && row.backupOpName.trim().toLowerCase() !== (row.oprStr || "").trim().toLowerCase())
+                      ? <span className="font-bold not-italic">{row.backupOpName}</span>
+                      : row.showOpr
+                        ? <span className="font-bold not-italic">ISTIRAHAT</span>
+                        : <span className="font-bold not-italic">{row.backupOpName || "-"}</span>
+                  ) : (
+                    row.cacatDisplay
+                  )}
                 </td>
                 {/* Grade cols: empty for FINISH */}
                 {row.isFinish
-                  ? <><td className="border-r border-slate-200"></td><td className="border-r border-slate-200"></td><td></td></>
+                  ? <><td className="border-r border-slate-300"></td><td className="border-r border-slate-300"></td><td></td></>
                   : <GradeCols grade={row.grade} />
                 }
               </tr>
@@ -542,6 +609,35 @@ function MeterPrintTable({ rows }: { rows: any[] }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PrintableProductionReport({ detailData, isOpen, onClose }: PrintableProductionReportProps) {
+  const printDocRef = React.useRef<HTMLDivElement>(null);
+
+  // Teleport the printable div directly into body before print,
+  // and restore it afterward — this prevents modal wrapper from creating blank pages.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleBefore = () => {
+      const el = printDocRef.current;
+      if (!el) return;
+      const placeholder = document.createElement('div');
+      placeholder.id = '__print-placeholder__';
+      el.parentNode?.insertBefore(placeholder, el);
+      document.body.appendChild(el);
+    };
+    const handleAfter = () => {
+      const el = printDocRef.current;
+      const placeholder = document.getElementById('__print-placeholder__');
+      if (!el || !placeholder) return;
+      placeholder.parentNode?.insertBefore(el, placeholder);
+      placeholder.remove();
+    };
+    window.addEventListener('beforeprint', handleBefore);
+    window.addEventListener('afterprint', handleAfter);
+    return () => {
+      window.removeEventListener('beforeprint', handleBefore);
+      window.removeEventListener('afterprint', handleAfter);
+    };
+  }, [isOpen]);
+
   if (!isOpen || !detailData) return null;
 
   const currentTgl = new Date().toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -551,6 +647,27 @@ export default function PrintableProductionReport({ detailData, isOpen, onClose 
   const shiftName = rawPanels[0]?.groups?.nama_grup || "-";
   const isMeterMode = rawPanels.some((p: any) => p.panel_no === "METERAN");
 
+  const calcTotalProduksi = () => {
+    if (isMeterMode) {
+      if (detailData.total_meter && detailData.total_meter > 0) {
+        return `${detailData.total_meter} Meter`;
+      }
+      let maxMeter = 0;
+      (rawPanels || []).forEach((p: any) => {
+        const mA = parseFloat(cleanMeterVal(p.meter_akhir));
+        const mW = parseFloat(cleanMeterVal(p.meter_awal));
+        const mK = parseFloat(cleanMeterVal(p.meter_kain));
+        if (!isNaN(mA)) maxMeter = Math.max(maxMeter, mA);
+        if (!isNaN(mW)) maxMeter = Math.max(maxMeter, mW);
+        if (!isNaN(mK)) maxMeter = Math.max(maxMeter, mK);
+      });
+      if (maxMeter > 0) return `${maxMeter} Meter`;
+      return `${detailData.total_panels || 0} Meter`;
+    }
+    return `${detailData.total_panels || 0} Panel`;
+  };
+  const totalProduksiStr = calcTotalProduksi();
+
   const pcsGroups = groupByPcs(rawPanels);
   const sortedPcsKeys = Object.keys(pcsGroups).sort((a, b) => parseInt(a) - parseInt(b));
 
@@ -559,7 +676,7 @@ export default function PrintableProductionReport({ detailData, isOpen, onClose 
   const needsLandscape = sortedPcsKeys.length > 2 || totalPanelCount > 60;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto custom-scrollbar animate-fadeIn">
+    <div className="print-root fixed inset-0 z-[200] flex justify-center items-start p-2 sm:p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto custom-scrollbar animate-fadeIn">
       {/* ── Floating Actions ── */}
       <div className="fixed top-4 right-4 z-[210] flex items-center gap-3 no-print">
         <div className="flex items-center gap-1.5 bg-white rounded-xl px-2.5 py-1.5 border border-slate-200 shadow text-[10px] font-bold text-slate-600">
@@ -579,43 +696,134 @@ export default function PrintableProductionReport({ detailData, isOpen, onClose 
       </div>
 
       {/* ── A4 Document ── */}
-      <div className={`bg-white rounded-2xl shadow-2xl p-4 sm:p-6 my-8 text-slate-900 border border-slate-200 printable-document relative overflow-hidden text-xs ${needsLandscape ? "w-full max-w-[297mm]" : "w-full max-w-[210mm]"}`}>
+      <div ref={printDocRef} className={`bg-white rounded-2xl shadow-2xl p-4 sm:p-6 my-4 sm:my-8 text-slate-950 border border-slate-200 printable-document relative text-[7.5px] ${needsLandscape ? "w-full max-w-[297mm]" : "w-full max-w-[210mm]"}`}>
 
         {/* Document Header */}
-        <div className="border-b-2 border-slate-900 pb-3 mb-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-xs overflow-hidden p-1">
-              <img src="/assets/dji-logo.png" alt="DJI Logo" className="w-7 h-7 object-contain" />
+        <table className="w-full text-left border-collapse border-b-2 border-slate-950 mb-3">
+          <tbody>
+            <tr>
+              <td className="py-0.5 pr-2.5 w-9 align-middle">
+                <img src="/assets/dji-logo.png" alt="DJI Logo" className="w-7 h-7 object-contain shrink-0" />
+              </td>
+              <td className="py-0.5 align-middle">
+                <div className="text-[11px] font-black text-slate-950 uppercase tracking-tight leading-none whitespace-nowrap">
+                  PT. DENTELLE JAYA INFINITEX
+                </div>
+                <div className="text-[7.5px] font-bold text-slate-600 mt-0.5 uppercase tracking-wider whitespace-nowrap">
+                  Laporan Hasil Produksi & Kendala Mesin Rajut
+                </div>
+              </td>
+              <td className="py-0.5 align-middle text-right whitespace-nowrap">
+                <div className="text-[7.5px] font-black text-slate-950 uppercase tracking-mono">
+                  NO: LHP/{detailData.nomor_mc || "MC"}/{detailData.potongan_ke || "0"}/{new Date().getFullYear()}
+                </div>
+                <div className="text-[6.5px] font-semibold text-slate-600 mt-0.5">
+                  {currentTgl} • {currentJam} WIB
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── Metadata Header Table (Spesifikasi Produksi & Material Benang) ── */}
+        <div className="border border-slate-400 text-[7.5px] mb-3 bg-white">
+          <div className="grid grid-cols-2 divide-x divide-slate-400">
+            {/* Left Column: SPESIFIKASI PRODUKSI */}
+            <div className="p-1.5">
+              <div className="font-bold text-slate-950 uppercase tracking-wider border-b border-slate-300 pb-0.5 mb-1 text-[8px]">
+                SPESIFIKASI PRODUKSI
+              </div>
+              <div className="grid grid-cols-2 gap-x-2">
+                <table className="w-full text-left border-collapse table-fixed">
+                  <tbody>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600 w-22">NOMOR MESIN</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {detailData.nomor_mc || "-"}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">DESIGN</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {detailData.design_id || "-"}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">TGL PRODUKSI</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {formatFullDateTime(detailData.tanggal_jam || detailData.panels?.[0]?.tanggal_jam || detailData.created_at || detailData.tgl)}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">TGL POTONG</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {formatFullDateTime(detailData.tanggal_potong)}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">NO. ORDER</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {detailData.no_order_barang || "-"}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">NO. CUSTOMER</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {detailData.no_customer || "-"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <table className="w-full text-left border-collapse table-fixed">
+                  <tbody>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600 w-22">POTONGAN KE</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {detailData.potongan_ke || "-"}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">PICK</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {detailData.pick || "-"}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">COURSE</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {detailData.course || "-"}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">RPM</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {detailData.rpm || "-"}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">TOT. PRODUKSI</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {totalProduksiStr}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 font-bold text-slate-600">TOT. DOWNTIME</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {formatDurationNice(detailData.total_downtime_detik)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div>
-              <h1 className="text-sm font-black text-slate-950 uppercase tracking-tight leading-none">PT. DENTELLE JAYA INFINITEX</h1>
-              <p className="text-[9px] font-bold text-slate-500 mt-0.5 uppercase tracking-wider">Laporan Hasil Produksi & Kendala Mesin Rajut</p>
+
+            {/* Right Column: MATERIAL BENANG */}
+            <div className="p-1.5">
+              <div className="font-bold text-slate-950 uppercase tracking-wider border-b border-slate-300 pb-0.5 mb-1 text-[8px]">
+                MATERIAL BENANG
+              </div>
+              <table className="w-full text-left border-collapse table-fixed">
+                <tbody>
+                  <tr>
+                    <td className="py-0.5 font-bold text-slate-600 w-28">JENIS BENANG DASAR</td>
+                    <td className="py-0.5 font-bold text-slate-950">: {detailData.jenis_benang_dasar || "-"}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5 font-bold text-slate-600">LINER</td>
+                    <td className="py-0.5 font-bold text-slate-950 break-words">: {detailData.liner || "-"}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5 font-bold text-slate-600">HEAVY</td>
+                    <td className="py-0.5 font-bold text-slate-950 break-words">: {detailData.heavy || "-"}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5 font-bold text-slate-600">SHADOW</td>
+                    <td className="py-0.5 font-bold text-slate-950 break-words">: {detailData.shadow || "-"}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5 font-bold text-slate-600">PINGGIRAN</td>
+                    <td className="py-0.5 font-bold text-slate-950 break-words">: {detailData.pinggiran || "-"}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
-          <div className="text-right">
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">DOKUMEN PABRIK</span>
-            <span className="text-[10px] font-extrabold text-slate-800 font-mono">NO: LHP/{detailData.nomor_mc || "MC"}/{detailData.potongan_ke || "0"}/{new Date().getFullYear()}</span>
-            <p className="text-[8px] font-semibold text-slate-500">{currentTgl} • {currentJam} WIB</p>
-          </div>
-        </div>
-
-        {/* Metadata Grid */}
-        <div className="grid grid-cols-4 gap-1.5 bg-slate-50 p-2 rounded-xl border border-slate-200 mb-2">
-          <div><span className="text-[7px] font-black text-slate-400 uppercase block">MESIN</span><span className="font-black text-slate-900 text-[10px]">{detailData.nomor_mc || "-"}</span></div>
-          <div><span className="text-[7px] font-black text-slate-400 uppercase block">SHIFT</span><span className="font-black text-slate-900 text-[10px]">SHIFT {shiftName}</span></div>
-          <div><span className="text-[7px] font-black text-slate-400 uppercase block">DESAIN</span><span className="font-black text-slate-900 text-[10px] truncate block">{detailData.design_id || "-"}</span></div>
-          <div><span className="text-[7px] font-black text-slate-400 uppercase block">POTONGAN</span><span className="font-black text-slate-900 text-[10px]">#{detailData.potongan_ke || "-"}</span></div>
-          <div className="col-span-2"><span className="text-[7px] font-black text-slate-400 uppercase block">OPERATOR</span><span className="font-bold text-slate-800 truncate block text-[10px]">{detailData.operators_list || "-"}</span></div>
-          <div><span className="text-[7px] font-black text-slate-400 uppercase block">NO CUSTOMER</span><span className="font-bold text-slate-800 truncate block text-[10px]">{detailData.no_customer || "-"}</span></div>
-          <div><span className="text-[7px] font-black text-slate-400 uppercase block">NO ORDER</span><span className="font-bold text-slate-800 truncate block text-[10px]">{detailData.no_order_barang || "-"}</span></div>
-        </div>
-
-        {/* KPI Strip */}
-        <div className="grid grid-cols-4 gap-1.5 mb-3">
-          <div className="bg-slate-50 border border-slate-200 p-1.5 rounded-lg"><span className="text-[7px] font-black text-slate-400 uppercase block">SETTING MESIN</span><span className="font-bold text-slate-800 text-[9px]">{detailData.course || detailData.pick || "-"} C / {detailData.rpm || "-"} RPM</span></div>
-          <div className="bg-emerald-50 border border-emerald-200 p-1.5 rounded-lg"><span className="text-[7px] font-black text-emerald-800 uppercase block">TOTAL PRODUKSI</span><span className="font-black text-emerald-950 text-[10px]">{detailData.total_panels} {isMeterMode ? "Meter" : "Panel"}</span></div>
-          <div className="bg-amber-50 border border-amber-200 p-1.5 rounded-lg"><span className="text-[7px] font-black text-amber-800 uppercase block">TOTAL DOWNTIME</span><span className="font-black text-amber-950 text-[10px]">{formatDurationNice(detailData.total_downtime_detik)}</span></div>
-          <div className="bg-sky-50 border border-sky-200 p-1.5 rounded-lg"><span className="text-[7px] font-black text-sky-800 uppercase block">BENANG DASAR</span><span className="font-bold text-sky-950 text-[9px] truncate block">{detailData.jenis_benang_dasar || "-"}</span></div>
         </div>
 
         {/* Per-PCS Tables — side by side for landscape */}
@@ -638,9 +846,9 @@ export default function PrintableProductionReport({ detailData, isOpen, onClose 
 
             return (
               <div key={pcsKey}>
-                <div className="bg-slate-100 px-3 py-1.5 rounded-t-lg border border-b-0 border-slate-300 text-center">
-                  <span className="font-black text-slate-800 text-xs tracking-wider uppercase">PCS {pcsKey}</span>
-                  <span className="text-[8px] text-slate-500 ml-2">({isMeterPcs ? "Mode Meter" : `${tableRows.length} panel`})</span>
+                <div className="bg-white px-3 py-1 border border-b-0 border-slate-400 text-center">
+                  <span className="font-bold text-slate-950 text-[10px] tracking-wider uppercase">PCS {pcsKey}</span>
+                  <span className="text-[7.5px] text-slate-500 ml-2">({isMeterPcs ? "Mode Meter" : `${tableRows.length} panel`})</span>
                 </div>
                 {useTwoCols ? (
                   <div className="grid grid-cols-2 gap-2">
@@ -657,35 +865,217 @@ export default function PrintableProductionReport({ detailData, isOpen, onClose 
           })}
         </div>
 
-        {/* Signatures */}
-        <div className="pt-3 border-t-2 border-slate-300 grid grid-cols-3 gap-4 text-center">
-          {["OPERATOR MESIN", "INSPECTOR QC", "SUPERVISOR PRODUKSI"].map((label, i) => (
-            <div key={i}>
-              <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-8">{label}</p>
-              <div className="border-b border-slate-400 w-2/3 mx-auto mb-0.5"></div>
-              <p className="font-bold text-slate-900 text-[9px]">
-                {i === 0 ? (detailData.operators_list?.split(",")[0] || "( .................... )") : "( .................... )"}
-              </p>
-            </div>
-          ))}
+        {/* ── Footer: Inspection & Mending Section ── */}
+        <div className="mt-3 text-[7px]">
+
+          {/* Row 1: Berat/Panel info | Grade table | Tanggal/Signature — outer table for stable widths */}
+          <table className="w-full border-collapse" style={{tableLayout: "fixed"}}>
+            <colgroup>
+              <col style={{width: "42%"}} />
+              <col style={{width: "38%"}} />
+              <col style={{width: "20%"}} />
+            </colgroup>
+            <tbody>
+              <tr>
+                {/* Col 1: Berat Produksi fields */}
+                <td className="align-top border border-slate-400 pr-0" style={{verticalAlign: "top", padding: 0}}>
+                  <table className="w-full border-collapse">
+                    <tbody>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-1.5 py-0.5 font-bold text-slate-700 whitespace-nowrap w-40">Berat Produksi</td>
+                        <td className="px-1 py-0.5 text-slate-500 w-3">:</td>
+                        <td className="px-1 py-0.5"></td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-1.5 py-0.5 font-bold text-slate-700 whitespace-nowrap">Total Panel Setelah di Inspecting</td>
+                        <td className="px-1 py-0.5 text-slate-500">:</td>
+                        <td className="px-1 py-0.5"></td>
+                      </tr>
+                      <tr>
+                        <td className="px-1.5 py-0.5 font-bold text-slate-700 whitespace-nowrap">Berat Inspecting</td>
+                        <td className="px-1 py-0.5 text-slate-500">:</td>
+                        <td className="px-1 py-0.5"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+
+                {/* Col 2: Grade summary */}
+                <td className="align-top" style={{verticalAlign: "top", padding: 0}}>
+                  <table className="w-full border-collapse border border-slate-400" style={{tableLayout: "fixed"}}>
+                    <colgroup>
+                      <col style={{width: "50%"}} />
+                      <col style={{width: "25%"}} />
+                      <col style={{width: "25%"}} />
+                    </colgroup>
+                    <thead>
+                      <tr className="border-b border-slate-400">
+                        <th className="px-2 py-0.5 border-r border-slate-400 font-bold text-slate-700 text-left">KET</th>
+                        <th className="px-2 py-0.5 border-r border-slate-400 font-bold text-slate-700 text-center">Produksi</th>
+                        <th className="px-2 py-0.5 font-bold text-slate-700 text-center">Setelah Inspect</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-2 py-1 border-r border-slate-400 font-semibold text-slate-700">Total Grade A</td>
+                        <td className="px-2 py-1 border-r border-slate-400"></td>
+                        <td className="px-2 py-1"></td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-2 py-1 border-r border-slate-400 font-semibold text-slate-700">Total Grade B</td>
+                        <td className="px-2 py-1 border-r border-slate-400"></td>
+                        <td className="px-2 py-1"></td>
+                      </tr>
+                      <tr>
+                        <td className="px-2 py-1 border-r border-slate-400 font-semibold text-slate-700">BS</td>
+                        <td className="px-2 py-1 border-r border-slate-400"></td>
+                        <td className="px-2 py-1"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+
+                {/* Col 3: Tanggal + Petugas Inspect */}
+                <td className="align-top border border-slate-400 text-center" style={{verticalAlign: "top", padding: "4px 8px"}}>
+                  <div className="font-bold text-slate-700 whitespace-nowrap">Tanggal, .................. 202</div>
+                  <div style={{height: "36px"}}></div>
+                  <div className="font-bold text-slate-700">(Petugas Inspect)</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Row 2: Hasil Matching | Inspect & Mending fields — outer table for stable widths */}
+          <table className="w-full border-collapse mt-3" style={{tableLayout: "fixed"}}>
+            <colgroup>
+              <col style={{width: "30%"}} />
+              <col style={{width: "70%"}} />
+            </colgroup>
+            <tbody>
+              <tr>
+                {/* Col 1: Hasil Matching + TTD KA-Shift */}
+                <td className="align-top border border-slate-400" style={{verticalAlign: "top", padding: 0}}>
+                  <table className="w-full border-collapse">
+                    <tbody>
+                      <tr className="border-b border-slate-400">
+                        <td className="px-1.5 py-1 font-bold text-slate-700 whitespace-nowrap">Hasil Matching</td>
+                        <td className="px-2 py-1 border-l border-slate-400"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="text-center py-3 px-2">
+                    <div className="font-bold text-slate-700">TTD KA-Shift</div>
+                    <div style={{height: "40px"}}></div>
+                    <div className="text-slate-500">(........................)</div>
+                  </div>
+                </td>
+
+                {/* Col 2: Inspect & Mending fields */}
+                <td className="align-top border border-slate-400" style={{verticalAlign: "top", padding: 0}}>
+                  <table className="w-full border-collapse" style={{tableLayout: "fixed"}}>
+                    <colgroup>
+                      <col style={{width: "30%"}} />
+                      <col style={{width: "3%"}} />
+                      <col style={{width: "67%"}} />
+                    </colgroup>
+                    <tbody>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-1.5 py-0.5 font-bold text-slate-700 whitespace-nowrap">Start Inspect</td>
+                        <td className="px-1 py-0.5 text-slate-500">:</td>
+                        <td className="px-1 py-0.5"></td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-1.5 py-0.5 font-bold text-slate-700 whitespace-nowrap">Finish Inspect</td>
+                        <td className="px-1 py-0.5 text-slate-500">:</td>
+                        <td className="px-1 py-0.5"></td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-1.5 py-2" colSpan={3}></td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-1.5 py-0.5 font-bold text-slate-700 whitespace-nowrap">Tanggal Mending</td>
+                        <td className="px-1 py-0.5 text-slate-500">:</td>
+                        <td className="px-1 py-0.5"></td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-1.5 py-0.5 font-bold text-slate-700 whitespace-nowrap">Petugas Mending</td>
+                        <td className="px-1 py-0.5 text-slate-500">:</td>
+                        <td className="px-1 py-0.5"></td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-1.5 py-2" colSpan={3}></td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="px-1.5 py-0.5 font-bold text-slate-700 whitespace-nowrap">Start Mending</td>
+                        <td className="px-1 py-0.5 text-slate-500">:</td>
+                        <td className="px-1 py-0.5"></td>
+                      </tr>
+                      <tr>
+                        <td className="px-1.5 py-0.5 font-bold text-slate-700 whitespace-nowrap">Finish Mending</td>
+                        <td className="px-1 py-0.5 text-slate-500">:</td>
+                        <td className="px-1 py-0.5"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
         </div>
+
       </div>
 
       <style jsx global>{`
-        @page { size: ${needsLandscape ? "A4 landscape" : "A4 portrait"}; margin: 6mm 8mm; }
+        @page {
+          size: ${needsLandscape ? "A4 landscape" : "A4 portrait"};
+          margin: 6mm 8mm;
+        }
         @media print {
-          html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-          body * { visibility: hidden !important; }
-          .printable-document, .printable-document * { visibility: visible !important; }
-          .printable-document {
-            position: absolute !important; left: 0 !important; top: 0 !important;
-            width: 100% !important; max-width: 100% !important;
-            padding: 0 !important; margin: 0 !important;
-            box-shadow: none !important; border: none !important; background: #fff !important;
+          html, body {
+            background: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .no-print { display: none !important; }
+          /* Hide everything. Before print, .printable-document is teleported
+             to be a direct child of body, so it stays visible. */
+          body > * {
+            display: none !important;
+          }
+          body > .printable-document {
+            display: block !important;
+            position: static !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            background: #fff !important;
+            overflow: visible !important;
+          }
+          body > .printable-document * {
+            visibility: visible !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          table {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
         }
       `}</style>
     </div>
   );
 }
+
