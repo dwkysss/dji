@@ -56,24 +56,21 @@ function formatFullDateTime(dateVal?: string): string {
     let str = String(dateVal).trim();
     if (!str) return "—";
 
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}([:.]\d{2})?$/.test(str)) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
       return str;
     }
 
     let dt: Date;
     if (str.includes("T")) {
-      if (!str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) {
-        str = str + "Z";
-      }
       dt = new Date(str);
     } else if (str.includes(" ")) {
       const parts = str.split(" ");
       const dPart = parts[0];
       const tPart = parts[1] || "00:00:00";
-      if (!str.includes("Z") && !str.includes("+")) {
-        dt = new Date(`${dPart}T${tPart}Z`);
-      } else {
+      if (str.includes("Z") || str.includes("+") || str.includes("-", 10)) {
         dt = new Date(str);
+      } else {
+        dt = new Date(`${dPart}T${tPart}`);
       }
     } else {
       dt = new Date(str);

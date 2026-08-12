@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useWifiContext, getEsp32ConfigForMachine } from "@/lib/wifi-context";
 import WifiController from "@/components/WifiController";
+import PinAuthModal from "@/components/PinAuthModal";
 
 // Helper format seconds to HH:MM:SS
 function formatTime(totalSeconds: number): string {
@@ -74,6 +75,28 @@ export default function WifiDowntimeTrigger({
   const [selectedMachine, setSelectedMachine] = useState<"M1" | "M2">(machineId || initialMachineId);
   const [showControllerModal, setShowControllerModal] = useState<boolean>(false);
 
+  // Pin Auth Modal State
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onSuccess: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    onSuccess: () => { },
+  });
+
+  const requestPinAuth = (title: string, description: string, onSuccessAction: () => void) => {
+    setPinModalConfig({
+      isOpen: true,
+      title,
+      description,
+      onSuccess: onSuccessAction,
+    });
+  };
+
   // Otomatis mengganti Sakelar Mesin (Mesin R1 vs Mesin R11) sesuai Nomor Mesin di Header Form
   useEffect(() => {
     if (selectedMachineCode) {
@@ -118,13 +141,12 @@ export default function WifiDowntimeTrigger({
       <div className="flex items-center justify-between gap-1.5 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
           <div
-            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-              connectionStatus === "terhubung"
+            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${connectionStatus === "terhubung"
                 ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
                 : connectionStatus === "menghubungkan"
-                ? "bg-amber-50 text-amber-600 border border-amber-200 animate-pulse"
-                : "bg-slate-100 text-slate-500 border border-slate-200"
-            }`}
+                  ? "bg-amber-50 text-amber-600 border border-amber-200 animate-pulse"
+                  : "bg-slate-100 text-slate-500 border border-slate-200"
+              }`}
           >
             {connectionStatus === "terhubung" ? (
               <Wifi className="w-3.5 h-3.5 text-emerald-600" />
@@ -139,22 +161,29 @@ export default function WifiDowntimeTrigger({
 
           <button
             type="button"
-            onClick={() => connectionStatus === "terputus" && connect()}
+            onClick={() => {
+              if (connectionStatus === "terputus") {
+                requestPinAuth(
+                  "Menghubungkan ESP32 Wi-Fi",
+                  "Masukkan PIN Supervisor / Admin untuk mengaktifkan koneksi ESP32.",
+                  () => connect()
+                );
+              }
+            }}
             disabled={connectionStatus !== "terputus"}
-            className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold truncate max-w-[85px] sm:max-w-[120px] transition-all ${
-              connectionStatus === "terhubung"
-                ? "bg-emerald-100 text-emerald-800"
+            className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold truncate max-w-[85px] sm:max-w-[120px] transition-all ${connectionStatus === "terhubung"
+                ? "bg-emerald-100 text-emerald-800 cursor-default"
                 : connectionStatus === "menghubungkan"
-                ? "bg-amber-100 text-amber-800 animate-pulse"
-                : "bg-rose-100 hover:bg-rose-200 text-rose-800 cursor-pointer active:scale-95"
-            }`}
-            title={connectionStatus === "terputus" ? "Klik untuk Menghubungkan ke ESP32 Wi-Fi" : ""}
+                  ? "bg-amber-100 text-amber-800 animate-pulse cursor-default"
+                  : "bg-rose-100 hover:bg-rose-200 text-rose-800 cursor-pointer active:scale-95"
+              }`}
+            title={connectionStatus === "terputus" ? "Klik untuk Menghubungkan ke ESP32 Wi-Fi (PIN Required)" : "Status ESP32"}
           >
             {connectionStatus === "terhubung"
               ? "Terhubung"
               : connectionStatus === "menghubungkan"
-              ? "Koneksi..."
-              : "Hubungkan"}
+                ? "Koneksi..."
+                : "Hubungkan"}
           </button>
         </div>
 
@@ -164,11 +193,10 @@ export default function WifiDowntimeTrigger({
             <button
               type="button"
               onClick={() => toggleSimulationMode()}
-              className={`px-2 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wide transition-all border shrink-0 cursor-pointer ${
-                isSimulationMode
+              className={`px-2 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wide transition-all border shrink-0 cursor-pointer ${isSimulationMode
                   ? "bg-purple-600 text-white border-purple-700 shadow-xs active:scale-95"
                   : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
-              }`}
+                }`}
               title="Aktifkan Mode Simulasi ESP32 jika tidak sedang di pabrik"
             >
               {isSimulationMode ? "Simulasi: ON" : "Simulasi"}
@@ -177,9 +205,15 @@ export default function WifiDowntimeTrigger({
 
           <button
             type="button"
-            onClick={() => setShowControllerModal(!showControllerModal)}
+            onClick={() => {
+              requestPinAuth(
+                "Akses Pengaturan ESP32",
+                "Masukkan PIN untuk membuka panel kontrol ESP32.",
+                () => setShowControllerModal(true)
+              );
+            }}
             className="w-7 h-7 p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors border border-slate-200 flex items-center justify-center shrink-0 cursor-pointer"
-            title="Pengaturan Wi-Fi & Terminal Log"
+            title="Pengaturan Wi-Fi & Terminal Log (PIN Required)"
           >
             <Settings className="w-3.5 h-3.5 text-slate-600" />
           </button>
@@ -189,11 +223,10 @@ export default function WifiDowntimeTrigger({
       {/* Baris 2: Badge Indikator Mesin Read-Only (Full Width Responsif 50%-50%) */}
       <div className="bg-slate-100/80 p-0.5 rounded-xl flex items-center justify-between gap-1 border border-slate-200/80 cursor-default select-none">
         <div
-          className={`flex-1 py-1 px-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${
-            selectedMachine === "M1"
+          className={`flex-1 py-1 px-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${selectedMachine === "M1"
               ? "bg-sky-600 text-white shadow-xs"
               : "text-slate-400 opacity-60"
-          }`}
+            }`}
         >
           <Cpu className="w-3 h-3 shrink-0" />
           <span className="truncate">Mesin R1</span>
@@ -203,11 +236,10 @@ export default function WifiDowntimeTrigger({
         </div>
 
         <div
-          className={`flex-1 py-1 px-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${
-            selectedMachine === "M2"
+          className={`flex-1 py-1 px-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${selectedMachine === "M2"
               ? "bg-sky-600 text-white shadow-xs"
               : "text-slate-400 opacity-60"
-          }`}
+            }`}
         >
           <Cpu className="w-3 h-3 shrink-0" />
           <span className="truncate">Mesin R11</span>
@@ -276,6 +308,15 @@ export default function WifiDowntimeTrigger({
           </div>
         </div>
       )}
+
+      {/* 5. Modal Security PIN Authentication */}
+      <PinAuthModal
+        isOpen={pinModalConfig.isOpen}
+        title={pinModalConfig.title}
+        description={pinModalConfig.description}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        onSuccess={pinModalConfig.onSuccess}
+      />
     </div>
   );
 }

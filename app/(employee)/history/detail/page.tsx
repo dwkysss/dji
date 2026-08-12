@@ -151,7 +151,18 @@ function HistoryDetailContent() {
             courseRpm={`${detailData.course || "-"} / ${detailData.rpm || "-"}`}
             noCustomer={detailData.no_customer || "-"}
             noOrder={detailData.no_order_barang || "-"}
-            tanggalPotong={detailData.tanggal_potong ? (detailData.tanggal_potong.includes(":") ? detailData.tanggal_potong : ((detailData.tanggal_jam || detailData.panels?.[0]?.tanggal_jam) ? `${detailData.tanggal_potong} ${(detailData.tanggal_jam || detailData.panels?.[0]?.tanggal_jam).includes("T") ? (detailData.tanggal_jam || detailData.panels?.[0]?.tanggal_jam).split("T")[1].split(".")[0] : ((detailData.tanggal_jam || detailData.panels?.[0]?.tanggal_jam).split(" ")[1] || "00:00:00")}` : detailData.tanggal_potong)) : "-"}
+            tanggalPotong={(() => {
+              let latest = detailData.waktu_input_terakhir || detailData.tanggal_jam || detailData.created_at || detailData.tgl || "";
+              if (detailData.panels && Array.isArray(detailData.panels)) {
+                detailData.panels.forEach((p: any) => {
+                  const ts = p.tanggal_jam || p.created_at;
+                  if (ts && (!latest || String(ts).localeCompare(String(latest)) > 0)) {
+                    latest = ts;
+                  }
+                });
+              }
+              return latest || detailData.tanggal_potong || "-";
+            })()}
             statusMatching={detailData.status_matching || "-"}
             pick={detailData.pick || "-"}
             benangDasar={detailData.jenis_benang_dasar || "-"}
@@ -159,7 +170,18 @@ function HistoryDetailContent() {
             heavy={detailData.heavy || "-"}
             shadow={detailData.shadow || "-"}
             pinggiran={detailData.pinggiran || "-"}
-            tanggalProduksi={detailData.tanggal_jam || detailData.panels?.[0]?.tanggal_jam || detailData.created_at || detailData.tgl}
+            tanggalProduksi={(() => {
+              let oldest = detailData.tanggal_jam || detailData.created_at || detailData.tgl;
+              if (detailData.panels && Array.isArray(detailData.panels)) {
+                detailData.panels.forEach((p: any) => {
+                  const ts = p.tanggal_jam || p.created_at || p.tgl;
+                  if (ts && (!oldest || String(ts).localeCompare(String(oldest)) < 0)) {
+                    oldest = ts;
+                  }
+                });
+              }
+              return oldest || "-";
+            })()}
             course={detailData.course}
             rpm={detailData.rpm}
             potonganKe={detailData.potongan_ke}

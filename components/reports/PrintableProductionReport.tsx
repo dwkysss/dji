@@ -33,15 +33,16 @@ function formatFullDateTime(dateVal?: string): string {
   try {
     let str = String(dateVal).trim();
     if (!str) return "-";
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}([:.]\d{2})?$/.test(str)) return str;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
     let dt: Date;
     if (str.includes("T")) {
-      if (!str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) str = str + "Z";
       dt = new Date(str);
     } else if (str.includes(" ")) {
       const parts = str.split(" ");
-      if (!str.includes("Z") && !str.includes("+")) dt = new Date(`${parts[0]}T${parts[1] || "00:00:00"}Z`);
-      else dt = new Date(str);
+      const dPart = parts[0];
+      const tPart = parts[1] || "00:00:00";
+      if (str.includes("Z") || str.includes("+") || str.includes("-", 10)) dt = new Date(str);
+      else dt = new Date(`${dPart}T${tPart}`);
     } else {
       dt = new Date(str);
     }
@@ -424,7 +425,7 @@ function buildMeterRows(panels: any[], shiftName: string) {
       if (!prevTgl) prevTgl = r.tglStr; if (!prevGrp2) prevGrp2 = r.grpStr; if (prevOpr2 === "-") prevOpr2 = r.oprStr || "-";
       if (prevTgl && prevGrp2 && prevOpr2 !== "-") break;
     }
-    const showOpr = hasIstirahat ? true : opr !== prevOpr2;
+    const showOpr = opr !== prevOpr2;
     const showTgl = tgl !== prevTgl;
     const showGrp = grp !== prevGrp2 || !showOpr;
 
@@ -567,13 +568,17 @@ function MeterPrintTable({ rows }: { rows: any[] }) {
                 <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.displayNo}</td>
                 <td className="py-0.5 px-0.5 border-r border-slate-300 whitespace-nowrap">{row.showTgl ? row.tglStr : ""}</td>
                 <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-medium">{row.grpStr}</td>
-                <td className={`py-0.5 px-0.5 border-r border-slate-300 truncate max-w-[64px] ${(row.hasIstirahat && !row.showOpr) ? "italic font-bold" : "font-medium"}`}>
-                  {row.showOpr ? row.oprStr : (row.hasIstirahat ? "Istirahat" : "")}
+                <td className={`py-0.5 px-0.5 border-r border-slate-300 truncate max-w-[64px] ${row.hasIstirahat || row.isIstirahat ? "italic font-bold text-slate-600" : "font-medium text-slate-950"}`}>
+                  {row.hasIstirahat || row.isIstirahat ? (
+                    <span className="italic font-bold">Istirahat</span>
+                  ) : (
+                    row.showOpr ? row.oprStr : ""
+                  )}
                 </td>
                 <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.meterDisplay}</td>
                 {/* KET: empty for FINISH */}
                 <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">
-                  {row.isFinish ? "" : row.hasIstirahat
+                  {row.isFinish ? "" : (row.hasIstirahat || row.isIstirahat)
                     ? <span>-</span>
                     : hasMeterDefect
                       ? <span>✕</span>
@@ -582,12 +587,10 @@ function MeterPrintTable({ rows }: { rows: any[] }) {
                 </td>
                 {/* KETERANGAN CACAT */}
                 <td className="py-0.5 px-1 border-r border-slate-300 text-[6px] leading-tight break-words whitespace-pre-line">
-                  {row.hasIstirahat ? (
+                  {row.hasIstirahat || row.isIstirahat ? (
                     (row.backupOpName && row.backupOpName.trim().toLowerCase() !== (row.oprStr || "").trim().toLowerCase())
                       ? <span className="font-bold not-italic">{row.backupOpName}</span>
-                      : row.showOpr
-                        ? <span className="font-bold not-italic">ISTIRAHAT</span>
-                        : <span className="font-bold not-italic">{row.backupOpName || "-"}</span>
+                      : <span className="font-bold not-italic">{row.backupOpName || "ISTIRAHAT"}</span>
                   ) : (
                     row.cacatDisplay
                   )}
@@ -746,11 +749,33 @@ export default function PrintableProductionReport({ detailData, isOpen, onClose 
                     </tr>
                     <tr>
                       <td className="py-0.5 font-bold text-slate-600">TGL PRODUKSI</td>
-                      <td className="py-0.5 font-bold text-slate-950">: {formatFullDateTime(detailData.tanggal_jam || detailData.panels?.[0]?.tanggal_jam || detailData.created_at || detailData.tgl)}</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {formatFullDateTime((() => {
+                        let oldest = detailData.tanggal_jam || detailData.created_at || detailData.tgl;
+                        if (detailData.panels && Array.isArray(detailData.panels)) {
+                          detailData.panels.forEach((p: any) => {
+                            const ts = p.tanggal_jam || p.created_at || p.tgl;
+                            if (ts && (!oldest || String(ts).localeCompare(String(oldest)) < 0)) {
+                              oldest = ts;
+                            }
+                          });
+                        }
+                        return oldest || "-";
+                      })())}</td>
                     </tr>
                     <tr>
                       <td className="py-0.5 font-bold text-slate-600">TGL POTONG</td>
-                      <td className="py-0.5 font-bold text-slate-950">: {formatFullDateTime(detailData.tanggal_potong)}</td>
+                      <td className="py-0.5 font-bold text-slate-950">: {formatFullDateTime((() => {
+                        let latest = detailData.waktu_input_terakhir || detailData.tanggal_jam || detailData.created_at || detailData.tgl || "";
+                        if (detailData.panels && Array.isArray(detailData.panels)) {
+                          detailData.panels.forEach((p: any) => {
+                            const ts = p.tanggal_jam || p.created_at;
+                            if (ts && (!latest || String(ts).localeCompare(String(latest)) > 0)) {
+                              latest = ts;
+                            }
+                          });
+                        }
+                        return latest || detailData.tanggal_potong || "-";
+                      })())}</td>
                     </tr>
                     <tr>
                       <td className="py-0.5 font-bold text-slate-600">NO. ORDER</td>

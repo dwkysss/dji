@@ -17,6 +17,7 @@ import {
   Cpu,
 } from "lucide-react";
 import { useWifiContext } from "@/lib/wifi-context";
+import PinAuthModal from "@/components/PinAuthModal";
 
 export default function WifiController() {
   const {
@@ -39,9 +40,43 @@ export default function WifiController() {
   const [inputHost, setInputHost] = useState<string>(targetHost);
   const [showLogs, setShowLogs] = useState<boolean>(true);
 
+  // Pin Auth Modal state
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onSuccess: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    onSuccess: () => {},
+  });
+
+  const requestPinAuth = (title: string, description: string, onSuccessAction: () => void) => {
+    setPinModalConfig({
+      isOpen: true,
+      title,
+      description,
+      onSuccess: onSuccessAction,
+    });
+  };
+
   const handleConnect = (e?: React.SyntheticEvent) => {
     if (e) e.preventDefault();
-    connect(inputHost);
+    requestPinAuth(
+      "Menghubungkan ESP32 Wi-Fi",
+      "Masukkan PIN Supervisor / Admin untuk mengubah koneksi ESP32.",
+      () => connect(inputHost)
+    );
+  };
+
+  const handleDisconnect = () => {
+    requestPinAuth(
+      "Memutuskan Koneksi ESP32",
+      "Masukkan PIN Supervisor / Admin untuk mematikan koneksi ESP32.",
+      () => disconnect()
+    );
   };
 
   return (
@@ -140,7 +175,7 @@ export default function WifiController() {
           {connectionStatus === "terhubung" ? (
             <button
               type="button"
-              onClick={disconnect}
+              onClick={handleDisconnect}
               className="h-11 px-5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95"
             >
               <WifiOff className="w-4 h-4" />
@@ -248,6 +283,15 @@ export default function WifiController() {
           </div>
         )}
       </div>
+
+      {/* Pin Authentication Modal */}
+      <PinAuthModal
+        isOpen={pinModalConfig.isOpen}
+        title={pinModalConfig.title}
+        description={pinModalConfig.description}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        onSuccess={pinModalConfig.onSuccess}
+      />
     </div>
   );
 }

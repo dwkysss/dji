@@ -833,11 +833,11 @@ export default function EmployeeForm({
     const configs = machineConfigsRef.current.length > 0
       ? machineConfigsRef.current
       : (() => {
-          try {
-            const saved = localStorage.getItem("dji_machine_configs");
-            return saved ? JSON.parse(saved) : [];
-          } catch { return []; }
-        })();
+        try {
+          const saved = localStorage.getItem("dji_machine_configs");
+          return saved ? JSON.parse(saved) : [];
+        } catch { return []; }
+      })();
 
     const match = Array.isArray(configs)
       ? configs.find((c: any) => c.nomor_mc?.trim().toUpperCase() === currentMc)
@@ -1101,7 +1101,7 @@ export default function EmployeeForm({
   const handleClearHeader = () => {
     if (window.confirm("Yakin ingin mereset/mengosongkan data Header?")) {
       localStorage.removeItem("dji_form_header");
-      localStorage.removeItem("dji_form_draft_panel"); 
+      localStorage.removeItem("dji_form_draft_panel");
       localStorage.removeItem("dji_backup_operator_name");
       localStorage.removeItem("dji_active_downtime_start");
       reset({
@@ -1556,8 +1556,8 @@ export default function EmployeeForm({
                   {/* Potong Kain Toggle */}
                   <div className="flex flex-col gap-2 relative" data-tour="cut-panel">
                     <label className={`relative flex flex-col items-center justify-center p-4 h-32 rounded-2xl border-2 cursor-pointer transition-all duration-300 text-center ${isLastPanel
-                        ? "bg-gradient-to-br from-[#0070bc] to-[#004777] border-transparent shadow-lg shadow-sky-500/30 text-white"
-                        : "bg-white border-slate-200 hover:border-sky-300 text-slate-600 hover:bg-sky-50"
+                      ? "bg-gradient-to-br from-[#0070bc] to-[#004777] border-transparent shadow-lg shadow-sky-500/30 text-white"
+                      : "bg-white border-slate-200 hover:border-sky-300 text-slate-600 hover:bg-sky-50"
                       }`}>
                       <input
                         type="checkbox"
@@ -1590,8 +1590,8 @@ export default function EmployeeForm({
                         setActiveInfo(activeInfo === "potong" ? null : "potong");
                       }}
                       className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "potong"
-                          ? "bg-slate-800 text-white"
-                          : isLastPanel ? "bg-white/20 text-white hover:bg-white/30" : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                        ? "bg-slate-800 text-white"
+                        : isLastPanel ? "bg-white/20 text-white hover:bg-white/30" : "bg-slate-100 text-slate-400 hover:bg-slate-200"
                         }`}
                     >
                       <Info className="w-4 h-4" />

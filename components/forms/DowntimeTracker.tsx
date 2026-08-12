@@ -211,7 +211,7 @@ export default function DowntimeTracker({
           });
         }
       });
-    } catch (e) {}
+    } catch (e) { }
   };
 
   useEffect(() => {
@@ -244,9 +244,9 @@ export default function DowntimeTracker({
           setRequiredBlockDefects(res.data);
           try {
             localStorage.setItem("dji_required_block_defects", JSON.stringify(res.data));
-          } catch (e) {}
+          } catch (e) { }
         }
-      } catch (e) {}
+      } catch (e) { }
     };
 
     loadRequiredDefects();
@@ -895,7 +895,7 @@ export default function DowntimeTracker({
         details.push(manualText);
         try {
           createProblemDetail({ kategori: catId, nama_detail: manualText });
-        } catch (e) {}
+        } catch (e) { }
       }
       return {
         kategori: catId,
@@ -1101,151 +1101,151 @@ export default function DowntimeTracker({
         <>
           {/* 1. SEKSI BLOCK MESIN & BLUETOOTH TRIGGER */}
           <div className="flex flex-col gap-4 w-full">
-        {!activeBlock ? (
-          <div className={`bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between ${showMeterInput ? "min-h-[195px]" : "min-h-[156px]"}`}>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
-                  <Lock className="w-4 h-4" />
+            {!activeBlock ? (
+              <div className={`bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between ${showMeterInput ? "min-h-[195px]" : "min-h-[156px]"}`}>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                          Block Mesin
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => setShowBlockInfo((prev) => !prev)}
+                          className="p-1 rounded-full text-sky-600 hover:bg-sky-100/80 transition-colors cursor-pointer"
+                          title="Klik untuk info Block Mesin"
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-extrabold text-slate-700 bg-slate-200 px-2.5 py-1 rounded-full border border-slate-300 shrink-0 self-start sm:self-auto">
+                    Mesin Stop
+                  </span>
                 </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                      Block Mesin
-                    </h4>
+
+                {showBlockInfo && (
+                  <div className="my-2 p-2.5 bg-sky-50 border border-sky-200/80 rounded-xl text-[10px] font-medium text-sky-900 flex items-start gap-2 animate-fadeIn shadow-xs">
+                    <Info className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+                    <p className="leading-relaxed flex-1">
+                      Untuk perbaikan berat / mesin mati total lintas shift (tanpa produksi kain)
+                    </p>
                     <button
                       type="button"
-                      onClick={() => setShowBlockInfo((prev) => !prev)}
-                      className="p-1 rounded-full text-sky-600 hover:bg-sky-100/80 transition-colors cursor-pointer"
-                      title="Klik untuk info Block Mesin"
+                      onClick={() => setShowBlockInfo(false)}
+                      className="text-sky-400 hover:text-sky-800 p-0.5 rounded cursor-pointer"
                     >
-                      <Info className="w-3.5 h-3.5" />
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleInitiateBlock}
+                  className="flex items-center justify-center gap-2 w-full h-11 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-slate-800/20 active:scale-[0.98] cursor-pointer"
+                >
+                  <Lock className="w-4 h-4" /> Block Mesin
+                </button>
+              </div>
+            ) : (
+              /* Banner Active Block Mesin (Multi Shift) - Minimalist & Sleek */
+              <div className="p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-3xl shadow-xs animate-fadeIn space-y-3">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-2xl bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide truncate">
+                        Mesin Diblok (Dalam Perbaikan)
+                      </h4>
+                      <p className="text-[10px] font-semibold text-slate-500 mt-0.5 leading-snug">
+                        Mulai perbaikan {activeBlock.startDateStr} pkl {activeBlock.startTimeStr} • Pelapor: <strong className="text-slate-700">{activeBlock.initialReporter}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0 bg-white/80 px-2.5 py-1 rounded-xl border border-slate-200/80 shadow-2xs">
+                    <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Total Stop:</span>
+                    <span className="text-sm font-black text-slate-800 font-mono">
+                      {formatTimer(blockLiveSeconds)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Handoff Logs List */}
+                {activeBlock.handoffLogs && activeBlock.handoffLogs.length > 1 && (
+                  <div className="bg-white rounded-2xl p-3 border border-slate-200 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                    <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-slate-600 uppercase tracking-wider block">
+                      <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Riwayat Serah Terima ({activeBlock.handoffLogs.length}):</span>
+                    </div>
+                    {activeBlock.handoffLogs.map((log: any, lIdx: number) => (
+                      <div key={log.id || lIdx} className="text-[10px] text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100 leading-relaxed">
+                        <div className="flex justify-between items-center text-[9px] font-extrabold text-slate-700 mb-0.5">
+                          <span className="flex items-center gap-1">
+                            <User className="w-3 h-3 text-slate-500" />
+                            {log.operatorName} ({formatShiftLabel(log.shift)})
+                          </span>
+                          <span className="text-slate-500">{log.dateStr} • {log.timestamp}</span>
+                        </div>
+                        <p className="text-slate-600 font-medium pl-4">{log.notes}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action Buttons Container */}
+                <div className="pt-1.5 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddNoteModal(true)}
+                      className="w-full py-2 px-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-xs transition-all border border-slate-200/80 flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span>Catat Progres</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowHandoffModal(true)}
+                      className="w-full py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-xs transition-all border border-sky-200/70 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      <span>Serah Terima</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleUnblockMachine}
+                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 active:scale-[0.98] cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>UNBLOCK MESIN</span>
+                  </button>
+
+                  <div className="flex justify-center pt-0.5">
+                    <button
+                      type="button"
+                      onClick={handleCancelBlock}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50/80 font-bold text-[11px] transition-all flex items-center gap-1.5 px-3 py-1 rounded-lg cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5 shrink-0" />
+                      <span>Batalkan Block</span>
                     </button>
                   </div>
                 </div>
               </div>
-              <span className="text-[9px] font-extrabold text-slate-700 bg-slate-200 px-2.5 py-1 rounded-full border border-slate-300 shrink-0 self-start sm:self-auto">
-                Mesin Stop
-              </span>
-            </div>
-
-            {showBlockInfo && (
-              <div className="my-2 p-2.5 bg-sky-50 border border-sky-200/80 rounded-xl text-[10px] font-medium text-sky-900 flex items-start gap-2 animate-fadeIn shadow-xs">
-                <Info className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
-                <p className="leading-relaxed flex-1">
-                  Untuk perbaikan berat / mesin mati total lintas shift (tanpa produksi kain)
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowBlockInfo(false)}
-                  className="text-sky-400 hover:text-sky-800 p-0.5 rounded cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
             )}
-
-            <button
-              type="button"
-              onClick={handleInitiateBlock}
-              className="flex items-center justify-center gap-2 w-full h-11 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-slate-800/20 active:scale-[0.98] cursor-pointer"
-            >
-              <Lock className="w-4 h-4" /> Block Mesin
-            </button>
           </div>
-        ) : (
-          /* Banner Active Block Mesin (Multi Shift) - Minimalist & Sleek */
-          <div className="p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-3xl shadow-xs animate-fadeIn space-y-3">
-            <div className="flex items-start justify-between gap-2.5">
-              <div className="flex items-start gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-2xl bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide truncate">
-                    Mesin Diblok (Dalam Perbaikan)
-                  </h4>
-                  <p className="text-[10px] font-semibold text-slate-500 mt-0.5 leading-snug">
-                    Mulai perbaikan {activeBlock.startDateStr} pkl {activeBlock.startTimeStr} • Pelapor: <strong className="text-slate-700">{activeBlock.initialReporter}</strong>
-                  </p>
-                </div>
-              </div>
-
-              <div className="text-right shrink-0 bg-white/80 px-2.5 py-1 rounded-xl border border-slate-200/80 shadow-2xs">
-                <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Total Stop:</span>
-                <span className="text-sm font-black text-slate-800 font-mono">
-                  {formatTimer(blockLiveSeconds)}
-                </span>
-              </div>
-            </div>
-
-            {/* Handoff Logs List */}
-            {activeBlock.handoffLogs && activeBlock.handoffLogs.length > 1 && (
-              <div className="bg-white rounded-2xl p-3 border border-slate-200 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
-                <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-slate-600 uppercase tracking-wider block">
-                  <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Riwayat Serah Terima ({activeBlock.handoffLogs.length}):</span>
-                </div>
-                {activeBlock.handoffLogs.map((log: any, lIdx: number) => (
-                  <div key={log.id || lIdx} className="text-[10px] text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100 leading-relaxed">
-                    <div className="flex justify-between items-center text-[9px] font-extrabold text-slate-700 mb-0.5">
-                      <span className="flex items-center gap-1">
-                        <User className="w-3 h-3 text-slate-500" />
-                        {log.operatorName} ({formatShiftLabel(log.shift)})
-                      </span>
-                      <span className="text-slate-500">{log.dateStr} • {log.timestamp}</span>
-                    </div>
-                    <p className="text-slate-600 font-medium pl-4">{log.notes}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Action Buttons Container */}
-            <div className="pt-1.5 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddNoteModal(true)}
-                  className="w-full py-2 px-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-xs transition-all border border-slate-200/80 flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
-                >
-                  <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  <span>Catat Progres</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowHandoffModal(true)}
-                  className="w-full py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-xs transition-all border border-sky-200/70 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                  <span>Serah Terima</span>
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleUnblockMachine}
-                className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 active:scale-[0.98] cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>UNBLOCK MESIN</span>
-              </button>
-
-              <div className="flex justify-center pt-0.5">
-                <button
-                  type="button"
-                  onClick={handleCancelBlock}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50/80 font-bold text-[11px] transition-all flex items-center gap-1.5 px-3 py-1 rounded-lg cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5 shrink-0" />
-                  <span>Batalkan Block</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
           {/* 2. CARD DOWNTIME UTAMA (KHUSUS TIMER & KONTROL MESIN) */}
           <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative overflow-hidden mb-4">
@@ -1397,302 +1397,300 @@ export default function DowntimeTracker({
         const currentList = watch("downtimeEvents") || fields || [];
         return currentList.some((evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0)));
       })()) && (
-        <div className="bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border border-slate-200/90 border-t-4 border-t-amber-400 mb-4 relative overflow-hidden animate-fadeIn">
-          <div className={viewMode === "events_only" ? "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 items-start" : "flex flex-col gap-4"}>
-            {/* SECTION A: ANTREAN EVENT BELUM DIKLASIFIKASI */}
-            {(() => {
-              const currentList = watch("downtimeEvents") || fields || [];
-              const unclassifiedItems = currentList
-                .map((evt: any, index: number) => {
-                  const isPending = evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0));
-                  return { evt, index, id: evt.id || `evt-${index}`, isPending };
-                })
-                .filter((item: any) => item.isPending);
+          <div className="bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border border-slate-200/90 border-t-4 border-t-amber-400 mb-4 relative overflow-hidden animate-fadeIn">
+            <div className={viewMode === "events_only" ? "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 items-start" : "flex flex-col gap-4"}>
+              {/* SECTION A: ANTREAN EVENT BELUM DIKLASIFIKASI */}
+              {(() => {
+                const currentList = watch("downtimeEvents") || fields || [];
+                const unclassifiedItems = currentList
+                  .map((evt: any, index: number) => {
+                    const isPending = evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0));
+                    return { evt, index, id: evt.id || `evt-${index}`, isPending };
+                  })
+                  .filter((item: any) => item.isPending);
 
-              if (unclassifiedItems.length === 0) return null;
+                if (unclassifiedItems.length === 0) return null;
 
-              const isAllSelected = unclassifiedItems.length > 0 && unclassifiedItems.every((item: any) => selectedUnclassifiedIds.includes(item.id));
-              const hasResolvedEvents = currentList.some((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
+                const isAllSelected = unclassifiedItems.length > 0 && unclassifiedItems.every((item: any) => selectedUnclassifiedIds.includes(item.id));
+                const hasResolvedEvents = currentList.some((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
 
-              const sectionAClass = viewMode === "events_only"
-                ? (hasResolvedEvents ? "border-b sm:border-b-0 sm:border-r border-amber-100 pb-3 sm:pb-0 sm:pr-3 min-w-0" : "sm:col-span-2")
-                : (hasResolvedEvents ? "pb-3 border-b border-amber-100" : "");
+                const sectionAClass = viewMode === "events_only"
+                  ? (hasResolvedEvents ? "border-b sm:border-b-0 sm:border-r border-amber-100 pb-3 sm:pb-0 sm:pr-3 min-w-0" : "sm:col-span-2")
+                  : (hasResolvedEvents ? "pb-3 border-b border-amber-100" : "");
 
-              return (
-                <div className={sectionAClass}>
-                  {/* Concise Header Bar */}
-                  <div className="flex items-center justify-between gap-1.5 mb-2.5 min-w-0 flex-wrap">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-                      <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider whitespace-nowrap">
-                        ANTREAN
-                      </h4>
-                      <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-2xs whitespace-nowrap">
-                        {unclassifiedItems.length} Event
-                      </span>
-                    </div>
-
-                    <label className="flex items-center gap-1 cursor-pointer bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg border border-amber-300/80 text-[10px] font-extrabold text-amber-950 shadow-2xs transition-all select-none shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={isAllSelected}
-                        onChange={handleToggleSelectAllUnclassified}
-                        className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-                      />
-                      <span>Pilih Semua</span>
-                    </label>
-                  </div>
-
-                  {/* Batch Action Bar */}
-                  {selectedUnclassifiedIds.length > 0 && (
-                    <div className="flex flex-col bg-amber-100/90 border border-amber-300 rounded-2xl p-2 mb-2.5 gap-1.5 animate-fadeIn min-w-0">
-                      <span className="text-[10px] font-black text-amber-950">
-                        📌 Terpilih {selectedUnclassifiedIds.length} dari {unclassifiedItems.length} Event
-                      </span>
-                      <div className="flex flex-col gap-1 w-full">
-                        <button
-                          type="button"
-                          onClick={handleBatchResolveSensorGlitch}
-                          className="w-full py-1.5 px-2 text-[10px] font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1"
-                          title="Tandai semua event terpilih sebagai Gagal Cacat"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>Semua Gagal Cacat</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleOpenBatchClassifyModal}
-                          className="w-full py-1.5 px-2 text-[10px] font-black text-white bg-sky-500 hover:bg-sky-600 border border-sky-600 rounded-xl transition-all shadow-md shadow-sky-500/20 cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1"
-                          title="Isi detail kendala/cacat untuk semua event terpilih"
-                        >
-                          <span>Klasifikasi Sekaligus ({selectedUnclassifiedIds.length})</span>
-                        </button>
+                return (
+                  <div className={sectionAClass}>
+                    {/* Concise Header Bar */}
+                    <div className="flex items-center justify-between gap-1.5 mb-2.5 min-w-0 flex-wrap">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                        <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider whitespace-nowrap">
+                          ANTREAN
+                        </h4>
+                        <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-2xs whitespace-nowrap">
+                          {unclassifiedItems.length} Event
+                        </span>
                       </div>
+
+                      <label className="flex items-center gap-1 cursor-pointer bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg border border-amber-300/80 text-[10px] font-extrabold text-amber-950 shadow-2xs transition-all select-none shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          onChange={handleToggleSelectAllUnclassified}
+                          className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                        />
+                        <span>Pilih Semua</span>
+                      </label>
                     </div>
-                  )}
 
-                  {/* Event Items List */}
-                  <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar min-w-0">
-                    {unclassifiedItems.map(({ evt: event, index, id: eventId }: { evt: any; index: number; id: string }) => {
-                      const isSelected = selectedUnclassifiedIds.includes(eventId);
-
-                      return (
-                        <div
-                          key={eventId}
-                          className={`flex flex-col p-2 border rounded-xl gap-1.5 transition-all min-w-0 ${
-                            isSelected
-                              ? "bg-amber-100/90 border-amber-400 ring-2 ring-amber-300/60 shadow-xs"
-                              : "bg-amber-50/50 border-amber-200/90 hover:bg-amber-100/50 shadow-2xs"
-                          }`}
-                        >
-                          {/* Row 1: Checkbox + Duration + Time */}
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleSelectUnclassified(eventId)}
-                              className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer shrink-0"
-                            />
-                            <span className="text-[10px] font-mono font-black text-amber-950 bg-amber-100/90 px-1.5 py-0.5 rounded border border-amber-300/80 shadow-2xs">
-                              {formatTimer(event.durasiDetik)}
-                            </span>
-                            {event.stopStartTime && (
-                              <span className="text-[10px] text-slate-600 font-bold truncate">
-                                • Jam {event.stopStartTime}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Row 2: Action Buttons */}
-                          <div className="flex items-center gap-1.5 w-full pt-0.5">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleResolveSensorGlitch(index);
-                              }}
-                              className="flex-1 py-1 px-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-100/80 hover:bg-emerald-200/90 border border-emerald-300/80 rounded-lg transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95 text-center whitespace-nowrap"
-                              title="Tandai sebagai false alarm (gagal cacat)"
-                            >
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                              <span>Gagal Cacat</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenClassifyModal(index);
-                              }}
-                              className="flex-1 py-1 px-1.5 text-[10px] font-black text-white bg-amber-500 hover:bg-amber-600 border border-amber-600 rounded-lg transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95 text-center whitespace-nowrap"
-                              title="Isi detail kendala/cacat kain"
-                            >
-                              <span>+ Klasifikasi</span>
-                            </button>
-                          </div>
+                    {/* Batch Action Bar */}
+                    {selectedUnclassifiedIds.length > 0 && (
+                      <div className="flex flex-col bg-amber-100/90 border border-amber-300 rounded-2xl p-2 mb-2.5 gap-1.5 animate-fadeIn min-w-0">
+                        <span className="text-[10px] font-black text-amber-950">
+                          📌 Terpilih {selectedUnclassifiedIds.length} dari {unclassifiedItems.length} Event
+                        </span>
+                        <div className="flex flex-col gap-1 w-full">
+                          <button
+                            type="button"
+                            onClick={handleBatchResolveSensorGlitch}
+                            className="w-full py-1.5 px-2 text-[10px] font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1"
+                            title="Tandai semua event terpilih sebagai Gagal Cacat"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>Semua Gagal Cacat</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleOpenBatchClassifyModal}
+                            className="w-full py-1.5 px-2 text-[10px] font-black text-white bg-sky-500 hover:bg-sky-600 border border-sky-600 rounded-xl transition-all shadow-md shadow-sky-500/20 cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1"
+                            title="Isi detail kendala/cacat untuk semua event terpilih"
+                          >
+                            <span>Klasifikasi Sekaligus ({selectedUnclassifiedIds.length})</span>
+                          </button>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
+                      </div>
+                    )}
 
-            {/* SECTION B: RIWAYAT KENDALA MESIN (YANG SUDAH DIKLASIFIKASI) */}
-            {(() => {
-              const currentList = watch("downtimeEvents") || fields || [];
-              const resolvedEvents = currentList.filter((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
-              if (resolvedEvents.length === 0) return null;
+                    {/* Event Items List */}
+                    <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar min-w-0">
+                      {unclassifiedItems.map(({ evt: event, index, id: eventId }: { evt: any; index: number; id: string }) => {
+                        const isSelected = selectedUnclassifiedIds.includes(eventId);
 
-              const hasPending = currentList.some((evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0)));
-
-              return (
-                <div className={viewMode === "events_only" ? (hasPending ? "" : "sm:col-span-2") : ""}>
-                  <div className="flex items-center justify-between mb-2.5 min-w-0">
-                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
-                      <span>RIWAYAT BERHENTI:</span>
-                    </h4>
-                    <span className="bg-slate-100/80 text-slate-700 text-[9px] px-2.5 py-0.5 rounded-full border border-slate-200 uppercase tracking-wider font-extrabold whitespace-nowrap">
-                      {resolvedEvents.length} KEJADIAN
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
-                    {currentList.map((event: any, index: number) => {
-                      const isResolved = event.isResolved !== false && (event.isResolved || (event.problems && event.problems.length > 0));
-                      if (!isResolved) return null;
-
-                      return (
-                        <div key={event.id || index} className="flex flex-row items-start justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl gap-2 shadow-2xs">
-                          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[10px] font-bold text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-xs font-mono">
+                        return (
+                          <div
+                            key={eventId}
+                            className={`flex flex-col p-2 border rounded-xl gap-1.5 transition-all min-w-0 ${isSelected
+                                ? "bg-amber-100/90 border-amber-400 ring-2 ring-amber-300/60 shadow-xs"
+                                : "bg-amber-50/50 border-amber-200/90 hover:bg-amber-100/50 shadow-2xs"
+                              }`}
+                          >
+                            {/* Row 1: Checkbox + Duration + Time */}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleSelectUnclassified(eventId)}
+                                className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer shrink-0"
+                              />
+                              <span className="text-[10px] font-mono font-black text-amber-950 bg-amber-100/90 px-1.5 py-0.5 rounded border border-amber-300/80 shadow-2xs">
                                 {formatTimer(event.durasiDetik)}
                               </span>
-                              {(() => {
-                                const meterStr = event.meter || (event.problems && event.problems.length > 0 ? event.problems[0]?.meter : null);
-
-                                if (!event.pcsKe || event.pcsKe === "Semua") {
-                                  if (meterStr) {
-                                    return (
-                                      <span className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100/80 px-1.5 py-0.5 rounded">
-                                        {meterStr.includes("PCS") ? meterStr : `Meter: ${meterStr}`}
-                                      </span>
-                                    );
-                                  }
-                                  return null;
-                                }
-
-                                const pcsArray = event.pcsKe.split(",").map((s: string) => s.trim());
-                                const meterMap: Record<string, string> = {};
-
-                                if (meterStr) {
-                                  if (meterStr.includes("PCS")) {
-                                    meterStr.split(",").forEach((m: string) => {
-                                      const match = m.match(/PCS (\d+):\s*(.+)/);
-                                      if (match) {
-                                        meterMap[match[1]] = match[2];
-                                      }
-                                    });
-                                  } else {
-                                    meterMap[pcsArray[0]] = meterStr;
-                                  }
-                                }
-
-                                return pcsArray.map((pcs: string) => (
-                                  <span key={pcs} className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100/80 px-1.5 py-0.5 rounded">
-                                    PCS {pcs} {meterMap[pcs] ? `(${meterMap[pcs]}m)` : ""}
-                                  </span>
-                                ));
-                              })()}
-
-                              {event.dikerjakanOleh && (() => {
-                                const isSpecial = event.dikerjakanOleh.includes('Mekanik') || 
-                                                  event.dikerjakanOleh.includes('Teknisi') || 
-                                                  event.dikerjakanOleh.includes('Perbaikan Khusus');
-                                const cleanName = event.dikerjakanOleh.replace(/^Operator\s*/i, "").replace(/^\((.*)\)$/, "$1").trim();
-                                return (
-                                  <span className={`inline-flex text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs border ${
-                                    isSpecial ? 'bg-fuchsia-600 text-white border-fuchsia-700' : 'bg-indigo-600 text-white border-indigo-700'
-                                  }`}>
-                                    {cleanName}
-                                  </span>
-                                );
-                              })()}
-
-                              {event.isSubmitted && (
-                                <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Terkirim
+                              {event.stopStartTime && (
+                                <span className="text-[10px] text-slate-600 font-bold truncate">
+                                  • Jam {event.stopStartTime}
                                 </span>
                               )}
                             </div>
 
-                            {/* Handle backward compatibility for old data struct */}
-                            {event.kategori && typeof event.kategori === "string" && (
-                              <div className="text-[11px] text-slate-650 pl-0.5 leading-relaxed break-words">
-                                <span className="font-black text-slate-800">{event.kategori}:</span> {event.detail}
-                                {event.blok && (
-                                  <span className="inline-flex font-bold text-sky-700 bg-sky-50/50 px-1 py-0.5 rounded items-center gap-0.5 text-[9px] ml-1.5 border border-sky-100/60">
-                                    <Box className="w-2.5 h-2.5" /> Blok {event.blok}
+                            {/* Row 2: Action Buttons */}
+                            <div className="flex items-center gap-1.5 w-full pt-0.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleResolveSensorGlitch(index);
+                                }}
+                                className="flex-1 py-1 px-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-100/80 hover:bg-emerald-200/90 border border-emerald-300/80 rounded-lg transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95 text-center whitespace-nowrap"
+                                title="Tandai sebagai false alarm (gagal cacat)"
+                              >
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span>Gagal Cacat</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenClassifyModal(index);
+                                }}
+                                className="flex-1 py-1 px-1.5 text-[10px] font-black text-white bg-amber-500 hover:bg-amber-600 border border-amber-600 rounded-lg transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95 text-center whitespace-nowrap"
+                                title="Isi detail kendala/cacat kain"
+                              >
+                                <span>+ Klasifikasi</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* SECTION B: RIWAYAT KENDALA MESIN (YANG SUDAH DIKLASIFIKASI) */}
+              {(() => {
+                const currentList = watch("downtimeEvents") || fields || [];
+                const resolvedEvents = currentList.filter((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
+                if (resolvedEvents.length === 0) return null;
+
+                const hasPending = currentList.some((evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0)));
+
+                return (
+                  <div className={viewMode === "events_only" ? (hasPending ? "" : "sm:col-span-2") : ""}>
+                    <div className="flex items-center justify-between mb-2.5 min-w-0">
+                      <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
+                        <span>RIWAYAT BERHENTI:</span>
+                      </h4>
+                      <span className="bg-slate-100/80 text-slate-700 text-[9px] px-2.5 py-0.5 rounded-full border border-slate-200 uppercase tracking-wider font-extrabold whitespace-nowrap">
+                        {resolvedEvents.length} KEJADIAN
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
+                      {currentList.map((event: any, index: number) => {
+                        const isResolved = event.isResolved !== false && (event.isResolved || (event.problems && event.problems.length > 0));
+                        if (!isResolved) return null;
+
+                        return (
+                          <div key={event.id || index} className="flex flex-row items-start justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl gap-2 shadow-2xs">
+                            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] font-bold text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-xs font-mono">
+                                  {formatTimer(event.durasiDetik)}
+                                </span>
+                                {(() => {
+                                  const meterStr = event.meter || (event.problems && event.problems.length > 0 ? event.problems[0]?.meter : null);
+
+                                  if (!event.pcsKe || event.pcsKe === "Semua") {
+                                    if (meterStr) {
+                                      return (
+                                        <span className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100/80 px-1.5 py-0.5 rounded">
+                                          {meterStr.includes("PCS") ? meterStr : `Meter: ${meterStr}`}
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  }
+
+                                  const pcsArray = event.pcsKe.split(",").map((s: string) => s.trim());
+                                  const meterMap: Record<string, string> = {};
+
+                                  if (meterStr) {
+                                    if (meterStr.includes("PCS")) {
+                                      meterStr.split(",").forEach((m: string) => {
+                                        const match = m.match(/PCS (\d+):\s*(.+)/);
+                                        if (match) {
+                                          meterMap[match[1]] = match[2];
+                                        }
+                                      });
+                                    } else {
+                                      meterMap[pcsArray[0]] = meterStr;
+                                    }
+                                  }
+
+                                  return pcsArray.map((pcs: string) => (
+                                    <span key={pcs} className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100/80 px-1.5 py-0.5 rounded">
+                                      PCS {pcs} {meterMap[pcs] ? `(${meterMap[pcs]}m)` : ""}
+                                    </span>
+                                  ));
+                                })()}
+
+                                {event.dikerjakanOleh && (() => {
+                                  const isSpecial = event.dikerjakanOleh.includes('Mekanik') ||
+                                    event.dikerjakanOleh.includes('Teknisi') ||
+                                    event.dikerjakanOleh.includes('Perbaikan Khusus');
+                                  const cleanName = event.dikerjakanOleh.replace(/^Operator\s*/i, "").replace(/^\((.*)\)$/, "$1").trim();
+                                  return (
+                                    <span className={`inline-flex text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs border ${isSpecial ? 'bg-fuchsia-600 text-white border-fuchsia-700' : 'bg-indigo-600 text-white border-indigo-700'
+                                      }`}>
+                                      {cleanName}
+                                    </span>
+                                  );
+                                })()}
+
+                                {event.isSubmitted && (
+                                  <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    Terkirim
                                   </span>
                                 )}
                               </div>
-                            )}
 
-                            {/* Handle array-based problems struct */}
-                            {event.problems && event.problems.map((prob: any, pIdx: number) => {
-                              const codeLabel = `${prob.kategori}:`;
-                              const detailStr = Array.isArray(prob.details) ? prob.details.join(", ") : (prob.details || "");
-
-                              return (
-                                <div key={pIdx} className="pl-2 border-l-2 border-slate-200/90 ml-0.5 my-1 text-[11px] text-slate-800 leading-relaxed break-words">
-                                  <span className="font-black text-slate-900 mr-1">{codeLabel}</span>
-                                  <span className="font-medium text-slate-700">{detailStr}</span>
-                                  {prob.blok && (
+                              {/* Handle backward compatibility for old data struct */}
+                              {event.kategori && typeof event.kategori === "string" && (
+                                <div className="text-[11px] text-slate-650 pl-0.5 leading-relaxed break-words">
+                                  <span className="font-black text-slate-800">{event.kategori}:</span> {event.detail}
+                                  {event.blok && (
                                     <span className="inline-flex font-bold text-sky-700 bg-sky-50/50 px-1 py-0.5 rounded items-center gap-0.5 text-[9px] ml-1.5 border border-sky-100/60">
-                                      <Box className="w-2.5 h-2.5" /> Blok {prob.blok}
+                                      <Box className="w-2.5 h-2.5" /> Blok {event.blok}
                                     </span>
                                   )}
                                 </div>
-                              );
-                            })}
-                          </div>
+                              )}
 
-                        {event.triggerSource === "ESP32_WiFi" || event.triggerSource?.includes("ESP32") ? (
-                          <div
-                            className="p-1.5 text-slate-400 bg-slate-100 rounded-lg shrink-0 self-start cursor-not-allowed border border-slate-200"
-                            title="Data downtime otomatis dari sensor ESP32 tidak dapat dihapus"
-                          >
-                            <Lock className="w-3.5 h-3.5 text-slate-500" />
+                              {/* Handle array-based problems struct */}
+                              {event.problems && event.problems.map((prob: any, pIdx: number) => {
+                                const codeLabel = `${prob.kategori}:`;
+                                const detailStr = Array.isArray(prob.details) ? prob.details.join(", ") : (prob.details || "");
+
+                                return (
+                                  <div key={pIdx} className="pl-2 border-l-2 border-slate-200/90 ml-0.5 my-1 text-[11px] text-slate-800 leading-relaxed break-words">
+                                    <span className="font-black text-slate-900 mr-1">{codeLabel}</span>
+                                    <span className="font-medium text-slate-700">{detailStr}</span>
+                                    {prob.blok && (
+                                      <span className="inline-flex font-bold text-sky-700 bg-sky-50/50 px-1 py-0.5 rounded items-center gap-0.5 text-[9px] ml-1.5 border border-sky-100/60">
+                                        <Box className="w-2.5 h-2.5" /> Blok {prob.blok}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {event.triggerSource === "ESP32_WiFi" || event.triggerSource?.includes("ESP32") ? (
+                              <div
+                                className="p-1.5 text-slate-400 bg-slate-100 rounded-lg shrink-0 self-start cursor-not-allowed border border-slate-200"
+                                title="Data downtime otomatis dari sensor ESP32 tidak dapat dihapus"
+                              >
+                                <Lock className="w-3.5 h-3.5 text-slate-500" />
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  remove(index);
+                                  if (setValue) {
+                                    const currentEvents = watch("downtimeEvents") || [];
+                                    const updated = currentEvents.filter((_: any, i: number) => i !== index);
+                                    const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
+                                    setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
+                                  }
+                                }}
+                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start cursor-pointer"
+                                title="Hapus Downtime Manual"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              remove(index);
-                              if (setValue) {
-                                const currentEvents = watch("downtimeEvents") || [];
-                                const updated = currentEvents.filter((_: any, i: number) => i !== index);
-                                const sum = updated.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0);
-                                setValue("totalDowntime", String(sum), { shouldDirty: true, shouldValidate: true });
-                              }
-                            }}
-                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start cursor-pointer"
-                            title="Hapus Downtime Manual"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Modal Input Masalah */}
       {showModal && (
@@ -1854,8 +1852,8 @@ export default function DowntimeTracker({
                               }}
                               placeholder="Meter..."
                               className={`w-full h-8 px-2 text-center rounded-lg border text-[10px] font-bold font-mono transition-all animate-fadeIn ${isMeterEmpty
-                                  ? "border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500 text-rose-700 bg-rose-50 placeholder:text-rose-300"
-                                  : "border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-emerald-50"
+                                ? "border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500 text-rose-700 bg-rose-50 placeholder:text-rose-300"
+                                : "border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-emerald-50"
                                 }`}
                             />
                           )}
@@ -1877,8 +1875,8 @@ export default function DowntimeTracker({
 
               {dikerjakanOleh === "Operator" && !isUnblockingBlock && showMeterInput && pcsKeys.length === 1 && (
                 <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn ${!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
-                    ? "bg-rose-50/70 border-rose-300"
-                    : "bg-emerald-50 border-emerald-200/60"
+                  ? "bg-rose-50/70 border-rose-300"
+                  : "bg-emerald-50 border-emerald-200/60"
                   }`}>
                   <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
                     <Box className="w-4 h-4 text-emerald-600" />
@@ -1897,8 +1895,8 @@ export default function DowntimeTracker({
                     }}
                     placeholder="Contoh: 15.5"
                     className={`w-full h-11 px-4 rounded-xl border focus:outline-none focus:ring-2 text-sm font-bold text-slate-700 placeholder:font-medium placeholder:text-slate-400 bg-white shadow-inner transition-all ${!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
-                        ? "border-rose-400 focus:ring-rose-500"
-                        : "border-emerald-300 focus:ring-emerald-500"
+                      ? "border-rose-400 focus:ring-rose-500"
+                      : "border-emerald-300 focus:ring-emerald-500"
                       }`}
                   />
                   {(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (

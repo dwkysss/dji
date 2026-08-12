@@ -916,7 +916,11 @@ export async function searchEmployeeHistory(filters: {
       updateIfMissing("design_id");
       updateIfMissing("no_order_barang");
       updateIfMissing("no_customer");
-      updateIfMissing("tanggal_potong");
+      if (row.tanggal_potong) {
+        if (!batch.tanggal_potong || batch.tanggal_potong === "-" || String(row.tanggal_potong).localeCompare(String(batch.tanggal_potong)) > 0) {
+          batch.tanggal_potong = row.tanggal_potong;
+        }
+      }
       updateIfMissing("pick");
       updateIfMissing("course");
       updateIfMissing("rpm");

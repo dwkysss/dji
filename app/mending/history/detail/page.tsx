@@ -748,7 +748,7 @@ function MendingDetailContent() {
         courseRpm={`${header.course || "-"} / ${header.rpm || "-"}`}
         noCustomer={header.no_customer || header.no_order_barang || "-"}
         noOrder={header.no_order_barang || "-"}
-        tanggalPotong={header.tanggal_potong ? (header.tanggal_potong.includes(":") ? header.tanggal_potong : (header.tanggal_jam ? `${header.tanggal_potong} ${header.tanggal_jam.includes("T") ? header.tanggal_jam.split("T")[1].split(".")[0] : (header.tanggal_jam.split(" ")[1] || "00:00:00")}` : header.tanggal_potong)) : "-"}
+        tanggalPotong={header.tanggal_potong || "-"}
         statusMatching={header.status_matching || "-"}
         pick={header.pick || "-"}
         benangDasar={header.jenis_benang_dasar || "-"}
@@ -756,7 +756,18 @@ function MendingDetailContent() {
         heavy={header.heavy || "-"}
         shadow={header.shadow || "-"}
         pinggiran={header.pinggiran || "-"}
-        tanggalProduksi={header.tanggal_jam || header.created_at || header.tgl || "-"}
+        tanggalProduksi={(() => {
+          let oldest = header.tanggal_jam || header.created_at || header.tgl;
+          if (group.items && Array.isArray(group.items)) {
+            group.items.forEach((it: any) => {
+              const ts = it.detail?.tanggal_jam || it.detail?.created_at || it.header?.tanggal_jam;
+              if (ts && (!oldest || String(ts).localeCompare(String(oldest)) < 0)) {
+                oldest = ts;
+              }
+            });
+          }
+          return oldest || "-";
+        })()}
         potonganKe={header.potongan_ke?.toString() || "-"}
         rollNo={group.items?.[0]?.detail?.roll_no || "-"}
         course={header.course || "-"}

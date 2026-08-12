@@ -89,9 +89,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      fetchUser(session);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        fetchUser(session);
+      })
+      .catch((err) => {
+        console.warn("Auth getSession network fetch failed:", err);
+        fetchUser(null);
+      });
 
     // Listen for auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(

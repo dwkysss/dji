@@ -419,13 +419,13 @@ export default function ContinuousForm({
         try {
           localStorage.setItem("dji_machine_input_types", JSON.stringify(typeMap));
           localStorage.setItem("dji_machine_configs", JSON.stringify(pcsMap));
-        } catch (e) {}
+        } catch (e) { }
       } else {
         let localTypes: Record<string, "PANEL" | "METER"> = {};
         try {
           const saved = localStorage.getItem("dji_machine_input_types");
           if (saved) localTypes = JSON.parse(saved);
-        } catch (e) {}
+        } catch (e) { }
         setMachineInputTypes(localTypes);
       }
     }
@@ -682,12 +682,12 @@ export default function ContinuousForm({
     if (initialData && isEdit) {
       let isLaporanIstirahat = false;
       let isSebelumIstirahat = false;
-      
+
       if (initialData.details && initialData.details.length > 0) {
-        isLaporanIstirahat = initialData.details.some((d: any) => 
+        isLaporanIstirahat = initialData.details.some((d: any) =>
           (d.keterangan_cacat || "").toUpperCase().includes("[LAPORAN ISTIRAHAT]")
         );
-        isSebelumIstirahat = initialData.details.some((d: any) => 
+        isSebelumIstirahat = initialData.details.some((d: any) =>
           (d.keterangan_cacat || "").toUpperCase().includes("[SEBELUM ISTIRAHAT]")
         );
       }
@@ -695,7 +695,7 @@ export default function ContinuousForm({
       let jenisLaporanVal = "";
       if (isLaporanIstirahat) jenisLaporanVal = "Selesai Istirahat";
       else if (isSebelumIstirahat) jenisLaporanVal = "Mulai Istirahat";
-      
+
       const isMeterAkhirEdit = defaultMeter && (
         String(initialData.meter_akhir) === String(defaultMeter) ||
         String(initialData.meter_awal) === String(defaultMeter)
@@ -705,7 +705,7 @@ export default function ContinuousForm({
       if (isMeterAkhirEdit || isLaporanIstirahat || isSebelumIstirahat || hasMeterAkhirOnly) {
         setIsMeterModalOpen(true);
       }
-      
+
       let parsedDowntimeEvents: any[] = [];
       try {
         if (initialData.downtime_events) {
@@ -720,7 +720,7 @@ export default function ContinuousForm({
               const kats = d.kategori_masalah.split(",").map((s: string) => s.trim());
               const dets = d.detail_masalah ? d.detail_masalah.split(",").map((s: string) => s.trim()) : [];
               const bloks = d.keterangan_cacat ? d.keterangan_cacat.replace(/\[SEBELUM ISTIRAHAT\]|\[LAPORAN ISTIRAHAT\]/g, "").split(",").map((s: string) => s.trim()) : [];
-              
+
               const problems = kats.map((k: string, i: number) => {
                 let det = dets[i] || "";
                 let blok = bloks[i] || "";
@@ -732,17 +732,17 @@ export default function ContinuousForm({
                   meter = meterMatch[1];
                   det = det.replace(/\(Titik:\s*[^)]+m\)/, "").trim();
                 }
-                
+
                 // Coba cocokan dengan pattern defect jika mungkin, karena det bisa saja bukan exact match dengan detailMasalahSelection
                 const allPossibleDetails = NEW_PROBLEMS[k] || [];
                 const matchedDetails: string[] = [];
                 allPossibleDetails.forEach((possible: string) => {
-                   if (det.includes(possible)) {
-                     matchedDetails.push(possible);
-                     det = det.replace(possible, "").replace(/^[\s,-]+|[\s,-]+$/g, "");
-                   }
+                  if (det.includes(possible)) {
+                    matchedDetails.push(possible);
+                    det = det.replace(possible, "").replace(/^[\s,-]+|[\s,-]+$/g, "");
+                  }
                 });
-                
+
                 // Combine matched details and any leftover string as specific issue
                 const finalDetails = matchedDetails.length > 0 ? matchedDetails : (det ? [det] : []);
 
@@ -788,7 +788,7 @@ export default function ContinuousForm({
         potonganKe: String(initialData.potongan_ke || ""),
         course: initialData.course || "",
         pic: initialData.pic || "",
-        totalDowntime: parsedDowntimeEvents.length > 0 
+        totalDowntime: parsedDowntimeEvents.length > 0
           ? String(parsedDowntimeEvents.reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0))
           : "0",
         meterAwal: String(initialData.meter_awal || ""),
@@ -812,7 +812,7 @@ export default function ContinuousForm({
           const headerPcs = initialData.pcs ? parseInt(initialData.pcs) : 1;
           const detailMaxPcs = Math.max(...initialData.details.map((d: any) => d.pcs_index ? parseInt(d.pcs_index) : 1));
           const totalPcs = Math.max(headerPcs, detailMaxPcs);
-          
+
           const list = [];
           for (let i = 1; i <= totalPcs; i++) {
             const key = i.toString();
@@ -1785,11 +1785,10 @@ export default function ContinuousForm({
                 <button
                   type="button"
                   onClick={() => setShowReportCardInfo((prev) => !prev)}
-                  className={`absolute top-2.5 right-2.5 transition-colors z-20 cursor-pointer p-0.5 rounded-full ${
-                    showReportCardInfo
+                  className={`absolute top-2.5 right-2.5 transition-colors z-20 cursor-pointer p-0.5 rounded-full ${showReportCardInfo
                       ? "text-emerald-900"
                       : "text-emerald-600/80 hover:text-emerald-800"
-                  }`}
+                    }`}
                   title="Info Laporan"
                 >
                   <Info className="w-4 h-4" />
@@ -1926,7 +1925,7 @@ export default function ContinuousForm({
                   </button>
                 </div>
 
-                <div 
+                <div
                   className="p-5 sm:p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/30 custom-scrollbar"
                   onClick={() => setActiveInfo(null)}
                 >
@@ -1938,13 +1937,12 @@ export default function ContinuousForm({
                     return (
                       <>
                         <div className="flex flex-col gap-2 relative" data-tour="meter-cut-roll">
-                          <label className={`relative flex flex-col items-center justify-center p-4 h-32 rounded-2xl border-2 transition-all duration-300 text-center ${
-                            hasBsSelected 
-                              ? "bg-slate-100 border-slate-200 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none grayscale" 
-                              : isLastRoll 
-                                ? "bg-gradient-to-br from-[#0070bc] to-[#004777] border-transparent shadow-lg shadow-sky-500/30 text-white cursor-pointer" 
+                          <label className={`relative flex flex-col items-center justify-center p-4 h-32 rounded-2xl border-2 transition-all duration-300 text-center ${hasBsSelected
+                              ? "bg-slate-100 border-slate-200 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none grayscale"
+                              : isLastRoll
+                                ? "bg-gradient-to-br from-[#0070bc] to-[#004777] border-transparent shadow-lg shadow-sky-500/30 text-white cursor-pointer"
                                 : "bg-white border-slate-200 hover:border-sky-300 text-slate-600 hover:bg-sky-50 cursor-pointer"
-                          }`}>
+                            }`}>
                             <input
                               type="checkbox"
                               disabled={hasBsSelected}
@@ -1965,7 +1963,7 @@ export default function ContinuousForm({
                             />
                             <Scissors className={`w-8 h-8 mb-2 transition-transform duration-300 ${isLastRoll ? "-rotate-12 scale-110" : "text-slate-400"}`} style={{ transform: isLastRoll ? "scaleX(-1) rotate(12deg)" : "scaleX(-1)" }} />
                             <span className="font-black uppercase text-xs tracking-wide">Potong Kain</span>
-                            
+
                             {isLastRoll && (
                               <div className="absolute top-2 right-2 bg-white/20 rounded-full p-1">
                                 <CheckCircle2 className="w-4 h-4 text-white" />
@@ -1980,11 +1978,10 @@ export default function ContinuousForm({
                               e.stopPropagation();
                               setActiveInfo(activeInfo === "potong" ? null : "potong");
                             }}
-                            className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${
-                              activeInfo === "potong" 
-                                ? "bg-slate-800 text-white" 
+                            className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "potong"
+                                ? "bg-slate-800 text-white"
                                 : isLastRoll ? "bg-white/20 text-white hover:bg-white/30" : "bg-slate-100 text-slate-400 hover:bg-slate-200"
-                            }`}
+                              }`}
                           >
                             <Info className="w-4 h-4" />
                           </button>
@@ -2008,14 +2005,13 @@ export default function ContinuousForm({
                         {/* Pilih PCS yang BS */}
                         {fields.length > 0 && (
                           <div className="flex flex-col gap-2 relative">
-                            <div className={`relative flex flex-col items-center justify-center p-4 min-h-32 h-auto rounded-2xl border-2 transition-all duration-300 text-center shadow-sm ${
-                              isLastRoll
+                            <div className={`relative flex flex-col items-center justify-center p-4 min-h-32 h-auto rounded-2xl border-2 transition-all duration-300 text-center shadow-sm ${isLastRoll
                                 ? "bg-slate-100 border-slate-200 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none grayscale"
                                 : "bg-gradient-to-br from-rose-50 to-white border-rose-200"
-                            }`}>
+                              }`}>
                               <AlertCircle className="w-7 h-7 mb-2 text-rose-500" />
                               <span className="font-black uppercase text-xs text-rose-700 tracking-wide mb-2">Tandai PCS BS</span>
-                              
+
                               <div className="flex flex-wrap justify-center gap-1.5 w-full">
                                 {fields.map((field, index) => (
                                   <div key={field.id} className="relative flex-1 min-w-[45%] z-10">
@@ -2041,9 +2037,8 @@ export default function ContinuousForm({
                                 e.stopPropagation();
                                 setActiveInfo(activeInfo === "pcs" ? null : "pcs");
                               }}
-                              className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${
-                                activeInfo === "pcs" ? "bg-slate-800 text-white" : "bg-rose-100 text-rose-400 hover:bg-rose-200"
-                              }`}
+                              className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "pcs" ? "bg-slate-800 text-white" : "bg-rose-100 text-rose-400 hover:bg-rose-200"
+                                }`}
                             >
                               <Info className="w-4 h-4" />
                             </button>
@@ -2342,11 +2337,10 @@ export default function ContinuousForm({
                         <button
                           type="button"
                           onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
-                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-[0.98] ${
-                            watchJenisLaporan === ""
+                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-[0.98] ${watchJenisLaporan === ""
                               ? "border-[#0070bc] bg-sky-50 text-[#0070bc] scale-[1.01]"
                               : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                          }`}
+                            }`}
                         >
                           <span className="block font-black uppercase">Laporan Oper Shift</span>
                         </button>
@@ -2354,11 +2348,10 @@ export default function ContinuousForm({
                         <button
                           type="button"
                           onClick={() => setValue("jenisLaporan", "Mulai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${
-                            watchJenisLaporan === "Mulai Istirahat"
+                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${watchJenisLaporan === "Mulai Istirahat"
                               ? "border-amber-500 bg-amber-50 text-amber-700 scale-[1.01]"
                               : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-                          }`}
+                            }`}
                         >
                           <span className="block font-black uppercase">Mulai Istirahat</span>
                         </button>
@@ -2366,11 +2359,10 @@ export default function ContinuousForm({
                         <button
                           type="button"
                           onClick={() => setValue("jenisLaporan", "Selesai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${
-                            watchJenisLaporan === "Selesai Istirahat"
+                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${watchJenisLaporan === "Selesai Istirahat"
                               ? "border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.01]"
                               : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-                          }`}
+                            }`}
                         >
                           <span className="block font-black uppercase">Selesai Istirahat</span>
                         </button>
@@ -2390,7 +2382,7 @@ export default function ContinuousForm({
                             {(() => {
                               const currentOperatorId = watch("operatorId");
                               const currentOp = operators.find(o => o.id.toString() === currentOperatorId);
-                              const backupOps = currentOp?.shift 
+                              const backupOps = currentOp?.shift
                                 ? operators.filter(o => o.shift === currentOp.shift && o.id.toString() !== currentOperatorId)
                                 : operators;
                               return backupOps.map(op => (

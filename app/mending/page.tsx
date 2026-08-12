@@ -948,7 +948,7 @@ export default function MendingPage() {
     courseRpm: `${h.course || "-"} / ${h.rpm || "-"}`,
     noCustomer: h.no_customer || "-",
     noOrder: h.no_order_barang || "-",
-    tanggalPotong: h.tanggal_potong ? (h.tanggal_potong.includes(":") ? h.tanggal_potong : (h.tanggal_jam ? `${h.tanggal_potong} ${h.tanggal_jam.includes("T") ? h.tanggal_jam.split("T")[1].split(".")[0] : (h.tanggal_jam.split(" ")[1] || "00:00:00")}` : h.tanggal_potong)) : "-",
+    tanggalPotong: h.tanggal_potong || "-",
     statusMatching: h.status_matching || "-",
     pick: String(h.pick || "-"),
     benangDasar: h.jenis_benang_dasar || "-",
