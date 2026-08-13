@@ -15,6 +15,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { submitQCInspection } from "@/actions/qc-actions";
+import { formatHHMM } from "@/lib/shift-utils";
 
 const qcSchema = z.object({
   petugas_inspeksi: z.string().min(1, "Wajib diisi"),
@@ -41,6 +42,7 @@ interface QCInspectionModalProps {
   selections: Record<string, number>;
   onSuccess?: () => void;
   startInspectTime?: string;
+  pauseSeconds?: number;
 }
 
 export default function QCInspectionModal({
@@ -50,6 +52,7 @@ export default function QCInspectionModal({
   selections,
   onSuccess,
   startInspectTime,
+  pauseSeconds = 0,
 }: QCInspectionModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -97,7 +100,8 @@ export default function QCInspectionModal({
       const mins = String(now.getMinutes()).padStart(2, "0");
       const currentTime = `${hours}:${mins}`;
 
-      setValue("start_inspect", startInspectTime || storedStart || currentTime);
+      const formattedStart = formatHHMM(startInspectTime);
+      setValue("start_inspect", formattedStart || storedStart || currentTime);
       setValue("finish_inspect", currentTime);
 
       let countCeklis = 0;
@@ -275,7 +279,7 @@ export default function QCInspectionModal({
           <div>
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-sky-600" /> Form Inspeksi
-              QC (Batch)
+              QC
             </h3>
             <p className="text-xs text-slate-500 font-medium">
               Isi seluruh data inspeksi untuk {Object.keys(selections).length}{" "}

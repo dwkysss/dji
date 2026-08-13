@@ -10,10 +10,10 @@ import SuratJalanPrintTemplate from "@/components/SuratJalanPrintTemplate";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 
 const QC_CREATE_SJ_TOUR_STEPS: ProductTourStep[] = [
-  { target: "qc-create-sj-header", title: "Buat Surat Jalan", description: "Halaman ini dipakai untuk membuat dokumen pengiriman dari barcode batch yang sudah lolos QC." },
+  { target: "qc-create-sj-header", title: "Buat Surat Jalan", description: "Halaman ini dipakai untuk membuat dokumen pengiriman dari barcode yang sudah lolos QC." },
   { target: "qc-create-sj-info", title: "Info Pengiriman", description: "Isi tujuan, alamat, kota, provinsi, kode pos, dan detail pengiriman lainnya." },
-  { target: "qc-create-sj-scanner", title: "Scan Barcode", description: "Gunakan scanner infrared atau kamera untuk memasukkan batch kain ke daftar muatan." },
-  { target: "qc-create-sj-items", title: "Daftar Muatan", description: "Batch yang berhasil discan akan muncul di sini. Hapus baris jika ada scan yang salah." },
+  { target: "qc-create-sj-scanner", title: "Scan Barcode", description: "Gunakan scanner infrared atau kamera untuk memasukkan kain ke daftar muatan." },
+  { target: "qc-create-sj-items", title: "Daftar Muatan", description: "Kain yang berhasil discan akan muncul di sini. Hapus baris jika ada scan yang salah." },
   { target: "qc-create-sj-actions", title: "Preview dan Simpan", description: "Preview dokumen sebelum menyimpan, lalu tekan Simpan Surat Jalan jika muatan sudah lengkap." },
 ];
 
@@ -333,7 +333,7 @@ export default function CreateSuratJalanPage() {
           {/* Tabel Muatan */}
           <div data-tour="qc-create-sj-items" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex items-center justify-between border-b pb-4 mb-4">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Daftar Muatan ({items.length} Batch)</h3>
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Daftar Muatan ({items.length} Item)</h3>
             </div>
 
             {items.length === 0 ? (

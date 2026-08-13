@@ -52,6 +52,32 @@ const getActualMeter = (item: any, h: any) => {
   return null;
 };
 
+const calculateDurationStr = (start?: string | null, finish?: string | null, pauseSec: number = 0) => {
+  if (!start || !finish) return "-";
+  const parseMins = (str: string) => {
+    const match = str.match(/(\d{1,2}):(\d{2})/);
+    if (!match) return null;
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  };
+  const sMins = parseMins(start);
+  const fMins = parseMins(finish);
+  if (sMins === null || fMins === null) return "-";
+
+  let diff = fMins - sMins;
+  if (diff < 0) diff += 24 * 60;
+
+  if (pauseSec > 0) {
+    diff = Math.max(0, diff - Math.floor(pauseSec / 60));
+  }
+
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+  if (hours > 0) {
+    return `${hours}j ${mins}m`;
+  }
+  return `${mins} mnt`;
+};
+
 function MendingDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -784,10 +810,21 @@ function MendingDetailContent() {
             </p>
           </div>
           <div>
-            <h4 className="text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1">Waktu Mending</h4>
-            <p className="text-sm font-bold text-sky-900">
-              {group.tanggal_mending} <br className="sm:hidden" />
-              <span className="text-xs">({group.start_mending} - {group.finish_mending})</span>
+            <h4 className="text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1">Start Mending</h4>
+            <p className="text-sm font-bold text-sky-900 font-mono">
+              {group.tanggal_mending} {group.start_mending || "-"}
+            </p>
+          </div>
+          <div>
+            <h4 className="text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1">Finish Mending</h4>
+            <p className="text-sm font-bold text-sky-900 font-mono">
+              {group.tanggal_mending} {group.finish_mending || "-"}
+            </p>
+          </div>
+          <div>
+            <h4 className="text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1">Durasi Mending</h4>
+            <p className="text-sm font-black text-amber-700 font-mono">
+              {calculateDurationStr(group.start_mending, group.finish_mending, group.pause_seconds || 0)}
             </p>
           </div>
           <div>

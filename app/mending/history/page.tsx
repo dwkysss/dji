@@ -60,6 +60,32 @@ const MENDING_OPERATORS = [
   { id: "Yudi", name: "Yudi" },
 ];
 
+const calculateDurationStr = (start?: string | null, finish?: string | null, pauseSec: number = 0) => {
+  if (!start || !finish) return "-";
+  const parseMins = (str: string) => {
+    const match = str.match(/(\d{1,2}):(\d{2})/);
+    if (!match) return null;
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  };
+  const sMins = parseMins(start);
+  const fMins = parseMins(finish);
+  if (sMins === null || fMins === null) return "-";
+
+  let diff = fMins - sMins;
+  if (diff < 0) diff += 24 * 60;
+
+  if (pauseSec > 0) {
+    diff = Math.max(0, diff - Math.floor(pauseSec / 60));
+  }
+
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+  if (hours > 0) {
+    return `${hours}j ${mins}m`;
+  }
+  return `${mins} mnt`;
+};
+
 export default function MendingHistoryPage() {
   const router = useRouter();
   
@@ -319,18 +345,19 @@ export default function MendingHistoryPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                      <th className="px-4 py-4 w-28 whitespace-nowrap">Tanggal</th>
-                      <th className="px-4 py-4 w-28 whitespace-nowrap">Jam</th>
-                      <th className="px-4 py-4">Mesin & Desain</th>
-                      <th className="px-4 py-4 text-center w-24">Potongan</th>
-                      <th className="px-4 py-4 text-center w-20">PCS</th>
-                      <th className="px-4 py-4 text-center w-32">Panel / Meter</th>
-                      <th className="px-4 py-4">Petugas Mending</th>
-                      <th className="px-4 py-4 text-center">Hasil Mending</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Start</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Finish</th>
+                      <th className="px-4 py-4 whitespace-nowrap text-center">Durasi</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Mesin & Desain</th>
+                      <th className="px-4 py-4 text-center w-24 whitespace-nowrap">Potongan</th>
+                      <th className="px-4 py-4 text-center w-20 whitespace-nowrap">PCS</th>
+                      <th className="px-4 py-4 text-center w-32 whitespace-nowrap">Panel / Meter</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Petugas Mending</th>
+                      <th className="px-4 py-4 text-center whitespace-nowrap">Hasil Mending</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {data.map((d, idx) => {
+                    {data.map((d: any, idx: number) => {
                       let gradeA = 0,
                         gradeB = 0,
                         gradeBS = 0;
@@ -351,16 +378,14 @@ export default function MendingHistoryPage() {
                           onClick={() => handleOpenDetail(d)}
                           className="hover:bg-slate-50/80 transition-colors group/row cursor-pointer"
                         >
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="font-bold text-slate-800">
-                              {d.tanggal_mending}
-                            </div>
+                          <td className="px-4 py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
+                            {d.tanggal_mending} {d.start_mending || "-"}
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-xs text-slate-500 font-medium flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5 text-slate-400" />{" "}
-                              {d.start_mending || "-"} - {d.finish_mending || "-"}
-                            </div>
+                          <td className="px-4 py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
+                            {d.tanggal_mending} {d.finish_mending || "-"}
+                          </td>
+                          <td className="px-4 py-4 text-center whitespace-nowrap font-extrabold text-amber-700 text-xs">
+                            {calculateDurationStr(d.start_mending, d.finish_mending, d.pause_seconds || 0)}
                           </td>
                           <td className="px-4 py-4">
                             <div className="font-bold text-slate-800">

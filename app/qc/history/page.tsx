@@ -61,6 +61,32 @@ const QC_OPERATORS = [
   { id: "Taufik", name: "Taufik" },
 ];
 
+const calculateDurationStr = (start?: string | null, finish?: string | null, pauseSec: number = 0) => {
+  if (!start || !finish) return "-";
+  const parseMins = (str: string) => {
+    const match = str.match(/(\d{1,2}):(\d{2})/);
+    if (!match) return null;
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  };
+  const sMins = parseMins(start);
+  const fMins = parseMins(finish);
+  if (sMins === null || fMins === null) return "-";
+
+  let diff = fMins - sMins;
+  if (diff < 0) diff += 24 * 60;
+
+  if (pauseSec > 0) {
+    diff = Math.max(0, diff - Math.floor(pauseSec / 60));
+  }
+
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+  if (hours > 0) {
+    return `${hours}j ${mins}m`;
+  }
+  return `${mins} mnt`;
+};
+
 export default function QCHistoryPage() {
   const router = useRouter();
 
@@ -284,13 +310,15 @@ export default function QCHistoryPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] sm:text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                      <th className="px-3 py-3 lg:px-6 lg:py-4">Tanggal & Waktu</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4">Mesin & Desain</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4">Potongan</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4">Petugas QC</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4 text-center">PCS</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4">Jumlah QTY</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4 text-center">Hasil Inspeksi</th>
+                      <th className="px-3 py-3 lg:px-4 lg:py-4 whitespace-nowrap">Start</th>
+                      <th className="px-3 py-3 lg:px-4 lg:py-4 whitespace-nowrap">Finish</th>
+                      <th className="px-3 py-3 lg:px-4 lg:py-4 text-center whitespace-nowrap">Durasi</th>
+                      <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Mesin & Desain</th>
+                      <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Potongan</th>
+                      <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Petugas QC</th>
+                      <th className="px-3 py-3 lg:px-6 lg:py-4 text-center whitespace-nowrap">PCS</th>
+                      <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Jumlah QTY</th>
+                      <th className="px-3 py-3 lg:px-6 lg:py-4 text-center whitespace-nowrap">Hasil Inspeksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -303,15 +331,14 @@ export default function QCHistoryPage() {
                           onClick={() => handleOpenDetail(group)}
                           className="hover:bg-sky-50/50 transition-colors group/row cursor-pointer"
                         >
-                          <td className="px-3 py-3 lg:px-6 lg:py-4">
-                            <div className="font-bold text-slate-800">
-                              {group.tanggal_inspeksi}
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
-                              <Clock className="w-3 h-3" />{" "}
-                              {group.start_inspect || "-"} -{" "}
-                              {group.finish_inspect || "-"}
-                            </div>
+                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
+                            {group.tanggal_inspeksi} {group.start_inspect || "-"}
+                          </td>
+                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
+                            {group.tanggal_inspeksi} {group.finish_inspect || "-"}
+                          </td>
+                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-extrabold text-amber-700 text-xs text-center whitespace-nowrap">
+                            {calculateDurationStr(group.start_inspect, group.finish_inspect, group.pause_seconds || 0)}
                           </td>
                           <td className="px-3 py-3 lg:px-6 lg:py-4">
                             <div className="font-bold text-slate-800">

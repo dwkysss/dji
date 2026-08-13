@@ -17,6 +17,10 @@ import {
   ArrowLeft,
   Box,
   Edit3,
+  Play,
+  Pause,
+  Timer,
+  RotateCcw,
 } from "lucide-react";
 import QCInspectionModal from "@/components/forms/QCInspectionModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
@@ -31,17 +35,24 @@ import {
   deleteProductionDetailRow,
 } from "@/actions/qc-actions";
 import { getEmployeeHistoryDetail } from "@/actions/employee-actions";
+import {
+  getTimerSession,
+  upsertTimerSession,
+  deleteTimerSession,
+  getActiveTimerSessions,
+} from "@/actions/timer-actions";
 import PanelQCTable from "./components/PanelQCTable";
 import MeterQCTable from "./components/MeterQCTable";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
+import { formatHHMM, formatTimerSeconds } from "@/lib/shift-utils";
 
 // Problem categories matching ContinuousForm
 const QC_INSPECTION_TOUR_STEPS: ProductTourStep[] = [
   {
     target: "qc-inspection-header",
-    title: "Inspeksi QC Batch",
+    title: "Inspeksi QC",
     description:
-      "Halaman ini dipakai untuk mencari batch produksi yang menunggu inspeksi QC.",
+      "Halaman ini dipakai untuk mencari data produksi yang menunggu inspeksi QC.",
   },
   {
     target: "qc-inspection-filter",
@@ -159,10 +170,20 @@ const formatLastInputTime = (isoString: string | null) => {
   }
 };
 
+const formatDurationSeconds = (totalSeconds: number) => {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}j ${m}m ${s}d`;
+  if (m > 0) return `${m}m ${s}d`;
+  return `${s}d`;
+};
+
 export default function QCPage() {
   const [searchTanggal, setSearchTanggal] = useState("");
   const [searchMesin, setSearchMesin] = useState("");
   const [searchPotongan, setSearchPotongan] = useState("");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [isSearching, setIsSearching] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -172,6 +193,84 @@ export default function QCPage() {
   const [activeQcPcs, setActiveQcPcs] = useState<{ nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string } | null>(null);
   const [fullActiveQcDetails, setFullActiveQcDetails] = useState<any[]>([]);
   const [startInspectTime, setStartInspectTime] = useState<string>("");
+
+  const [isPaused, setIsPaused] = useState(false);
+  const [pauseSeconds, setPauseSeconds] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [activeSessionsMap, setActiveSessionsMap] = useState<Map<string, any>>(new Map());
+
+  const fetchActiveSessions = async () => {
+    const res = await getActiveTimerSessions("qc");
+    if (res.success && res.data) {
+      const map = new Map<string, any>();
+      res.data.forEach((s: any) => {
+        const key = `${s.nomor_mc}_${s.design_id}_${s.potongan_ke}_${s.pcs_index}`;
+        map.set(key, s);
+      });
+      setActiveSessionsMap(map);
+    }
+  };
+
+  useEffect(() => {
+    fetchActiveSessions();
+  }, []);
+
+  // Live timer interval ticking every second (freezes when paused)
+  useEffect(() => {
+    if (!activeQcPcs || isPaused) return;
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeQcPcs, isPaused]);
+
+  // Periodic auto-sync active timer session to DB every 5 seconds
+  useEffect(() => {
+    if (!activeQcPcs) return;
+    const syncInterval = setInterval(() => {
+      upsertTimerSession({
+        type: "qc",
+        nomor_mc: activeQcPcs.nomor_mc,
+        design_id: activeQcPcs.design_id,
+        potongan_ke: activeQcPcs.potongan_ke,
+        pcs_index: activeQcPcs.pcs_index,
+        is_paused: isPaused,
+        pause_seconds: pauseSeconds,
+        elapsed_seconds: elapsedSeconds,
+      });
+    }, 5000);
+    return () => clearInterval(syncInterval);
+  }, [activeQcPcs, isPaused, pauseSeconds, elapsedSeconds]);
+
+  const handleTogglePause = async () => {
+    const nextPause = !isPaused;
+    setIsPaused(nextPause);
+    if (activeQcPcs) {
+      await upsertTimerSession({
+        type: "qc",
+        nomor_mc: activeQcPcs.nomor_mc,
+        design_id: activeQcPcs.design_id,
+        potongan_ke: activeQcPcs.potongan_ke,
+        pcs_index: activeQcPcs.pcs_index,
+        is_paused: nextPause,
+        pause_seconds: pauseSeconds,
+        elapsed_seconds: elapsedSeconds,
+      });
+      fetchActiveSessions();
+    }
+  };
+
+  const handleCancelQC = async () => {
+    if (activeQcPcs) {
+      await deleteTimerSession("qc", activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke, activeQcPcs.pcs_index);
+      fetchActiveSessions();
+    }
+    setActiveQcPcs(null);
+    setFullActiveQcDetails([]);
+    setSelections({});
+    setIsCancelConfirmOpen(false);
+  };
 
   const [availableFilters, setAvailableFilters] = useState<any[]>([]);
   const [isLoadingFilters, setIsLoadingFilters] = useState(true);
@@ -292,19 +391,38 @@ export default function QCPage() {
   };
 
   const groupedPcsList = React.useMemo(() => {
+    const batchPcsMap = new Map<string, Set<number>>();
+    allDetails.forEach((d: any) => {
+      const h = d.production_headers;
+      if (!h) return;
+      const batchKey = `${h.nomor_mc}_${h.design_id}_${h.potongan_ke}`;
+      if (!batchPcsMap.has(batchKey)) {
+        batchPcsMap.set(batchKey, new Set<number>());
+      }
+      const pcsNum = parseInt(d.pcs_index, 10);
+      if (!isNaN(pcsNum)) {
+        batchPcsMap.get(batchKey)!.add(pcsNum);
+      }
+    });
+
     const map = new Map<string, any>();
     allDetails.forEach((d: any) => {
       const h = d.production_headers;
       if (searchMesin && String(h?.nomor_mc) !== String(searchMesin)) return;
       if (searchPotongan && String(h?.potongan_ke) !== String(searchPotongan)) return;
 
-      const key = `${h?.nomor_mc}_${h?.design_id}_${h?.potongan_ke}_${d.pcs_index}`;
+      const batchKey = `${h?.nomor_mc}_${h?.design_id}_${h?.potongan_ke}`;
+      const pcsSet = batchPcsMap.get(batchKey);
+      const maxPcs = pcsSet && pcsSet.size > 0 ? Math.max(...Array.from(pcsSet)) : parseInt(d.pcs_index, 10) || 1;
+
+      const key = `${batchKey}_${d.pcs_index}`;
       if (!map.has(key)) {
         map.set(key, {
           nomor_mc: h?.nomor_mc,
           design_id: h?.design_id,
           potongan_ke: h?.potongan_ke,
           pcs_index: d.pcs_index,
+          total_pcs: maxPcs,
           meter_kain: d.meter_kain || null,
           header: h,
           detailsCount: 0,
@@ -316,14 +434,27 @@ export default function QCPage() {
       group.detailsCount++;
       group.totalHasilProduksi += (d.jml_hasil_produksi || 0);
       if (d.meter_kain) group.meter_kain = d.meter_kain;
-      if (h?.tanggal_jam) {
-        if (!group.lastInputTime || new Date(h.tanggal_jam) > new Date(group.lastInputTime)) {
-          group.lastInputTime = h.tanggal_jam;
+      const ts = h?.tanggal_jam || h?.created_at;
+      if (ts) {
+        if (!group.lastInputTime || new Date(ts) > new Date(group.lastInputTime)) {
+          group.lastInputTime = ts;
         }
       }
     });
-    return Array.from(map.values());
-  }, [allDetails, searchMesin, searchPotongan]);
+
+    const list = Array.from(map.values());
+    return list.sort((a: any, b: any) => {
+      const timeA = a.lastInputTime ? new Date(a.lastInputTime).getTime() : 0;
+      const timeB = b.lastInputTime ? new Date(b.lastInputTime).getTime() : 0;
+      if (sortOrder === "asc") {
+        if (timeA !== timeB) return timeA - timeB;
+        return String(a.nomor_mc || "").localeCompare(String(b.nomor_mc || ""));
+      } else {
+        if (timeA !== timeB) return timeB - timeA;
+        return String(a.nomor_mc || "").localeCompare(String(b.nomor_mc || ""));
+      }
+    });
+  }, [allDetails, searchMesin, searchPotongan, sortOrder]);
 
   const ITEMS_PER_PAGE = 10;
   const totalPages = Math.ceil(groupedPcsList.length / ITEMS_PER_PAGE);
@@ -333,11 +464,43 @@ export default function QCPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchMesin, searchTanggal, searchPotongan]);
+  }, [searchMesin, searchTanggal, searchPotongan, sortOrder]);
 
   const handleStartQC = async (nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string) => {
     setActiveQcPcs({ nomor_mc: String(nomor_mc), design_id: String(design_id), potongan_ke: String(potongan_ke), pcs_index: String(pcs_index) });
     setSelections({});
+    
+    // Check DB for active session
+    const sessionRes = await getTimerSession("qc", nomor_mc, design_id, potongan_ke, pcs_index);
+    if (sessionRes.success && sessionRes.data) {
+      const s = sessionRes.data;
+      setIsPaused(s.is_paused);
+      setPauseSeconds(s.pause_seconds || 0);
+      setElapsedSeconds(s.elapsed_seconds || 0);
+      setStartInspectTime(formatHHMM(s.start_time) || new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }));
+    } else {
+      setIsPaused(false);
+      setPauseSeconds(0);
+      setElapsedSeconds(0);
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const startStr = `${hh}:${mm}`;
+      setStartInspectTime(startStr);
+
+      await upsertTimerSession({
+        type: "qc",
+        nomor_mc: String(nomor_mc),
+        design_id: String(design_id),
+        potongan_ke: String(potongan_ke),
+        pcs_index: String(pcs_index),
+        start_time: startStr,
+        is_paused: false,
+        pause_seconds: 0,
+        elapsed_seconds: 0,
+      });
+      fetchActiveSessions();
+    }
     
     // Fetch details for specific PCS directly to ensure we have fresh data
     const res = await getPendingQCDetailsByBatch(nomor_mc, design_id, potongan_ke);
@@ -345,11 +508,6 @@ export default function QCPage() {
        const filteredByPcs = res.data.filter((d: any) => String(d.pcs_index) === String(pcs_index));
        setFullActiveQcDetails(filteredByPcs);
     }
-    
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mm = String(now.getMinutes()).padStart(2, "0");
-    setStartInspectTime(`${hh}:${mm}`);
   };
 
   const detailsToDisplay = React.useMemo(() => {
@@ -719,22 +877,90 @@ export default function QCPage() {
             </h1>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {startInspectTime && (
-              <div className="h-11 px-4 rounded-xl bg-sky-50 border border-sky-100 text-sm font-black text-sky-700 flex items-center gap-2 shadow-sm">
-                <Clock className="w-4 h-4 text-sky-500" />
-                {startInspectTime}
+              <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Mulai</span>
+                  <div className="h-10 px-3 rounded-xl bg-slate-100 border border-slate-200 text-xs font-extrabold text-slate-700 flex items-center gap-1.5 shadow-sm">
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    {formatHHMM(startInspectTime)}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                    {isPaused ? "Status" : "Timer Berjalan"}
+                  </span>
+                  <div className={`h-10 px-3.5 rounded-xl text-xs font-black flex items-center gap-2 border shadow-sm transition-all ${
+                    isPaused 
+                      ? "bg-amber-50 border-amber-200 text-amber-700" 
+                      : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${isPaused ? "bg-amber-500" : "bg-emerald-500 animate-ping"}`} />
+                    <Timer className="w-4 h-4 text-current" />
+                    <span className="font-mono text-sm tracking-wider">
+                      {formatTimerSeconds(elapsedSeconds)}
+                    </span>
+                    {isPaused && (
+                      <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-bold ml-0.5">
+                        PAUSED
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
             <button
               type="button"
+              onClick={handleTogglePause}
+              className={`h-10 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
+                isPaused
+                  ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+                  : "bg-amber-500 hover:bg-amber-600 text-white active:scale-95"
+              }`}
+            >
+              {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+              {isPaused ? "Lanjut Inspeksi" : "Pause Inspeksi"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsCancelConfirmOpen(true)}
+              className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold border border-rose-200/80 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Batal Inspeksi
+            </button>
+            <button
+              type="button"
               onClick={() => setIsTourOpen(true)}
-              className="h-11 px-4 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all flex items-center gap-2"
+              className="h-10 px-4 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all flex items-center gap-2"
             >
               <HelpCircle className="w-4 h-4" /> Bantuan
             </button>
           </div>
         </div>
+
+        {isPaused && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-between shadow-sm animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-100 rounded-xl text-amber-700">
+                <Pause className="w-5 h-5 fill-amber-600" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-sm text-amber-900">Inspeksi Sedang Di-Pause</h4>
+                <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                  Timer dihentikan sementara. Tekan tombol &quot;Lanjut Inspeksi&quot; untuk meneruskan.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPaused(false)}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <Play className="w-4 h-4" /> Lanjut Inspeksi
+            </button>
+          </div>
+        )}
 
         <div className="mb-6">
           <CompactHeaderCard {...compactProps} />
@@ -809,6 +1035,35 @@ export default function QCPage() {
           )}
         </div>
 
+        {/* Cancel QC Confirmation Modal */}
+        {isCancelConfirmOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+              <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-4 mx-auto">
+                <AlertTriangle className="w-6 h-6 text-rose-600" />
+              </div>
+              <h3 className="text-lg font-bold text-center text-slate-800 mb-2">Batalkan Inspeksi PCS?</h3>
+              <p className="text-xs text-center text-slate-500 mb-6 leading-relaxed">
+                Sesi timer dan draft inspeksi PCS ini akan dibatalkan & direset. Anda akan kembali ke antrean utama.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsCancelConfirmOpen(false)}
+                  className="flex-1 h-11 rounded-xl font-bold text-slate-600 hover:bg-slate-100 text-xs transition-colors cursor-pointer"
+                >
+                  Tetap Lanjut
+                </button>
+                <button
+                  onClick={handleCancelQC}
+                  className="flex-1 h-11 rounded-xl font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 text-xs transition-all shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  Ya, Batalkan
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {isModalOpen && (
           <QCInspectionModal
             isOpen={isModalOpen}
@@ -816,8 +1071,13 @@ export default function QCPage() {
             headerData={dummyHeaderData}
             selections={selections}
             startInspectTime={startInspectTime}
-            onSuccess={() => {
+            pauseSeconds={pauseSeconds}
+            onSuccess={async () => {
               setIsModalOpen(false);
+              if (activeQcPcs) {
+                await deleteTimerSession("qc", activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke, activeQcPcs.pcs_index);
+                fetchActiveSessions();
+              }
               setActiveQcPcs(null);
               setFullActiveQcDetails([]);
               setSelections({});
@@ -1375,7 +1635,7 @@ export default function QCPage() {
 
       {/* Filter Card */}
       <div data-tour="qc-inspection-filter" className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 items-end gap-4 w-full">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 items-end gap-4 w-full">
           <div className="flex flex-col gap-1 w-full">
             <label className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between">
               <span>Tanggal</span>
@@ -1402,7 +1662,7 @@ export default function QCPage() {
             <select
               value={searchMesin}
               onChange={(e) => setSearchMesin(e.target.value)}
-              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full"
+              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full cursor-pointer"
             >
               <option value="">Semua Mesin</option>
               {availableMesins.map(m => (
@@ -1422,10 +1682,23 @@ export default function QCPage() {
               placeholder="Cari Potongan..."
             />
           </div>
+          <div className="flex flex-col gap-1 w-full">
+            <label className="text-xs font-bold text-slate-500 uppercase">
+              Urutan Waktu
+            </label>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
+              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full cursor-pointer"
+            >
+              <option value="desc">Terbaru</option>
+              <option value="asc">Terlama</option>
+            </select>
+          </div>
           <button
             onClick={() => handleSearch(searchTanggal)}
             disabled={isSearching}
-            className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm w-full"
+            className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm w-full col-span-2 sm:col-span-1"
           >
             {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Cari Data
@@ -1457,62 +1730,86 @@ export default function QCPage() {
                   <th className="px-2 py-2">Desain</th>
                   <th className="px-2 py-2">Potongan</th>
                   <th className="px-2 py-2 text-center">PCS</th>
-                  <th className="px-2 py-2 text-center">Baris</th>
                   <th className="px-2 py-2 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[11px] font-medium text-slate-700">
-                {currentPcsList.map((g: any) => (
-                  <tr key={`${g.nomor_mc}_${g.design_id}_${g.potongan_ke}_${g.pcs_index}`} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-2 py-2">
-                      <div className="inline-flex items-center min-w-[3rem] h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-bold">
-                        {g.header?.nomor_mc}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2">
-                      <span className="text-[10px] text-slate-500 font-semibold">{formatLastInputDate(g.lastInputTime)}</span>
-                    </td>
-                    <td className="px-2 py-2">
-                      <span className="text-[10px] text-slate-500 font-semibold">{formatLastInputTime(g.lastInputTime)}</span>
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="text-slate-800 font-bold flex items-center gap-1">
-                        {g.header?.design_id}
-                        {g.header?.panel_no === "METERAN" ? (
-                          <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider">METERAN</span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">PANEL</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="text-[11px] text-slate-800 font-bold uppercase tracking-wider">
-                        {g.header?.potongan_ke}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 font-bold text-slate-600">
-                        {g.pcs_index}
-                      </div>
-                      {g.meter_kain && (
-                        <div className="text-[10px] text-slate-500 font-bold mt-1.5 uppercase tracking-wider">
-                          {g.meter_kain}
+                {currentPcsList.map((g: any) => {
+                  const sessionKey = `${g.nomor_mc}_${g.design_id}_${g.potongan_ke}_${g.pcs_index}`;
+                  const session = activeSessionsMap.get(sessionKey);
+                  const isPausedItem = session?.is_paused;
+                  const isProcessingItem = session && !session.is_paused;
+
+                  return (
+                    <tr key={sessionKey} className={`hover:bg-slate-50/50 transition-colors ${isPausedItem ? "bg-amber-50/40" : ""}`}>
+                      <td className="px-2 py-2">
+                        <div className="inline-flex items-center min-w-[3rem] h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-bold">
+                          {g.header?.nomor_mc}
                         </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <span className="text-slate-500">{g.detailsCount} baris</span>
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <button
-                        onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
-                        className="px-2 py-1.5 bg-sky-50 text-[#0070bc] hover:bg-sky-100 font-bold text-[10px] rounded-lg transition-all"
-                      >
-                        Mulai Inspeksi
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-[10px] text-slate-500 font-semibold">{formatLastInputDate(g.lastInputTime)}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-[10px] text-slate-500 font-semibold">{formatLastInputTime(g.lastInputTime)}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="text-slate-800 font-bold flex items-center gap-1">
+                          {g.header?.design_id}
+                          {g.header?.panel_no === "METERAN" ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider">METERAN</span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">PANEL</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="text-[11px] text-slate-800 font-bold uppercase tracking-wider">
+                          {g.header?.potongan_ke}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <div className="inline-flex items-center gap-1.5">
+                          <div className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-slate-100 font-extrabold text-slate-700 text-xs whitespace-nowrap border border-slate-200/60 shadow-xs">
+                            {g.pcs_index} / {g.total_pcs || g.pcs_index}
+                          </div>
+                          {isPausedItem && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-black text-[10px] animate-pulse">
+                              <Pause className="w-3 h-3 fill-amber-600" /> DIPAUSE
+                            </span>
+                          )}
+                          {isProcessingItem && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px]">
+                              <Play className="w-3 h-3 fill-emerald-600" /> PROSES
+                            </span>
+                          )}
+                        </div>
+                        {g.meter_kain && (
+                          <div className="text-[10px] text-slate-500 font-bold mt-1.5 uppercase tracking-wider">
+                            {g.meter_kain}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        {isPausedItem ? (
+                          <button
+                            onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                            className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm flex items-center gap-1 mx-auto cursor-pointer"
+                          >
+                            <Play className="w-3 h-3 fill-white" /> Lanjut Inspeksi
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                            className="px-2 py-1.5 bg-sky-50 text-[#0070bc] hover:bg-sky-100 font-bold text-[10px] rounded-lg transition-all cursor-pointer"
+                          >
+                            {isProcessingItem ? "Buka Inspeksi" : "Mulai Inspeksi"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             

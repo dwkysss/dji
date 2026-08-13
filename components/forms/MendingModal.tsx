@@ -15,6 +15,7 @@ import {
   Scale,
 } from "lucide-react";
 import { submitMending } from "@/actions/mending-actions";
+import { formatHHMM } from "@/lib/shift-utils";
 
 const mendingSchema = z.object({
   petugas_mending: z.string().min(1, "Wajib diisi"),
@@ -91,7 +92,8 @@ export default function MendingModal({
       const mins = String(now.getMinutes()).padStart(2, "0");
       const currentTime = `${hours}:${mins}`;
 
-      setValue("start_mending", startMendingTime || storedStart || currentTime);
+      const formattedStart = formatHHMM(startMendingTime);
+      setValue("start_mending", formattedStart || storedStart || currentTime);
       setValue("finish_mending", currentTime);
 
       let countA = 0;

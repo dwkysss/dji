@@ -106,3 +106,59 @@ export function formatDisplayTimestamp(dateInput: Date | string | number): strin
     hour12: false,
   }) + " WIB";
 }
+
+/**
+ * Formats a time string or ISO string into a clean HH:mm (24-hour) string in Asia/Jakarta (WIB).
+ * Strips raw ISO format like "2026-08-13T03:37:19.282+00:00" into clean "03:37" or "10:37".
+ */
+export function formatHHMM(timeInput?: string | null): string {
+  if (!timeInput) return "";
+  const str = String(timeInput).trim();
+  if (!str) return "";
+
+  // Simple HH:mm
+  if (/^\d{1,2}:\d{2}$/.test(str)) {
+    const parts = str.split(":");
+    return `${parts[0].padStart(2, "0")}:${parts[1]}`;
+  }
+
+  // Simple HH:mm:ss
+  if (/^\d{1,2}:\d{2}:\d{2}$/.test(str)) {
+    const parts = str.split(":");
+    return `${parts[0].padStart(2, "0")}:${parts[1]}`;
+  }
+
+  // ISO or date-time string
+  try {
+    const dt = parseAsWibDate(str);
+    if (!isNaN(dt.getTime())) {
+      return dt.toLocaleTimeString("en-GB", {
+        timeZone: "Asia/Jakarta",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    }
+  } catch (e) {
+    // fallback
+  }
+
+  return str;
+}
+
+/**
+ * Formats total seconds into a digital stopwatch timer string (e.g., 65 -> "01:05", 3665 -> "01:01:05").
+ */
+export function formatTimerSeconds(totalSec: number): string {
+  if (isNaN(totalSec) || totalSec < 0) totalSec = 0;
+  const hrs = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (hrs > 0) {
+    return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+  }
+  return `${pad(mins)}:${pad(secs)}`;
+}
+

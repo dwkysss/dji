@@ -243,7 +243,7 @@ export default function SuratJalanPage() {
                         {parsedTujuan}
                       </td>
                       <td className="px-6 py-4 font-bold text-[#0070bc]">
-                        {item.surat_jalan_details[0]?.count || 0} Batch
+                        {item.surat_jalan_details[0]?.count || 0} Item
                       </td>
                       <td className="px-6 py-4">
                         <span
