@@ -61,29 +61,43 @@ const QC_OPERATORS = [
   { id: "Taufik", name: "Taufik" },
 ];
 
-const calculateDurationStr = (start?: string | null, finish?: string | null, pauseSec: number = 0) => {
+const calculateDurationStr = (start?: string | null, finish?: string | null, pauseSec: number = 0, elapsedSec?: number | null) => {
+  if (elapsedSec !== undefined && elapsedSec !== null && elapsedSec > 0) {
+    const hours = Math.floor(elapsedSec / 3600);
+    const mins = Math.floor((elapsedSec % 3600) / 60);
+    const secs = elapsedSec % 60;
+    if (hours > 0) return `${hours}j ${mins}m`;
+    if (mins === 0 && secs > 0) return `${secs} dtk`;
+    return `${mins} mnt`;
+  }
   if (!start || !finish) return "-";
-  const parseMins = (str: string) => {
-    const match = str.match(/(\d{1,2}):(\d{2})/);
-    if (!match) return null;
-    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-  };
-  const sMins = parseMins(start);
-  const fMins = parseMins(finish);
-  if (sMins === null || fMins === null) return "-";
 
-  let diff = fMins - sMins;
-  if (diff < 0) diff += 24 * 60;
+  const parseSecs = (str: string) => {
+    const match = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (!match) return null;
+    const h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const s = match[3] ? parseInt(match[3], 10) : 0;
+    return h * 3600 + m * 60 + s;
+  };
+
+  const sSecs = parseSecs(start);
+  const fSecs = parseSecs(finish);
+  if (sSecs === null || fSecs === null) return "-";
+
+  let diff = fSecs - sSecs;
+  if (diff < 0) diff += 24 * 3600;
 
   if (pauseSec > 0) {
-    diff = Math.max(0, diff - Math.floor(pauseSec / 60));
+    diff = Math.max(0, diff - pauseSec);
   }
 
-  const hours = Math.floor(diff / 60);
-  const mins = diff % 60;
-  if (hours > 0) {
-    return `${hours}j ${mins}m`;
-  }
+  const hours = Math.floor(diff / 3600);
+  const mins = Math.floor((diff % 3600) / 60);
+  const secs = diff % 60;
+
+  if (hours > 0) return `${hours}j ${mins}m`;
+  if (mins === 0 && secs > 0) return `${secs} dtk`;
   return `${mins} mnt`;
 };
 
@@ -338,7 +352,7 @@ export default function QCHistoryPage() {
                             {group.tanggal_inspeksi} {group.finish_inspect || "-"}
                           </td>
                           <td className="px-3 py-3 lg:px-4 lg:py-4 font-extrabold text-amber-700 text-xs text-center whitespace-nowrap">
-                            {calculateDurationStr(group.start_inspect, group.finish_inspect, group.pause_seconds || 0)}
+                            {calculateDurationStr(group.start_inspect, group.finish_inspect, group.pause_seconds || 0, group.elapsed_seconds)}
                           </td>
                           <td className="px-3 py-3 lg:px-6 lg:py-4">
                             <div className="font-bold text-slate-800">

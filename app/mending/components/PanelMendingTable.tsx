@@ -79,8 +79,8 @@ export default function PanelMendingTable({
               <td className="px-1.5 py-1 font-medium text-slate-700 text-center border-r border-slate-100 border-b border-slate-100">
                 {item.showGrp ? (item.grpStr || "-") : ""}
               </td>
-              <td className="px-2 py-1 font-medium text-slate-700 leading-tight border-r border-slate-100 border-b border-slate-100">
-                {item.showOpr ? (item.oprStr || "-") : ""}
+              <td className={`px-2 py-1 font-medium leading-tight border-r border-slate-100 border-b border-slate-100 ${((item.hasIstirahat || item.isIstirahat) && (!item.showOpr || !item.oprStr)) ? "italic font-bold text-amber-600" : "text-slate-700"}`}>
+                {item.showOpr ? (item.oprStr || ((item.hasIstirahat || item.isIstirahat) ? "Istirahat" : "")) : ((item.hasIstirahat || item.isIstirahat) ? "Istirahat" : "")}
               </td>
               <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100 border-b border-slate-100">
                 {item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}

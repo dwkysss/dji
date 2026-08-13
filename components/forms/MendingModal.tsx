@@ -40,6 +40,8 @@ interface MendingModalProps {
   detailData?: any[]; // To get berat_inspecting
   onSuccess: () => void;
   startMendingTime?: string;
+  pauseSeconds?: number;
+  elapsedSeconds?: number;
 }
 
 export default function MendingModal({
@@ -50,6 +52,8 @@ export default function MendingModal({
   detailData,
   onSuccess,
   startMendingTime,
+  pauseSeconds = 0,
+  elapsedSeconds = 0,
 }: MendingModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -88,12 +92,14 @@ export default function MendingModal({
       const storedStart = localStorage.getItem("mending_start");
 
       const now = new Date();
-      const hours = String(now.getHours()).padStart(2, "0");
-      const mins = String(now.getMinutes()).padStart(2, "0");
-      const currentTime = `${hours}:${mins}`;
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const currentTime = `${hh}:${mm}`;
 
-      const formattedStart = formatHHMM(startMendingTime);
-      setValue("start_mending", formattedStart || storedStart || currentTime);
+      const rawStart = startMendingTime || storedStart;
+      const initialStart = formatHHMM(rawStart) || currentTime;
+
+      setValue("start_mending", initialStart);
       setValue("finish_mending", currentTime);
 
       let countA = 0;
@@ -180,6 +186,8 @@ export default function MendingModal({
         mending_grade_bs: data.mending_grade_bs,
         berat_kain: data.berat_kain,
         notes: data.notes,
+        pause_seconds: pauseSeconds,
+        elapsed_seconds: elapsedSeconds,
       });
 
       if (!res.success) {

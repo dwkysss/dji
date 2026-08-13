@@ -25,7 +25,7 @@ import {
 import QCInspectionModal from "@/components/forms/QCInspectionModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
-import { createProblemDetail } from "@/actions/problem-detail-actions";
+import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import {
   getAvailableQCFilters,
   addQCDefectDetail,
@@ -35,6 +35,7 @@ import {
   deleteProductionDetailRow,
 } from "@/actions/qc-actions";
 import { getEmployeeHistoryDetail } from "@/actions/employee-actions";
+import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import {
   getTimerSession,
   upsertTimerSession,
@@ -44,6 +45,7 @@ import {
 import PanelQCTable from "./components/PanelQCTable";
 import MeterQCTable from "./components/MeterQCTable";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
+import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
 import { formatHHMM, formatTimerSeconds } from "@/lib/shift-utils";
 
 // Problem categories matching ContinuousForm
@@ -74,7 +76,7 @@ const QC_INSPECTION_TOUR_STEPS: ProductTourStep[] = [
   },
 ];
 
-const PROBLEM_CATEGORIES = [
+const DEFAULT_PROBLEM_CATEGORIES = [
   { id: "A", name: "Kode A: Masalah dan Perbaikan Benang" },
   { id: "B", name: "Kode B: Perbaikan Jarum dan Element Rajutan (Mechanical)" },
   { id: "C", name: "Kode C: Pengaturan dan Design stup" },
@@ -84,7 +86,7 @@ const PROBLEM_CATEGORIES = [
   { id: "G", name: "Kode G: Faktor Eksternal dan Non-Teknis" },
 ];
 
-export const PROBLEM_DETAILS: Record<string, string[]> = {
+export const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = {
   A: ["L1/L2/L3 Benang timbul putus", "Benang lolos", "Bolong corak", "Benang narik/Kendor", "Benang Nyilang", "Perbaikan/Beset benang Dasar", "Benang Kejepit/Jebol/Kusut", "Jalur benang"],
   B: ["Jarum pattern patah/bengkok", "Ganti Jacquard", "Ganti jarum Compoun Nedle, pattern", "Ngampul", "Ganti dari scaloop ke non scaloop atau sebaliknya", "Ngegaris/Stopline", "Keluar Jarum", "Ganti String bar", "Ganti PBO", "Pressan As beam kendor", "Tensi tensioner"],
   C: ["Loading design/Ganti Design", "Perbaikan corak/revisi", "Salah ganti design", "Error design", "Proofing/PCB", "Ganti Pattern Disk", "Ganti pick"],
@@ -93,6 +95,8 @@ export const PROBLEM_DETAILS: Record<string, string[]> = {
   F: ["Perbaikan cilynder Angin", "Ganti Bellow", "Perbaikan gear/Take Up Roll", "Ganti rantai/pertensi", "Ganti Black grip roll", "Ganti Oli", "Pelumasan/greace pada mesin", "Ganti Vanbelt", "Perawatan Panel Listrik", "Servis Overhaul"],
   G: ["Hari Libur", "Tidak ada order", "Tunggu info", "Demo", "Bencana/gempa/banjir", "Istirahat selama buka puasa", "Tunggu Sparepart", "Mati Listrik"],
 };
+
+export const PROBLEM_DETAILS = DEFAULT_PROBLEM_DETAILS;
 
 const cleanMeterVal = (val: any) => {
   if (val === null || val === undefined) return "";
@@ -193,10 +197,11 @@ export default function QCPage() {
   const [activeQcPcs, setActiveQcPcs] = useState<{ nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string } | null>(null);
   const [fullActiveQcDetails, setFullActiveQcDetails] = useState<any[]>([]);
   const [startInspectTime, setStartInspectTime] = useState<string>("");
-
+  const [startTimeIso, setStartTimeIso] = useState<string | null>(null);
+  const [pausedAt, setPausedAt] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState<number>(Date.now());
   const [isPaused, setIsPaused] = useState(false);
   const [pauseSeconds, setPauseSeconds] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [activeSessionsMap, setActiveSessionsMap] = useState<Map<string, any>>(new Map());
 
@@ -212,18 +217,54 @@ export default function QCPage() {
     }
   };
 
+  const [problemCategories, setProblemCategories] = useState(DEFAULT_PROBLEM_CATEGORIES);
+  const [problemDetailsMap, setProblemDetailsMap] = useState<Record<string, string[]>>(DEFAULT_PROBLEM_DETAILS);
+
   useEffect(() => {
-    fetchActiveSessions();
+    // Parallelize metadata fetching on page load
+    Promise.all([
+      fetchActiveSessions(),
+      getProblemCategories(),
+      getProblemDetailsGrouped(),
+      getAvailableQCFilters(),
+    ]).then(([_, catRes, groupRes, filterRes]) => {
+      if (catRes?.success && catRes.categories && catRes.categories.length > 0) {
+        const mapped = catRes.categories.map((c) => ({
+          id: c.kode,
+          name: c.label.toLowerCase().includes("kode") ? c.label : `Kode ${c.kode}: ${c.label}`,
+        }));
+        setProblemCategories(mapped);
+      }
+      if (groupRes?.success && groupRes.grouped && Object.keys(groupRes.grouped).length > 0) {
+        setProblemDetailsMap(groupRes.grouped);
+      }
+      if (filterRes?.success && filterRes.data) {
+        setAvailableFilters(filterRes.data);
+      }
+      setIsLoadingFilters(false);
+    }).catch((e) => console.error("Error loading parallel metadata:", e));
   }, []);
 
-  // Live timer interval ticking every second (freezes when paused)
+  // 1-second interval to tick nowMs when active (updates UI in real time, immune to tab throttle drift)
   useEffect(() => {
-    if (!activeQcPcs || isPaused) return;
+    if (!activeQcPcs) return;
+    setNowMs(Date.now());
     const interval = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
+      setNowMs(Date.now());
     }, 1000);
     return () => clearInterval(interval);
-  }, [activeQcPcs, isPaused]);
+  }, [activeQcPcs]);
+
+  // Dynamically compute real-time elapsed seconds from start time and pause duration
+  const elapsedSeconds = React.useMemo(() => {
+    if (!startTimeIso) return 0;
+    const startMs = new Date(startTimeIso).getTime();
+    if (isNaN(startMs)) return 0;
+
+    const endMs = isPaused && pausedAt ? new Date(pausedAt).getTime() : nowMs;
+    const totalSec = Math.floor((endMs - startMs) / 1000) - pauseSeconds;
+    return Math.max(0, totalSec);
+  }, [startTimeIso, isPaused, pausedAt, nowMs, pauseSeconds]);
 
   // Periodic auto-sync active timer session to DB every 5 seconds
   useEffect(() => {
@@ -237,15 +278,37 @@ export default function QCPage() {
         pcs_index: activeQcPcs.pcs_index,
         is_paused: isPaused,
         pause_seconds: pauseSeconds,
+        paused_at: pausedAt,
         elapsed_seconds: elapsedSeconds,
       });
     }, 5000);
     return () => clearInterval(syncInterval);
-  }, [activeQcPcs, isPaused, pauseSeconds, elapsedSeconds]);
+  }, [activeQcPcs, isPaused, pauseSeconds, pausedAt, elapsedSeconds]);
 
   const handleTogglePause = async () => {
     const nextPause = !isPaused;
+    const nowIso = new Date().toISOString();
+    let nextPauseSeconds = pauseSeconds;
+    let nextPausedAt: string | null = null;
+
+    if (nextPause) {
+      // Pausing session
+      nextPausedAt = nowIso;
+      setPausedAt(nextPausedAt);
+    } else {
+      // Resuming session
+      if (pausedAt) {
+        const duration = Math.floor((new Date(nowIso).getTime() - new Date(pausedAt).getTime()) / 1000);
+        if (duration > 0) {
+          nextPauseSeconds += duration;
+        }
+      }
+      setPauseSeconds(nextPauseSeconds);
+      setPausedAt(null);
+    }
+
     setIsPaused(nextPause);
+
     if (activeQcPcs) {
       await upsertTimerSession({
         type: "qc",
@@ -254,7 +317,8 @@ export default function QCPage() {
         potongan_ke: activeQcPcs.potongan_ke,
         pcs_index: activeQcPcs.pcs_index,
         is_paused: nextPause,
-        pause_seconds: pauseSeconds,
+        pause_seconds: nextPauseSeconds,
+        paused_at: nextPausedAt,
         elapsed_seconds: elapsedSeconds,
       });
       fetchActiveSessions();
@@ -298,6 +362,28 @@ export default function QCPage() {
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
   const [insertPanelKeterangan, setInsertPanelKeterangan] = useState<string>("");
   const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
+  const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadRequiredDefects = async () => {
+      const saved = localStorage.getItem("dji_required_block_defects");
+      if (saved) {
+        try {
+          setRequiredBlockDefects(JSON.parse(saved));
+        } catch (e) {}
+      }
+      const res = await getBlockRequiredDefects();
+      if (res.success && res.data) {
+        setRequiredBlockDefects(res.data);
+        try {
+          localStorage.setItem("dji_required_block_defects", JSON.stringify(res.data));
+        } catch (e) {}
+      }
+    };
+    loadRequiredDefects();
+    window.addEventListener("storage_dji_required_block_defects", loadRequiredDefects);
+    return () => window.removeEventListener("storage_dji_required_block_defects", loadRequiredDefects);
+  }, []);
 
   // Add Defect Modal State (METERAN only)
   const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
@@ -337,16 +423,7 @@ export default function QCPage() {
     } catch (e) {}
   };
 
-  useEffect(() => {
-    const loadFilters = async () => {
-      const res = await getAvailableQCFilters();
-      if (res.success && res.data) {
-        setAvailableFilters(res.data);
-      }
-      setIsLoadingFilters(false);
-    };
-    loadFilters();
-  }, []);
+
 
   // Auto-select BS (value 4) for panels with jml_hasil_produksi === 0
   useEffect(() => {
@@ -369,10 +446,10 @@ export default function QCPage() {
   const availableMesins = Array.from(new Set(availableFilters.map((f) => f.nomor_mc))).sort();
 
   useEffect(() => {
-    handleSearch(searchTanggal);
+    handleSearch(searchTanggal, searchMesin, searchPotongan);
   }, [searchTanggal]);
 
-  const handleSearch = async (tanggal: string) => {
+  const handleSearch = async (tanggal?: string, mesin?: string, potongan?: string) => {
     setIsSearching(true);
     setErrorMsg(null);
     setAllDetails([]);
@@ -380,7 +457,15 @@ export default function QCPage() {
     setSelections({});
     setCurrentPage(1);
 
-    const res = await getAllPendingQCDetails(tanggal || undefined);
+    const t = tanggal !== undefined ? tanggal : searchTanggal;
+    const m = mesin !== undefined ? mesin : searchMesin;
+    const p = potongan !== undefined ? potongan : searchPotongan;
+
+    const res = await getAllPendingQCDetails({
+      tanggal: t || undefined,
+      mesin: m || undefined,
+      potongan: p || undefined,
+    });
     
     if (res.success && res.data) {
       setAllDetails(res.data);
@@ -469,24 +554,34 @@ export default function QCPage() {
   const handleStartQC = async (nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string) => {
     setActiveQcPcs({ nomor_mc: String(nomor_mc), design_id: String(design_id), potongan_ke: String(potongan_ke), pcs_index: String(pcs_index) });
     setSelections({});
-    
+    const now = new Date();
+    setNowMs(now.getTime());
+    const defaultIso = now.toISOString();
+
     // Check DB for active session
     const sessionRes = await getTimerSession("qc", nomor_mc, design_id, potongan_ke, pcs_index);
     if (sessionRes.success && sessionRes.data) {
       const s = sessionRes.data;
-      setIsPaused(s.is_paused);
+      setIsPaused(s.is_paused || false);
       setPauseSeconds(s.pause_seconds || 0);
-      setElapsedSeconds(s.elapsed_seconds || 0);
-      setStartInspectTime(formatHHMM(s.start_time) || new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }));
+      setPausedAt(s.paused_at || null);
+
+      let startIso = s.start_time || defaultIso;
+      if (/^\d{1,2}:\d{2}$/.test(startIso)) {
+        const [hStr, mStr] = startIso.split(":");
+        const d = new Date();
+        d.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
+        startIso = d.toISOString();
+      }
+
+      setStartTimeIso(startIso);
+      setStartInspectTime(formatHHMM(startIso));
     } else {
       setIsPaused(false);
       setPauseSeconds(0);
-      setElapsedSeconds(0);
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      const startStr = `${hh}:${mm}`;
-      setStartInspectTime(startStr);
+      setPausedAt(null);
+      setStartTimeIso(defaultIso);
+      setStartInspectTime(formatHHMM(defaultIso));
 
       await upsertTimerSession({
         type: "qc",
@@ -494,7 +589,7 @@ export default function QCPage() {
         design_id: String(design_id),
         potongan_ke: String(potongan_ke),
         pcs_index: String(pcs_index),
-        start_time: startStr,
+        start_time: defaultIso,
         is_paused: false,
         pause_seconds: 0,
         elapsed_seconds: 0,
@@ -862,105 +957,38 @@ export default function QCPage() {
   if (activeQcPcs) {
     return (
       <div className="w-full max-w-6xl mx-auto pb-10">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <button
-              onClick={() => { setActiveQcPcs(null); setFullActiveQcDetails([]); handleSearch(searchTanggal); }}
-              className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-sky-600 transition-colors w-fit mb-1"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Kembali ke Antrean
-            </button>
-            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-              <ClipboardCheck className="w-6 h-6 text-sky-500" />
-              Inspeksi PCS {activeQcPcs.pcs_index}
-            </h1>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-3">
-            {startInspectTime && (
-              <div className="flex items-center gap-2">
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Mulai</span>
-                  <div className="h-10 px-3 rounded-xl bg-slate-100 border border-slate-200 text-xs font-extrabold text-slate-700 flex items-center gap-1.5 shadow-sm">
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
-                    {formatHHMM(startInspectTime)}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                    {isPaused ? "Status" : "Timer Berjalan"}
-                  </span>
-                  <div className={`h-10 px-3.5 rounded-xl text-xs font-black flex items-center gap-2 border shadow-sm transition-all ${
-                    isPaused 
-                      ? "bg-amber-50 border-amber-200 text-amber-700" 
-                      : "bg-emerald-50 border-emerald-200 text-emerald-700"
-                  }`}>
-                    <span className={`w-2 h-2 rounded-full ${isPaused ? "bg-amber-500" : "bg-emerald-500 animate-ping"}`} />
-                    <Timer className="w-4 h-4 text-current" />
-                    <span className="font-mono text-sm tracking-wider">
-                      {formatTimerSeconds(elapsedSeconds)}
-                    </span>
-                    {isPaused && (
-                      <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-bold ml-0.5">
-                        PAUSED
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={handleTogglePause}
-              className={`h-10 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
-                isPaused
-                  ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-                  : "bg-amber-500 hover:bg-amber-600 text-white active:scale-95"
-              }`}
-            >
-              {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-              {isPaused ? "Lanjut Inspeksi" : "Pause Inspeksi"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsCancelConfirmOpen(true)}
-              className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold border border-rose-200/80 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Batal Inspeksi
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsTourOpen(true)}
-              className="h-10 px-4 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all flex items-center gap-2"
-            >
-              <HelpCircle className="w-4 h-4" /> Bantuan
-            </button>
-          </div>
-        </div>
+        <SessionTimerHeader
+          title={`Inspeksi PCS ${activeQcPcs.pcs_index}`}
+          icon={<ClipboardCheck className="w-6 h-6 text-sky-500 shrink-0" />}
+          onBack={async () => {
+            if (activeQcPcs) {
+              await upsertTimerSession({
+                type: "qc",
+                nomor_mc: activeQcPcs.nomor_mc,
+                design_id: activeQcPcs.design_id,
+                potongan_ke: activeQcPcs.potongan_ke,
+                pcs_index: activeQcPcs.pcs_index,
+                is_paused: isPaused,
+                pause_seconds: pauseSeconds,
+                elapsed_seconds: elapsedSeconds,
+              });
+            }
+            setActiveQcPcs(null);
+            setFullActiveQcDetails([]);
+            handleSearch(searchTanggal);
+          }}
+          backLabel="Kembali ke Antrean"
+          startTime={startInspectTime}
+          elapsedSeconds={elapsedSeconds}
+          isPaused={isPaused}
+          onTogglePause={handleTogglePause}
+          onCancel={() => setIsCancelConfirmOpen(true)}
+          cancelLabel="Batal Inspeksi"
+          onHelp={() => setIsTourOpen(true)}
+          pauseLabel="Inspeksi"
+        />
 
-        {isPaused && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-between shadow-sm animate-fadeIn">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 rounded-xl text-amber-700">
-                <Pause className="w-5 h-5 fill-amber-600" />
-              </div>
-              <div>
-                <h4 className="font-extrabold text-sm text-amber-900">Inspeksi Sedang Di-Pause</h4>
-                <p className="text-xs text-amber-700 font-semibold mt-0.5">
-                  Timer dihentikan sementara. Tekan tombol &quot;Lanjut Inspeksi&quot; untuk meneruskan.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsPaused(false)}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
-            >
-              <Play className="w-4 h-4" /> Lanjut Inspeksi
-            </button>
-          </div>
-        )}
+
 
         <div className="mb-6">
           <CompactHeaderCard {...compactProps} />
@@ -1072,6 +1100,7 @@ export default function QCPage() {
             selections={selections}
             startInspectTime={startInspectTime}
             pauseSeconds={pauseSeconds}
+            elapsedSeconds={elapsedSeconds}
             onSuccess={async () => {
               setIsModalOpen(false);
               if (activeQcPcs) {
@@ -1116,7 +1145,7 @@ export default function QCPage() {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-rose-600 uppercase">Kategori Masalah <span className="text-rose-500">*</span> (Pilih 1 atau lebih)</label>
                   <div className="flex flex-col gap-2 mt-1">
-                    {PROBLEM_CATEGORIES.map((c) => {
+                    {problemCategories.map((c) => {
                       const isChecked = defectKategori.includes(c.id);
                       return (
                         <div key={c.id} className="flex flex-col gap-1">
@@ -1136,7 +1165,7 @@ export default function QCPage() {
                             <div className="pl-4 pr-2 py-2 border-l-2 border-rose-200 ml-2 animate-fadeIn mt-1 flex flex-col gap-1.5">
                               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Pilih Detail Masalah</label>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                 {(PROBLEM_DETAILS[c.id] || []).map((p) => {
+                                 {(problemDetailsMap[c.id] || []).map((p) => {
                                   const currentList = defectDetailMap[c.id] || [];
                                   const isDetailChecked = currentList.includes(p);
                                   return (
@@ -1159,7 +1188,7 @@ export default function QCPage() {
                                         }}
                                         className="peer sr-only"
                                       />
-                                      <div className="p-2.5 rounded-xl border border-slate-150 bg-white text-[11px] font-semibold text-slate-650 peer-checked:border-rose-450 peer-checked:bg-rose-50/30 peer-checked:text-rose-700 transition-all hover:border-slate-200 flex items-center justify-between shadow-sm">
+                                      <div className="p-2.5 rounded-xl border border-slate-150 bg-white text-[11px] font-semibold text-slate-655 peer-checked:border-rose-450 peer-checked:bg-rose-50/30 peer-checked:text-rose-700 transition-all hover:border-slate-200 flex items-center justify-between shadow-sm">
                                         <span>{p}</span>
                                         {isDetailChecked && <CheckCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 ml-1" />}
                                       </div>
@@ -1168,7 +1197,7 @@ export default function QCPage() {
                                 })}
 
                                 {(defectDetailMap[c.id] || [])
-                                  .filter((p) => !(PROBLEM_DETAILS[c.id] || []).includes(p))
+                                  .filter((p) => !(problemDetailsMap[c.id] || []).includes(p))
                                   .map((customDetail) => (
                                     <div key={`${c.id}-${customDetail}`} className="relative flex items-center">
                                       <div className="flex-1 p-2.5 rounded-xl border border-rose-450 bg-rose-50/30 text-rose-700 text-[11px] font-semibold flex items-center justify-between shadow-sm">
@@ -1378,7 +1407,7 @@ export default function QCPage() {
                       Pilih Temuan Cacat / Masalah
                     </label>
                     <div className="space-y-2">
-                      {PROBLEM_CATEGORIES.map((cat) => (
+                      {problemCategories.map((cat) => (
                         <div key={cat.id} className="flex flex-col gap-2">
                           <label className="cursor-pointer">
                             <input
@@ -1408,13 +1437,13 @@ export default function QCPage() {
                             </div>
                           </label>
 
-                          {selectedCategories.includes(cat.id) && PROBLEM_DETAILS[cat.id] && (
+                          {selectedCategories.includes(cat.id) && problemDetailsMap[cat.id] && (
                             <div className="pl-4 pr-2 py-2 border-l-2 border-sky-200 ml-2 animate-in slide-in-from-top-2">
                               <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">
                                 Pilih Detail Masalah
                               </label>
                               <div className="grid grid-cols-2 gap-2">
-                                 {PROBLEM_DETAILS[cat.id].map((detail) => (
+                                 {problemDetailsMap[cat.id].map((detail) => (
                                   <label key={detail} className="cursor-pointer">
                                     <input
                                       type="checkbox"
@@ -1442,7 +1471,7 @@ export default function QCPage() {
                                 ))}
 
                                 {(selectedDetails[cat.id] || [])
-                                  .filter((d) => !(PROBLEM_DETAILS[cat.id] || []).includes(d))
+                                  .filter((d) => !(problemDetailsMap[cat.id] || []).includes(d))
                                   .map((customDetail) => (
                                     <div key={customDetail} className="relative flex items-center">
                                       <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
@@ -1501,30 +1530,10 @@ export default function QCPage() {
                                   </div>
                                 </div>
                               )}
-
-                              {(cat.id === "A" || cat.id === "B") && selectedDetails[cat.id]?.length > 0 && (
-                                <div className="mt-3 p-3 bg-sky-50 border border-sky-100 rounded-xl">
-                                  <label className="text-[10px] font-bold text-sky-800 uppercase mb-1.5 block flex items-center gap-1.5">
-                                    <Box className="w-3 h-3" />
-                                    Lokasi / Nomor Blok (Khusus A & B)
-                                  </label>
-                                  <input
-                                    type="text"
-                                    inputMode="text"
-                                    value={inputBloks[cat.id] || ""}
-                                    onChange={(e) => {
-                                      const filtered = e.target.value.replace(/[^0-9\-,\s]/g, "");
-                                      setInputBloks((prev) => ({ ...prev, [cat.id]: filtered }));
-                                    }}
-                                    placeholder="Contoh: 15, 18 atau 1-61"
-                                    className="w-full h-10 px-3 rounded-lg border border-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs font-bold text-slate-700 placeholder:font-medium placeholder:text-slate-400 bg-white"
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                             </div>
+                           )}
+                         </div>
+                       ))}
                     </div>
 
                     <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
@@ -1696,7 +1705,7 @@ export default function QCPage() {
             </select>
           </div>
           <button
-            onClick={() => handleSearch(searchTanggal)}
+            onClick={() => handleSearch(searchTanggal, searchMesin, searchPotongan)}
             disabled={isSearching}
             className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm w-full col-span-2 sm:col-span-1"
           >
@@ -1784,11 +1793,6 @@ export default function QCPage() {
                             </span>
                           )}
                         </div>
-                        {g.meter_kain && (
-                          <div className="text-[10px] text-slate-500 font-bold mt-1.5 uppercase tracking-wider">
-                            {g.meter_kain}
-                          </div>
-                        )}
                       </td>
                       <td className="px-2 py-2 text-center">
                         {isPausedItem ? (

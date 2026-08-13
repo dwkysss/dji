@@ -424,13 +424,13 @@ export default function MeterQCTable({
                   {item.displayNo}
                 </td>
                 <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100">
-                  {item.hasIstirahat ? "" : (item.showTgl ? item.tglStr : "")}
+                  {item.showTgl ? item.tglStr : ""}
                 </td>
                 <td className="px-1 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100">
-                  {item.hasIstirahat ? "" : (item.showGrp ? item.grpStr : "")}
+                  {item.showGrp ? item.grpStr : ""}
                 </td>
-                <td className="px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 font-medium text-slate-700">
-                  {item.showOpr ? item.oprStr : ""}
+                <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 ${(item.hasIstirahat && (!item.showOpr || !item.oprStr)) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
+                  {item.showOpr ? (item.oprStr || (item.hasIstirahat ? "Istirahat" : "")) : (item.hasIstirahat ? "Istirahat" : "")}
                 </td>
                 <td className="px-1 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100">
                   {item.meterDisplay}

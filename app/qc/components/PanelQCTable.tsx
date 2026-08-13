@@ -40,7 +40,10 @@ export default function PanelQCTable({
                            !!item.kategori_masalah?.toUpperCase().includes("ISTIRAHAT")) && 
                           !item.kategori_masalah && !item.detail_masalah;
       const hasIstirahat = !!item.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || 
-                           !!item.kategori_masalah?.toUpperCase().includes("ISTIRAHAT");
+                           !!item.kategori_masalah?.toUpperCase().includes("ISTIRAHAT") ||
+                           !!h.operator_backup ||
+                           !!h.operators?.nama_operator?.toUpperCase().includes("ISTIRAHAT") ||
+                           !!h.pic?.toUpperCase().includes("ISTIRAHAT");
 
       return {
         item,
@@ -406,13 +409,13 @@ export default function PanelQCTable({
                 )}
               </td>
               <td className="px-1 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100">
-                {hasIstirahat ? "" : (showTgl ? tglStr : "")}
+                {showTgl ? tglStr : ""}
               </td>
               <td className="px-1 py-1 font-medium text-slate-700 text-center border-r border-slate-100">
-                {hasIstirahat ? "" : (showGrp ? grpStr : "")}
+                {showGrp ? grpStr : ""}
               </td>
-              <td className="px-1 py-1 leading-tight border-r border-slate-100 text-slate-700 font-medium">
-                {showOpr ? item.oprBase : ""}
+              <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(hasIstirahat && (!showOpr || isIstirahatOnly || !item.oprBase)) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
+                {showOpr ? (hasIstirahat && isIstirahatOnly ? "Istirahat" : (item.oprBase || (hasIstirahat ? "Istirahat" : ""))) : (hasIstirahat ? "Istirahat" : "")}
               </td>
               <td className="px-1 py-1 text-center font-bold text-sm border-r border-slate-100">
                 {item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}

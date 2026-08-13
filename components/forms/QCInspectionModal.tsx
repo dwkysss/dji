@@ -43,6 +43,7 @@ interface QCInspectionModalProps {
   onSuccess?: () => void;
   startInspectTime?: string;
   pauseSeconds?: number;
+  elapsedSeconds?: number;
 }
 
 export default function QCInspectionModal({
@@ -53,6 +54,7 @@ export default function QCInspectionModal({
   onSuccess,
   startInspectTime,
   pauseSeconds = 0,
+  elapsedSeconds = 0,
 }: QCInspectionModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -96,12 +98,14 @@ export default function QCInspectionModal({
       const storedStart = localStorage.getItem("qc_start");
 
       const now = new Date();
-      const hours = String(now.getHours()).padStart(2, "0");
-      const mins = String(now.getMinutes()).padStart(2, "0");
-      const currentTime = `${hours}:${mins}`;
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const currentTime = `${hh}:${mm}`;
 
-      const formattedStart = formatHHMM(startInspectTime);
-      setValue("start_inspect", formattedStart || storedStart || currentTime);
+      const rawStart = startInspectTime || storedStart;
+      const initialStart = formatHHMM(rawStart) || currentTime;
+
+      setValue("start_inspect", initialStart);
       setValue("finish_inspect", currentTime);
 
       let countCeklis = 0;
@@ -213,6 +217,8 @@ export default function QCInspectionModal({
         qc_ceklis: data.qc_ceklis,
         qc_silang: data.qc_silang,
         notes: data.notes,
+        pause_seconds: pauseSeconds,
+        elapsed_seconds: elapsedSeconds,
       };
 
       if (!navigator.onLine) {

@@ -30,14 +30,16 @@ import MendingModal from "@/components/forms/MendingModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
 import HeaderSummaryCard from "@/components/forms/HeaderSummaryCard";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
+import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
 import { formatHHMM, formatTimerSeconds } from "@/lib/shift-utils";
-import { createProblemDetail } from "@/actions/problem-detail-actions";
+import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import {
   getPendingMendingDetailsByDate,
   getMendingDetailsByGroup,
 } from "@/actions/mending-actions";
 import { insertMissingPanel, deleteProductionDetailRow } from "@/actions/qc-actions";
 import { getEmployeeHistoryDetail } from "@/actions/employee-actions";
+import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import {
   getTimerSession,
   upsertTimerSession,
@@ -47,7 +49,7 @@ import {
 import MeterMendingTable from "./components/MeterMendingTable";
 import PanelMendingTable from "./components/PanelMendingTable";
 
-const PROBLEM_DETAILS: Record<string, string[]> = {
+const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = {
   A: ["L1/L2/L3 Benang timbul putus", "Benang lolos", "Bolong corak", "Benang narik/Kendor", "Benang Nyilang", "Perbaikan/Beset benang Dasar", "Benang Kejepit/Jebol/Kusut", "Jalur benang"],
   B: ["Jarum pattern patah/bengkok", "Ganti Jacquard", "Ganti jarum Compoun Nedle, pattern", "Ngampul", "Ganti dari scaloop ke non scaloop atau sebaliknya", "Ngegaris/Stopline", "Keluar Jarum", "Ganti String bar", "Ganti PBO", "Pressan As beam kendor", "Tensi tensioner"],
   C: ["Loading design/Ganti Design", "Perbaikan corak/revisi", "Salah ganti design", "Error design", "Proofing/PCB", "Ganti Pattern Disk", "Ganti pick"],
@@ -57,7 +59,7 @@ const PROBLEM_DETAILS: Record<string, string[]> = {
   G: ["Hari Libur", "Tidak ada order", "Tunggu info", "Demo", "Bencana/gempa/banjir", "Istirahat selama buka puasa"]
 };
 
-const PROBLEM_CATEGORIES = [
+const DEFAULT_PROBLEM_CATEGORIES = [
   { id: "A", name: "Cacat Kain / Benang" },
   { id: "B", name: "Masalah Mesin / Jarum" },
   { id: "C", name: "Desain / Jacquard" },
@@ -148,10 +150,11 @@ export default function MendingPage() {
   const [activeMendingPcs, setActiveMendingPcs] = useState<{ nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string } | null>(null);
   const [fullActiveMendingDetails, setFullActiveMendingDetails] = useState<any[]>([]);
   const [startMendingTime, setStartMendingTime] = useState<string>("");
-
+  const [startTimeIso, setStartTimeIso] = useState<string | null>(null);
+  const [pausedAt, setPausedAt] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState<number>(Date.now());
   const [isPaused, setIsPaused] = useState(false);
   const [pauseSeconds, setPauseSeconds] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [activeSessionsMap, setActiveSessionsMap] = useState<Map<string, any>>(new Map());
 
@@ -167,18 +170,49 @@ export default function MendingPage() {
     }
   };
 
+  const [problemCategories, setProblemCategories] = useState(DEFAULT_PROBLEM_CATEGORIES);
+  const [problemDetailsMap, setProblemDetailsMap] = useState<Record<string, string[]>>(DEFAULT_PROBLEM_DETAILS);
+
   useEffect(() => {
-    fetchActiveSessions();
+    // Parallelize metadata fetching on page load
+    Promise.all([
+      fetchActiveSessions(),
+      getProblemCategories(),
+      getProblemDetailsGrouped(),
+    ]).then(([_, catRes, groupRes]) => {
+      if (catRes?.success && catRes.categories && catRes.categories.length > 0) {
+        const mapped = catRes.categories.map((c) => ({
+          id: c.kode,
+          name: c.label.toLowerCase().includes("kode") ? c.label : `Kode ${c.kode}: ${c.label}`,
+        }));
+        setProblemCategories(mapped);
+      }
+      if (groupRes?.success && groupRes.grouped && Object.keys(groupRes.grouped).length > 0) {
+        setProblemDetailsMap(groupRes.grouped);
+      }
+    }).catch((e) => console.error("Error loading parallel metadata:", e));
   }, []);
 
-  // Live timer interval ticking every second (freezes when paused)
+  // 1-second interval to tick nowMs when active (updates UI in real time, immune to tab throttle drift)
   useEffect(() => {
-    if (!activeMendingPcs || isPaused) return;
+    if (!activeMendingPcs) return;
+    setNowMs(Date.now());
     const interval = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
+      setNowMs(Date.now());
     }, 1000);
     return () => clearInterval(interval);
-  }, [activeMendingPcs, isPaused]);
+  }, [activeMendingPcs]);
+
+  // Dynamically compute real-time elapsed seconds from start time and pause duration
+  const elapsedSeconds = React.useMemo(() => {
+    if (!startTimeIso) return 0;
+    const startMs = new Date(startTimeIso).getTime();
+    if (isNaN(startMs)) return 0;
+
+    const endMs = isPaused && pausedAt ? new Date(pausedAt).getTime() : nowMs;
+    const totalSec = Math.floor((endMs - startMs) / 1000) - pauseSeconds;
+    return Math.max(0, totalSec);
+  }, [startTimeIso, isPaused, pausedAt, nowMs, pauseSeconds]);
 
   // Periodic auto-sync active timer session to DB every 5 seconds
   useEffect(() => {
@@ -192,15 +226,37 @@ export default function MendingPage() {
         pcs_index: activeMendingPcs.pcs_index,
         is_paused: isPaused,
         pause_seconds: pauseSeconds,
+        paused_at: pausedAt,
         elapsed_seconds: elapsedSeconds,
       });
     }, 5000);
     return () => clearInterval(syncInterval);
-  }, [activeMendingPcs, isPaused, pauseSeconds, elapsedSeconds]);
+  }, [activeMendingPcs, isPaused, pauseSeconds, pausedAt, elapsedSeconds]);
 
   const handleTogglePause = async () => {
     const nextPause = !isPaused;
+    const nowIso = new Date().toISOString();
+    let nextPauseSeconds = pauseSeconds;
+    let nextPausedAt: string | null = null;
+
+    if (nextPause) {
+      // Pausing session
+      nextPausedAt = nowIso;
+      setPausedAt(nextPausedAt);
+    } else {
+      // Resuming session
+      if (pausedAt) {
+        const duration = Math.floor((new Date(nowIso).getTime() - new Date(pausedAt).getTime()) / 1000);
+        if (duration > 0) {
+          nextPauseSeconds += duration;
+        }
+      }
+      setPauseSeconds(nextPauseSeconds);
+      setPausedAt(null);
+    }
+
     setIsPaused(nextPause);
+
     if (activeMendingPcs) {
       await upsertTimerSession({
         type: "mending",
@@ -209,7 +265,8 @@ export default function MendingPage() {
         potongan_ke: activeMendingPcs.potongan_ke,
         pcs_index: activeMendingPcs.pcs_index,
         is_paused: nextPause,
-        pause_seconds: pauseSeconds,
+        pause_seconds: nextPauseSeconds,
+        paused_at: nextPausedAt,
         elapsed_seconds: elapsedSeconds,
       });
       fetchActiveSessions();
@@ -248,6 +305,28 @@ export default function MendingPage() {
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
   const [insertPanelKeterangan, setInsertPanelKeterangan] = useState<string>("");
   const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
+  const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadRequiredDefects = async () => {
+      const saved = localStorage.getItem("dji_required_block_defects");
+      if (saved) {
+        try {
+          setRequiredBlockDefects(JSON.parse(saved));
+        } catch (e) {}
+      }
+      const res = await getBlockRequiredDefects();
+      if (res.success && res.data) {
+        setRequiredBlockDefects(res.data);
+        try {
+          localStorage.setItem("dji_required_block_defects", JSON.stringify(res.data));
+        } catch (e) {}
+      }
+    };
+    loadRequiredDefects();
+    window.addEventListener("storage_dji_required_block_defects", loadRequiredDefects);
+    return () => window.removeEventListener("storage_dji_required_block_defects", loadRequiredDefects);
+  }, []);
 
   const handleAddPanelManualDetail = (catId: string) => {
     const text = (manualInputDetails[catId] || "").trim();
@@ -335,14 +414,21 @@ export default function MendingPage() {
         keteranganParts.push(insertPanelKeterangan.trim());
       }
 
+      const targetPcsIndex = activeMendingPcs ? parseInt(activeMendingPcs.pcs_index) : 1;
+      const targetFinalInspectionId = insertPanelMode === "insert" && insertPanelIsBs
+        ? 4
+        : (selectedCategories.length > 0 ? 3 : (fullActiveMendingDetails[0]?.final_inspection_id || 1));
+
       const res = await insertMissingPanel({
         refHeaderId: targetHeaderId,
         insertAt: insertPanelMode === "insert" ? parseInt(insertPanelAt) : undefined,
         appendToEnd: insertPanelMode === "append",
+        pcsIndex: targetPcsIndex,
         kategoriMasalah: selectedCategories.length > 0 ? selectedCategories : undefined,
         detailMasalah: detailStr,
         keteranganCacat: keteranganParts.join(", ") || undefined,
         isBs: insertPanelMode === "insert" && insertPanelIsBs,
+        finalInspectionId: targetFinalInspectionId,
       });
 
       if (res.success && activeMendingPcs) {
@@ -483,48 +569,60 @@ export default function MendingPage() {
     if (res.success && res.data) {
       setFullActiveMendingDetails(res.data);
       
-      if (initSelections) {
-        const initialSelections: Record<string, string> = {};
+      setSelections((prev) => {
+        const next = initSelections ? {} : { ...prev };
         res.data.forEach((item: any) => {
-          const hasDefect = item.indikator_stop || (item.kategori_masalah && item.kategori_masalah.trim() !== "");
-          if (item.final_inspection_id === 4) {
-            initialSelections[item.id] = "BS";
-          } else if (item.final_inspection_id === 3) {
-            initialSelections[item.id] = "B";
-          } else {
-            if (!hasDefect) {
-              initialSelections[item.id] = "A";
+          if (!next[item.id]) {
+            const hasDefect = item.indikator_stop || (item.kategori_masalah && item.kategori_masalah.trim() !== "");
+            if (item.final_inspection_id === 4) {
+              next[item.id] = "BS";
+            } else if (item.final_inspection_id === 3) {
+              next[item.id] = "B";
             } else {
-              initialSelections[item.id] = "B";
+              if (!hasDefect) {
+                next[item.id] = "A";
+              } else {
+                next[item.id] = "B";
+              }
             }
           }
         });
-        setSelections(initialSelections);
-      }
+        return next;
+      });
     }
   };
 
   const handleStartMending = async (nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string) => {
     setActiveMendingPcs({ nomor_mc: String(nomor_mc), design_id: String(design_id), potongan_ke: String(potongan_ke), pcs_index: String(pcs_index) });
     setSelections({});
-    
+    const now = new Date();
+    setNowMs(now.getTime());
+    const defaultIso = now.toISOString();
+
     // Check DB for active session
     const sessionRes = await getTimerSession("mending", nomor_mc, design_id, potongan_ke, pcs_index);
     if (sessionRes.success && sessionRes.data) {
       const s = sessionRes.data;
-      setIsPaused(s.is_paused);
+      setIsPaused(s.is_paused || false);
       setPauseSeconds(s.pause_seconds || 0);
-      setElapsedSeconds(s.elapsed_seconds || 0);
-      setStartMendingTime(formatHHMM(s.start_time) || new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }));
+      setPausedAt(s.paused_at || null);
+
+      let startIso = s.start_time || defaultIso;
+      if (/^\d{1,2}:\d{2}$/.test(startIso)) {
+        const [hStr, mStr] = startIso.split(":");
+        const d = new Date();
+        d.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
+        startIso = d.toISOString();
+      }
+
+      setStartTimeIso(startIso);
+      setStartMendingTime(formatHHMM(startIso));
     } else {
       setIsPaused(false);
       setPauseSeconds(0);
-      setElapsedSeconds(0);
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      const startStr = `${hh}:${mm}`;
-      setStartMendingTime(startStr);
+      setPausedAt(null);
+      setStartTimeIso(defaultIso);
+      setStartMendingTime(formatHHMM(defaultIso));
 
       await upsertTimerSession({
         type: "mending",
@@ -532,7 +630,7 @@ export default function MendingPage() {
         design_id: String(design_id),
         potongan_ke: String(potongan_ke),
         pcs_index: String(pcs_index),
-        start_time: startStr,
+        start_time: defaultIso,
         is_paused: false,
         pause_seconds: 0,
         elapsed_seconds: 0,
@@ -638,7 +736,7 @@ export default function MendingPage() {
             cacatLines.push(k);
             return;
           }
-          const knownDetailsForCat = PROBLEM_DETAILS[k] || [];
+          const knownDetailsForCat = problemDetailsMap[k] || DEFAULT_PROBLEM_DETAILS[k] || [];
           const matchedDetails: string[] = [];
           let remainingD = d;
           const sortedKnown = [...knownDetailsForCat].sort((a, b) => b.length - a.length);
@@ -678,7 +776,7 @@ export default function MendingPage() {
               } else {
                 dets.forEach((det: string) => {
                   let foundKat = "Unknown";
-                  for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
+                  for (const [kat, detList] of Object.entries(problemDetailsMap || DEFAULT_PROBLEM_DETAILS)) {
                     if ((detList as string[]).some((d: string) => det.toLowerCase().includes(d.toLowerCase()))) {
                       foundKat = kat;
                       break;
@@ -928,7 +1026,7 @@ export default function MendingPage() {
           cacatLines.push(k);
           return;
         }
-        const knownDetailsForCat = PROBLEM_DETAILS[k] || [];
+        const knownDetailsForCat = problemDetailsMap[k] || DEFAULT_PROBLEM_DETAILS[k] || [];
         const matchedDetails: string[] = [];
         let remainingD = d;
         const sortedKnown = [...knownDetailsForCat].sort((a, b) => b.length - a.length);
@@ -972,7 +1070,7 @@ export default function MendingPage() {
             } else {
               dets.forEach((det: string) => {
                 let foundKat = "Unknown";
-                for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
+                for (const [kat, detList] of Object.entries(problemDetailsMap || DEFAULT_PROBLEM_DETAILS)) {
                   if ((detList as string[]).some((d: string) => det.toLowerCase().includes(d.toLowerCase()))) {
                     foundKat = kat;
                     break;
@@ -1262,99 +1360,341 @@ export default function MendingPage() {
     rollNo: firstDetail?.roll_no || "-"
   };
 
+  const renderInsertPanelModal = () => {
+    if (!insertPanelMode) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="p-5 border-b border-slate-150">
+            <h2 className="text-lg font-extrabold text-slate-800">
+              Tambah Panel
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Pilih apakah ingin menyisipkan panel baru di urutan tertentu atau menambahkannya di bagian paling akhir.
+            </p>
+          </div>
+
+          <div className="p-5 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+            {insertPanelError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 font-medium flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" /> {insertPanelError}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider mb-2">
+                Pilih Tipe Penambahan
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInsertPanelMode("append");
+                    setInsertPanelAt("");
+                  }}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 text-center transition-all ${
+                    insertPanelMode === "append"
+                      ? "border-[#0070bc] bg-sky-50 text-[#0070bc] font-bold"
+                      : "border-slate-200 text-slate-500 hover:border-slate-350 bg-white"
+                  }`}
+                >
+                  <span className="text-xs font-extrabold">Tambah di Akhir</span>
+                  <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Urutan terakhir</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInsertPanelMode("insert");
+                  }}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 text-center transition-all ${
+                    insertPanelMode === "insert"
+                      ? "border-[#0070bc] bg-sky-50 text-[#0070bc] font-bold"
+                      : "border-slate-200 text-slate-500 hover:border-slate-350 bg-white"
+                  }`}
+                >
+                  <span className="text-xs font-extrabold">Sisipkan Tengah</span>
+                  <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Posisi tertentu</span>
+                </button>
+              </div>
+            </div>
+
+            {insertPanelMode === "insert" && (
+              <div className="animate-fadeIn">
+                <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider mb-2">
+                  Sisipkan ke Nomor Panel <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={insertPanelAt}
+                  onChange={(e) => setInsertPanelAt(e.target.value)}
+                  className="w-full h-11 px-4 rounded-xl border-2 border-slate-200 focus:border-[#0070bc] focus:ring-4 focus:ring-[#0070bc]/10 outline-none font-medium text-slate-700 transition-all mb-3"
+                  placeholder="Contoh: 3"
+                />
+                
+                <div className="flex items-center gap-3 py-2 px-3 rounded-lg border border-rose-100 bg-rose-50/50">
+                  <input
+                    type="checkbox"
+                    id="insertPanelIsBs"
+                    checked={insertPanelIsBs}
+                    onChange={(e) => {
+                      setInsertPanelIsBs(e.target.checked);
+                      if (e.target.checked) {
+                        setInsertPanelHasDefect(true);
+                      }
+                    }}
+                    className="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500 cursor-pointer"
+                  />
+                  <label
+                    htmlFor="insertPanelIsBs"
+                    className="text-xs font-bold text-rose-700 cursor-pointer select-none"
+                  >
+                    Tandai sebagai Barang Sisa (BS)
+                  </label>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1 pl-1 font-medium leading-tight">
+                  * Jika dicentang, panel lain tidak akan bergeser, dan panel {insertPanelAt || "?"} akan memiliki 1 hasil Gagal.
+                </p>
+              </div>
+            )}
+
+            {/* Defect toggle switch */}
+            <div className="flex items-center gap-3 py-3 border-t border-slate-100 mt-2">
+              <input
+                type="checkbox"
+                id="insertPanelHasDefect"
+                checked={insertPanelHasDefect}
+                onChange={(e) => {
+                  setInsertPanelHasDefect(e.target.checked);
+                  if (!e.target.checked) {
+                    setSelectedCategories([]);
+                    setSelectedDetails({});
+                    setInputBloks({});
+                    setInsertPanelKeterangan("");
+                  }
+                }}
+                className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
+              />
+              <label
+                htmlFor="insertPanelHasDefect"
+                className="text-xs font-bold text-slate-700 cursor-pointer select-none"
+              >
+                Laporkan temuan masalah / cacat pada panel ini?
+              </label>
+            </div>
+
+            {insertPanelHasDefect && (
+              <div className="space-y-4 pt-2 border-t border-slate-100 animate-fadeIn">
+                <label className="text-xs font-bold text-slate-700 uppercase block">
+                  Pilih Temuan Cacat / Masalah
+                </label>
+                <div className="space-y-2">
+                  {problemCategories.map((cat) => (
+                    <div key={cat.id} className="flex flex-col gap-2">
+                      <label className="cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(cat.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCategories((prev) => [...prev, cat.id]);
+                            } else {
+                              setSelectedCategories((prev) => prev.filter((c) => c !== cat.id));
+                              setSelectedDetails((prev) => {
+                                const next = { ...prev };
+                                delete next[cat.id];
+                                return next;
+                              });
+                              setInputBloks((prev) => {
+                                const next = { ...prev };
+                                delete next[cat.id];
+                                return next;
+                              });
+                            }
+                          }}
+                          className="peer sr-only"
+                        />
+                        <div className="p-3 rounded-xl border-2 border-slate-100 bg-white text-xs font-bold text-slate-650 peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 transition-all hover:border-slate-350">
+                          {cat.name}
+                        </div>
+                      </label>
+
+                      {selectedCategories.includes(cat.id) && problemDetailsMap[cat.id] && (
+                        <div className="pl-4 pr-2 py-2 border-l-2 border-sky-200 ml-2 animate-in slide-in-from-top-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">
+                            Pilih Detail Masalah
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {problemDetailsMap[cat.id].map((detail) => (
+                              <label key={detail} className="cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedDetails[cat.id]?.includes(detail) || false}
+                                  onChange={(e) => {
+                                    const current = selectedDetails[cat.id] || [];
+                                    if (e.target.checked) {
+                                      setSelectedDetails((prev) => ({
+                                        ...prev,
+                                        [cat.id]: [...current, detail],
+                                      }));
+                                    } else {
+                                      setSelectedDetails((prev) => ({
+                                        ...prev,
+                                        [cat.id]: current.filter((d) => d !== detail),
+                                      }));
+                                    }
+                                  }}
+                                  className="peer sr-only"
+                                />
+                                <div className="p-2 rounded-lg border border-slate-200 text-[10px] font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center">
+                                  {detail}
+                                </div>
+                              </label>
+                            ))}
+
+                            {(selectedDetails[cat.id] || [])
+                              .filter((d) => !(problemDetailsMap[cat.id] || []).includes(d))
+                              .map((customDetail) => (
+                                <div key={customDetail} className="relative flex items-center">
+                                  <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
+                                    <span className="truncate">{customDetail}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedDetails((prev) => ({
+                                          ...prev,
+                                          [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
+                                        }));
+                                      }}
+                                      className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
+                                      title="Hapus detail manual"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+
+                          {cat.id === "G" && (
+                            <div className="mt-3 pt-3 border-t border-sky-100">
+                              <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
+                                <span className="flex items-center gap-1 text-slate-700">
+                                  <Edit3 className="w-3 h-3 text-sky-600" />
+                                  Input Masalah Manual (Jika tidak ada di pilihan)
+                                </span>
+                              </label>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={manualInputDetails[cat.id] || ""}
+                                  onChange={(e) =>
+                                    setManualInputDetails((prev) => ({ ...prev, [cat.id]: e.target.value }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      handleAddPanelManualDetail(cat.id);
+                                    }
+                                  }}
+                                  placeholder="Ketik detail masalah manual di sini..."
+                                  className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-slate-800 placeholder:text-slate-400"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddPanelManualDetail(cat.id)}
+                                  disabled={!(manualInputDetails[cat.id] || "").trim()}
+                                  className="px-3 py-2 bg-sky-500 text-white font-bold text-xs rounded-lg hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Tambah</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-650 uppercase">Keterangan Tambahan (Opsional)</label>
+                  <textarea
+                    value={insertPanelKeterangan}
+                    onChange={(e) => setInsertPanelKeterangan(e.target.value)}
+                    rows={2}
+                    className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:bg-white focus:border-[#0070bc] focus:ring-2 focus:ring-[#0070bc]/10 outline-none transition-all resize-none"
+                    placeholder="Tuliskan keterangan tambahan jika ada..."
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-5 border-t border-slate-150 bg-slate-50 flex justify-end gap-3">
+            <button
+              onClick={() => setInsertPanelMode(null)}
+              className="h-11 px-5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+            >
+              Batal
+            </button>
+            <button
+              disabled={
+                isInsertingPanel || 
+                (insertPanelMode === "insert" && !insertPanelAt) ||
+                (insertPanelHasDefect && selectedCategories.some(cat => {
+                  const hasDetails = (selectedDetails[cat] || []).length > 0;
+                  const hasManual = (manualInputDetails[cat] || "").trim().length > 0;
+                  return !hasDetails && !hasManual;
+                }))
+              }
+              onClick={handleInsertPanel}
+              className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white font-bold transition-all flex items-center gap-2"
+            >
+              {isInsertingPanel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Simpan Panel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (activeMendingPcs) {
     return (
       <div className="w-full max-w-6xl mx-auto pb-10 animate-fadeIn">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setActiveMendingPcs(null)}
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-              <Scissors className="w-6 h-6 text-rose-500" />
-              Mending PCS Ke-{activeMendingPcs.pcs_index}
-            </h1>
-          </div>
-          {startMendingTime && (
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Mulai Mending</span>
-                  <div className="h-10 px-3 rounded-xl bg-slate-100 border border-slate-200 text-xs font-extrabold text-slate-700 flex items-center gap-1.5 shadow-sm">
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
-                    {formatHHMM(startMendingTime)}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                    {isPaused ? "Status" : "Timer Berjalan"}
-                  </span>
-                  <div className={`h-10 px-3.5 rounded-xl text-xs font-black flex items-center gap-2 border shadow-sm transition-all ${
-                    isPaused 
-                      ? "bg-amber-50 border-amber-200 text-amber-700" 
-                      : "bg-emerald-50 border-emerald-200 text-emerald-700"
-                  }`}>
-                    <span className={`w-2 h-2 rounded-full ${isPaused ? "bg-amber-500" : "bg-emerald-500 animate-ping"}`} />
-                    <Timer className="w-4 h-4 text-current" />
-                    <span className="font-mono text-sm tracking-wider">
-                      {formatTimerSeconds(elapsedSeconds)}
-                    </span>
-                    {isPaused && (
-                      <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-bold ml-0.5">
-                        PAUSED
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleTogglePause}
-                className={`h-10 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
-                  isPaused
-                    ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-                    : "bg-amber-500 hover:bg-amber-600 text-white active:scale-95"
-                }`}
-              >
-                {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-                {isPaused ? "Lanjut Mending" : "Pause Mending"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsCancelConfirmOpen(true)}
-                className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold border border-rose-200/80 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Batal Mending
-              </button>
-            </div>
-          )}
-        </div>
+        <SessionTimerHeader
+          title={`Mending PCS Ke-${activeMendingPcs.pcs_index}`}
+          icon={<Scissors className="w-6 h-6 text-rose-500 shrink-0" />}
+          onBack={async () => {
+            if (activeMendingPcs) {
+              await upsertTimerSession({
+                type: "mending",
+                nomor_mc: activeMendingPcs.nomor_mc,
+                design_id: activeMendingPcs.design_id,
+                potongan_ke: activeMendingPcs.potongan_ke,
+                pcs_index: activeMendingPcs.pcs_index,
+                is_paused: isPaused,
+                pause_seconds: pauseSeconds,
+                elapsed_seconds: elapsedSeconds,
+              });
+            }
+            setActiveMendingPcs(null);
+          }}
+          backLabel="Kembali"
+          startTime={startMendingTime}
+          elapsedSeconds={elapsedSeconds}
+          isPaused={isPaused}
+          onTogglePause={handleTogglePause}
+          onCancel={() => setIsCancelConfirmOpen(true)}
+          cancelLabel="Batal Mending"
+          pauseLabel="Mending"
+        />
 
-        {isPaused && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-between shadow-sm animate-fadeIn">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 rounded-xl text-amber-700">
-                <Pause className="w-5 h-5 fill-amber-600" />
-              </div>
-              <div>
-                <h4 className="font-extrabold text-sm text-amber-900">Mending Sedang Di-Pause</h4>
-                <p className="text-xs text-amber-700 font-semibold mt-0.5">
-                  Waktu mending dihentikan sementara. Tekan tombol &quot;Lanjut Mending&quot; untuk meneruskan.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleTogglePause}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
-            >
-              <Play className="w-4 h-4" /> Lanjut Mending
-            </button>
-          </div>
-        )}
+
 
         <div className="mb-6">
           <CompactHeaderCard {...compactProps} />
@@ -1486,6 +1826,8 @@ export default function MendingPage() {
             selections={selections}
             detailData={detailsToDisplay}
             startMendingTime={startMendingTime}
+            pauseSeconds={pauseSeconds}
+            elapsedSeconds={elapsedSeconds}
             onSuccess={async () => {
               setIsModalOpen(false);
               if (activeMendingPcs) {
@@ -1548,6 +1890,9 @@ export default function MendingPage() {
             </div>
           </div>
         )}
+
+        {/* Insert Panel Modal */}
+        {renderInsertPanelModal()}
       </div>
     );
   }
@@ -1730,11 +2075,6 @@ export default function MendingPage() {
                             </span>
                           )}
                         </div>
-                        {g.meter_kain && (
-                          <div className="text-[10px] text-slate-500 font-bold mt-1.5 uppercase tracking-wider">
-                            {g.meter_kain}
-                          </div>
-                        )}
                       </td>
                       <td className="px-3 py-3 lg:px-6 lg:py-4 text-center">
                         {isPausedItem ? (
@@ -1798,324 +2138,7 @@ export default function MendingPage() {
       </div>
 
       {/* Insert Panel Modal */}
-      {insertPanelMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="p-5 border-b border-slate-150">
-              <h2 className="text-lg font-extrabold text-slate-800">
-                Tambah Panel
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Pilih apakah ingin menyisipkan panel baru di urutan tertentu atau menambahkannya di bagian paling akhir.
-              </p>
-            </div>
-
-            <div className="p-5 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
-              {insertPanelError && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 font-medium flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" /> {insertPanelError}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider mb-2">
-                  Pilih Tipe Penambahan
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInsertPanelMode("append");
-                      setInsertPanelAt("");
-                    }}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 text-center transition-all ${
-                      insertPanelMode === "append"
-                        ? "border-[#0070bc] bg-sky-50 text-[#0070bc] font-bold"
-                        : "border-slate-200 text-slate-500 hover:border-slate-350 bg-white"
-                    }`}
-                  >
-                    <span className="text-xs font-extrabold">Tambah di Akhir</span>
-                    <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Urutan terakhir</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInsertPanelMode("insert");
-                    }}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 text-center transition-all ${
-                      insertPanelMode === "insert"
-                        ? "border-[#0070bc] bg-sky-50 text-[#0070bc] font-bold"
-                        : "border-slate-200 text-slate-500 hover:border-slate-350 bg-white"
-                    }`}
-                  >
-                    <span className="text-xs font-extrabold">Sisipkan Tengah</span>
-                    <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Posisi tertentu</span>
-                  </button>
-                </div>
-              </div>
-
-              {insertPanelMode === "insert" && (
-                <div className="animate-fadeIn">
-                  <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider mb-2">
-                    Sisipkan ke Nomor Panel <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={insertPanelAt}
-                    onChange={(e) => setInsertPanelAt(e.target.value)}
-                    className="w-full h-11 px-4 rounded-xl border-2 border-slate-200 focus:border-[#0070bc] focus:ring-4 focus:ring-[#0070bc]/10 outline-none font-medium text-slate-700 transition-all mb-3"
-                    placeholder="Contoh: 3"
-                  />
-                  
-                  <div className="flex items-center gap-3 py-2 px-3 rounded-lg border border-rose-100 bg-rose-50/50">
-                    <input
-                      type="checkbox"
-                      id="insertPanelIsBs"
-                      checked={insertPanelIsBs}
-                      onChange={(e) => {
-                        setInsertPanelIsBs(e.target.checked);
-                        if (e.target.checked) {
-                          setInsertPanelHasDefect(true);
-                        }
-                      }}
-                      className="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500 cursor-pointer"
-                    />
-                    <label
-                      htmlFor="insertPanelIsBs"
-                      className="text-xs font-bold text-rose-700 cursor-pointer select-none"
-                    >
-                      Tandai sebagai Barang Sisa (BS)
-                    </label>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-1 pl-1 font-medium leading-tight">
-                    * Jika dicentang, panel lain tidak akan bergeser, dan panel {insertPanelAt || "?"} akan memiliki 1 hasil Gagal.
-                  </p>
-                </div>
-              )}
-
-              {/* Defect toggle switch */}
-              <div className="flex items-center gap-3 py-3 border-t border-slate-100 mt-2">
-                <input
-                  type="checkbox"
-                  id="insertPanelHasDefect"
-                  checked={insertPanelHasDefect}
-                  onChange={(e) => {
-                    setInsertPanelHasDefect(e.target.checked);
-                    if (!e.target.checked) {
-                      setSelectedCategories([]);
-                      setSelectedDetails({});
-                      setInputBloks({});
-                      setInsertPanelKeterangan("");
-                    }
-                  }}
-                  className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
-                />
-                <label
-                  htmlFor="insertPanelHasDefect"
-                  className="text-xs font-bold text-slate-700 cursor-pointer select-none"
-                >
-                  Laporkan temuan masalah / cacat pada panel ini?
-                </label>
-              </div>
-
-              {insertPanelHasDefect && (
-                <div className="space-y-4 pt-2 border-t border-slate-100 animate-fadeIn">
-                  <label className="text-xs font-bold text-slate-700 uppercase block">
-                    Pilih Temuan Cacat / Masalah
-                  </label>
-                  <div className="space-y-2">
-                    {PROBLEM_CATEGORIES.map((cat) => (
-                      <div key={cat.id} className="flex flex-col gap-2">
-                        <label className="cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.includes(cat.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedCategories((prev) => [...prev, cat.id]);
-                              } else {
-                                setSelectedCategories((prev) => prev.filter((c) => c !== cat.id));
-                                setSelectedDetails((prev) => {
-                                  const next = { ...prev };
-                                  delete next[cat.id];
-                                  return next;
-                                });
-                                setInputBloks((prev) => {
-                                  const next = { ...prev };
-                                  delete next[cat.id];
-                                  return next;
-                                });
-                              }
-                            }}
-                            className="peer sr-only"
-                          />
-                          <div className="p-3 rounded-xl border-2 border-slate-100 bg-white text-xs font-bold text-slate-650 peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 transition-all hover:border-slate-350">
-                            {cat.name}
-                          </div>
-                        </label>
-
-                        {selectedCategories.includes(cat.id) && PROBLEM_DETAILS[cat.id] && (
-                          <div className="pl-4 pr-2 py-2 border-l-2 border-sky-200 ml-2 animate-in slide-in-from-top-2">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">
-                              Pilih Detail Masalah
-                            </label>
-                            <div className="grid grid-cols-2 gap-2">
-                              {PROBLEM_DETAILS[cat.id].map((detail) => (
-                                <label key={detail} className="cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedDetails[cat.id]?.includes(detail) || false}
-                                    onChange={(e) => {
-                                      const current = selectedDetails[cat.id] || [];
-                                      if (e.target.checked) {
-                                        setSelectedDetails((prev) => ({
-                                          ...prev,
-                                          [cat.id]: [...current, detail],
-                                        }));
-                                      } else {
-                                        setSelectedDetails((prev) => ({
-                                          ...prev,
-                                          [cat.id]: current.filter((d) => d !== detail),
-                                        }));
-                                      }
-                                    }}
-                                    className="peer sr-only"
-                                  />
-                                  <div className="p-2 rounded-lg border border-slate-200 text-[10px] font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center">
-                                    {detail}
-                                  </div>
-                                </label>
-                              ))}
-
-                              {(selectedDetails[cat.id] || [])
-                                .filter((d) => !(PROBLEM_DETAILS[cat.id] || []).includes(d))
-                                .map((customDetail) => (
-                                  <div key={customDetail} className="relative flex items-center">
-                                    <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
-                                      <span className="truncate">{customDetail}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedDetails((prev) => ({
-                                            ...prev,
-                                            [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
-                                          }));
-                                        }}
-                                        className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
-                                        title="Hapus detail manual"
-                                      >
-                                        <X className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
-                            </div>
-
-                            {cat.id === "G" && (
-                              <div className="mt-3 pt-3 border-t border-sky-100">
-                                <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
-                                  <span className="flex items-center gap-1 text-slate-700">
-                                    <Edit3 className="w-3 h-3 text-sky-600" />
-                                    Input Masalah Manual (Jika tidak ada di pilihan)
-                                  </span>
-                                </label>
-                                <div className="flex gap-2">
-                                  <input
-                                    type="text"
-                                    value={manualInputDetails[cat.id] || ""}
-                                    onChange={(e) =>
-                                      setManualInputDetails((prev) => ({ ...prev, [cat.id]: e.target.value }))
-                                    }
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        handleAddPanelManualDetail(cat.id);
-                                      }
-                                    }}
-                                    placeholder="Ketik detail masalah manual di sini..."
-                                    className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-slate-800 placeholder:text-slate-400"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAddPanelManualDetail(cat.id)}
-                                    disabled={!(manualInputDetails[cat.id] || "").trim()}
-                                    className="px-3 py-2 bg-sky-500 text-white font-bold text-xs rounded-lg hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>Tambah</span>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {(cat.id === "A" || cat.id === "B") && selectedDetails[cat.id]?.length > 0 && (
-                              <div className="mt-3 p-3 bg-sky-50 border border-sky-100 rounded-xl">
-                                <label className="text-[10px] font-bold text-sky-800 uppercase mb-1.5 block flex items-center gap-1.5">
-                                  <Box className="w-3 h-3" />
-                                  Lokasi / Nomor Blok (Khusus A & B)
-                                </label>
-                                <input
-                                  type="text"
-                                  inputMode="text"
-                                  value={inputBloks[cat.id] || ""}
-                                  onChange={(e) => {
-                                    const filtered = e.target.value.replace(/[^0-9\-,\s]/g, "");
-                                    setInputBloks((prev) => ({ ...prev, [cat.id]: filtered }));
-                                  }}
-                                  placeholder="Contoh: 15, 18 atau 1-61"
-                                  className="w-full h-10 px-3 rounded-lg border border-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs font-bold text-slate-700 placeholder:font-medium placeholder:text-slate-400 bg-white"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-650 uppercase">Keterangan Tambahan (Opsional)</label>
-                    <textarea
-                      value={insertPanelKeterangan}
-                      onChange={(e) => setInsertPanelKeterangan(e.target.value)}
-                      rows={2}
-                      className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:bg-white focus:border-[#0070bc] focus:ring-2 focus:ring-[#0070bc]/10 outline-none transition-all resize-none"
-                      placeholder="Tuliskan keterangan tambahan jika ada..."
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-5 border-t border-slate-150 bg-slate-50 flex justify-end gap-3">
-              <button
-                onClick={() => setInsertPanelMode(null)}
-                className="h-11 px-5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-              >
-                Batal
-              </button>
-              <button
-                disabled={
-                  isInsertingPanel || 
-                  (insertPanelMode === "insert" && !insertPanelAt) ||
-                  (insertPanelHasDefect && selectedCategories.some(cat => {
-                    const hasDetails = (selectedDetails[cat] || []).length > 0;
-                    const hasManual = (manualInputDetails[cat] || "").trim().length > 0;
-                    return !hasDetails && !hasManual;
-                  }))
-                }
-                onClick={handleInsertPanel}
-                className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white font-bold transition-all flex items-center gap-2"
-              >
-                {isInsertingPanel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Simpan Panel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderInsertPanelModal()}
 
       <ProductTour
         isOpen={isTourOpen}

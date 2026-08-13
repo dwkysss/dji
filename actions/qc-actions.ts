@@ -102,6 +102,8 @@ export async function submitQCInspection(params: {
   qc_silang: number;
   notes?: string;
   tanggal_potong?: string;
+  pause_seconds?: number;
+  elapsed_seconds?: number;
 }) {
   try {
     const supabase = await createClient();
@@ -126,25 +128,41 @@ export async function submitQCInspection(params: {
     }
 
     // 2. Insert ke qc_inspection_batches
-    const { data: batchData, error: batchError } = await supabase
+    const insertPayload: any = {
+      tanggal_inspeksi: params.tanggal_inspeksi,
+      start_inspect: params.start_inspect,
+      finish_inspect: params.finish_inspect,
+      petugas_inspeksi: params.petugas_inspeksi,
+      petugas_inspeksi_2: params.petugas_inspeksi_2 || null,
+      petugas_inspeksi_3: params.petugas_inspeksi_3 || null,
+      nomor_mc,
+      design_id,
+      potongan_ke,
+      pcs_index,
+      berat_kain: params.berat_kain,
+      inspeksi_ceklis: params.qc_ceklis,
+      inspeksi_silang: params.qc_silang,
+    };
+    if (params.pause_seconds !== undefined) insertPayload.pause_seconds = params.pause_seconds;
+    if (params.elapsed_seconds !== undefined) insertPayload.elapsed_seconds = params.elapsed_seconds;
+
+    let { data: batchData, error: batchError } = await supabase
       .from("qc_inspection_batches")
-      .insert({
-        tanggal_inspeksi: params.tanggal_inspeksi,
-        start_inspect: params.start_inspect,
-        finish_inspect: params.finish_inspect,
-        petugas_inspeksi: params.petugas_inspeksi,
-        petugas_inspeksi_2: params.petugas_inspeksi_2 || null,
-        petugas_inspeksi_3: params.petugas_inspeksi_3 || null,
-        nomor_mc,
-        design_id,
-        potongan_ke,
-        pcs_index,
-        berat_kain: params.berat_kain,
-        inspeksi_ceklis: params.qc_ceklis,
-        inspeksi_silang: params.qc_silang
-      })
+      .insert(insertPayload)
       .select("id")
       .single();
+
+    if (batchError && (batchError.message?.includes("pause_seconds") || batchError.message?.includes("elapsed_seconds") || batchError.code === "PGRST204")) {
+      delete insertPayload.pause_seconds;
+      delete insertPayload.elapsed_seconds;
+      const retry = await supabase
+        .from("qc_inspection_batches")
+        .insert(insertPayload)
+        .select("id")
+        .single();
+      batchData = retry.data;
+      batchError = retry.error;
+    }
 
     if (batchError || !batchData) {
       throw new Error("Gagal menyimpan data induk batch inspeksi: " + (batchError?.message || "Unknown error"));
@@ -344,9 +362,27 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
   }
 }
 
-export async function getAllPendingQCDetails(tanggal?: string) {
+export async function getAllPendingQCDetails(
+  tanggalOrFilters?: string | { tanggal?: string; mesin?: string; potongan?: string | number },
+  mesinParam?: string,
+  potonganParam?: string | number
+) {
   try {
     const supabase = await createClient();
+
+    let tanggal: string | undefined = undefined;
+    let mesin: string | undefined = undefined;
+    let potongan: string | number | undefined = undefined;
+
+    if (typeof tanggalOrFilters === "object" && tanggalOrFilters !== null) {
+      tanggal = tanggalOrFilters.tanggal;
+      mesin = tanggalOrFilters.mesin;
+      potongan = tanggalOrFilters.potongan;
+    } else {
+      tanggal = tanggalOrFilters;
+      mesin = mesinParam;
+      potongan = potonganParam;
+    }
 
     let query = supabase
       .from("production_headers")
@@ -355,6 +391,20 @@ export async function getAllPendingQCDetails(tanggal?: string) {
 
     if (tanggal) {
       query = query.eq("tgl", tanggal);
+    }
+    if (mesin) {
+      query = query.eq("nomor_mc", mesin);
+    }
+    if (potongan) {
+      const parsedPotongan = typeof potongan === "number" ? potongan : parseInt(String(potongan), 10);
+      if (!isNaN(parsedPotongan)) {
+        query = query.eq("potongan_ke", parsedPotongan);
+      }
+    }
+
+    // Only limit when no search filters are provided at all
+    if (!tanggal && !mesin && !potongan) {
+      query = query.limit(300);
     }
 
     const { data: headers, error: headerError } = await query;
@@ -951,6 +1001,8 @@ export async function insertMissingPanel(params: {
   keteranganCacat?: string;
   /** Jika true, ini adalah panel reject/BS sehingga panel lain tidak tergeser */
   isBs?: boolean;
+  /** Direct final_inspection_id if inserting directly into mending/inspected batch */
+  finalInspectionId?: number;
 }) {
   try {
     const supabase = await createAdminClient();
@@ -1171,6 +1223,13 @@ export async function insertMissingPanel(params: {
     // 7. Create production_detail(s)
     // Only create for current PCS as requested
     const newDetailId = genId() + "-0";
+    const finalInspectionId = params.finalInspectionId ?? (params.isBs ? 4 : null);
+
+    let statusInspeksi: string | null = null;
+    if (finalInspectionId === 3) statusInspeksi = "Silang";
+    else if (finalInspectionId === 4) statusInspeksi = "BS";
+    else if (finalInspectionId === 1 || finalInspectionId === 2) statusInspeksi = "Ceklis";
+
     const { error: insertDetailErr } = await supabase
       .from("production_details")
       .insert({
@@ -1184,6 +1243,8 @@ export async function insertMissingPanel(params: {
         keterangan_cacat: params.keteranganCacat ? `${params.keteranganCacat} [TAMBAHAN QC]` : "[TAMBAHAN QC]",
         meter_kain: null,
         roll_no: null,
+        final_inspection_id: finalInspectionId,
+        status_inspeksi: statusInspeksi,
       });
 
     if (insertDetailErr) {

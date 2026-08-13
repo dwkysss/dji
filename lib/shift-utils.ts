@@ -113,7 +113,7 @@ export function formatDisplayTimestamp(dateInput: Date | string | number): strin
  */
 export function formatHHMM(timeInput?: string | null): string {
   if (!timeInput) return "";
-  const str = String(timeInput).trim();
+  const str = String(timeInput).trim().replace(/\./g, ":");
   if (!str) return "";
 
   // Simple HH:mm

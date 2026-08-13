@@ -177,6 +177,8 @@ export async function submitMending(params: {
   mending_grade_bs: number;
   notes?: string;
   berat_kain?: number;
+  pause_seconds?: number;
+  elapsed_seconds?: number;
 }) {
   try {
     const supabase = await createClient();
@@ -237,29 +239,45 @@ export async function submitMending(params: {
     }
 
     // 1. Insert ke tabel mending_batches (Header)
-    const { data: batchData, error: batchError } = await supabase
+    const insertPayload: any = {
+      tanggal_mending: params.tanggal_mending,
+      petugas_mending: params.petugas_mending,
+      start_mending: params.start_mending,
+      finish_mending: params.finish_mending,
+      keterangan_mending: params.notes || "",
+      total_panel: params.details.length,
+      nomor_mc: headerInfo.nomor_mc,
+      design_id: headerInfo.design_id,
+      potongan_ke: headerInfo.potongan_ke,
+      pcs_index: headerInfo.pcs_index,
+      mending_grade_a: params.mending_grade_a,
+      mending_grade_b: params.mending_grade_b,
+      mending_grade_bs: params.mending_grade_bs,
+    };
+    if (params.pause_seconds !== undefined) insertPayload.pause_seconds = params.pause_seconds;
+    if (params.elapsed_seconds !== undefined) insertPayload.elapsed_seconds = params.elapsed_seconds;
+
+    let { data: batchData, error: batchError } = await supabase
       .from("mending_batches")
-      .insert({
-        tanggal_mending: params.tanggal_mending,
-        petugas_mending: params.petugas_mending,
-        start_mending: params.start_mending,
-        finish_mending: params.finish_mending,
-        keterangan_mending: params.notes || "",
-        total_panel: params.details.length,
-        nomor_mc: headerInfo.nomor_mc,
-        design_id: headerInfo.design_id,
-        potongan_ke: headerInfo.potongan_ke,
-        pcs_index: headerInfo.pcs_index,
-        mending_grade_a: params.mending_grade_a,
-        mending_grade_b: params.mending_grade_b,
-        mending_grade_bs: params.mending_grade_bs
-      })
+      .insert(insertPayload)
       .select("id")
       .single();
 
-    if (batchError) {
+    if (batchError && (batchError.message?.includes("pause_seconds") || batchError.message?.includes("elapsed_seconds") || batchError.code === "PGRST204")) {
+      delete insertPayload.pause_seconds;
+      delete insertPayload.elapsed_seconds;
+      const retry = await supabase
+        .from("mending_batches")
+        .insert(insertPayload)
+        .select("id")
+        .single();
+      batchData = retry.data;
+      batchError = retry.error;
+    }
+
+    if (batchError || !batchData) {
       console.error("Gagal insert mending_batches:", batchError);
-      return { success: false, error: batchError.message };
+      return { success: false, error: batchError?.message || "Gagal insert mending_batches" };
     }
 
     const batchId = batchData.id;
