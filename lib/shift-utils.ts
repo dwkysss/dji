@@ -11,7 +11,7 @@
  */
 export function parseAsWibDate(dateInput: Date | string | number): Date {
   if (dateInput instanceof Date) return dateInput;
-  if (!dateInput) return new Date();
+  if (!dateInput && dateInput !== 0) return new Date();
 
   const str = String(dateInput).trim();
   if (!str) return new Date();
@@ -38,7 +38,7 @@ export function parseAsWibDate(dateInput: Date | string | number): Date {
   }
 
   const fallback = new Date(str);
-  return isNaN(fallback.getTime()) ? new Date() : fallback;
+  return fallback;
 }
 
 /**
@@ -113,22 +113,37 @@ export function formatDisplayTimestamp(dateInput: Date | string | number): strin
  */
 export function formatHHMM(timeInput?: string | null): string {
   if (!timeInput) return "";
-  const str = String(timeInput).trim().replace(/\./g, ":");
-  if (!str) return "";
+  const rawStr = String(timeInput).trim();
+  if (!rawStr) return "";
 
-  // Simple HH:mm
+  // 1. If ISO date-time string, parse directly using parseAsWibDate (DO NOT replace dot with colon first!)
+  if (rawStr.includes("T") || rawStr.includes("-") || rawStr.length > 10) {
+    try {
+      const dt = parseAsWibDate(rawStr);
+      if (!isNaN(dt.getTime())) {
+        return dt.toLocaleTimeString("en-GB", {
+          timeZone: "Asia/Jakarta",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+      }
+    } catch (e) {}
+  }
+
+  // 2. Simple HH:mm or HH.mm
+  const str = rawStr.replace(/\./g, ":");
   if (/^\d{1,2}:\d{2}$/.test(str)) {
     const parts = str.split(":");
     return `${parts[0].padStart(2, "0")}:${parts[1]}`;
   }
 
-  // Simple HH:mm:ss
+  // 3. Simple HH:mm:ss or HH.mm.ss
   if (/^\d{1,2}:\d{2}:\d{2}$/.test(str)) {
     const parts = str.split(":");
     return `${parts[0].padStart(2, "0")}:${parts[1]}`;
   }
 
-  // ISO or date-time string
   try {
     const dt = parseAsWibDate(str);
     if (!isNaN(dt.getTime())) {
@@ -139,9 +154,7 @@ export function formatHHMM(timeInput?: string | null): string {
         hour12: false,
       });
     }
-  } catch (e) {
-    // fallback
-  }
+  } catch (e) {}
 
   return str;
 }

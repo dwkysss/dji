@@ -94,7 +94,7 @@ export async function upsertTimerSession(params: {
       design_id: String(params.design_id),
       potongan_ke: String(params.potongan_ke),
       pcs_index: String(params.pcs_index),
-      start_time: params.start_time || existing?.start_time || nowIso,
+      start_time: existing?.start_time ? existing.start_time : (params.start_time || nowIso),
       elapsed_seconds: params.elapsed_seconds ?? existing?.elapsed_seconds ?? 0,
       pause_seconds: params.pause_seconds ?? existing?.pause_seconds ?? 0,
       is_paused: params.is_paused ?? existing?.is_paused ?? false,

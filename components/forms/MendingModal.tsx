@@ -243,45 +243,51 @@ export default function MendingModal({
           )}
 
           {/* Context Info */}
-          <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 mb-6">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs">
-              <div>
-                <span className="text-slate-400 font-semibold uppercase tracking-wider block mb-1 text-[9px]">
+          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 mb-6 shadow-xs">
+            <div className="grid grid-cols-12 gap-2 sm:gap-3 items-center text-xs text-center">
+              <div className="col-span-2 text-center">
+                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
                   PCS Ke
                 </span>
-                <span className="font-bold text-slate-800">
-                  {headerData?.details?.[0]?.pcs_index || "-"}
+                <span className="text-base sm:text-lg font-black text-slate-800 block whitespace-nowrap text-center">
+                  {(() => {
+                    const d = headerData?.details?.[0] || detailData?.[0];
+                    const idx = d?.pcs_index;
+                    const tot = d?.total_pcs || d?.production_headers?.total_pcs || idx;
+                    if (!idx) return "-";
+                    return `${idx} / ${tot}`;
+                  })()}
                 </span>
               </div>
-              <div>
-                <span className="text-slate-400 font-semibold uppercase tracking-wider block mb-1 text-[9px]">
+              <div className="col-span-2 text-center">
+                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
                   Mesin
                 </span>
-                <span className="font-bold text-slate-800">
+                <span className="text-base sm:text-lg font-black text-slate-800 block text-center">
                   {headerData?.details?.[0]?.production_headers?.nomor_mc || "-"}
                 </span>
               </div>
-              <div>
-                <span className="text-slate-400 font-semibold uppercase tracking-wider block mb-1 text-[9px]">
-                  Desain
-                </span>
-                <span className="font-bold text-slate-800">
-                  {headerData?.details?.[0]?.production_headers?.design_id || "-"}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 font-semibold uppercase tracking-wider block mb-1 text-[9px]">
+              <div className="col-span-2 text-center">
+                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
                   Potongan
                 </span>
-                <span className="font-bold text-slate-800">
+                <span className="text-base sm:text-lg font-black text-slate-800 block text-center">
                   {headerData?.details?.[0]?.production_headers?.potongan_ke || "-"}
                 </span>
               </div>
-              <div>
-                <span className="text-slate-400 font-semibold uppercase tracking-wider block mb-1 text-[9px]">
+              <div className="col-span-4 text-center">
+                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
+                  Desain
+                </span>
+                <span className="text-base sm:text-lg font-black text-slate-800 block whitespace-nowrap text-center">
+                  {headerData?.details?.[0]?.production_headers?.design_id || "-"}
+                </span>
+              </div>
+              <div className="col-span-2 text-center">
+                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
                   Total Produksi
                 </span>
-                <span className="font-extrabold text-emerald-600 block">
+                <span className="text-base sm:text-lg font-black text-emerald-600 block whitespace-nowrap text-center">
                   {(() => {
                     const isMeteran = headerData?.details?.[0]?.production_headers?.panel_no === "METERAN";
                     if (isMeteran) {

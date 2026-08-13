@@ -358,15 +358,15 @@ export default function MendingHistoryPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                      <th className="px-4 py-4 whitespace-nowrap">Start</th>
-                      <th className="px-4 py-4 whitespace-nowrap">Finish</th>
-                      <th className="px-4 py-4 whitespace-nowrap text-center">Durasi</th>
                       <th className="px-4 py-4 whitespace-nowrap">Mesin & Desain</th>
                       <th className="px-4 py-4 text-center w-24 whitespace-nowrap">Potongan</th>
                       <th className="px-4 py-4 text-center w-20 whitespace-nowrap">PCS</th>
                       <th className="px-4 py-4 text-center w-32 whitespace-nowrap">Panel / Meter</th>
                       <th className="px-4 py-4 whitespace-nowrap">Petugas Mending</th>
                       <th className="px-4 py-4 text-center whitespace-nowrap">Hasil Mending</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Start</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Finish</th>
+                      <th className="px-4 py-4 whitespace-nowrap text-center">Durasi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -391,15 +391,6 @@ export default function MendingHistoryPage() {
                           onClick={() => handleOpenDetail(d)}
                           className="hover:bg-slate-50/80 transition-colors group/row cursor-pointer"
                         >
-                          <td className="px-4 py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
-                            {d.tanggal_mending} {d.start_mending || "-"}
-                          </td>
-                          <td className="px-4 py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
-                            {d.tanggal_mending} {d.finish_mending || "-"}
-                          </td>
-                          <td className="px-4 py-4 text-center whitespace-nowrap font-extrabold text-amber-700 text-xs">
-                            {calculateDurationStr(d.start_mending, d.finish_mending, d.pause_seconds || 0, d.elapsed_seconds)}
-                          </td>
                           <td className="px-4 py-4">
                             <div className="font-bold text-slate-800">
                               {d.nomor_mc || "-"}
@@ -449,6 +440,15 @@ export default function MendingHistoryPage() {
                                 gradeBVal === 0 &&
                                 gradeBSVal === 0 && <span>-</span>}
                             </div>
+                          </td>
+                          <td className="px-4 py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
+                            {d.tanggal_mending} {d.start_mending || "-"}
+                          </td>
+                          <td className="px-4 py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
+                            {d.tanggal_mending} {d.finish_mending || "-"}
+                          </td>
+                          <td className="px-4 py-4 text-center whitespace-nowrap font-extrabold text-amber-700 text-xs">
+                            {calculateDurationStr(d.start_mending, d.finish_mending, d.pause_seconds || 0, d.elapsed_seconds)}
                           </td>
                         </tr>
                       );

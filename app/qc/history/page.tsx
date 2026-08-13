@@ -323,15 +323,15 @@ export default function QCHistoryPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] sm:text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                      <th className="px-3 py-3 lg:px-4 lg:py-4 whitespace-nowrap">Start</th>
-                      <th className="px-3 py-3 lg:px-4 lg:py-4 whitespace-nowrap">Finish</th>
-                      <th className="px-3 py-3 lg:px-4 lg:py-4 text-center whitespace-nowrap">Durasi</th>
                       <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Mesin & Desain</th>
                       <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Potongan</th>
                       <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Petugas QC</th>
                       <th className="px-3 py-3 lg:px-6 lg:py-4 text-center whitespace-nowrap">PCS</th>
                       <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Jumlah QTY</th>
                       <th className="px-3 py-3 lg:px-6 lg:py-4 text-center whitespace-nowrap">Hasil Inspeksi</th>
+                      <th className="px-3 py-3 lg:px-4 lg:py-4 whitespace-nowrap">Start</th>
+                      <th className="px-3 py-3 lg:px-4 lg:py-4 whitespace-nowrap">Finish</th>
+                      <th className="px-3 py-3 lg:px-4 lg:py-4 text-center whitespace-nowrap">Durasi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -344,15 +344,6 @@ export default function QCHistoryPage() {
                           onClick={() => handleOpenDetail(group)}
                           className="hover:bg-sky-50/50 transition-colors group/row cursor-pointer"
                         >
-                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
-                            {group.tanggal_inspeksi} {group.start_inspect || "-"}
-                          </td>
-                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
-                            {group.tanggal_inspeksi} {group.finish_inspect || "-"}
-                          </td>
-                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-extrabold text-amber-700 text-xs text-center whitespace-nowrap">
-                            {calculateDurationStr(group.start_inspect, group.finish_inspect, group.pause_seconds || 0, group.elapsed_seconds)}
-                          </td>
                           <td className="px-3 py-3 lg:px-6 lg:py-4">
                             <div className="font-bold text-slate-800">
                               {group.nomor_mc || "-"}
@@ -413,6 +404,15 @@ export default function QCHistoryPage() {
                                 </>
                               )}
                             </div>
+                          </td>
+                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
+                            {group.tanggal_inspeksi} {group.start_inspect || "-"}
+                          </td>
+                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
+                            {group.tanggal_inspeksi} {group.finish_inspect || "-"}
+                          </td>
+                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-extrabold text-amber-700 text-xs text-center whitespace-nowrap">
+                            {calculateDurationStr(group.start_inspect, group.finish_inspect, group.pause_seconds || 0, group.elapsed_seconds)}
                           </td>
                         </tr>
                       );

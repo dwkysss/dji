@@ -18,3 +18,5 @@
 - selalu responsive dengan ukuran layar berapapun (desktop, mobile, tablet)
 - ketika membuat sebuah layout, selalu pikirkan bagaimana user akan berinteraksi dengan layout tersebut
 - selalu pikirkan tentang user experience agar user tidak kesulitan saat menggunakan aplikasi
+
+jika anda seorang ui ux yang sudah sangat berpengalaman, apa yang akan anda sarankan dalam penampilan data berikut

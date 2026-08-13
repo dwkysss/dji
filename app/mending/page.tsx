@@ -224,6 +224,7 @@ export default function MendingPage() {
         design_id: activeMendingPcs.design_id,
         potongan_ke: activeMendingPcs.potongan_ke,
         pcs_index: activeMendingPcs.pcs_index,
+        start_time: startTimeIso || undefined,
         is_paused: isPaused,
         pause_seconds: pauseSeconds,
         paused_at: pausedAt,
@@ -231,7 +232,7 @@ export default function MendingPage() {
       });
     }, 5000);
     return () => clearInterval(syncInterval);
-  }, [activeMendingPcs, isPaused, pauseSeconds, pausedAt, elapsedSeconds]);
+  }, [activeMendingPcs, startTimeIso, isPaused, pauseSeconds, pausedAt, elapsedSeconds]);
 
   const handleTogglePause = async () => {
     const nextPause = !isPaused;
@@ -264,6 +265,7 @@ export default function MendingPage() {
         design_id: activeMendingPcs.design_id,
         potongan_ke: activeMendingPcs.potongan_ke,
         pcs_index: activeMendingPcs.pcs_index,
+        start_time: startTimeIso || undefined,
         is_paused: nextPause,
         pause_seconds: nextPauseSeconds,
         paused_at: nextPausedAt,
@@ -599,32 +601,45 @@ export default function MendingPage() {
     setNowMs(now.getTime());
     const defaultIso = now.toISOString();
 
-    // Check DB for active session
+    // 1. Fetch details to inspect existing item/header timestamps
+    const detailsRes = await getMendingDetailsByGroup(String(nomor_mc), String(design_id), String(potongan_ke), String(pcs_index));
+    const fetchedDetails = detailsRes.success && detailsRes.data ? detailsRes.data : [];
+    setFullActiveMendingDetails(fetchedDetails);
+
+    // Initialize selections for fetched details
+    setSelections((prev) => {
+      const next = { ...prev };
+      fetchedDetails.forEach((item: any) => {
+        if (!next[item.id]) {
+          const hasDefect = item.indikator_stop || (item.kategori_masalah && item.kategori_masalah.trim() !== "");
+          if (item.final_inspection_id === 4) {
+            next[item.id] = "BS";
+          } else if (item.final_inspection_id === 3) {
+            next[item.id] = "B";
+          } else {
+            next[item.id] = !hasDefect ? "A" : "B";
+          }
+        }
+      });
+      return next;
+    });
+
+    // 2. Check DB for active timer session
     const sessionRes = await getTimerSession("mending", nomor_mc, design_id, potongan_ke, pcs_index);
-    if (sessionRes.success && sessionRes.data) {
+    let startIso: string = defaultIso;
+
+    if (sessionRes.success && sessionRes.data && sessionRes.data.start_time) {
       const s = sessionRes.data;
       setIsPaused(s.is_paused || false);
       setPauseSeconds(s.pause_seconds || 0);
       setPausedAt(s.paused_at || null);
-
-      let startIso = s.start_time || defaultIso;
-      if (/^\d{1,2}:\d{2}$/.test(startIso)) {
-        const [hStr, mStr] = startIso.split(":");
-        const d = new Date();
-        d.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
-        startIso = d.toISOString();
-      }
-
-      setStartTimeIso(startIso);
-      setStartMendingTime(formatHHMM(startIso));
+      startIso = s.start_time;
     } else {
       setIsPaused(false);
       setPauseSeconds(0);
       setPausedAt(null);
-      setStartTimeIso(defaultIso);
-      setStartMendingTime(formatHHMM(defaultIso));
 
-      await upsertTimerSession({
+      const upsertRes = await upsertTimerSession({
         type: "mending",
         nomor_mc: String(nomor_mc),
         design_id: String(design_id),
@@ -635,10 +650,21 @@ export default function MendingPage() {
         pause_seconds: 0,
         elapsed_seconds: 0,
       });
+      if (upsertRes.success && upsertRes.data?.start_time) {
+        startIso = upsertRes.data.start_time;
+      }
       fetchActiveSessions();
     }
 
-    await refreshActiveMendingDetails(String(nomor_mc), String(design_id), String(potongan_ke), String(pcs_index), true);
+    if (/^\d{1,2}:\d{2}$/.test(startIso)) {
+      const [hStr, mStr] = startIso.split(":");
+      const d = new Date();
+      d.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
+      startIso = d.toISOString();
+    }
+
+    setStartTimeIso(startIso);
+    setStartMendingTime(formatHHMM(startIso));
   };
 
   const [detailToDelete, setDetailToDelete] = useState<{ id: string, name: string } | null>(null);
@@ -1677,6 +1703,7 @@ export default function MendingPage() {
                 design_id: activeMendingPcs.design_id,
                 potongan_ke: activeMendingPcs.potongan_ke,
                 pcs_index: activeMendingPcs.pcs_index,
+                start_time: startTimeIso || undefined,
                 is_paused: isPaused,
                 pause_seconds: pauseSeconds,
                 elapsed_seconds: elapsedSeconds,
@@ -1899,7 +1926,7 @@ export default function MendingPage() {
 
   // Render Table View (Main Page)
   return (
-    <div className="w-full max-w-6xl mx-auto pb-10">
+    <div className="w-full max-w-6xl mx-auto pb-24 sm:pb-28">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
@@ -1920,7 +1947,7 @@ export default function MendingPage() {
         </button>
       </div>
 
-{errorMsg && (
+      {errorMsg && (
         <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 shrink-0" />
           {errorMsg}
@@ -2008,97 +2035,168 @@ export default function MendingPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] sm:text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                  <th className="px-3 py-3 md:px-6 md:py-4">Tanggal & Waktu</th>
-                  <th className="px-3 py-3 md:px-6 md:py-4">Nomor Mesin</th>
-                  <th className="px-3 py-3 md:px-6 md:py-4">Desain</th>
-                  <th className="px-3 py-3 md:px-6 md:py-4">Potongan</th>
-                  <th className="px-3 py-3 md:px-6 md:py-4 text-center">PCS Ke</th>
-                  <th className="px-3 py-3 md:px-6 md:py-4 text-center whitespace-nowrap">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
-                {currentPcsList.map((g: any) => {
-                  const sessionKey = `${g.nomor_mc}_${g.design_id}_${g.potongan_ke}_${g.pcs_index}`;
-                  const session = activeSessionsMap.get(sessionKey);
-                  const isPausedItem = session?.is_paused;
-                  const isProcessingItem = session && !session.is_paused;
+          <div>
+            {/* Mobile & Tablet Card View (< md) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 md:hidden">
+              {currentPcsList.map((g: any) => {
+                const sessionKey = `${g.nomor_mc}_${g.design_id}_${g.potongan_ke}_${g.pcs_index}`;
+                const session = activeSessionsMap.get(sessionKey);
+                const isPausedItem = session?.is_paused;
+                const isProcessingItem = session && !session.is_paused;
 
-                  return (
-                    <tr key={sessionKey} className={`hover:bg-slate-50/50 transition-colors ${isPausedItem ? "bg-amber-50/40" : ""}`}>
-                      <td className="px-3 py-3 md:px-6 md:py-4">
-                        <div className="font-bold text-slate-800">
-                          {g.header?.tgl || "-"}
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-                          {g.header?.tanggal_jam 
-                            ? new Date(g.header.tanggal_jam).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) 
-                            : "-"}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 md:px-6 md:py-4">
-                        <div className="inline-flex items-center min-w-[3rem] h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-bold">
+                return (
+                  <div key={sessionKey} className={`p-4 rounded-2xl border transition-all ${isPausedItem ? "bg-amber-50/50 border-amber-300" : (isProcessingItem ? "bg-emerald-50/30 border-emerald-300" : "bg-white border-slate-200 shadow-xs hover:shadow-sm")}`}>
+                    {/* Top Section: ONLY Mesin, Potongan & PCS */}
+                    <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-100">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-black text-xs">
                           {g.header?.nomor_mc}
                         </div>
-                      </td>
-                      <td className="px-3 py-3 md:px-6 md:py-4">
-                        <div className="text-slate-800 font-bold flex items-center gap-2">
-                          {g.header?.design_id}
+                        <div className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-slate-100 text-slate-800 font-extrabold text-xs border border-slate-200/80">
+                          #{g.header?.potongan_ke || "-"}
+                        </div>
+                      </div>
+                      <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 font-extrabold text-slate-800 text-xs border border-slate-200/60 shadow-xs">
+                        PCS {g.pcs_index} / {g.total_pcs || g.pcs_index}
+                      </div>
+                    </div>
+
+                    {/* Middle Section: Tanggal/Waktu & Desain */}
+                    <div className="flex flex-col gap-2 mb-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Tanggal & Waktu</span>
+                        <span className="font-bold text-slate-800 text-right">
+                          {g.header?.tgl || "-"} {g.header?.tanggal_jam ? `(${new Date(g.header.tanggal_jam).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })})` : ""}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Desain</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-800 whitespace-nowrap">{g.header?.design_id}</span>
                           {g.header?.panel_no === "METERAN" ? (
-                            <span className="px-2 py-0.5 rounded text-[9px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider">METERAN</span>
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider">METERAN</span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">PANEL</span>
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">PANEL</span>
                           )}
                         </div>
-                      </td>
-                      <td className="px-3 py-3 md:px-6 md:py-4">
-                        <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-                          {g.header?.potongan_ke || "-"}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 md:px-6 md:py-4 text-center">
-                        <div className="inline-flex items-center gap-1.5 justify-center">
-                          <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 font-extrabold text-slate-700 text-xs whitespace-nowrap border border-slate-200/60 shadow-xs">
-                            {g.pcs_index} / {g.total_pcs || g.pcs_index}
+                      </div>
+                    </div>
+
+                    {/* Bottom Section: Action Button */}
+                    <button
+                      onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                      className={`w-full h-10 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
+                        isPausedItem 
+                          ? "bg-amber-500 hover:bg-amber-600 text-white" 
+                          : (isProcessingItem ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-rose-600 hover:bg-rose-700 text-white")
+                      }`}
+                    >
+                      {isPausedItem ? (
+                        <><Play className="w-3.5 h-3.5 fill-white" /> Lanjut Mending</>
+                      ) : isProcessingItem ? (
+                        <><Play className="w-3.5 h-3.5 fill-white" /> Buka Mending</>
+                      ) : (
+                        <><Scissors className="w-3.5 h-3.5" /> Mulai Mending</>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    <th className="sticky left-0 z-20 bg-slate-50 px-6 py-4 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Tanggal & Waktu</th>
+                    <th className="px-6 py-4">Nomor Mesin</th>
+                    <th className="px-6 py-4">Potongan</th>
+                    <th className="px-6 py-4">Desain</th>
+                    <th className="px-6 py-4 text-center">PCS Ke</th>
+                    <th className="px-6 py-4 text-center whitespace-nowrap">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                  {currentPcsList.map((g: any) => {
+                    const sessionKey = `${g.nomor_mc}_${g.design_id}_${g.potongan_ke}_${g.pcs_index}`;
+                    const session = activeSessionsMap.get(sessionKey);
+                    const isPausedItem = session?.is_paused;
+                    const isProcessingItem = session && !session.is_paused;
+
+                    return (
+                      <tr key={sessionKey} className={`hover:bg-slate-50/50 transition-colors ${isPausedItem ? "bg-amber-50/40" : ""}`}>
+                        <td className="sticky left-0 z-10 bg-white px-6 py-4 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                          <div className="font-bold text-slate-800">
+                            {g.header?.tgl || "-"}
                           </div>
-                          {isPausedItem && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-black text-[10px] animate-pulse">
-                              <Pause className="w-3 h-3 fill-amber-600" /> DIPAUSE
-                            </span>
+                          <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                            {g.header?.tanggal_jam 
+                              ? new Date(g.header.tanggal_jam).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) 
+                              : "-"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="inline-flex items-center min-w-[3rem] h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-bold">
+                            {g.header?.nomor_mc}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                            #{g.header?.potongan_ke || "-"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-slate-800 font-bold flex items-center gap-2 whitespace-nowrap">
+                            {g.header?.design_id}
+                            {g.header?.panel_no === "METERAN" ? (
+                              <span className="px-2 py-0.5 rounded text-[9px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider">METERAN</span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">PANEL</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="inline-flex items-center gap-1.5 justify-center">
+                            <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 font-extrabold text-slate-700 text-xs whitespace-nowrap border border-slate-200/60 shadow-xs">
+                              {g.pcs_index} / {g.total_pcs || g.pcs_index}
+                            </div>
+                            {isPausedItem && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-black text-[10px] animate-pulse">
+                                <Pause className="w-3 h-3 fill-amber-600" /> DIPAUSE
+                              </span>
+                            )}
+                            {isProcessingItem && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px]">
+                                <Play className="w-3 h-3 fill-emerald-600" /> PROSES
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center whitespace-nowrap">
+                          {isPausedItem ? (
+                            <button
+                              onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 mx-auto cursor-pointer whitespace-nowrap"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-white" /> Lanjut Mending
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer whitespace-nowrap shadow-sm flex items-center gap-1.5 mx-auto"
+                            >
+                              <Scissors className="w-3.5 h-3.5" />
+                              {isProcessingItem ? "Buka Mending" : "Mulai Mending"}
+                            </button>
                           )}
-                          {isProcessingItem && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px]">
-                              <Play className="w-3 h-3 fill-emerald-600" /> PROSES
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 md:px-6 md:py-4 text-center whitespace-nowrap">
-                        {isPausedItem ? (
-                          <button
-                            onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
-                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center gap-1 mx-auto cursor-pointer whitespace-nowrap"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-white" /> Lanjut Mending
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
-                            className="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap shadow-xs"
-                          >
-                            {isProcessingItem ? "Buka Mending" : "Mulai Mending"}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>        
             {totalPages > 1 && (
               <div className="p-4 border-t border-slate-200 flex items-center justify-between bg-slate-50">
                 <span className="text-xs font-medium text-slate-500">
