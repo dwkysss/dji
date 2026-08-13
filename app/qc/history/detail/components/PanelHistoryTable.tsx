@@ -46,6 +46,7 @@ export default function PanelHistoryTable({
 
     const items: any[] = [];
     let currentOpCount = 0;
+    let firstRowTgl = "";
     let lastTgl = "";
     let lastGrp = "";
     let lastOpr = "";
@@ -55,34 +56,32 @@ export default function PanelHistoryTable({
 
       currentOpCount += 1;
 
-      let showTgl = true;
-      let showGrp = true;
-      let showOpr = true;
+      let showTgl = false;
+      let showGrp = false;
+      let showOpr = false;
 
-      if (tgl === lastTgl) showTgl = false;
-      if (grp === lastGrp) showGrp = false;
-
-      if (hasIstirahat) {
-        showTgl = false;
+      if (i === 0) {
+        // Baris pertama data: Tanggal, Group, dan Operator WAJIB terisi (Rule 1)
+        showTgl = true;
         showGrp = true;
         showOpr = true;
+        firstRowTgl = tgl;
       } else {
-        let prevActualOprStr = "-";
-        for (let k = items.length - 1; k >= 0; k--) {
-          const pItem = items[k];
-          if (!pItem.isTotalRow && !pItem.hasIstirahat) {
-            prevActualOprStr = pItem.production_headers?.operators?.nama_operator || pItem.production_headers?.pic || "-";
-            break;
-          }
+        // Kolom tanggal hanya ditampilkan ketika baris data pertama atau jika tanggalnya berbeda (Rule 2)
+        if (tgl !== firstRowTgl && tgl !== lastTgl) {
+          showTgl = true;
         }
-        if (prevActualOprStr === opr) {
-          showOpr = false;
+
+        // Group & Operator dishow di baris pertama data operator tersebut (Rule 3 & 4)
+        if (opr !== lastOpr) {
+          showGrp = true;
+          showOpr = true;
         }
       }
 
       lastTgl = tgl;
       lastGrp = grp;
-      lastOpr = hasIstirahat ? (item.production_headers?.operator_backup || opr) : opr;
+      lastOpr = opr;
 
       items.push({
         ...item,
@@ -98,6 +97,7 @@ export default function PanelHistoryTable({
         showTgl,
         showGrp,
         showOpr,
+        oprBase: opr,
         oprStr: opr,
         grpStr: grp,
         tglStr: tgl,
@@ -131,10 +131,10 @@ export default function PanelHistoryTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse">
+      <table className="w-full min-w-[720px] text-left border-collapse text-xs">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider">
-            <th className="px-0.5 py-2 w-6 text-center border-r border-slate-200">PNL</th>
+            <th className="sticky left-0 z-20 bg-slate-100 px-0.5 py-2 w-6 text-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">PNL</th>
             <th className="px-1 py-2 w-14 border-r border-slate-200">Tgl</th>
             <th className="px-0.5 py-2 w-8 text-center border-r border-slate-200">Group</th>
             <th className="px-1 py-2 w-16 border-r border-slate-200">Operator</th>
@@ -150,7 +150,7 @@ export default function PanelHistoryTable({
             if (item.isTotalRow) {
               return (
                 <tr key={item.id || idx} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
-                  <td colSpan={4} className="px-3 py-2 text-right whitespace-nowrap">
+                  <td colSpan={4} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-right whitespace-nowrap border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                     {item.totalLabel}
                   </td>
                   <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap">
@@ -172,14 +172,12 @@ export default function PanelHistoryTable({
 
             let masalahLines: string[] = [];
             if (isIstirahatOnly) {
-              // break rows have no defects, so masalahLines remains empty (rendering as "-")
             } else {
               if (detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0) {
                 const groupedMap = new Map<string, Set<string>>();
                 const orderList: string[] = [];
 
                 detail.production_defects.forEach((d: any) => {
-                  if ((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT")) return;
                   const k = d.kategori || "";
                   const det = d.detail || "";
                   const key = k && det ? `${k} - ${det}` : (k || det);
@@ -339,51 +337,44 @@ export default function PanelHistoryTable({
                   cacatLines.push(displayDetail);
                 }
 
-                let ketCacat = detail.keterangan_cacat || "";
-                ketCacat = ketCacat.replace("[TAMBAHAN QC]", "").trim();
+                masalahLines.push(...cacatLines);
+              }
 
-                if (ketCacat) {
-                  if (cacatLines.length > 0) {
-                    const parts = ketCacat.split(",").map((s: string) => s.trim());
-                    cacatLines = cacatLines.map((line, i) => {
+              let ketCacat = detail.keterangan_cacat || "";
+              ketCacat = ketCacat.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
+              ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
+              ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
+              if (ketCacat) {
+                if (masalahLines.length > 0) {
+                  const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
+                  if (masalahLines.length === 1 && parts.length > 1) {
+                    const cleanAllBlocks = parts
+                      .map((p: string) => p.replace(/blok\s*/gi, "").trim())
+                      .filter(Boolean)
+                      .join(", ");
+                    masalahLines = masalahLines.map((line) =>
+                      line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanAllBlocks})`
+                    );
+                  } else {
+                    masalahLines = masalahLines.map((line, i) => {
+                      if (line.match(/\(Blok/i)) return line;
                       const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
-                      let partIndex = i;
-                      if (lineKat && kats.includes(lineKat)) {
-                         partIndex = kats.indexOf(lineKat);
-                      }
-
-                      if (parts[partIndex] && parts[partIndex] !== "") {
-                        const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                        return line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanB})`;
-                      } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                        const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                        return line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanB})`;
+                      const matchingPart = parts.find((p: string) => lineKat && p.toLowerCase().includes(lineKat.toLowerCase()));
+                      const blockPart = matchingPart || parts[i] || parts[0];
+                      if (blockPart) {
+                        const cleanB = blockPart.replace(/blok\s*/gi, "").trim();
+                        return cleanB ? `${line} (Blok ${cleanB})` : line;
                       }
                       return line;
                     });
-                  } else {
-                     const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-                     cacatLines.push(`(Blok ${cleanB})`);
-                  }
-                }
-
-                masalahLines.push(...cacatLines);
-
-                if (detail.keterangan_cacat && detail.keterangan_cacat.includes("[TAMBAHAN QC]")) {
-                  if (masalahLines.length === 0) {
-                    masalahLines.push("[TAMBAHAN QC]");
-                  } else {
-                    for (let i = 0; i < masalahLines.length; i++) {
-                      masalahLines[i] = masalahLines[i] + " [TAMBAHAN QC]";
-                    }
                   }
                 }
               }
-            }
 
               if (detail.keterangan_qc && detail.keterangan_qc !== "-") {
                 masalahLines.push(`QC: ${detail.keterangan_qc}`);
               }
+            }
             }
             const hasDefect = masalahLines.length > 0;
             if (masalahLines.length === 0) masalahLines.push("-");
@@ -398,7 +389,7 @@ export default function PanelHistoryTable({
 
             return (
               <tr key={item.id || idx} className={`${hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
-                <td className="px-1 py-1 font-bold text-slate-800 text-center border-r border-slate-100 flex flex-col items-center justify-center">
+                <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
                   <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
                   {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
                     <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
@@ -407,11 +398,11 @@ export default function PanelHistoryTable({
                 <td className="px-1 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100">
                   {displayTgl}
                 </td>
-                <td className={`px-1 py-1 font-medium text-center text-slate-700 border-r border-slate-100`}>
+                <td className="px-1 py-1 font-medium text-center text-slate-700 border-r border-slate-100">
                   {item.showGrp ? displayGrp : ""}
                 </td>
-                <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(hasIstirahat && !item.showOpr) ? "italic font-bold text-slate-500 text-center" : "font-medium text-slate-700"}`}>
-                  {item.showOpr ? displayOp : (hasIstirahat ? "Istirahat" : "")}
+                <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(!item.showOpr && hasIstirahat) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
+                  {item.showOpr ? (item.oprBase || displayGrp || "-") : (hasIstirahat ? "Istirahat" : "")}
                 </td>
                  <td className="px-1 py-1 text-center border-r border-slate-100">
                    {isIstirahatOnly ? (
@@ -424,22 +415,21 @@ export default function PanelHistoryTable({
                      )
                    )}
                  </td>
-                 <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${hasIstirahat ? 'text-slate-500' : (masalahLines.length > 0 ? 'text-rose-600' : 'text-slate-700')}`}>
-                   {hasIstirahat && (
+                 <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${hasIstirahat ? 'text-slate-500' : (masalahLines.length > 0 && masalahLines[0] !== '-' ? 'text-rose-600' : 'text-slate-700')}`}>
+                   {hasIstirahat ? (
                      <>
-                       {(extractedBackupOp && extractedBackupOp.trim().toLowerCase() !== (item.oprStr || "").trim().toLowerCase()) ? (
+                       {extractedBackupOp ? (
                          <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>
-                       ) : item.showOpr ? (
-                         <div className="font-bold text-slate-700 mb-0.5">ISTIRAHAT</div>
-                       ) : (
-                         <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp || "-"}</div>
-                       )}
-                       {!isIstirahatOnly && masalahLines.length > 0 && (
+                       ) : null}
+                       {!isIstirahatOnly && masalahLines.length > 0 && masalahLines[0] !== '-' ? (
                          <div className="text-rose-600">{masalahLines.join("\n")}</div>
+                       ) : (
+                         !extractedBackupOp && <span className="text-slate-400">-</span>
                        )}
                      </>
+                   ) : (
+                     masalahLines.length > 0 ? masalahLines.join("\n") : "-"
                    )}
-                   {!hasIstirahat && (masalahLines.length > 0 ? masalahLines.join("\n") : "-")}
                  </td>
 
                 <td className="px-1 py-1 text-center border-r border-slate-100">

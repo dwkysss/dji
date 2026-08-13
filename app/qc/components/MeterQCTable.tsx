@@ -393,10 +393,10 @@ export default function MeterQCTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse">
+      <table className="w-full min-w-[720px] text-left border-collapse">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider">
-            <th className="px-0.5 py-2 w-6 text-center border-r border-slate-200">No</th>
+            <th className="sticky left-0 z-20 bg-slate-100 px-0.5 py-2 w-6 text-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">No</th>
             <th className="px-1 py-2 w-14 border-r border-slate-200">Tgl</th>
             <th className="px-0.5 py-2 w-8 text-center border-r border-slate-200">Group</th>
             <th className="px-1 py-2 w-16 border-r border-slate-200">Operator</th>
@@ -412,7 +412,7 @@ export default function MeterQCTable({
             if (item.isTotalRow) {
               return (
                 <tr key={item.id} className="bg-slate-100 border-t-2 border-b-2 border-slate-300">
-                  <td colSpan={10} className="px-3 py-2 text-center text-xs font-semibold text-slate-600">
+                  <td colSpan={10} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-center text-xs font-semibold text-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                     {item.totalLabel} <span className="font-extrabold text-slate-800 ml-1">{item.totalMeter}</span>
                   </td>
                 </tr>
@@ -420,7 +420,7 @@ export default function MeterQCTable({
             }
             return (
               <tr key={item.id} className={`${item.hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
-                <td className="px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100">
+                <td className={`sticky left-0 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${item.hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
                   {item.displayNo}
                 </td>
                 <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100">

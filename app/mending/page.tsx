@@ -867,6 +867,7 @@ export default function MendingPage() {
       const items: any[] = [];
       let currentOpCount = 0;
       let currentOpIds: string[] = [];
+      let firstRowTgl = "";
       let lastTgl = "";
       let lastGrp = "";
       let lastOpr = "";
@@ -879,34 +880,32 @@ export default function MendingPage() {
           currentOpIds.push(item.id);
         }
 
-        let showTgl = true;
-        let showGrp = true;
-        let showOpr = true;
+        let showTgl = false;
+        let showGrp = false;
+        let showOpr = false;
 
-        if (tgl === lastTgl) showTgl = false;
-        if (grp === lastGrp) showGrp = false;
-
-        if (isIstirahat) {
-          showTgl = false;
-          showGrp = false;
+        if (i === 0) {
+          // Baris pertama data: Tanggal, Group, dan Operator WAJIB terisi (Rule 1)
+          showTgl = true;
+          showGrp = true;
           showOpr = true;
+          firstRowTgl = tgl;
         } else {
-          let prevActualOprStr = "-";
-          for (let k = items.length - 1; k >= 0; k--) {
-            const pItem = items[k];
-            if (!pItem.isTotalRow && !pItem.isIstirahat) {
-              prevActualOprStr = pItem.production_headers?.operators?.nama_operator || pItem.production_headers?.pic || "-";
-              break;
-            }
+          // Kolom tanggal hanya ditampilkan ketika baris data pertama atau jika tanggalnya berbeda (Rule 2)
+          if (tgl !== firstRowTgl && tgl !== lastTgl) {
+            showTgl = true;
           }
-          if (prevActualOprStr === opr) {
-            showOpr = false;
+
+          // Group & Operator dishow di baris pertama data operator tersebut (Rule 3 & 4)
+          if (opr !== lastOpr) {
+            showGrp = true;
+            showOpr = true;
           }
         }
 
         lastTgl = tgl;
         lastGrp = grp;
-        lastOpr = isIstirahat ? "Istirahat" : opr;
+        lastOpr = opr;
 
         items.push({
           ...item,
@@ -922,6 +921,7 @@ export default function MendingPage() {
           showTgl,
           showGrp,
           showOpr,
+          oprBase: opr,
           oprStr,
           grpStr: grp,
           tglStr: tgl,
@@ -1920,7 +1920,7 @@ export default function MendingPage() {
         </button>
       </div>
 
-      {errorMsg && (
+{errorMsg && (
         <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 shrink-0" />
           {errorMsg}
@@ -1928,7 +1928,7 @@ export default function MendingPage() {
       )}
 
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 items-end gap-4 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 items-end gap-4 w-full">
           <div className="flex flex-col gap-1 w-full">
             <label className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between">
               <span>Tanggal</span>
@@ -1986,7 +1986,7 @@ export default function MendingPage() {
           <button
             onClick={() => handleSearch(searchTanggal)}
             disabled={isSearching}
-            className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm shrink-0 w-full col-span-2 sm:col-span-1"
+            className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm shrink-0 w-full col-span-1 sm:col-span-2 md:col-span-1"
           >
             {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Cari Data
@@ -2009,15 +2009,15 @@ export default function MendingPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[700px] text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] sm:text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                  <th className="px-3 py-3 lg:px-6 lg:py-4">Tanggal & Waktu</th>
-                  <th className="px-3 py-3 lg:px-6 lg:py-4">Nomor Mesin</th>
-                  <th className="px-3 py-3 lg:px-6 lg:py-4">Desain</th>
-                  <th className="px-3 py-3 lg:px-6 lg:py-4">Potongan</th>
-                  <th className="px-3 py-3 lg:px-6 lg:py-4 text-center">PCS Ke</th>
-                  <th className="px-3 py-3 lg:px-6 lg:py-4 text-center">Aksi</th>
+                  <th className="px-3 py-3 md:px-6 md:py-4">Tanggal & Waktu</th>
+                  <th className="px-3 py-3 md:px-6 md:py-4">Nomor Mesin</th>
+                  <th className="px-3 py-3 md:px-6 md:py-4">Desain</th>
+                  <th className="px-3 py-3 md:px-6 md:py-4">Potongan</th>
+                  <th className="px-3 py-3 md:px-6 md:py-4 text-center">PCS Ke</th>
+                  <th className="px-3 py-3 md:px-6 md:py-4 text-center whitespace-nowrap">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
@@ -2029,7 +2029,7 @@ export default function MendingPage() {
 
                   return (
                     <tr key={sessionKey} className={`hover:bg-slate-50/50 transition-colors ${isPausedItem ? "bg-amber-50/40" : ""}`}>
-                      <td className="px-3 py-3 lg:px-6 lg:py-4">
+                      <td className="px-3 py-3 md:px-6 md:py-4">
                         <div className="font-bold text-slate-800">
                           {g.header?.tgl || "-"}
                         </div>
@@ -2039,12 +2039,12 @@ export default function MendingPage() {
                             : "-"}
                         </div>
                       </td>
-                      <td className="px-3 py-3 lg:px-6 lg:py-4">
+                      <td className="px-3 py-3 md:px-6 md:py-4">
                         <div className="inline-flex items-center min-w-[3rem] h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-bold">
                           {g.header?.nomor_mc}
                         </div>
                       </td>
-                      <td className="px-3 py-3 lg:px-6 lg:py-4">
+                      <td className="px-3 py-3 md:px-6 md:py-4">
                         <div className="text-slate-800 font-bold flex items-center gap-2">
                           {g.header?.design_id}
                           {g.header?.panel_no === "METERAN" ? (
@@ -2054,12 +2054,12 @@ export default function MendingPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 lg:px-6 lg:py-4">
+                      <td className="px-3 py-3 md:px-6 md:py-4">
                         <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                           {g.header?.potongan_ke || "-"}
                         </div>
                       </td>
-                      <td className="px-3 py-3 lg:px-6 lg:py-4 text-center">
+                      <td className="px-3 py-3 md:px-6 md:py-4 text-center">
                         <div className="inline-flex items-center gap-1.5 justify-center">
                           <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 font-extrabold text-slate-700 text-xs whitespace-nowrap border border-slate-200/60 shadow-xs">
                             {g.pcs_index} / {g.total_pcs || g.pcs_index}
@@ -2076,18 +2076,18 @@ export default function MendingPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 lg:px-6 lg:py-4 text-center">
+                      <td className="px-3 py-3 md:px-6 md:py-4 text-center whitespace-nowrap">
                         {isPausedItem ? (
                           <button
                             onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
-                            className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center gap-1 mx-auto cursor-pointer"
+                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center gap-1 mx-auto cursor-pointer whitespace-nowrap"
                           >
                             <Play className="w-3.5 h-3.5 fill-white" /> Lanjut Mending
                           </button>
                         ) : (
                           <button
                             onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
-                            className="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs rounded-lg transition-all cursor-pointer"
+                            className="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap shadow-xs"
                           >
                             {isProcessingItem ? "Buka Mending" : "Mulai Mending"}
                           </button>

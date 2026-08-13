@@ -1644,7 +1644,7 @@ export default function QCPage() {
 
       {/* Filter Card */}
       <div data-tour="qc-inspection-filter" className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 items-end gap-4 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 items-end gap-4 w-full">
           <div className="flex flex-col gap-1 w-full">
             <label className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between">
               <span>Tanggal</span>
@@ -1707,7 +1707,7 @@ export default function QCPage() {
           <button
             onClick={() => handleSearch(searchTanggal, searchMesin, searchPotongan)}
             disabled={isSearching}
-            className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm w-full col-span-2 sm:col-span-1"
+            className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm w-full col-span-1 sm:col-span-2 md:col-span-1"
           >
             {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Cari Data
@@ -1730,7 +1730,7 @@ export default function QCPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[650px] text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                   <th className="px-2 py-2">Mesin</th>
@@ -1739,7 +1739,7 @@ export default function QCPage() {
                   <th className="px-2 py-2">Desain</th>
                   <th className="px-2 py-2">Potongan</th>
                   <th className="px-2 py-2 text-center">PCS</th>
-                  <th className="px-2 py-2 text-center">Aksi</th>
+                  <th className="px-2 py-2 text-center whitespace-nowrap">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[11px] font-medium text-slate-700">

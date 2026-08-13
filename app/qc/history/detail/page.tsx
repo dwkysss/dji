@@ -53,43 +53,42 @@ const getActualMeter = (item: any, h: any) => {
 };
 
 const calculateDurationStr = (start?: string | null, finish?: string | null, pauseSec: number = 0, elapsedSec?: number | null) => {
+  let totalSec = 0;
+
   if (elapsedSec !== undefined && elapsedSec !== null && elapsedSec > 0) {
-    const hours = Math.floor(elapsedSec / 3600);
-    const mins = Math.floor((elapsedSec % 3600) / 60);
-    const secs = elapsedSec % 60;
-    if (hours > 0) return `${hours}j ${mins}m`;
-    if (mins === 0 && secs > 0) return `${secs} dtk`;
-    return `${mins} mnt`;
-  }
-  if (!start || !finish) return "-";
+    totalSec = elapsedSec;
+  } else if (start && finish) {
+    const parseSecs = (str: string) => {
+      const match = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (!match) return null;
+      const h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const s = match[3] ? parseInt(match[3], 10) : 0;
+      return h * 3600 + m * 60 + s;
+    };
 
-  const parseSecs = (str: string) => {
-    const match = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-    if (!match) return null;
-    const h = parseInt(match[1], 10);
-    const m = parseInt(match[2], 10);
-    const s = match[3] ? parseInt(match[3], 10) : 0;
-    return h * 3600 + m * 60 + s;
-  };
-
-  const sSecs = parseSecs(start);
-  const fSecs = parseSecs(finish);
-  if (sSecs === null || fSecs === null) return "-";
-
-  let diff = fSecs - sSecs;
-  if (diff < 0) diff += 24 * 3600;
-
-  if (pauseSec > 0) {
-    diff = Math.max(0, diff - pauseSec);
+    const sSecs = parseSecs(start);
+    const fSecs = parseSecs(finish);
+    if (sSecs !== null && fSecs !== null) {
+      let diff = fSecs - sSecs;
+      if (diff < 0) diff += 24 * 3600;
+      totalSec = Math.max(0, diff - pauseSec);
+    }
   }
 
-  const hours = Math.floor(diff / 3600);
-  const mins = Math.floor((diff % 3600) / 60);
-  const secs = diff % 60;
+  if (totalSec <= 0) return "-";
 
-  if (hours > 0) return `${hours}j ${mins}m`;
-  if (mins === 0 && secs > 0) return `${secs} dtk`;
-  return `${mins} mnt`;
+  const hours = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+
+  if (hours > 0) {
+    return mins > 0 ? `${hours}j ${mins}m` : `${hours}j`;
+  }
+  if (mins > 0) {
+    return secs > 0 ? `${mins}m ${secs}d` : `${mins} mnt`;
+  }
+  return `${secs} dtk`;
 };
 
 function QCDetailContent() {

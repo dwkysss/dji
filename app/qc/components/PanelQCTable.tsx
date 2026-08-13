@@ -59,6 +59,7 @@ export default function PanelQCTable({
 
     // Step 2: Build the final list with total rows
     let currentOpCount = 0;
+    let firstRowTgl = "";
     let lastTgl = "";
     let lastGrp = "";
     let lastOpr = "";
@@ -68,13 +69,28 @@ export default function PanelQCTable({
 
       currentOpCount += 1;
 
-      let showTgl = true;
-      let showGrp = true;
-      let showOpr = true;
+      let showTgl = false;
+      let showGrp = false;
+      let showOpr = false;
 
-      if (tgl === lastTgl) showTgl = false;
-      if (grp === lastGrp) showGrp = false;
-      if (oprBase === lastOpr) showOpr = false;
+      if (i === 0) {
+        // Baris pertama data: Tanggal, Group, dan Operator WAJIB terisi (Rule 1)
+        showTgl = true;
+        showGrp = true;
+        showOpr = true;
+        firstRowTgl = tgl;
+      } else {
+        // Kolom tanggal hanya ditampilkan ketika baris data pertama atau jika tanggalnya berbeda (Rule 2)
+        if (tgl !== firstRowTgl && tgl !== lastTgl) {
+          showTgl = true;
+        }
+
+        // Group & Operator dishow di baris pertama data operator tersebut (Rule 3 & 4)
+        if (oprBase !== lastOpr) {
+          showGrp = true;
+          showOpr = true;
+        }
+      }
 
       lastTgl = tgl;
       lastGrp = grp;
@@ -156,7 +172,7 @@ export default function PanelQCTable({
       <table className="w-full text-left border-collapse text-xs">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider">
-            <th className="px-0.5 py-2 w-6 text-center border-r border-slate-200" rowSpan={2}>PNL</th>
+            <th className="sticky left-0 z-20 bg-slate-50 px-0.5 py-2 w-6 text-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>PNL</th>
             <th className="px-1 py-2 w-14 border-r border-slate-200" rowSpan={2}>Tgl</th>
             <th className="px-0.5 py-2 w-8 text-center border-r border-slate-200" rowSpan={2}>Group</th>
             <th className="px-1 py-2 w-16 border-r border-slate-200" rowSpan={2}>Operator</th>
@@ -402,7 +418,7 @@ export default function PanelQCTable({
 
             return (
             <tr key={item.id} className={`${hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
-              <td className="px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-100">
+              <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "bg-white")}`}>
                 <span>{cleanPanelNo}</span>
                 {item.jml_hasil_produksi === 0 && (
                   <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
@@ -414,27 +430,32 @@ export default function PanelQCTable({
               <td className="px-1 py-1 font-medium text-slate-700 text-center border-r border-slate-100">
                 {showGrp ? grpStr : ""}
               </td>
-              <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(hasIstirahat && (!showOpr || isIstirahatOnly || !item.oprBase)) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
-                {showOpr ? (hasIstirahat && isIstirahatOnly ? "Istirahat" : (item.oprBase || (hasIstirahat ? "Istirahat" : ""))) : (hasIstirahat ? "Istirahat" : "")}
+              <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(!showOpr && hasIstirahat) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
+                {showOpr ? (item.oprBase || grpStr || "-") : (hasIstirahat ? "Istirahat" : "")}
               </td>
               <td className="px-1 py-1 text-center font-bold text-sm border-r border-slate-100">
                 {item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
               </td>
               
-              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${isIstirahatOnly ? 'text-slate-500' : 'text-rose-600'}`}>
-                {extractedBackupOp && hasIstirahat && <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>}
-                {!isIstirahatOnly && (cacat || "-")}
+              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isIstirahatOnly ? 'text-slate-500' : 'text-rose-600'}`}>
+                {hasIstirahat ? (
+                  <>
+                    {extractedBackupOp && <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>}
+                    {cacat ? (
+                      <div className={isIstirahatOnly ? "text-slate-500" : "text-rose-600"}>{cacat}</div>
+                    ) : (
+                      !extractedBackupOp && <span className="text-slate-400">-</span>
+                    )}
+                  </>
+                ) : (
+                  <div className={cacat && cacat !== "-" ? "text-rose-600" : "text-slate-400"}>
+                    {cacat || "-"}
+                  </div>
+                )}
               </td>
               
               <td className="px-1 py-1 border-r border-slate-100">
                 <div className="flex items-center justify-center gap-1">
-                  <button
-                    onClick={() => handleOpenDetail(item.production_headers?.id || item.header_id)}
-                    className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-[#0070bc] hover:border-[#0070bc]/30 transition-all shadow-sm"
-                    title="Lihat Detail Sesi"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
                   <button
                     onClick={() => setDetailToDelete({ id: item.id, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
                     className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-sm"
