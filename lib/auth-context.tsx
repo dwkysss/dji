@@ -121,20 +121,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 
                 // Cek jika butuh ganti password
                 if (forceChange) {
-                  router.push("/change-password");
+                  window.location.href = "/change-password";
                   return; // Hentikan eksekusi redirect normal
                 }
               }
               
+              let targetRoute = "/";
               if (role === "operator") {
-                router.push("/input");
+                targetRoute = "/input";
               } else if (role === "inspeksi") {
-                router.push("/qc");
+                targetRoute = "/qc";
               } else if (role === "mending") {
-                router.push("/mending");
+                targetRoute = "/mending";
               } else {
-                router.push("/");
+                targetRoute = "/";
               }
+
+              // Gunakan window.location.href agar cookies dan storage tersinkronisasi penuh dan mencegah bounce-back
+              window.location.href = targetRoute;
             }
           }
         } else if (event === "SIGNED_OUT") {
@@ -144,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             localStorage.removeItem("dji_cached_user");
           } catch (e) {}
-          router.push("/login");
+          window.location.href = "/login";
         }
       }
     );
@@ -157,10 +161,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isPublic = pathname === "/login" || pathname === "/change-password" || pathname.includes("/print");
 
   useEffect(() => {
-    if (!isLoading) {
-      if (!isLoggedIn && !isPublic) {
-        router.push("/login");
-      }
+    if (!isLoading && !isLoggedIn && !isPublic) {
+      // Cek apakah ada cached user di localStorage sebelum redirect untuk mencegah false negative di localhost
+      try {
+        const cached = localStorage.getItem("dji_cached_user");
+        if (cached) return;
+      } catch (e) {}
+      router.push("/login");
     }
   }, [isLoading, isLoggedIn, isPublic, pathname, router]);
 
