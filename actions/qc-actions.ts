@@ -1088,12 +1088,12 @@ export async function insertMissingPanel(params: {
 
     if (existingHeaderLinkedToCurrentPcs) {
       if (params.isBs) {
-        // Jika BS, jangan geser dan jangan buat header baru (gunakan yang ada)
+        // Jika BS, jangan geser panel lain dan jangan buat header baru (gunakan header yang sudah ada di nomor panel tersebut sehingga nomor panel tsb memiliki 2 data)
         needsShift = false;
         needsNewHeader = false;
         targetHeaderId = existingHeaderLinkedToCurrentPcs.id;
       } else {
-        // Jika bukan BS, kita harus geser dan buat header baru untuk panel yang disisipkan
+        // Jika bukan BS, kita harus geser panel >= newPanelNo dan buat header baru untuk panel yang disisipkan
         needsShift = true;
         needsNewHeader = true;
       }
@@ -1236,12 +1236,13 @@ export async function insertMissingPanel(params: {
     // 7. Create production_detail(s)
     // Only create for current PCS as requested
     const newDetailId = genId() + "-0";
-    const finalInspectionId = params.finalInspectionId ?? (params.isBs ? 4 : null);
+    const finalInspectionId = params.finalInspectionId !== undefined ? params.finalInspectionId : null;
 
     let statusInspeksi: string | null = null;
     if (finalInspectionId === 3) statusInspeksi = "Silang";
     else if (finalInspectionId === 4) statusInspeksi = "BS";
     else if (finalInspectionId === 1 || finalInspectionId === 2) statusInspeksi = "Ceklis";
+    else if (params.isBs) statusInspeksi = "BS";
 
     const { error: insertDetailErr } = await supabase
       .from("production_details")

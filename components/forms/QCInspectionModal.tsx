@@ -64,6 +64,7 @@ export default function QCInspectionModal({
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<QCFormData>({
     resolver: zodResolver(qcSchema),
@@ -81,6 +82,14 @@ export default function QCInspectionModal({
       notes: "",
     },
   });
+
+  const [prodBsCount, setProdBsCount] = useState(0);
+  const [qcBsCount, setQcBsCount] = useState(0);
+
+  const watchedProdCeklis = watch("prod_ceklis") || 0;
+  const watchedProdSilang = watch("prod_silang") || 0;
+  const watchedQcCeklis = watch("qc_ceklis") || 0;
+  const watchedQcSilang = watch("qc_silang") || 0;
 
   const isMeteranBatch = headerData?.details && headerData.details.length > 0 && headerData.details[0]?.production_headers?.panel_no === "METERAN";
 
@@ -123,8 +132,10 @@ export default function QCInspectionModal({
 
       let countCeklis = 0;
       let countSilang = 0;
+      let countBS = 0;
       let countProdCeklis = 0;
       let countProdSilang = 0;
+      let countProdBS = 0;
 
       const checkIsDefectRow = (d: any) => {
         if (!d) return false;
@@ -185,30 +196,43 @@ export default function QCInspectionModal({
 
           // Inspeksi QC (Seluruh cacat hasil pemeriksaan QC termasuk Tambahan QC)
           const grade = selections[d.id];
-          if (grade === 2 || grade === 3 || grade === 4) {
+          if (grade === 2 || grade === 3) {
             countSilang += 1;
+          } else if (grade === 4) {
+            countBS += 1;
           }
         });
         
         countProdCeklis = Math.max(0, maxMeter - countProdSilang);
-        countCeklis = Math.max(0, maxMeter - countSilang);
+        countCeklis = Math.max(0, maxMeter - countSilang - countBS);
       } else {
         // Mode Panel (Default)
-        Object.values(selections).forEach((val) => {
+        Object.entries(selections).forEach(([detailId, val]) => {
           if (val === 1) countCeklis++;
-          else if (val === 2 || val === 3 || val === 4) countSilang++;
+          else if (val === 2 || val === 3) countSilang++;
+          else if (val === 4) countBS++;
         });
 
         if (headerData?.details) {
           headerData.details.forEach((d: any) => {
-            const isDefect = checkIsDefectRow(d);
             const isTambahanQC = !!d.hasTambahanQC || (d.keterangan_cacat || "").includes("[TAMBAHAN QC]");
-            if (isDefect && !isTambahanQC) countProdSilang++;
-            else if (!isTambahanQC) countProdCeklis++;
+            if (!isTambahanQC) {
+              const isBS = d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS";
+              const isDefect = checkIsDefectRow(d);
+              if (isBS) {
+                countProdBS++;
+              } else if (isDefect) {
+                countProdSilang++;
+              } else {
+                countProdCeklis++;
+              }
+            }
           });
         }
       }
 
+      setProdBsCount(countProdBS);
+      setQcBsCount(countBS);
       setValue("prod_ceklis", countProdCeklis);
       setValue("prod_silang", countProdSilang);
       setValue("qc_ceklis", countCeklis);
@@ -340,7 +364,7 @@ export default function QCInspectionModal({
             </h3>
             <p className="text-xs text-slate-500 font-medium">
               Isi seluruh data inspeksi untuk {Object.keys(selections).length}{" "}
-              baris yang telah Anda pilih gradenya.
+              {isMeteranBatch ? "meter" : "panel"} yang telah Anda pilih gradenya.
             </p>
           </div>
           <button
@@ -540,10 +564,14 @@ export default function QCInspectionModal({
                     Total (Produksi)
                   </h4>
                   <div className="text-[11px] font-extrabold text-slate-700 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">
-                    Keseluruhan: <span className="text-slate-900 font-black">{totalKeseluruhanMeter} {isMeteranBatch ? "Meter" : "Baris"}</span>
+                    Keseluruhan: <span className="text-slate-900 font-black">
+                      {isMeteranBatch 
+                        ? `${(watchedProdCeklis || 0) + (watchedProdSilang || 0)} Meter` 
+                        : `${(watchedProdCeklis || 0) + (watchedProdSilang || 0)} Panel${prodBsCount > 0 ? ` (+ ${prodBsCount} BS)` : ""}`}
+                    </span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className={`grid ${isMeteranBatch ? "grid-cols-2" : "grid-cols-3"} gap-2.5`}>
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1 flex items-center gap-1">
                       <CheckCircle className="w-3 h-3 text-emerald-500" /> Normal
@@ -553,10 +581,10 @@ export default function QCInspectionModal({
                         type="number"
                         {...register("prod_ceklis", { valueAsNumber: true })}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-slate-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
+                        className="w-full h-9 pl-3 pr-10 rounded-lg border border-slate-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
-                        {isMeteranBatch ? "meter" : "baris"}
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                        {isMeteranBatch ? "meter" : "panel"}
                       </span>
                     </div>
                   </div>
@@ -569,13 +597,31 @@ export default function QCInspectionModal({
                         type="number"
                         {...register("prod_silang", { valueAsNumber: true })}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-slate-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
+                        className="w-full h-9 pl-3 pr-10 rounded-lg border border-slate-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
-                        {isMeteranBatch ? "titik" : "baris"}
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                        {isMeteranBatch ? "titik" : "panel"}
                       </span>
                     </div>
                   </div>
+                  {!isMeteranBatch && (
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-rose-600" /> BS
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          readOnly
+                          value={prodBsCount}
+                          className="w-full h-9 pl-3 pr-10 rounded-lg border border-rose-200 bg-rose-50/50 text-sm font-bold text-rose-700 outline-none cursor-default"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                          panel
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -586,10 +632,14 @@ export default function QCInspectionModal({
                     Total (Inspeksi QC)
                   </h4>
                   <div className="text-[11px] font-extrabold text-sky-800 bg-white px-2.5 py-1 rounded-md border border-sky-200 shadow-sm">
-                    Keseluruhan: <span className="text-sky-950 font-black">{totalKeseluruhanMeter} {isMeteranBatch ? "Meter" : "Baris"}</span>
+                    Keseluruhan: <span className="text-sky-950 font-black">
+                      {isMeteranBatch 
+                        ? `${(watchedQcCeklis || 0) + (watchedQcSilang || 0)} Meter` 
+                        : `${(watchedQcCeklis || 0) + (watchedQcSilang || 0)} Panel${qcBsCount > 0 ? ` (+ ${qcBsCount} BS)` : ""}`}
+                    </span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className={`grid ${isMeteranBatch ? "grid-cols-2" : "grid-cols-3"} gap-2.5`}>
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1 flex items-center gap-1">
                       <CheckCircle className="w-3 h-3 text-emerald-500" /> Normal
@@ -599,10 +649,10 @@ export default function QCInspectionModal({
                         type="number"
                         {...register("qc_ceklis", { valueAsNumber: true })}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-sky-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
+                        className="w-full h-9 pl-3 pr-10 rounded-lg border border-sky-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
-                        {isMeteranBatch ? "meter" : "baris"}
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                        {isMeteranBatch ? "meter" : "panel"}
                       </span>
                     </div>
                   </div>
@@ -615,13 +665,31 @@ export default function QCInspectionModal({
                         type="number"
                         {...register("qc_silang", { valueAsNumber: true })}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-sky-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
+                        className="w-full h-9 pl-3 pr-10 rounded-lg border border-sky-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
-                        {isMeteranBatch ? "titik" : "baris"}
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                        {isMeteranBatch ? "titik" : "panel"}
                       </span>
                     </div>
                   </div>
+                  {!isMeteranBatch && (
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-rose-600" /> BS
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          readOnly
+                          value={qcBsCount}
+                          className="w-full h-9 pl-3 pr-10 rounded-lg border border-rose-200 bg-rose-50/50 text-sm font-bold text-rose-700 outline-none cursor-default"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                          panel
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

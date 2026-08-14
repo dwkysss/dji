@@ -119,31 +119,28 @@ export default function PanelHistoryTable({
     processed.forEach((p: any, i: number) => {
       const { item, isIstirahatOnly, hasIstirahat, isGradable, opr, grp, tgl, jamStr, operatorStr } = p;
 
-      if (item.kategori_masalah !== "X") {
+      const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || item.kategori_masalah === "X";
+      if (!isBS) {
         currentOpCount += 1;
       }
 
-      let showTgl = true;
-      let showGrp = true;
-      let showOpr = true;
+      let showTgl = false;
+      let showGrp = false;
+      let showOpr = false;
 
-      if (tgl === lastTgl) showTgl = false;
-      if (grp === lastGrp) showGrp = false;
-
-      let prevActualOprStr = "-";
-      for (let k = items.length - 1; k >= 0; k--) {
-        const pItem = items[k];
-        if (!pItem.isTotalRow) {
-          prevActualOprStr = pItem.oprStr || "-";
-          break;
+      if (i === 0) {
+        showTgl = true;
+        showGrp = true;
+        showOpr = true;
+      } else {
+        if (opr !== lastOpr) {
+          showTgl = true;
+          showGrp = true;
+          showOpr = true;
+        } else if (tgl !== lastTgl) {
+          showTgl = true;
         }
       }
-      if (prevActualOprStr === opr) {
-        showOpr = false;
-      }
-
-      if (tgl === lastTgl) showTgl = false;
-      if (grp === lastGrp && !showOpr) showGrp = false;
 
       lastTgl = tgl;
       lastGrp = grp;

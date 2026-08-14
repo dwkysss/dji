@@ -706,11 +706,17 @@ export default function QCPage() {
       setSelections((prev) => {
         const newSelections: Record<string, number> = {};
         detailsToDisplay.forEach((d) => {
-          const isDefect = checkIsDefectRow(d);
-          if (isDefect) {
-            newSelections[d.id] = prev[d.id] && (prev[d.id] === 3 || prev[d.id] === 4 || prev[d.id] === 2) ? prev[d.id] : 3;
+          if (prev[d.id]) {
+            newSelections[d.id] = prev[d.id];
+          } else if (d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS") {
+            newSelections[d.id] = 4;
           } else {
-            newSelections[d.id] = 1;
+            const isDefect = checkIsDefectRow(d);
+            if (isDefect) {
+              newSelections[d.id] = 3;
+            } else {
+              newSelections[d.id] = 1;
+            }
           }
         });
         return newSelections;
@@ -911,6 +917,12 @@ export default function QCPage() {
       if (res.success) {
         setInsertPanelMode(null);
         setInsertPanelAt("");
+        setInsertPanelIsBs(false);
+        setInsertPanelHasDefect(false);
+        setSelectedCategories([]);
+        setSelectedDetails({});
+        setInputBloks({});
+        setInsertPanelKeterangan("");
         // refresh active QC details
         const refreshRes = await getPendingQCDetailsByBatch(activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke);
         if (refreshRes.success && refreshRes.data) {
@@ -1419,7 +1431,7 @@ export default function QCPage() {
                       </label>
                     </div>
                     <p className="text-[10px] text-slate-500 mt-1 pl-1 font-medium leading-tight">
-                      * Jika dicentang, panel lain tidak akan bergeser, dan panel {insertPanelAt || "?"} akan memiliki 1 hasil Gagal.
+                      * Jika dicentang, nomor panel lain tidak akan bergeser, dan panel {insertPanelAt || "?"} akan memiliki 2 baris data (1 Normal & 1 BS).
                     </p>
                   </div>
                 )}

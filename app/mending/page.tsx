@@ -1018,8 +1018,11 @@ export default function MendingPage() {
       processed.forEach((p, i) => {
         const { item, isIstirahat, isFinish, isStart, isGradable, opr, grp, tgl, operatorStr, oprStr, cacatText } = p;
 
-        if (isGradable) {
+        const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || selections[item.id] === "BS";
+        if (isGradable && !isBS) {
           currentOpCount += 1;
+        }
+        if (isGradable) {
           currentOpIds.push(item.id);
         }
 
@@ -1034,15 +1037,14 @@ export default function MendingPage() {
           showOpr = true;
           firstRowTgl = tgl;
         } else {
-          // Kolom tanggal hanya ditampilkan ketika baris data pertama atau jika tanggalnya berbeda (Rule 2)
-          if (tgl !== firstRowTgl && tgl !== lastTgl) {
-            showTgl = true;
-          }
-
-          // Group & Operator dishow di baris pertama data operator tersebut (Rule 3 & 4)
+          // Jika beda operator (Rule 2, 3, 4): Tanggal, Group, dan Operator ditampilkan di baris pertama data operator tersebut
           if (opr !== lastOpr) {
+            showTgl = true;
             showGrp = true;
             showOpr = true;
+          } else if (tgl !== firstRowTgl && tgl !== lastTgl) {
+            // Kolom tanggal juga ditampilkan jika tanggalnya berbeda
+            showTgl = true;
           }
         }
 
@@ -1521,7 +1523,7 @@ export default function MendingPage() {
   };
 
   const isAllSelected = gradableItems.length > 0 && gradableItems.every((d) => selections[d.id]);
-  const totalGradable = gradableItems.length;
+  const totalGradable = gradableItems.filter((item: any) => !(item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || selections[item.id] === "BS")).length;
   const totalA = gradableItems.filter((item: any) => selections[item.id] === "A").length;
   const totalB = gradableItems.filter((item: any) => selections[item.id] === "B").length;
   const totalBS = gradableItems.filter((item: any) => selections[item.id] === "BS").length;
@@ -1643,7 +1645,7 @@ export default function MendingPage() {
                   </label>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1 pl-1 font-medium leading-tight">
-                  * Jika dicentang, panel lain tidak akan bergeser, dan panel {insertPanelAt || "?"} akan memiliki 1 hasil Gagal.
+                  * Jika dicentang, nomor panel lain tidak akan bergeser, dan panel {insertPanelAt || "?"} akan memiliki 2 baris data (1 Normal & 1 BS).
                 </p>
               </div>
             )}

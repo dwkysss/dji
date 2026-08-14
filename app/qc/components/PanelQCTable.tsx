@@ -67,7 +67,10 @@ export default function PanelQCTable({
     processed.forEach((p, i) => {
       const { item, isIstirahatOnly, hasIstirahat, oprBase, opr, grp, tgl, operatorStr } = p;
 
-      currentOpCount += 1;
+      const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
+      if (!isBS) {
+        currentOpCount += 1;
+      }
 
       let showTgl = false;
       let showGrp = false;
@@ -80,15 +83,14 @@ export default function PanelQCTable({
         showOpr = true;
         firstRowTgl = tgl;
       } else {
-        // Kolom tanggal hanya ditampilkan ketika baris data pertama atau jika tanggalnya berbeda (Rule 2)
-        if (tgl !== firstRowTgl && tgl !== lastTgl) {
-          showTgl = true;
-        }
-
-        // Group & Operator dishow di baris pertama data operator tersebut (Rule 3 & 4)
+        // Jika beda operator (Rule 2, 3, 4): Tanggal, Group, dan Operator ditampilkan di baris pertama data operator tersebut
         if (oprBase !== lastOpr) {
+          showTgl = true;
           showGrp = true;
           showOpr = true;
+        } else if (tgl !== firstRowTgl && tgl !== lastTgl) {
+          // Kolom tanggal juga ditampilkan jika tanggalnya berbeda
+          showTgl = true;
         }
       }
 
@@ -158,7 +160,10 @@ export default function PanelQCTable({
   const { totalGradable, totalPass, totalDefect, totalBS } = React.useMemo(() => {
     let g = 0, p = 0, d = 0, bs = 0;
     detailsToDisplay.forEach((item) => {
-      g += 1;
+      const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
+      if (!isBS) {
+        g += 1;
+      }
       const sel = selections[item.id];
       if (sel === 1) p += 1;
       else if (sel === 3) d += 1;

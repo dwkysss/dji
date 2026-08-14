@@ -272,9 +272,9 @@ function buildPanelRows(panels: any[], shiftName: string) {
       const hasDefect = !isIstirahat && (!!detail.kategori_masalah || !!detail.detail_masalah || (detail.production_defects && detail.production_defects.length > 0));
       const isGagal = String(panel.panel_no || "").toUpperCase().includes("GAGAL") || String(panel.panel_no || "").toUpperCase().includes("BS");
 
-      const showTgl = di === 0 ? tglStr !== lastTgl : false;
-      const showGrp = di === 0 ? (grpStr !== lastGrp || showTgl) : false;
-      const showOpr = di === 0 ? (oprStr !== lastOpr || showGrp) : false;
+      const showTgl = di === 0 ? (tglStr !== lastTgl || oprStr !== lastOpr) : false;
+      const showGrp = di === 0 ? (grpStr !== lastGrp || oprStr !== lastOpr) : false;
+      const showOpr = di === 0 ? (oprStr !== lastOpr) : false;
 
       if (di === 0) { if (showTgl) lastTgl = tglStr; if (showGrp) lastGrp = grpStr; if (showOpr) lastOpr = oprStr; }
 

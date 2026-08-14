@@ -54,7 +54,10 @@ export default function PanelHistoryTable({
     processed.forEach((p: any, i: number) => {
       const { item, isIstirahatOnly, hasIstirahat, isGradable, opr, grp, tgl, operatorStr } = p;
 
-      currentOpCount += 1;
+      const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4;
+      if (!isBS) {
+        currentOpCount += 1;
+      }
 
       let showTgl = false;
       let showGrp = false;
@@ -67,15 +70,14 @@ export default function PanelHistoryTable({
         showOpr = true;
         firstRowTgl = tgl;
       } else {
-        // Kolom tanggal hanya ditampilkan ketika baris data pertama atau jika tanggalnya berbeda (Rule 2)
-        if (tgl !== firstRowTgl && tgl !== lastTgl) {
-          showTgl = true;
-        }
-
-        // Group & Operator dishow di baris pertama data operator tersebut (Rule 3 & 4)
+        // Jika beda operator (Rule 2, 3, 4): Tanggal, Group, dan Operator ditampilkan di baris pertama data operator tersebut
         if (opr !== lastOpr) {
+          showTgl = true;
           showGrp = true;
           showOpr = true;
+        } else if (tgl !== firstRowTgl && tgl !== lastTgl) {
+          // Kolom tanggal juga ditampilkan jika tanggalnya berbeda
+          showTgl = true;
         }
       }
 

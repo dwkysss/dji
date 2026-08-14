@@ -339,29 +339,21 @@ function MendingDetailContent() {
           if (item.hasil_mending_original === "BS") currentOpBS++;
         }
 
-        let showTgl = true;
-        let showGrp = true;
-        let showOpr = true;
+        let showTgl = false;
+        let showGrp = false;
+        let showOpr = false;
 
-        if (tgl === lastTgl) showTgl = false;
-        if (grp === lastGrp) showGrp = false;
-
-        if (hasIstirahat) {
-          showTgl = false;
-          showGrp = false;
+        if (idx === 0) {
+          showTgl = true;
+          showGrp = true;
           showOpr = true;
         } else {
-          let prevActualOprStr = "-";
-          for (let k = items.length - 1; k >= 0; k--) {
-            const pItem = items[k];
-            if (!pItem.isTotalRow && !pItem.hasIstirahat) {
-              const ph = pItem.production_headers || {};
-              prevActualOprStr = ph.operators?.nama_operator || ph.pic || "-";
-              break;
-            }
-          }
-          if (prevActualOprStr === opr) {
-            showOpr = false;
+          if (opr !== lastOpr) {
+            showTgl = true;
+            showGrp = true;
+            showOpr = true;
+          } else if (tgl !== lastTgl) {
+            showTgl = true;
           }
         }
 

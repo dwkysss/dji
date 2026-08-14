@@ -4,7 +4,7 @@
 
 # Cara Penampilan Tabel dengan jenis inputan panel
 - di baris pertama data, kolom tanggal, group dan operator wajib terisi
-- kolom tanggal hanya ditampilkan atau bernilai ketika baris data pertama atau jika tanggalnya sudah berbeda dari baris pertama tersebut
+- kolom tanggal hanya ditampilkan atau bernilai ketika baris data pertama atau jika tanggalnya sudah berbeda dari baris pertama tersebut. Juga ditampilkan ketika beda operator
 - data pada kolom group hanya ditampilkan di baris pertama, ditampilkan juga ketika nama operator nya beda
 - kolom operator berisi nama operator di baris pertama data operator tersebut aja
 - pengeculian untuk kolom operator, dapat berisi "Istirahat" jika data tersebut berlabel istirahat
