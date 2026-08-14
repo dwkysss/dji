@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import { PROBLEM_DETAILS } from "../../../qc/page";
-import { getAllDetailsForPcs } from "@/actions/mending-actions";
+import { getAllDetailsForPcs, getMendingBatchById } from "@/actions/mending-actions";
 
 const cleanMeterVal = (val: any) => {
   if (val === null || val === undefined) return "";
@@ -133,17 +133,29 @@ function MendingDetailContent() {
 
         if (batch) {
           setMendingData(batch);
-        } else {
-          setErrorMsg("Data mending tidak ditemukan dalam sesi saat ini. Silakan kembali dan cari ulang.");
+          setIsLoading(false);
+          return;
         }
       } catch (e) {
-        setErrorMsg("Gagal membaca data dari sesi.");
+        console.error("Failed to parse cached data:", e);
       }
-    } else {
-      setErrorMsg("Sesi pencarian telah berakhir. Silakan kembali ke halaman riwayat.");
     }
 
-    setIsLoading(false);
+    // Fallback: fetch directly from Supabase via server action
+    getMendingBatchById(id)
+      .then((res) => {
+        if (res.success && res.data) {
+          setMendingData(res.data);
+        } else {
+          setErrorMsg(res.error || "Data mending tidak ditemukan.");
+        }
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching mending detail:", err);
+        setErrorMsg("Terjadi kesalahan saat memuat data detail.");
+        setIsLoading(false);
+      });
   }, [id]);
 
   const group = mendingData || {};
@@ -456,6 +468,13 @@ function MendingDetailContent() {
         isSameAsPrev = true;
       }
 
+      const detailStr = (item.detail_masalah || "").toUpperCase();
+      const katStr = (item.kategori_masalah || "").toUpperCase();
+      const ketStr = (item.keterangan_cacat || "").toUpperCase();
+      const oprName = (opr || "").toUpperCase();
+
+      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT") || oprName.includes("ISTIRAHAT");
+
       let hasRealDefects = false;
       if (item.production_defects && Array.isArray(item.production_defects)) {
         item.production_defects.forEach((d: any) => {
@@ -465,13 +484,16 @@ function MendingDetailContent() {
         });
       }
       if (!item.production_defects || item.production_defects.length === 0) {
-        if (item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT")) {
+        const cleanDetailNoIstirahat = (item.detail_masalah || "").replace(/istirahat/gi, "").replace(/G\s*-\s*/gi, "").trim();
+        if (cleanDetailNoIstirahat.length > 0) {
+          hasRealDefects = true;
+        } else if (item.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT")) {
           hasRealDefects = true;
         }
       }
-      const hasIstirahatRaw = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || opr.toUpperCase().includes("ISTIRAHAT");
-      const hasIstirahat = hasIstirahatRaw;
-      const isIstirahat = hasIstirahat && !hasRealDefects && !item.kategori_masalah && !item.detail_masalah;
+      const hasIstirahatRaw = hasIstirahatText;
+      const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
+      const isIstirahat = hasIstirahat;
       const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
 
       let cacatLines: string[] = [];
@@ -837,7 +859,19 @@ function MendingDetailContent() {
           <div>
             <h4 className="text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1">Durasi Mending</h4>
             <p className="text-sm font-black text-amber-700 font-mono">
-              {calculateDurationStr(group.start_mending, group.finish_mending, group.pause_seconds || 0, group.elapsed_seconds)}
+              {(() => {
+                let elapsed = group.elapsed_seconds;
+                if (elapsed === undefined || elapsed === null) {
+                  const m = (group.keterangan_mending || "").match(/\[ELAPSED:(\d+)\]/);
+                  if (m && m[1]) elapsed = parseInt(m[1], 10);
+                }
+                let pause = group.pause_seconds || 0;
+                if (!pause) {
+                  const mp = (group.keterangan_mending || "").match(/\[PAUSE:(\d+)\]/);
+                  if (mp && mp[1]) pause = parseInt(mp[1], 10);
+                }
+                return calculateDurationStr(group.start_mending, group.finish_mending, pause, elapsed);
+              })()}
             </p>
           </div>
           <div>

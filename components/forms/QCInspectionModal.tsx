@@ -84,6 +84,19 @@ export default function QCInspectionModal({
 
   const isMeteranBatch = headerData?.details && headerData.details.length > 0 && headerData.details[0]?.production_headers?.panel_no === "METERAN";
 
+  const totalKeseluruhanMeter = React.useMemo(() => {
+    if (!headerData?.details) return 0;
+    if (isMeteranBatch) {
+      let maxM = 0;
+      headerData.details.forEach((d: any) => {
+        const endM = Number(d.production_headers?.meter_akhir) || 0;
+        if (endM > maxM) maxM = endM;
+      });
+      return maxM;
+    }
+    return headerData.details.length;
+  }, [headerData, isMeteranBatch]);
+
   useEffect(() => {
     if (isOpen) {
       // Load from localStorage or set current date
@@ -113,29 +126,71 @@ export default function QCInspectionModal({
       let countProdCeklis = 0;
       let countProdSilang = 0;
 
+      const checkIsDefectRow = (d: any) => {
+        if (!d) return false;
+        if (d.isStartRow || d.cacatDisplay === "START" || d.cacatDisplay === "FINISH" || d.cacatDisplay === "ISTIRAHAT") {
+          return false;
+        }
+        if (d.isIstirahat || d.hasIstirahat) return false;
+
+        let hasRealDefects = false;
+        if (d.production_defects && Array.isArray(d.production_defects) && d.production_defects.length > 0) {
+          d.production_defects.forEach((def: any) => {
+            const k = (def.kategori || "").toUpperCase();
+            const det = (def.detail || "").toUpperCase();
+            if (!k.includes("ISTIRAHAT") && !det.includes("ISTIRAHAT")) {
+              hasRealDefects = true;
+            }
+          });
+        }
+
+        const katStr = (d.kategori_masalah || "").toUpperCase();
+        const detStr = (d.detail_masalah || "").toUpperCase();
+        const ketStr = (d.keterangan_cacat || "").toUpperCase();
+
+        if (ketStr.includes("START") || ketStr.includes("FINISH")) return false;
+        if (katStr === "G" && !d.hasTambahanQC && (!d.production_defects || d.production_defects.length === 0)) return false;
+
+        if (!hasRealDefects) {
+          if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT")) {
+            hasRealDefects = true;
+          }
+          if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH")) {
+            if (d.kategori_masalah || (d.production_defects && d.production_defects.length > 0) || d.hasTambahanQC) {
+              hasRealDefects = true;
+            }
+          }
+        }
+
+        if (d.hasTambahanQC) hasRealDefects = true;
+
+        return hasRealDefects;
+      };
+
       if (isMeteranBatch && headerData?.details) {
         let maxMeter = 0;
         
         headerData.details.forEach((d: any) => {
-          const realKeterangan = d.keterangan_cacat?.replace(/\[LAPORAN ISTIRAHAT\]|\[SEBELUM ISTIRAHAT\]/g, "").trim();
-          const isCacat = !!d.kategori_masalah || !!d.detail_masalah || !!realKeterangan || !!d.indikator_stop || !!d.meter_kain;
-          
+          const isRealDefect = checkIsDefectRow(d);
+          const isTambahanQC = !!d.hasTambahanQC || (d.keterangan_cacat || "").includes("[TAMBAHAN QC]");
           const meterAkhir = Number(d.production_headers?.meter_akhir) || 0;
           if (meterAkhir > maxMeter) {
             maxMeter = meterAkhir;
           }
 
-          // Produksi
-          if (isCacat) countProdSilang += 1;
+          // Produksi (Hanya cacat asli laporan Operator Produksi)
+          if (isRealDefect && !isTambahanQC) {
+            countProdSilang += 1;
+          }
 
-          // Inspeksi QC
+          // Inspeksi QC (Seluruh cacat hasil pemeriksaan QC termasuk Tambahan QC)
           const grade = selections[d.id];
-          if (grade) {
-            if (grade === 2 || grade === 3 || grade === 4) countSilang += 1;
+          if (grade === 2 || grade === 3 || grade === 4) {
+            countSilang += 1;
           }
         });
         
-        countProdCeklis = maxMeter;
+        countProdCeklis = Math.max(0, maxMeter - countProdSilang);
         countCeklis = Math.max(0, maxMeter - countSilang);
       } else {
         // Mode Panel (Default)
@@ -146,14 +201,10 @@ export default function QCInspectionModal({
 
         if (headerData?.details) {
           headerData.details.forEach((d: any) => {
-            const realKeterangan = d.keterangan_cacat?.replace(/\[LAPORAN ISTIRAHAT\]|\[SEBELUM ISTIRAHAT\]/g, "").trim();
-            const hasProblem =
-              !!d.kategori_masalah ||
-              !!d.detail_masalah ||
-              !!realKeterangan ||
-              !!d.indikator_stop;
-            if (hasProblem) countProdSilang++;
-            else countProdCeklis++;
+            const isDefect = checkIsDefectRow(d);
+            const isTambahanQC = !!d.hasTambahanQC || (d.keterangan_cacat || "").includes("[TAMBAHAN QC]");
+            if (isDefect && !isTambahanQC) countProdSilang++;
+            else if (!isTambahanQC) countProdCeklis++;
           });
         }
       }
@@ -163,7 +214,7 @@ export default function QCInspectionModal({
       setValue("qc_ceklis", countCeklis);
       setValue("qc_silang", countSilang);
     }
-  }, [isOpen, setValue, selections]);
+  }, [isOpen, headerData, selections, setValue, startInspectTime, isMeteranBatch]);
 
   if (!isOpen || !headerData) return null;
 
@@ -481,24 +532,28 @@ export default function QCInspectionModal({
             </div>
 
             {/* Bagian 3: Rincian Grade */}
-            <div className="grid grid-cols-2 gap-x-3 sm:gap-x-6 gap-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Grade Produksi */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-                  Total (Produksi)
-                </h4>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Total (Produksi)
+                  </h4>
+                  <div className="text-[11px] font-extrabold text-slate-700 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">
+                    Keseluruhan: <span className="text-slate-900 font-black">{totalKeseluruhanMeter} {isMeteranBatch ? "Meter" : "Baris"}</span>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1 flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3 text-emerald-500" />{" "}
-                      Normal
+                      <CheckCircle className="w-3 h-3 text-emerald-500" /> Normal
                     </label>
                     <div className="relative">
                       <input
                         type="number"
                         {...register("prod_ceklis", { valueAsNumber: true })}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-slate-200 text-sm focus:border-emerald-500 outline-none"
+                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-slate-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
                         {isMeteranBatch ? "meter" : "baris"}
@@ -514,7 +569,7 @@ export default function QCInspectionModal({
                         type="number"
                         {...register("prod_silang", { valueAsNumber: true })}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-slate-200 text-sm focus:border-red-500 outline-none"
+                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-slate-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
                         {isMeteranBatch ? "titik" : "baris"}
@@ -525,22 +580,26 @@ export default function QCInspectionModal({
               </div>
 
               {/* Grade QC */}
-              <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-4">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-                  Total (Inspeksi QC)
-                </h4>
+              <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between border-b border-sky-100 pb-2">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Total (Inspeksi QC)
+                  </h4>
+                  <div className="text-[11px] font-extrabold text-sky-800 bg-white px-2.5 py-1 rounded-md border border-sky-200 shadow-sm">
+                    Keseluruhan: <span className="text-sky-950 font-black">{totalKeseluruhanMeter} {isMeteranBatch ? "Meter" : "Baris"}</span>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1 flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3 text-emerald-500" />{" "}
-                      Normal
+                      <CheckCircle className="w-3 h-3 text-emerald-500" /> Normal
                     </label>
                     <div className="relative">
                       <input
                         type="number"
                         {...register("qc_ceklis", { valueAsNumber: true })}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-sky-200 text-sm focus:border-emerald-500 outline-none"
+                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-sky-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
                         {isMeteranBatch ? "meter" : "baris"}
@@ -556,7 +615,7 @@ export default function QCInspectionModal({
                         type="number"
                         {...register("qc_silang", { valueAsNumber: true })}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-sky-200 text-sm focus:border-red-500 outline-none"
+                        className="w-full h-9 pl-3 pr-12 rounded-lg border border-sky-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
                         {isMeteranBatch ? "titik" : "baris"}

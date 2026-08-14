@@ -17,7 +17,12 @@ export default function MeterHistoryTable({
     let prevOperatorLastMeter: number | null = null;
     let currentOpStartMeter: number | null = null;
     let currentOpLastMeter: number | null = null;
+    let currentOpCacatCount = 0;
     let lastOprString = "";
+
+    let grandTotalStartMeter: number | null = null;
+    let grandTotalLastMeter: number | null = null;
+    let grandTotalCacatCount = 0;
 
     const cleanMeterVal = (val: any) => {
       if (val === null || val === undefined) return "";
@@ -74,15 +79,22 @@ export default function MeterHistoryTable({
         const [prevGrp, prevOpr] = lastOprString.includes(") ") 
           ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
           : ["", lastOprString];
+
+        const normalMeter = totalMeter !== null ? Math.max(0, totalMeter - currentOpCacatCount) : 0;
+        const cacatMeter = currentOpCacatCount;
+
         items.push({
           id: `total-${lastOprString}-${Math.random()}`,
           isTotalRow: true,
           totalLabel: `Total Produksi${prevGrp ? ` (${prevGrp})` : ""} ${prevOpr}:`,
           totalMeter: totalMeter !== null ? `${totalMeter} Meter` : "-",
+          normalMeter: totalMeter !== null ? `${normalMeter} Meter` : "-",
+          cacatMeter: totalMeter !== null ? `${cacatMeter} Meter` : "-",
         });
         prevOperatorLastMeter = currentOpLastMeter;
         currentOpStartMeter = null;
         currentOpLastMeter = null;
+        currentOpCacatCount = 0;
         lastOprString = operatorStr;
         isSameAsPrev = false;
       } else if (items.length > 0) {
@@ -115,10 +127,7 @@ export default function MeterHistoryTable({
         if (matchedDetails.length > 0) {
           const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
           matchedDetails.forEach(match => cacatLines.push(`${k} - ${match}`));
-          customParts.forEach(custom => {
-            const cleanCustom = custom.replace(/^,\s*|\s*,\s*$/g, "").trim();
-            if (cleanCustom) cacatLines.push(`${k} - ${cleanCustom}`);
-          });
+          customParts.forEach(custom => cacatLines.push(`${k} - ${custom}`));
         } else {
           const parts = d.split(",").map((s: string) => s.trim()).filter(Boolean);
           parts.forEach(p => cacatLines.push(`${k} - ${p}`));
@@ -126,7 +135,7 @@ export default function MeterHistoryTable({
       };
 
       if (kats.length > 0) {
-        if (cleanD?.includes(" | ")) {
+        if (cleanD.includes(" | ")) {
           const catDetails = cleanD.split(" | ");
           for (let i = 0; i < Math.max(kats.length, catDetails.length); i++) {
             const k = kats[i] || "Unknown";
@@ -158,8 +167,8 @@ export default function MeterHistoryTable({
         } else {
           cacatLines.push(kats.join(", "));
         }
-      } else if (cleanD) {
-        cacatLines.push(cleanD);
+      } else if (item.detail_masalah) {
+        cacatLines.push(item.detail_masalah);
       }
 
       let ketCacat = item.keterangan_cacat || "";
@@ -170,22 +179,35 @@ export default function MeterHistoryTable({
 
       if (ketCacat) {
         if (cacatLines.length > 0) {
-          const parts = ketCacat.split(",").map((s: string) => s.trim());
-          cacatLines = cacatLines.map((line, i) => {
-            const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
-            let partIndex = i;
-            if (lineKat && kats.includes(lineKat)) {
-              partIndex = kats.indexOf(lineKat);
-            }
-            if (parts[partIndex] && parts[partIndex] !== "") {
-              const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-              return `${line} (Blok ${cleanB})`;
-            } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-              const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-              return `${line} (Blok ${cleanB})`;
-            }
-            return line;
-          });
+          const parts = ketCacat.split(",").map((p: string) => p.trim()).filter(Boolean);
+          if (cacatLines.length === 1 && parts.length > 1) {
+            const cleanAllBlocks = parts
+              .map((p: string) => p.replace(/blok\s*/gi, "").trim())
+              .filter(Boolean)
+              .join(", ");
+            cacatLines = cacatLines.map((line) =>
+              line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanAllBlocks})`
+            );
+          } else {
+            cacatLines = cacatLines.map((line, i) => {
+              if (line.match(/\(Blok/i)) return line;
+              const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
+              let partIndex = i;
+              const katsRaw2 = item.kategori_masalah;
+              const kats2 = katsRaw2 ? (Array.isArray(katsRaw2) ? katsRaw2 : katsRaw2.split(",").map((s: any) => s.trim())) : [];
+              if (lineKat && kats2.includes(lineKat)) {
+                partIndex = kats2.indexOf(lineKat);
+              }
+              if (parts[partIndex] && parts[partIndex] !== "") {
+                const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
+                return `${line} (Blok ${cleanB})`;
+              } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
+                const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
+                return `${line} (Blok ${cleanB})`;
+              }
+              return line;
+            });
+          }
         } else {
           const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
           cacatLines.push(`(Blok ${cleanB})`);
@@ -246,6 +268,8 @@ export default function MeterHistoryTable({
         if (!isNaN(startMeterVal)) {
           if (currentOpStartMeter === null) currentOpStartMeter = startMeterVal;
           currentOpLastMeter = startMeterVal;
+          if (grandTotalStartMeter === null) grandTotalStartMeter = startMeterVal;
+          grandTotalLastMeter = startMeterVal;
         }
         isSameAsPrev = true;
       }
@@ -286,7 +310,7 @@ export default function MeterHistoryTable({
 
       const cacatText = hasIstirahat && !hasErrorDetail ? "ISTIRAHAT" : (isFinishReport && !hasErrorDetail ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
 
-      const isPlaceholder = meterDisplay === "-" && !hasErrorDetail && !hasIstirahat && !isFinishReport;
+      const isPlaceholder = meterDisplay === "-" && !hasErrorDetail && !isIstirahat && !isFinishReport;
       if (!isPlaceholder) {
         items.push({
           ...item,
@@ -314,20 +338,47 @@ export default function MeterHistoryTable({
         if (!isNaN(meterVal)) {
           if (currentOpStartMeter === null) currentOpStartMeter = meterVal;
           currentOpLastMeter = meterVal;
+          if (grandTotalStartMeter === null) grandTotalStartMeter = meterVal;
+          grandTotalLastMeter = meterVal;
+        }
+
+        const isDefectRow = !isIstirahat && (hasRealDefects || hasTambahanQC || !!item.kategori_masalah);
+        if (isDefectRow) {
+          currentOpCacatCount += 1;
+          grandTotalCacatCount += 1;
         }
       }
     });
 
     if (items.length > 0 && currentOpStartMeter !== null && currentOpLastMeter !== null) {
       const totalMeter = Math.abs(currentOpLastMeter - currentOpStartMeter);
-      const [lastGrp, lastOprOnly] = lastOprString.includes(") ")
+      const [lastGrp, lastOprOnly] = lastOprString.includes(") ") 
         ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
         : ["", lastOprString];
+      const normalMeter = Math.max(0, totalMeter - currentOpCacatCount);
+      const cacatMeter = currentOpCacatCount;
+
       items.push({
         id: `total-last-${lastOprString}-${Math.random()}`,
         isTotalRow: true,
         totalLabel: `Total Produksi${lastGrp ? ` (${lastGrp})` : ""} ${lastOprOnly}:`,
         totalMeter: `${totalMeter} Meter`,
+        normalMeter: `${normalMeter} Meter`,
+        cacatMeter: `${cacatMeter} Meter`,
+      });
+    }
+
+    if (items.length > 0 && grandTotalStartMeter !== null && grandTotalLastMeter !== null) {
+      const grandTotalMeter = Math.abs(grandTotalLastMeter - grandTotalStartMeter);
+      const grandTotalNormal = Math.max(0, grandTotalMeter - grandTotalCacatCount);
+
+      items.push({
+        id: `grand-total-${Math.random()}`,
+        isGrandTotalRow: true,
+        totalLabel: "Total (Inspeksi):",
+        totalMeter: `${grandTotalMeter} Meter`,
+        normalMeter: `${grandTotalNormal} Meter`,
+        cacatMeter: `${grandTotalCacatCount} Meter`,
       });
     }
 

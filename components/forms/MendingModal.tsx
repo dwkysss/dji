@@ -83,6 +83,23 @@ export default function MendingModal({
   const valGradeB = watch("mending_grade_b") || 0;
   const valGradeBs = watch("mending_grade_bs") || 0;
 
+  const isMeteranBatch = (headerData?.details?.[0]?.production_headers?.panel_no === "METERAN") || 
+                         (detailData?.[0]?.production_headers?.panel_no === "METERAN");
+
+  const totalKeseluruhanMeter = React.useMemo(() => {
+    if (!headerData?.details && !detailData) return 0;
+    if (isMeteranBatch) {
+      let maxM = 0;
+      const detailsList = detailData || headerData?.details || [];
+      detailsList.forEach((d: any) => {
+        const endM = Number(d.production_headers?.meter_akhir) || 0;
+        if (endM > maxM) maxM = endM;
+      });
+      return maxM;
+    }
+    return detailData?.reduce((sum, d) => sum + (Number(d.jml_hasil_produksi) || 0), 0) || 0;
+  }, [headerData, detailData, isMeteranBatch]);
+
   useEffect(() => {
     if (isOpen) {
       const storedPetugas = localStorage.getItem("mending_petugas");
@@ -106,7 +123,24 @@ export default function MendingModal({
       let countB = 0;
       let countBS = 0;
 
-      Object.values(selections).forEach((val) => {
+      const detailsList = detailData || headerData?.details || [];
+      const detailMap = new Map<string, any>();
+      detailsList.forEach((d: any) => { if (d.id) detailMap.set(d.id, d); });
+
+      Object.entries(selections).forEach(([id, val]) => {
+        const item = detailMap.get(id);
+        if (item) {
+          const detailStr = (item.detail_masalah || "").toUpperCase();
+          const katStr = (item.kategori_masalah || "").toUpperCase();
+          const ketStr = (item.keterangan_cacat || "").toUpperCase();
+          const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT");
+          const cleanDetailNoIstirahat = (item.detail_masalah || "").replace(/istirahat/gi, "").replace(/G\s*-\s*/gi, "").trim();
+          const hasRealDefects = cleanDetailNoIstirahat.length > 0 || (item.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT"));
+          if (hasIstirahatText && !hasRealDefects) {
+            return; // Filter out Istirahat-only rows from grade B / BS counts
+          }
+        }
+
         if (val === "A") countA++;
         else if (val === "B") countB++;
         else if (val === "BS") countBS++;
@@ -209,9 +243,6 @@ export default function MendingModal({
   };
 
   if (!isOpen) return null;
-
-  const isMeteranBatch = (headerData?.details?.[0]?.production_headers?.panel_no === "METERAN") || 
-                         (detailData?.[0]?.production_headers?.panel_no === "METERAN");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
@@ -406,9 +437,14 @@ export default function MendingModal({
 
             {/* Bagian 3: Rincian Grade */}
             <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-5 shadow-sm">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-[#0070bc]" /> Total Hasil Mending
-              </h4>
+              <div className="flex items-center justify-between mb-4 border-b border-sky-100 pb-2">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-[#0070bc]" /> Total Hasil Mending
+                </h4>
+                <div className="text-[11px] font-extrabold text-sky-800 bg-white px-2.5 py-1 rounded-md border border-sky-200 shadow-sm">
+                  Keseluruhan: <span className="text-sky-950 font-black">{totalKeseluruhanMeter} {isMeteranBatch ? "METER" : "PANEL"}</span>
+                </div>
+              </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-white border border-slate-200/60 rounded-xl p-3 text-center shadow-sm">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">

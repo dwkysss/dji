@@ -37,7 +37,7 @@ import {
   getPendingMendingDetailsByDate,
   getMendingDetailsByGroup,
 } from "@/actions/mending-actions";
-import { insertMissingPanel, deleteProductionDetailRow } from "@/actions/qc-actions";
+import { insertMissingPanel, deleteProductionDetailRow, addQCDefectDetail } from "@/actions/qc-actions";
 import { getEmployeeHistoryDetail } from "@/actions/employee-actions";
 import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import {
@@ -308,6 +308,123 @@ export default function MendingPage() {
   const [insertPanelKeterangan, setInsertPanelKeterangan] = useState<string>("");
   const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
   const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([]);
+
+  // Add Defect Modal State (METERAN only)
+  const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
+  const [defectMeterKain, setDefectMeterKain] = useState("");
+  const [defectKategori, setDefectKategori] = useState<string[]>([]);
+  const [defectDetailMap, setDefectDetailMap] = useState<Record<string, string[]>>({});
+  const [defectKeterangan, setDefectKeterangan] = useState("");
+  const [isSubmittingDefect, setIsSubmittingDefect] = useState(false);
+  const [defectError, setDefectError] = useState<string | null>(null);
+  const [qcDefectManualInput, setQcDefectManualInput] = useState<Record<string, string>>({});
+
+  const handleAddQcDefectManual = (catId: string) => {
+    const text = (qcDefectManualInput[catId] || "").trim();
+    if (!text) return;
+    setDefectDetailMap((prev) => {
+      const current = prev[catId] || [];
+      if (current.includes(text)) return prev;
+      return { ...prev, [catId]: [...current, text] };
+    });
+    setQcDefectManualInput((prev) => ({ ...prev, [catId]: "" }));
+    try {
+      createProblemDetail({ kategori: catId, nama_detail: text });
+    } catch (e) {}
+  };
+
+  const handleDefectToggleKategori = (catId: string) => {
+    setDefectKategori((prev) => {
+      const isChecking = !prev.includes(catId);
+      if (isChecking) {
+        return [...prev, catId];
+      } else {
+        setDefectDetailMap((old) => {
+          const next = { ...old };
+          delete next[catId];
+          return next;
+        });
+        return prev.filter((c) => c !== catId);
+      }
+    });
+  };
+
+  const handleSubmitDefect = async () => {
+    if (!defectMeterKain) { setDefectError("Posisi Meter Kain wajib diisi."); return; }
+    if (parseFloat(defectMeterKain) < 0) { setDefectError("Posisi Meter Kain tidak boleh bernilai negatif."); return; }
+    if (defectKategori.length === 0) { setDefectError("Pilih minimal 1 Kategori Masalah."); return; }
+    const missingDetails = defectKategori.some((cat) => !defectDetailMap[cat] || defectDetailMap[cat].length === 0);
+    if (missingDetails) { setDefectError("Wajib memilih Detail Masalah untuk setiap Kategori yang dicentang."); return; }
+    
+    const meteranHeaderId = detailsToDisplay.length > 0 ? detailsToDisplay[0]?.header_id : null;
+    if (!meteranHeaderId) { setDefectError("Tidak ditemukan header ID untuk batch ini."); return; }
+
+    const m = parseFloat(defectMeterKain);
+    let targetHeaderId = meteranHeaderId;
+    if (!isNaN(m) && detailsToDisplay.length > 0) {
+      // Cari titik data yang nilai meter kainnya <= m (inputan meter)
+      const validPoints = detailsToDisplay.filter((d: any) => {
+        const itemMeter = getActualMeter(d, d.production_headers);
+        return itemMeter !== null && itemMeter <= m;
+      });
+
+      if (validPoints.length > 0) {
+        // Ambil titik data dengan meter terdekat di bawah/sama dengan inputan meter
+        const closestPoint = validPoints[validPoints.length - 1];
+        if (closestPoint?.header_id || closestPoint?.production_headers?.id) {
+          targetHeaderId = closestPoint.header_id || closestPoint.production_headers.id;
+        }
+      } else {
+        // Jika m lebih kecil dari semua titik meter, ambil header dari titik data pertama
+        const firstPoint = detailsToDisplay[0];
+        if (firstPoint?.header_id || firstPoint?.production_headers?.id) {
+          targetHeaderId = firstPoint.header_id || firstPoint.production_headers.id;
+        }
+      }
+    }
+
+    if (!targetHeaderId) { setDefectError("Tidak ditemukan header ID untuk batch ini."); return; }
+
+    setIsSubmittingDefect(true);
+    setDefectError(null);
+    try {
+      const combinedDetailsList: string[] = [];
+      defectKategori.forEach((cat) => {
+        const details = [...(defectDetailMap[cat] || [])];
+        const manual = (qcDefectManualInput[cat] || "").trim();
+        if (manual && !details.includes(manual)) {
+          details.push(manual);
+          try { createProblemDetail({ kategori: cat, nama_detail: manual }); } catch (e) {}
+        }
+        if (details.length > 0) {
+          combinedDetailsList.push(details.join(", "));
+        }
+      });
+      const combinedDetails = combinedDetailsList.join(" | ");
+
+      const res = await addQCDefectDetail({
+        headerId: targetHeaderId,
+        meterKain: defectMeterKain,
+        kategoriMasalah: defectKategori,
+        detailMasalah: combinedDetails || undefined,
+        keteranganCacat: defectKeterangan || undefined,
+        pcsIndex: activeMendingPcs ? parseInt(activeMendingPcs.pcs_index) : undefined,
+        finalInspectionId: 3,
+      });
+
+      if (res.success && activeMendingPcs) {
+        setIsDefectModalOpen(false);
+        setDefectMeterKain(""); setDefectKategori([]); setDefectDetailMap({}); setDefectKeterangan(""); setQcDefectManualInput({});
+        await refreshActiveMendingDetails(activeMendingPcs.nomor_mc, activeMendingPcs.design_id, activeMendingPcs.potongan_ke, activeMendingPcs.pcs_index);
+      } else {
+        setDefectError(res.error || "Gagal menyimpan temuan cacat.");
+      }
+    } catch (err: any) {
+      setDefectError(err.message || "Terjadi kesalahan.");
+    } finally {
+      setIsSubmittingDefect(false);
+    }
+  };
 
   useEffect(() => {
     const loadRequiredDefects = async () => {
@@ -988,7 +1105,12 @@ export default function MendingPage() {
     let prevOperatorLastMeter: number | null = null;
     let currentOpStartMeter: number | null = null;
     let currentOpLastMeter: number | null = null;
+    let currentOpCacatCount = 0;
     let lastOprString = "";
+
+    let grandTotalStartMeter: number | null = null;
+    let grandTotalLastMeter: number | null = null;
+    let grandTotalCacatCount = 0;
 
     // cleanMeterVal is defined globally at the top
 
@@ -1010,37 +1132,57 @@ export default function MendingPage() {
         const [prevGrp, prevOpr] = lastOprString.includes(") ") 
           ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
           : ["", lastOprString];
+
+        const normalMeter = totalMeter !== null ? Math.max(0, totalMeter - currentOpCacatCount) : 0;
+        const cacatMeter = currentOpCacatCount;
+
         items.push({
           id: `total-${lastOprString}-${Math.random()}`,
           isTotalRow: true,
           totalLabel: `Total Produksi${prevGrp ? ` (${prevGrp})` : ""} ${prevOpr}:`,
           totalMeter: totalMeter !== null ? `${totalMeter} Meter` : "-",
+          normalMeter: totalMeter !== null ? `${normalMeter} Meter` : "-",
+          cacatMeter: totalMeter !== null ? `${cacatMeter} Meter` : "-",
         });
         prevOperatorLastMeter = currentOpLastMeter;
         currentOpStartMeter = null;
         currentOpLastMeter = null;
+        currentOpCacatCount = 0;
         lastOprString = operatorStr;
         isSameAsPrev = false;
       } else if (items.length > 0) {
         isSameAsPrev = true;
       }
 
+      let hasIstirahatFromDefects = false;
       let hasRealDefects = false;
-      if (item.production_defects && Array.isArray(item.production_defects)) {
+
+      const detailStr = (item.detail_masalah || "").toUpperCase();
+      const katStr = (item.kategori_masalah || "").toUpperCase();
+      const ketStr = (item.keterangan_cacat || "").toUpperCase();
+
+      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT");
+
+      if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
         item.production_defects.forEach((d: any) => {
-          if (!((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT"))) {
+          if ((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT")) {
+            hasIstirahatFromDefects = true;
+          } else {
             hasRealDefects = true;
           }
         });
-      }
-      if (!item.production_defects || item.production_defects.length === 0) {
-        if (item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT")) {
+      } else {
+        const cleanDetailNoIstirahat = (item.detail_masalah || "").replace(/istirahat/gi, "").replace(/G\s*-\s*/gi, "").trim();
+        if (cleanDetailNoIstirahat.length > 0) {
+          hasRealDefects = true;
+        } else if (item.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT")) {
           hasRealDefects = true;
         }
       }
-      const hasIstirahatRaw = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT");
+
+      const hasIstirahatRaw = hasIstirahatText || hasIstirahatFromDefects;
       const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
-      const isIstirahat = hasIstirahat && !item.kategori_masalah && !item.detail_masalah;
+      const isIstirahat = hasIstirahat;
       const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
 
       let cacatLines: string[] = [];
@@ -1210,6 +1352,8 @@ export default function MendingPage() {
         if (!isNaN(startMeterVal)) {
           if (currentOpStartMeter === null) currentOpStartMeter = startMeterVal;
           currentOpLastMeter = startMeterVal;
+          if (grandTotalStartMeter === null) grandTotalStartMeter = startMeterVal;
+          grandTotalLastMeter = startMeterVal;
         }
         isSameAsPrev = true;
       }
@@ -1278,6 +1422,14 @@ export default function MendingPage() {
         if (!isNaN(meterVal)) {
           if (currentOpStartMeter === null) currentOpStartMeter = meterVal;
           currentOpLastMeter = meterVal;
+          if (grandTotalStartMeter === null) grandTotalStartMeter = meterVal;
+          grandTotalLastMeter = meterVal;
+        }
+
+        const isDefectRow = !isIstirahat && (hasRealDefects || hasTambahanQC || !!item.kategori_masalah);
+        if (isDefectRow) {
+          currentOpCacatCount += 1;
+          grandTotalCacatCount += 1;
         }
       }
     });
@@ -1287,6 +1439,7 @@ export default function MendingPage() {
       const [lastGrp, lastOprOnly] = lastOprString.includes(") ") 
         ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
         : ["", lastOprString];
+
       items.push({
         id: `total-last-${lastOprString}-${Math.random()}`,
         isTotalRow: true,
@@ -1326,7 +1479,17 @@ export default function MendingPage() {
     if (!activeMendingPcs) return;
     const autoSelections: Record<string, string> = {};
     for (const d of detailsToDisplay) {
-      if (d.final_inspection_id === 1 || d.final_inspection_id === 2) {
+      const detailStr = (d.detail_masalah || "").toUpperCase();
+      const katStr = (d.kategori_masalah || "").toUpperCase();
+      const ketStr = (d.keterangan_cacat || "").toUpperCase();
+      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT");
+      const cleanDetailNoIstirahat = (d.detail_masalah || "").replace(/istirahat/gi, "").replace(/G\s*-\s*/gi, "").trim();
+      const hasRealDefects = cleanDetailNoIstirahat.length > 0 || (d.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT"));
+      const isIstirahatOnly = hasIstirahatText && !hasRealDefects;
+
+      if (isIstirahatOnly) {
+        autoSelections[d.id] = "A";
+      } else if (d.final_inspection_id === 1 || d.final_inspection_id === 2) {
         autoSelections[d.id] = "A"; // Ceklis → auto Grade A
       } else if (d.final_inspection_id === 3) {
         autoSelections[d.id] = "B"; // Silang → auto Grade B
@@ -1748,6 +1911,18 @@ export default function MendingPage() {
           </div>
         )}
 
+        {isMeteranBatch && detailsToDisplay.length > 0 && (
+          <div className="mb-4 flex justify-end animate-fadeIn">
+            <button
+              onClick={() => setIsDefectModalOpen(true)}
+              className="h-11 px-5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Tambah Temuan Cacat Baru
+            </button>
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           {detailsToDisplay.length === 0 ? (
             <div className="p-10 flex flex-col items-center justify-center text-center">
@@ -1874,6 +2049,185 @@ export default function MendingPage() {
           isLoading={isDetailLoading}
           hideEdit={true}
         />
+        
+        {isDefectModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+              <div className="p-5 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
+                <div>
+                  <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-rose-500" /> Tambah Temuan Cacat Baru
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">Catat temuan cacat baru yang ditemukan saat mending kain meteran.</p>
+                </div>
+                <button onClick={() => { setIsDefectModalOpen(false); setDefectError(null); }} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 flex-1 overflow-y-auto flex flex-col gap-5 custom-scrollbar">
+                {defectError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> {defectError}
+                  </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase">Posisi Meter Kain <span className="text-rose-500">*</span></label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={defectMeterKain}
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "e") e.preventDefault();
+                    }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDefectMeterKain(val);
+                      if (val !== "" && (isNaN(parseFloat(val)) || parseFloat(val) < 0)) {
+                        setDefectError("Posisi Meter Kain tidak boleh bernilai kurang dari 0.");
+                      } else if (defectError === "Posisi Meter Kain tidak boleh bernilai kurang dari 0.") {
+                        setDefectError(null);
+                      }
+                    }}
+                    className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all"
+                    placeholder="Contoh: 75"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-rose-600 uppercase">Kategori Masalah <span className="text-rose-500">*</span> (Pilih 1 atau lebih)</label>
+                  <div className="flex flex-col gap-2 mt-1">
+                    {problemCategories.map((c) => {
+                      const isChecked = defectKategori.includes(c.id);
+                      return (
+                        <div key={c.id} className="flex flex-col gap-1">
+                          <label className="cursor-pointer block">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleDefectToggleKategori(c.id)}
+                              className="peer sr-only"
+                            />
+                            <div className="p-3.5 rounded-xl border-2 border-slate-100 bg-white text-xs font-bold text-slate-700 peer-checked:border-rose-500 peer-checked:bg-rose-50/50 peer-checked:text-rose-700 transition-all hover:border-slate-200 shadow-sm flex items-center justify-between">
+                              <span>{c.name}</span>
+                              {isChecked && <CheckCircle className="w-4 h-4 text-rose-500 shrink-0 ml-2" />}
+                            </div>
+                          </label>
+                          {isChecked && (
+                            <div className="pl-4 pr-2 py-2 border-l-2 border-rose-200 ml-2 animate-fadeIn mt-1 flex flex-col gap-1.5">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Pilih Detail Masalah</label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                 {(problemDetailsMap[c.id] || []).map((p) => {
+                                  const currentList = defectDetailMap[c.id] || [];
+                                  const isDetailChecked = currentList.includes(p);
+                                  return (
+                                    <label key={`${c.id}-${p}`} className="cursor-pointer block">
+                                      <input
+                                        type="checkbox"
+                                        checked={isDetailChecked}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setDefectDetailMap((prev) => ({
+                                              ...prev,
+                                              [c.id]: [...(prev[c.id] || []), p]
+                                            }));
+                                          } else {
+                                            setDefectDetailMap((prev) => ({
+                                              ...prev,
+                                              [c.id]: (prev[c.id] || []).filter((item) => item !== p)
+                                            }));
+                                          }
+                                        }}
+                                        className="peer sr-only"
+                                      />
+                                      <div className="p-2.5 rounded-xl border border-slate-150 bg-white text-[11px] font-semibold text-slate-655 peer-checked:border-rose-450 peer-checked:bg-rose-50/30 peer-checked:text-rose-700 transition-all hover:border-slate-200 flex items-center justify-between shadow-sm">
+                                        <span>{p}</span>
+                                        {isDetailChecked && <CheckCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 ml-1" />}
+                                      </div>
+                                    </label>
+                                  );
+                                })}
+
+                                {(defectDetailMap[c.id] || [])
+                                  .filter((p) => !(problemDetailsMap[c.id] || []).includes(p))
+                                  .map((customDetail) => (
+                                    <div key={`${c.id}-${customDetail}`} className="relative flex items-center">
+                                      <div className="flex-1 p-2.5 rounded-xl border border-rose-450 bg-rose-50/30 text-rose-700 text-[11px] font-semibold flex items-center justify-between shadow-sm">
+                                        <span className="truncate">{customDetail}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDefectDetailMap((prev) => ({
+                                              ...prev,
+                                              [c.id]: (prev[c.id] || []).filter((d) => d !== customDetail),
+                                            }));
+                                          }}
+                                          className="ml-1 p-0.5 hover:bg-rose-100 rounded text-rose-600 cursor-pointer"
+                                          title="Hapus detail manual"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+
+                              {c.id === "G" && (
+                                <div className="mt-2 pt-2 border-t border-rose-100 col-span-full">
+                                  <label className="text-[10px] font-bold text-slate-600 uppercase mb-1 flex items-center justify-between">
+                                    <span className="flex items-center gap-1 text-slate-700">
+                                      <Edit3 className="w-3 h-3 text-rose-500" />
+                                      Input Masalah Manual (Jika tidak ada di pilihan)
+                                    </span>
+                                  </label>
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      value={qcDefectManualInput[c.id] || ""}
+                                      onChange={(e) =>
+                                        setQcDefectManualInput((prev) => ({ ...prev, [c.id]: e.target.value }))
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          handleAddQcDefectManual(c.id);
+                                        }
+                                      }}
+                                      placeholder="Ketik detail masalah manual di sini..."
+                                      className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-rose-450 font-medium text-slate-800 placeholder:text-slate-400"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddQcDefectManual(c.id)}
+                                      disabled={!(qcDefectManualInput[c.id] || "").trim()}
+                                      className="px-3 py-1.5 bg-rose-500 text-white font-bold text-xs rounded-lg hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                      <span>Tambah</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase">Keterangan Tambahan</label>
+                  <textarea value={defectKeterangan} onChange={(e) => setDefectKeterangan(e.target.value)} rows={3} className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all resize-none" placeholder="Tuliskan keterangan tambahan jika ada..." />
+                </div>
+              </div>
+              <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 shrink-0">
+                <button onClick={() => { setIsDefectModalOpen(false); setDefectError(null); }} className="h-11 px-5 rounded-xl bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all">Batal</button>
+                <button disabled={isSubmittingDefect || !defectMeterKain || isNaN(parseFloat(defectMeterKain)) || parseFloat(defectMeterKain) < 0} onClick={handleSubmitDefect} className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-rose-600/20">
+                  {isSubmittingDefect ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Simpan Temuan
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Pop up modal hapus rincian */}
         {detailToDelete && (

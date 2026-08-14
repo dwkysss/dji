@@ -660,28 +660,60 @@ export default function QCPage() {
   const isMeteranBatch = detailsToDisplay.length > 0 && detailsToDisplay[0]?.production_headers?.panel_no === "METERAN";
   const meteranHeaderId = detailsToDisplay.length > 0 ? detailsToDisplay[0]?.header_id : null;
 
+  const checkIsDefectRow = (d: any) => {
+    if (!d) return false;
+    if (d.isStartRow || d.cacatDisplay === "START" || d.cacatDisplay === "FINISH" || d.cacatDisplay === "ISTIRAHAT") {
+      return false;
+    }
+    if (d.isIstirahat || d.hasIstirahat) return false;
+
+    let hasRealDefects = false;
+    if (d.production_defects && Array.isArray(d.production_defects) && d.production_defects.length > 0) {
+      d.production_defects.forEach((def: any) => {
+        const k = (def.kategori || "").toUpperCase();
+        const det = (def.detail || "").toUpperCase();
+        if (!k.includes("ISTIRAHAT") && !det.includes("ISTIRAHAT")) {
+          hasRealDefects = true;
+        }
+      });
+    }
+
+    const katStr = (d.kategori_masalah || "").toUpperCase();
+    const detStr = (d.detail_masalah || "").toUpperCase();
+    const ketStr = (d.keterangan_cacat || "").toUpperCase();
+
+    if (ketStr.includes("START") || ketStr.includes("FINISH")) return false;
+    if (katStr === "G" && !d.hasTambahanQC && (!d.production_defects || d.production_defects.length === 0)) return false;
+
+    if (!hasRealDefects) {
+      if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT")) {
+        hasRealDefects = true;
+      }
+      if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH")) {
+        if (d.kategori_masalah || (d.production_defects && d.production_defects.length > 0) || d.hasTambahanQC) {
+          hasRealDefects = true;
+        }
+      }
+    }
+
+    if (d.hasTambahanQC) hasRealDefects = true;
+
+    return hasRealDefects;
+  };
+
   useEffect(() => {
     if (detailsToDisplay.length > 0) {
       setSelections((prev) => {
-        const newSelections = { ...prev };
-        let hasChanges = false;
-
+        const newSelections: Record<string, number> = {};
         detailsToDisplay.forEach((d) => {
-          let cleanKet = d.keterangan_cacat || "";
-          cleanKet = cleanKet.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").replace(/\[TAMBAHAN QC\]/gi, "").replace(/^,\s*|\s*,\s*$/g, "").trim();
-          const hasProblem = !!d.kategori_masalah || !!d.detail_masalah || cleanKet.length > 0;
-          
-          if (!hasProblem && !newSelections[d.id]) {
+          const isDefect = checkIsDefectRow(d);
+          if (isDefect) {
+            newSelections[d.id] = prev[d.id] && (prev[d.id] === 3 || prev[d.id] === 4 || prev[d.id] === 2) ? prev[d.id] : 3;
+          } else {
             newSelections[d.id] = 1;
-            hasChanges = true;
-          }
-          if (hasProblem && !newSelections[d.id]) {
-            newSelections[d.id] = 3;
-            hasChanges = true;
           }
         });
-
-        return hasChanges ? newSelections : prev;
+        return newSelections;
       });
     }
   }, [detailsToDisplay]);
@@ -718,32 +750,24 @@ export default function QCPage() {
 
     const m = parseFloat(defectMeterKain);
     let targetHeaderId = meteranHeaderId;
-    if (!isNaN(m) && fullActiveQcDetails.length > 0) {
-      const uniqueHeadersMap = new Map<string, any>();
-      fullActiveQcDetails.forEach((d) => {
-        if (d.production_headers?.id) {
-          uniqueHeadersMap.set(d.production_headers.id, d.production_headers);
-        }
+    if (!isNaN(m) && detailsToDisplay.length > 0) {
+      // Cari titik data yang nilai meter kainnya <= m (inputan meter)
+      const validPoints = detailsToDisplay.filter((d: any) => {
+        const itemMeter = getActualMeter(d, d.production_headers);
+        return itemMeter !== null && itemMeter <= m;
       });
-      const uniqueHeaders = Array.from(uniqueHeadersMap.values());
-      const sessionHeaders = uniqueHeaders.filter(
-        (h) => h.meter_awal !== null && h.meter_awal !== undefined && h.meter_akhir !== null && h.meter_akhir !== undefined
-      );
-      sessionHeaders.sort((a, b) => (a.meter_awal || 0) - (b.meter_awal || 0));
 
-      const matchedHeader = sessionHeaders.find(
-        (h) => m >= (h.meter_awal || 0) && m <= (h.meter_akhir || 0)
-      );
-
-      if (matchedHeader) {
-        targetHeaderId = matchedHeader.id;
-      } else if (sessionHeaders.length > 0) {
-        const lastSession = sessionHeaders[sessionHeaders.length - 1];
-        if (m >= (lastSession.meter_akhir || 0)) {
-          targetHeaderId = lastSession.id;
-        } else {
-          const firstGreater = sessionHeaders.find((h) => m < (h.meter_akhir || 0));
-          if (firstGreater) targetHeaderId = firstGreater.id;
+      if (validPoints.length > 0) {
+        // Ambil titik data dengan meter terdekat di bawah/sama dengan inputan meter
+        const closestPoint = validPoints[validPoints.length - 1];
+        if (closestPoint?.header_id || closestPoint?.production_headers?.id) {
+          targetHeaderId = closestPoint.header_id || closestPoint.production_headers.id;
+        }
+      } else {
+        // Jika m lebih kecil dari semua titik meter, ambil header dari titik data pertama
+        const firstPoint = detailsToDisplay[0];
+        if (firstPoint?.header_id || firstPoint?.production_headers?.id) {
+          targetHeaderId = firstPoint.header_id || firstPoint.production_headers.id;
         }
       }
     }
@@ -1125,8 +1149,8 @@ export default function QCPage() {
         {isDefectModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
             {/* Same Defect Modal UI */}
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-              <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+              <div className="p-5 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
                 <div>
                   <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
                     <Plus className="w-5 h-5 text-rose-500" /> Tambah Temuan Cacat Baru
@@ -1137,7 +1161,7 @@ export default function QCPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-5 flex flex-col gap-5">
+              <div className="p-5 flex-1 overflow-y-auto flex flex-col gap-5 custom-scrollbar">
                 {defectError && (
                   <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 shrink-0" /> {defectError}
@@ -1145,7 +1169,26 @@ export default function QCPage() {
                 )}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-600 uppercase">Posisi Meter Kain <span className="text-rose-500">*</span></label>
-                  <input type="number" step="any" min="0" value={defectMeterKain} onChange={(e) => setDefectMeterKain(e.target.value)} className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all" placeholder="Contoh: 75" />
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={defectMeterKain}
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "e") e.preventDefault();
+                    }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDefectMeterKain(val);
+                      if (val !== "" && (isNaN(parseFloat(val)) || parseFloat(val) < 0)) {
+                        setDefectError("Posisi Meter Kain tidak boleh bernilai kurang dari 0.");
+                      } else if (defectError === "Posisi Meter Kain tidak boleh bernilai kurang dari 0.") {
+                        setDefectError(null);
+                      }
+                    }}
+                    className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all"
+                    placeholder="Contoh: 75"
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-rose-600 uppercase">Kategori Masalah <span className="text-rose-500">*</span> (Pilih 1 atau lebih)</label>
@@ -1273,9 +1316,9 @@ export default function QCPage() {
                   <textarea value={defectKeterangan} onChange={(e) => setDefectKeterangan(e.target.value)} rows={3} className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all resize-none" placeholder="Tuliskan keterangan tambahan jika ada..." />
                 </div>
               </div>
-              <div className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+              <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 shrink-0">
                 <button onClick={() => { setIsDefectModalOpen(false); setDefectError(null); }} className="h-11 px-5 rounded-xl bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all">Batal</button>
-                <button disabled={isSubmittingDefect} onClick={handleSubmitDefect} className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-rose-600/20">
+                <button disabled={isSubmittingDefect || !defectMeterKain || isNaN(parseFloat(defectMeterKain)) || parseFloat(defectMeterKain) < 0} onClick={handleSubmitDefect} className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-rose-600/20">
                   {isSubmittingDefect ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Simpan Temuan
                 </button>
               </div>

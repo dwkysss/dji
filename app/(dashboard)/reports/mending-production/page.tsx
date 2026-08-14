@@ -345,19 +345,21 @@ export default function MendingProductionReportPage() {
       const displayItems: any[] = [];
       let currentOpCount = 0;
       let lastOprString = "";
+      let prevTgl = "";
 
       sortedItems.forEach((item, idx) => {
         const det = item.detail || {};
         let opr = det.header?.operators?.nama_operator || det.header?.pic || "";
         const grp = det.header?.groups?.nama_grup || "";
+        const currentTgl = det.header?.tgl || "";
         const operatorStr = (grp ? `(${grp}) ` : '') + opr;
         
         if (idx === 0) {
           lastOprString = operatorStr;
+          prevTgl = currentTgl;
         }
 
-        let isSameAsPrev = false;
-
+        let isOperatorChanged = false;
         if (operatorStr !== lastOprString && idx > 0) {
           displayItems.push({
             isSummaryRow: true,
@@ -367,22 +369,34 @@ export default function MendingProductionReportPage() {
           });
           currentOpCount = 0;
           lastOprString = operatorStr;
-          isSameAsPrev = false;
-        } else if (idx > 0) {
-          isSameAsPrev = true;
+          isOperatorChanged = true;
         }
 
-        const hasIstirahatRaw = (det.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (det.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || opr.toUpperCase().includes("ISTIRAHAT");
-        const hasIstirahat = hasIstirahatRaw;
-        
+        const isFirstDataRow = idx === 0;
+        const isFirstRowForOperator = isFirstDataRow || isOperatorChanged;
+
+        // Tanggal rule (Rule 6 & 7): show on row 0 or when date changes from previous row
+        let showTgl = false;
+        if (isFirstDataRow || (currentTgl && currentTgl !== prevTgl)) {
+          showTgl = true;
+          prevTgl = currentTgl;
+        }
+
+        // Group rule (Rule 6 & 8): show on row 0 or when operator changes
+        let showGrp = isFirstRowForOperator;
+
+        const hasRealDefects = !!det.kategori_masalah && !det.kategori_masalah.toUpperCase().includes("ISTIRAHAT");
+        const hasIstirahatRaw = (det.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
+                                (det.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+                                opr.toUpperCase().includes("ISTIRAHAT");
+        const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
+
         let backupOpName = "";
-        if (hasIstirahat) {
+        if (hasIstirahatRaw) {
           let extractedBackupOp = det.header?.operator_backup || "";
           if (!extractedBackupOp && det.keterangan_cacat) {
             const match = det.keterangan_cacat.match(/\(Backup:\s*([^)]+)\)/i);
-            if (match && match[1]) {
-              extractedBackupOp = match[1].trim();
-            }
+            if (match && match[1]) extractedBackupOp = match[1].trim();
           }
           if (!extractedBackupOp && opr.toUpperCase().includes("ISTIRAHAT")) {
             const match = opr.match(/Istirahat\s*\(([^)]+)\)/i);
@@ -390,19 +404,37 @@ export default function MendingProductionReportPage() {
               extractedBackupOp = match[1].trim();
             } else {
               const parts = opr.split(/Istirahat/i);
-              if (parts.length > 1 && parts[1].trim() !== "") {
-                extractedBackupOp = parts[1].trim();
-              }
+              if (parts.length > 1 && parts[1].trim() !== "") extractedBackupOp = parts[1].trim();
             }
           }
           if (extractedBackupOp) backupOpName = extractedBackupOp;
         }
 
+        // Operator column rule (Rule 6, 9, 10, 12):
+        // Rule 12: If data with rest label is on the FIRST ROW of data (or first row of operator), priority is OPERATOR NAME
+        // Rule 10: Exception for operator column, can contain "Istirahat" on subsequent rows if labeled rest
+        let displayOperator = "";
+        if (isFirstRowForOperator) {
+          displayOperator = opr || "-";
+        } else if (hasIstirahat) {
+          displayOperator = "Istirahat";
+        } else {
+          displayOperator = "";
+        }
+
+        const isIstirahat = hasIstirahat;
+
         displayItems.push({
           ...item,
           hasIstirahat,
+          isIstirahat,
           backupOpName,
-          hideOperatorAndDate: isSameAsPrev
+          showTgl,
+          showGrp,
+          displayTgl: showTgl ? currentTgl : "",
+          displayGrp: showGrp ? grp : "",
+          displayOpr: displayOperator,
+          isFirstRowForOperator
         });
 
         currentOpCount += Number(det.jml_hasil_produksi || 1);
@@ -1510,7 +1542,7 @@ export default function MendingProductionReportPage() {
                             <th className="px-2 py-2 font-extrabold text-slate-600 w-24 border-r border-slate-200">Operator</th>
                             <th className="px-2 py-2 font-extrabold text-slate-600 text-center w-16 border-r border-slate-200">✓/X</th>
                             {isMeter && <th className="px-2 py-2 font-extrabold text-slate-600 w-16 border-r border-slate-200 text-center">Meter</th>}
-                            <th className="px-2 py-2 font-extrabold text-slate-600 border-r border-slate-200">CACAT</th>
+                            <th className="px-2 py-2 font-extrabold text-slate-600 border-r border-slate-200">KETERANGAN CACAT</th>
                             <th className="px-1 py-2 font-extrabold text-slate-600 text-center w-8 border-r border-slate-200">A</th>
                             <th className="px-1 py-2 font-extrabold text-slate-600 text-center w-8 border-r border-slate-200">B</th>
                             <th className="px-1 py-2 font-extrabold text-slate-600 text-center w-8">BS</th>
@@ -1550,9 +1582,9 @@ export default function MendingProductionReportPage() {
                               const det = item.detail || {};
                               const rowNo = isMeterRow ? item.displayNo : (det.header?.panel_no === "METERAN" ? det.meter_kain : det.header?.panel_no);
                               const meterVal = isMeterRow ? item.meterDisplay : null;
-                              const tgl = isMeterRow ? item.tglStr : (item.hideOperatorAndDate ? "" : (det.header?.tgl || ""));
-                              const grpStr = isMeterRow ? item.grpStr : (item.hideOperatorAndDate ? "" : (det.header?.groups?.nama_grup || "-"));
-                              let oprStr = isMeterRow ? item.oprStr : (item.hasIstirahat ? "Istirahat" : (item.hideOperatorAndDate ? "" : (det.header?.operators?.nama_operator || det.header?.pic || "-")));
+                              const tgl = isMeterRow ? item.tglStr : item.displayTgl;
+                              const grpStr = isMeterRow ? item.grpStr : item.displayGrp;
+                              let oprStr = isMeterRow ? item.oprStr : item.displayOpr;
                               if (isMeterRow && item.hasIstirahat) oprStr = "Istirahat";
                               const grade = item.hasil_mending_original || item.hasil_mending;
 
@@ -1565,17 +1597,22 @@ export default function MendingProductionReportPage() {
                                 const kats = katsRaw ? (Array.isArray(katsRaw) ? katsRaw : katsRaw.split(",").map((s: string) => s.trim())) : [];
                                 let rawDetail = srcDet?.detail_masalah || "";
 
-                                // For meter rows: strip ALL (Titik: X) occurrences from detail
-                                let titikSuffix = "";
                                 if (stripTitik) {
-                                  // Remove every (Titik: ...) occurrence using global flag
                                   rawDetail = rawDetail.replace(/\s*\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim();
                                 }
+
+                                // Strip ISTIRAHAT from raw detail text
+                                rawDetail = rawDetail.replace(/ISTIRAHAT/gi, "").replace(/\|\s*$/, "").replace(/,\s*$/, "").trim();
 
                                 const displayDetail = rawDetail;
 
                                 const pushDetailsForCat = (k: string, d: string) => {
-                                  if (!d) { lines.push(k); return; }
+                                  if (!d) {
+                                    if (k.toUpperCase() !== "G" && k.toUpperCase() !== "ISTIRAHAT") {
+                                      lines.push(k);
+                                    }
+                                    return;
+                                  }
                                   const knownDetailsForCat = PROBLEM_DETAILS[k] || [];
                                   const matchedDetails: string[] = [];
                                   let remainingD = d;
@@ -1585,11 +1622,17 @@ export default function MendingProductionReportPage() {
                                   });
                                   if (matchedDetails.length > 0) {
                                     const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
-                                    matchedDetails.forEach(match => lines.push(`${k} - ${match}`));
-                                    customParts.forEach(custom => lines.push(`${k} - ${custom}`));
+                                    matchedDetails.forEach(match => {
+                                      if (!match.toUpperCase().includes("ISTIRAHAT")) lines.push(`${k} - ${match}`);
+                                    });
+                                    customParts.forEach(custom => {
+                                      if (!custom.toUpperCase().includes("ISTIRAHAT")) lines.push(`${k} - ${custom}`);
+                                    });
                                   } else {
                                     const parts = d.split(",").map((s: string) => s.trim()).filter(Boolean);
-                                    parts.forEach(p => lines.push(`${k} - ${p}`));
+                                    parts.forEach(p => {
+                                      if (!p.toUpperCase().includes("ISTIRAHAT")) lines.push(`${k} - ${p}`);
+                                    });
                                   }
                                 };
 
@@ -1608,18 +1651,21 @@ export default function MendingProductionReportPage() {
                                         for (let i = 0; i < kats.length; i++) pushDetailsForCat(kats[i], dets[i]);
                                       } else {
                                         dets.forEach((d: string) => {
-                                          let foundKat = "Unknown";
-                                          for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
-                                            if ((detList as string[]).some((dd: string) => d.toLowerCase().includes(dd.toLowerCase()))) { foundKat = kat; break; }
+                                          if (!d.toUpperCase().includes("ISTIRAHAT")) {
+                                            let foundKat = "Unknown";
+                                            for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
+                                              if ((detList as string[]).some((dd: string) => d.toLowerCase().includes(dd.toLowerCase()))) { foundKat = kat; break; }
+                                            }
+                                            lines.push(`${foundKat !== "Unknown" ? foundKat + " - " : ""}${d}`);
                                           }
-                                          lines.push(`${foundKat !== "Unknown" ? foundKat + " - " : ""}${d}`);
                                         });
                                       }
                                     }
                                   } else {
-                                    lines.push(kats.join(", "));
+                                    const validKats = kats.filter((k: string) => k.toUpperCase() !== "G" && k.toUpperCase() !== "ISTIRAHAT");
+                                    if (validKats.length > 0) lines.push(validKats.join(", "));
                                   }
-                                } else if (displayDetail) {
+                                } else if (displayDetail && !displayDetail.toUpperCase().includes("ISTIRAHAT")) {
                                   lines.push(displayDetail);
                                 }
 
@@ -1627,6 +1673,7 @@ export default function MendingProductionReportPage() {
                                 const hasTambahanQC = ketCacat.includes("[TAMBAHAN QC]");
                                 ketCacat = ketCacat.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
                                 ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
+                                ketCacat = ketCacat.replace(/\(Backup:\s*[^)]+\)/gi, "").trim();
                                 ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
 
                                 if (ketCacat) {
@@ -1638,15 +1685,15 @@ export default function MendingProductionReportPage() {
                                       if (lineKat && kats.includes(lineKat)) partIndex = kats.indexOf(lineKat);
                                       if (parts[partIndex] && parts[partIndex] !== "") {
                                         const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                                        lines[i] = `${lines[i]} (Blok ${cleanB})`;
+                                        if (cleanB) lines[i] = `${lines[i]} (Blok ${cleanB})`;
                                       } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
                                         const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                                        lines[i] = `${lines[i]} (Blok ${cleanB})`;
+                                        if (cleanB) lines[i] = `${lines[i]} (Blok ${cleanB})`;
                                       }
                                     }
                                   } else {
                                     const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-                                    lines.push(`(Blok ${cleanB})`);
+                                    if (cleanB) lines.push(`(Blok ${cleanB})`);
                                   }
                                 }
 
@@ -1655,13 +1702,11 @@ export default function MendingProductionReportPage() {
                                   else for (let i = 0; i < lines.length; i++) lines[i] += " [TAMBAHAN QC]";
                                 }
 
-                                return lines;
+                                return lines.filter(l => l && !l.toUpperCase().includes("ISTIRAHAT"));
                               };
 
                               if (isMeterRow) {
-                                if (item.isIstirahat) {
-                                  cacatLines = ["ISTIRAHAT"];
-                                } else if (item.isFinishReport && !item.detail?.kategori_masalah && !item.detail?.detail_masalah) {
+                                if (item.isFinishReport && !item.detail?.kategori_masalah && !item.detail?.detail_masalah && !item.hasIstirahat) {
                                   cacatLines = ["FINISH"];
                                 } else if (item.isStartRow) {
                                   cacatLines = ["START"];

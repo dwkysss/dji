@@ -131,16 +131,28 @@ export default function MendingHistoryPage() {
 
   // Removed Detail Modal State
 
-  // Load from session storage on mount
+  const fetchHistoryData = async (currentFilters = filters, page = currentPage, showLoader = false) => {
+    if (showLoader) setIsLoading(true);
+    try {
+      const res = await searchMendingHistory({ ...currentFilters, page, limit: 15 });
+      if (res.success && res.data) {
+        setData(res.data);
+        setCurrentPage(res.page || 1);
+        setTotalPages(res.totalPages || 1);
+        setTotalData(res.total || 0);
+        setHasSearched(true);
+      }
+    } catch (err) {
+      console.error("Failed to fetch mending history", err);
+    } finally {
+      if (showLoader) setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
+    let initialFilters = { ...filters };
     if (typeof window !== "undefined") {
-      const today = new Date().toISOString().split("T")[0];
       const cachedFilters = sessionStorage.getItem("dji_mending_history_filters");
-      const cachedData = sessionStorage.getItem("dji_mending_history_data_v2");
-      const cachedSearched = sessionStorage.getItem("dji_mending_history_searched");
-
-      let initialFilters = { ...filters };
-
       if (cachedFilters) {
         try {
           const parsed = JSON.parse(cachedFilters);
@@ -148,37 +160,27 @@ export default function MendingHistoryPage() {
           initialFilters = parsed;
           setFilters(parsed);
         } catch (e) {}
-      } else {
-        setFilters(initialFilters);
-      }
-
-      if (cachedData && cachedSearched === "true") {
-        try {
-          setData(JSON.parse(cachedData));
-          setHasSearched(true);
-        } catch (e) {
-          console.error("Failed to parse cached history");
-        }
-      } else {
-        // Auto fetch today's data on initial mount
-        setIsLoading(true);
-        searchMendingHistory({ ...initialFilters, page: 1, limit: 15 }).then((res) => {
-          if (res.success && res.data) {
-            setData(res.data);
-            setCurrentPage(res.page || 1);
-            setTotalPages(res.totalPages || 1);
-            setTotalData(res.total || 0);
-            setHasSearched(true);
-            sessionStorage.setItem("dji_mending_history_filters", JSON.stringify(initialFilters));
-            sessionStorage.setItem("dji_mending_history_data_v2", JSON.stringify(res.data));
-            sessionStorage.setItem("dji_mending_history_searched", "true");
-          }
-          setIsLoading(false);
-        }).catch(() => {
-          setIsLoading(false);
-        });
       }
     }
+
+    // Initial fetch directly from database
+    fetchHistoryData(initialFilters, 1, true);
+
+    // Auto-refresh every 10 seconds
+    const interval = setInterval(() => {
+      fetchHistoryData(filters, currentPage, false);
+    }, 10000);
+
+    // Refetch on window focus
+    const handleFocus = () => {
+      fetchHistoryData(filters, currentPage, false);
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const handleSearch = async (e?: React.FormEvent, page: number = 1) => {
@@ -344,8 +346,8 @@ export default function MendingHistoryPage() {
         >
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <ClipboardList className="w-5 h-5 text-emerald-600" />
-              Hasil Pencarian
+              <ClipboardList className="w-5 h-5 text-[#0070bc]" />
+              Daftar Riwayat Mending
             </h2>
             <div className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">
               {totalData} Data Ditemukan
@@ -359,14 +361,12 @@ export default function MendingHistoryPage() {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
                       <th className="px-4 py-4 whitespace-nowrap">Mesin & Desain</th>
-                      <th className="px-4 py-4 text-center w-24 whitespace-nowrap">Potongan</th>
-                      <th className="px-4 py-4 text-center w-20 whitespace-nowrap">PCS</th>
-                      <th className="px-4 py-4 text-center w-32 whitespace-nowrap">Panel / Meter</th>
-                      <th className="px-4 py-4 whitespace-nowrap">Petugas Mending</th>
+                      <th className="px-4 py-4 text-center whitespace-nowrap">Potongan & PCS</th>
+                      <th className="px-4 py-4 text-center whitespace-nowrap">Panjang / QTY</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Petugas</th>
                       <th className="px-4 py-4 text-center whitespace-nowrap">Hasil Mending</th>
-                      <th className="px-4 py-4 whitespace-nowrap">Start</th>
-                      <th className="px-4 py-4 whitespace-nowrap">Finish</th>
-                      <th className="px-4 py-4 whitespace-nowrap text-center">Durasi</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Waktu Inspeksi</th>
+                      <th className="px-4 py-4 text-center whitespace-nowrap">Durasi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -389,66 +389,81 @@ export default function MendingHistoryPage() {
                         <tr
                           key={d.id || idx}
                           onClick={() => handleOpenDetail(d)}
-                          className="hover:bg-slate-50/80 transition-colors group/row cursor-pointer"
+                          className="hover:bg-sky-50/50 transition-all group/row cursor-pointer"
                         >
-                          <td className="px-4 py-4">
-                            <div className="font-bold text-slate-800">
+                          <td className="px-4 py-3.5">
+                            <div className="font-extrabold text-slate-800 flex items-center gap-1.5">
                               {d.nomor_mc || "-"}
+                              {isMeteran ? (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider">METERAN</span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">PANEL</span>
+                              )}
                             </div>
                             <div className="text-xs text-slate-500 font-medium">
                               {d.design_id || "-"}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-center">
-                            <span className="inline-flex items-center justify-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
-                              {d.potongan_ke || "-"}
-                            </span>
+                          <td className="px-4 py-3.5 text-center">
+                            <div className="inline-flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 font-bold text-slate-700 text-xs border border-slate-200/60">
+                                Pot. {d.potongan_ke || "-"}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-100 font-bold text-xs">
+                                PCS {d.pcs_index || d.detail?.pcs_index || "-"}
+                              </span>
+                            </div>
                           </td>
-                          <td className="px-4 py-4 text-center">
-                            <span className="inline-flex items-center justify-center rounded-lg bg-sky-50 text-sky-700 border border-sky-100 px-2.5 py-1 text-xs font-bold">
-                              {d.pcs_index || d.detail?.pcs_index || "-"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-center">
+                          <td className="px-4 py-3.5 text-center">
                             <span className="font-extrabold text-slate-800 text-xs">
                               {isMeteran ? `${gradeAVal} Meter` : `${d.total_panel || d.items?.length || 0} Panel`}
                             </span>
                           </td>
-                          <td className="px-4 py-4">
-                            <div className="font-bold text-slate-800">
+                          <td className="px-4 py-3.5">
+                            <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                              <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-[10px] font-extrabold shrink-0 border border-slate-200">
+                                {(d.petugas_mending || "P")[0]}
+                              </div>
                               {d.petugas_mending || "-"}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-center">
-                            <div className="text-sm font-bold text-slate-800 flex flex-wrap items-center justify-center gap-3">
+                          <td className="px-4 py-3.5 text-center">
+                            <div className="inline-flex items-center justify-center gap-1.5 flex-wrap">
                               {gradeAVal > 0 && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 text-emerald-700 px-2 py-1 text-[10px] font-bold uppercase tracking-wider">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-emerald-200/60">
                                   A: {gradeAVal}{isMeteran ? " M" : ""}
                                 </span>
                               )}
                               {gradeBVal > 0 && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 text-amber-700 px-2 py-1 text-[10px] font-bold uppercase tracking-wider">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-amber-200/60">
                                   B: {gradeBVal}{isMeteran ? " T" : ""}
                                 </span>
                               )}
                               {gradeBSVal > 0 && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 text-rose-700 px-2 py-1 text-[10px] font-bold uppercase tracking-wider">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-rose-200/60">
                                   BS: {gradeBSVal}{isMeteran ? " T" : ""}
                                 </span>
                               )}
                               {gradeAVal === 0 &&
                                 gradeBVal === 0 &&
-                                gradeBSVal === 0 && <span>-</span>}
+                                gradeBSVal === 0 && <span className="text-slate-400 text-xs font-bold">-</span>}
                             </div>
                           </td>
-                          <td className="px-4 py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
-                            {d.tanggal_mending} {d.start_mending || "-"}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            <div className="flex flex-col text-xs">
+                              <span className="font-bold text-slate-700 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                {d.start_mending || "-"} - {d.finish_mending || "-"}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium pl-4">
+                                {d.tanggal_mending}
+                              </span>
+                            </div>
                           </td>
-                          <td className="px-4 py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
-                            {d.tanggal_mending} {d.finish_mending || "-"}
-                          </td>
-                          <td className="px-4 py-4 text-center whitespace-nowrap font-extrabold text-amber-700 text-xs">
-                            {calculateDurationStr(d.start_mending, d.finish_mending, d.pause_seconds || 0, d.elapsed_seconds)}
+                          <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-200/60 font-extrabold text-xs">
+                              {calculateDurationStr(d.start_mending, d.finish_mending, d.pause_seconds || 0, d.elapsed_seconds)}
+                            </span>
                           </td>
                         </tr>
                       );

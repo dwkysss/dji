@@ -640,6 +640,7 @@ export async function addQCDefectDetail(params: {
   detailMasalah?: string;
   keteranganCacat?: string;
   pcsIndex?: number;
+  finalInspectionId?: number;
 }) {
   try {
     const supabase = await createAdminClient();
@@ -657,18 +658,30 @@ export async function addQCDefectDetail(params: {
       ? params.kategoriMasalah.join(', ')
       : null;
 
+    let statusInspeksi: string | null = null;
+    if (params.finalInspectionId === 3) statusInspeksi = "Silang";
+    else if (params.finalInspectionId === 4) statusInspeksi = "BS";
+    else if (params.finalInspectionId === 1 || params.finalInspectionId === 2) statusInspeksi = "Ceklis";
+
+    const parsedMeter = parseFloat(params.meterKain);
+    if (isNaN(parsedMeter) || parsedMeter < 0) {
+      return { success: false, error: "Posisi Meter Kain tidak boleh kurang dari 0." };
+    }
+
     const { data, error } = await supabase
       .from("production_details")
       .insert({
         id: detailId,
         header_id: params.headerId,
         pcs_index: params.pcsIndex || 1,
-        meter_kain: parseFloat(params.meterKain) || null,
+        meter_kain: parsedMeter,
         roll_no: params.rollNo || null,
         kategori_masalah: kategoriStr,
         detail_masalah: params.detailMasalah || null,
         keterangan_cacat: params.keteranganCacat ? `${params.keteranganCacat} [TAMBAHAN QC]` : "[TAMBAHAN QC]",
         indikator_stop: true,
+        final_inspection_id: params.finalInspectionId ?? null,
+        status_inspeksi: statusInspeksi,
       })
       .select()
       .single();

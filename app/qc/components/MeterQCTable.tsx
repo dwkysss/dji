@@ -21,7 +21,12 @@ export default function MeterQCTable({
     let prevOperatorLastMeter: number | null = null;
     let currentOpStartMeter: number | null = null;
     let currentOpLastMeter: number | null = null;
+    let currentOpCacatCount = 0;
     let lastOprString = "";
+
+    let grandTotalStartMeter: number | null = null;
+    let grandTotalLastMeter: number | null = null;
+    let grandTotalCacatCount = 0;
 
     const cleanMeterVal = (val: any) => {
       if (val === null || val === undefined) return "";
@@ -64,12 +69,15 @@ export default function MeterQCTable({
         isSameAsPrev = true;
       }
 
-      const isIstirahatOnly = (!!item.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || 
-                           !!item.kategori_masalah?.toUpperCase().includes("ISTIRAHAT")) && 
-                          !item.kategori_masalah && !item.detail_masalah &&
-                          h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
       let hasIstirahatFromDefects = false;
       let hasRealDefects = false;
+
+      const detailStr = (item.detail_masalah || "").toUpperCase();
+      const katStr = (item.kategori_masalah || "").toUpperCase();
+      const ketStr = (item.keterangan_cacat || "").toUpperCase();
+      const oprName = (opr || "").toUpperCase();
+
+      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT") || oprName.includes("ISTIRAHAT");
 
       if (item.production_defects && Array.isArray(item.production_defects)) {
         item.production_defects.forEach((d: any) => {
@@ -82,16 +90,17 @@ export default function MeterQCTable({
       }
 
       if (!item.production_defects || item.production_defects.length === 0) {
-         if (item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT")) {
-            hasRealDefects = true;
-         }
+        const cleanDetailNoIstirahat = (item.detail_masalah || "").replace(/istirahat/gi, "").replace(/G\s*-\s*/gi, "").trim();
+        if (cleanDetailNoIstirahat.length > 0) {
+          hasRealDefects = true;
+        } else if (item.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT")) {
+          hasRealDefects = true;
+        }
       }
 
-      const hasIstirahatRaw = !!item.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || 
-                           !!item.kategori_masalah?.toUpperCase().includes("ISTIRAHAT") ||
-                           hasIstirahatFromDefects;
-                           
+      const hasIstirahatRaw = hasIstirahatText || hasIstirahatFromDefects;
       const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
+      const isIstirahatOnly = hasIstirahat;
       const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
 
       let cacatLines: string[] = [];
@@ -256,7 +265,7 @@ export default function MeterQCTable({
       }
 
       const combinedCacat = cacatLines.join("\n");
-      const hasErrorDetail = !!item.kategori_masalah || !!item.detail_masalah;
+      const hasErrorDetail = cacatLines.length > 0 || !!item.kategori_masalah || !!item.detail_masalah;
 
       let meterDisplay = "-";
       if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
@@ -269,7 +278,7 @@ export default function MeterQCTable({
           meterDisplay = cleanMeterVal(meterMatch[1]);
         }
       }
-      
+
       if (meterDisplay === "-") {
         if ((isIstirahatOnly || isFinishReport) && (h.meter_akhir || h.meter_awal)) {
           meterDisplay = cleanMeterVal(h.meter_akhir || h.meter_awal);
@@ -303,6 +312,8 @@ export default function MeterQCTable({
         if (!isNaN(startMeterVal)) {
           if (currentOpStartMeter === null) currentOpStartMeter = startMeterVal;
           currentOpLastMeter = startMeterVal;
+          if (grandTotalStartMeter === null) grandTotalStartMeter = startMeterVal;
+          grandTotalLastMeter = startMeterVal;
         }
         isSameAsPrev = true;
       }
@@ -315,9 +326,7 @@ export default function MeterQCTable({
       const showGrp = !isSameAsPrev;
       const showOpr = !isSameAsPrev;
 
-      // TAMBAHAN QC dengan data cacat tetap gradable meski header sudah finish
       const isGradable = !isIstirahatOnly && (!isFinishReport || hasErrorDetail || hasTambahanQC);
-      // Format "Kategori - Detail (Blok n)" per baris, hilangkan (Titik: ...) karena sudah di kolom Meter
       const cacatForMeter = combinedCacat
         .split("\n")
         .map((line: string) => line.replace(/\s*\(Titik:\s*[^)]+\)/gi, "").trim())
@@ -370,6 +379,14 @@ export default function MeterQCTable({
         if (!isNaN(meterVal)) {
           if (currentOpStartMeter === null) currentOpStartMeter = meterVal;
           currentOpLastMeter = meterVal;
+          if (grandTotalStartMeter === null) grandTotalStartMeter = meterVal;
+          grandTotalLastMeter = meterVal;
+        }
+
+        const isDefectRow = !isIstirahatOnly && (hasRealDefects || hasTambahanQC || !!item.kategori_masalah || !!item.indikator_stop);
+        if (isDefectRow) {
+          currentOpCacatCount += 1;
+          grandTotalCacatCount += 1;
         }
       }
     });
@@ -380,11 +397,31 @@ export default function MeterQCTable({
       const [lastGrp, lastOprOnly] = lastOprString.includes(") ") 
         ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
         : ["", lastOprString];
+      const normalMeter = Math.max(0, totalMeter - currentOpCacatCount);
+      const cacatMeter = currentOpCacatCount;
+
       items.push({
         id: `total-last-${lastOprString}-${Math.random()}`,
         isTotalRow: true,
         totalLabel: `Total Produksi${lastGrp ? ` (${lastGrp})` : ""} ${lastOprOnly}:`,
         totalMeter: `${totalMeter} Meter`,
+        normalMeter: `${normalMeter} Meter`,
+        cacatMeter: `${cacatMeter} Meter`,
+      });
+    }
+
+    // Push Grand Total Row untuk Total (Inspeksi)
+    if (items.length > 0 && grandTotalStartMeter !== null && grandTotalLastMeter !== null) {
+      const grandTotalMeter = Math.abs(grandTotalLastMeter - grandTotalStartMeter);
+      const grandTotalNormal = Math.max(0, grandTotalMeter - grandTotalCacatCount);
+
+      items.push({
+        id: `grand-total-${Math.random()}`,
+        isGrandTotalRow: true,
+        totalLabel: "Total (Inspeksi):",
+        totalMeter: `${grandTotalMeter} Meter`,
+        normalMeter: `${grandTotalNormal} Meter`,
+        cacatMeter: `${grandTotalCacatCount} Meter`,
       });
     }
 

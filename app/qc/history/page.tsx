@@ -130,10 +130,22 @@ export default function QCHistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
-  // Load from session storage on mount
+  const fetchQCHistory = async (currentFilters = filters, showLoader = false) => {
+    if (showLoader) setIsLoading(true);
+    try {
+      const res = await searchQCHistory(currentFilters);
+      if (res.success && res.data) {
+        setData(res.data);
+        setHasSearched(true);
+      }
+    } catch (err) {
+      console.error("Failed to fetch QC history", err);
+    } finally {
+      if (showLoader) setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Auto fetch all history data on initial mount
-    setIsLoading(true);
     const initialFilters = {
       date: "",
       nomor_mc: "",
@@ -143,15 +155,23 @@ export default function QCHistoryPage() {
       no_customer: "",
     };
     setFilters(initialFilters);
-    searchQCHistory(initialFilters).then((res) => {
-      if (res.success && res.data) {
-        setData(res.data);
-        setHasSearched(true);
-      }
-      setIsLoading(false);
-    }).catch(() => {
-      setIsLoading(false);
-    });
+    fetchQCHistory(initialFilters, true);
+
+    // Auto-refresh every 10 seconds
+    const interval = setInterval(() => {
+      fetchQCHistory(filters, false);
+    }, 10000);
+
+    // Refetch on window focus
+    const handleFocus = () => {
+      fetchQCHistory(filters, false);
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const handleSearch = async (e?: React.FormEvent) => {
@@ -317,102 +337,121 @@ export default function QCHistoryPage() {
             </div>
           </div>
 
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-[#0070bc]" />
+              Daftar Riwayat Inspeksi QC
+            </h2>
+            <div className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">
+              {groupedData.length} Data Ditemukan
+            </div>
+          </div>
+
           {groupedData.length > 0 ? (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] sm:text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                      <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Mesin & Desain</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Potongan</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Petugas QC</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4 text-center whitespace-nowrap">PCS</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4 whitespace-nowrap">Jumlah QTY</th>
-                      <th className="px-3 py-3 lg:px-6 lg:py-4 text-center whitespace-nowrap">Hasil Inspeksi</th>
-                      <th className="px-3 py-3 lg:px-4 lg:py-4 whitespace-nowrap">Start</th>
-                      <th className="px-3 py-3 lg:px-4 lg:py-4 whitespace-nowrap">Finish</th>
-                      <th className="px-3 py-3 lg:px-4 lg:py-4 text-center whitespace-nowrap">Durasi</th>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      <th className="px-4 py-4 whitespace-nowrap">Mesin & Desain</th>
+                      <th className="px-4 py-4 text-center whitespace-nowrap">Potongan & PCS</th>
+                      <th className="px-4 py-4 text-center whitespace-nowrap">Panjang / QTY</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Petugas QC</th>
+                      <th className="px-4 py-4 text-center whitespace-nowrap">Hasil Inspeksi</th>
+                      <th className="px-4 py-4 whitespace-nowrap">Waktu Inspeksi</th>
+                      <th className="px-4 py-4 text-center whitespace-nowrap">Durasi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {paginatedData.map((group: any, idx: number) => {
                       const header = group.header || {};
+                      const isMeteran = header?.panel_no === "METERAN";
 
                       return (
                         <tr
                           key={idx}
                           onClick={() => handleOpenDetail(group)}
-                          className="hover:bg-sky-50/50 transition-colors group/row cursor-pointer"
+                          className="hover:bg-sky-50/50 transition-all group/row cursor-pointer"
                         >
-                          <td className="px-3 py-3 lg:px-6 lg:py-4">
-                            <div className="font-bold text-slate-800">
+                          <td className="px-4 py-3.5">
+                            <div className="font-extrabold text-slate-800 flex items-center gap-1.5">
                               {group.nomor_mc || "-"}
+                              {isMeteran ? (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider">METERAN</span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">PANEL</span>
+                              )}
                             </div>
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs text-slate-500 font-medium">
                               {group.design_id || "-"}
                             </div>
                           </td>
-                          <td className="px-3 py-3 lg:px-6 lg:py-4">
-                            <div className="font-bold text-slate-800 uppercase tracking-wider">
-                              {group.potongan_ke || "-"}
+                          <td className="px-4 py-3.5 text-center">
+                            <div className="inline-flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 font-bold text-slate-700 text-xs border border-slate-200/60">
+                                Pot. {group.potongan_ke || "-"}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-100 font-bold text-xs">
+                                PCS {group.pcs_index || group.detail?.pcs_index || "-"}
+                              </span>
                             </div>
                           </td>
-                          <td className="px-3 py-3 lg:px-6 lg:py-4">
-                            <div className="font-bold text-slate-800">
-                              {group.petugas_inspeksi || "-"}
-                            </div>
-                            {group.petugas_inspeksi_2 && (
-                              <div className="text-xs text-slate-500">
-                                & {group.petugas_inspeksi_2}
-                              </div>
-                            )}
-                            {group.petugas_inspeksi_3 && (
-                              <div className="text-xs text-slate-500">
-                                & {group.petugas_inspeksi_3}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 lg:px-6 lg:py-4">
-                            <div className="font-bold text-slate-800 text-center">
-                              {group.pcs_index || group.detail?.pcs_index}
-                            </div>
-                          </td>
-                          <td className="px-3 py-3 lg:px-6 lg:py-4">
-                            <div className="text-sm font-semibold text-slate-600">
-                              {header?.panel_no === "METERAN"
+                          <td className="px-4 py-3.5 text-center">
+                            <span className="font-extrabold text-slate-800 text-xs">
+                              {isMeteran
                                 ? `${group.inspeksi_ceklis || 0} Meter`
                                 : `${group.items?.length || 0} Panel`}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                              <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-[10px] font-extrabold shrink-0 border border-slate-200">
+                                {(group.petugas_inspeksi || "Q")[0]}
+                              </div>
+                              <div>
+                                <div>{group.petugas_inspeksi || "-"}</div>
+                                {group.petugas_inspeksi_2 && (
+                                  <div className="text-[10px] text-slate-400 font-medium">& {group.petugas_inspeksi_2}</div>
+                                )}
+                              </div>
                             </div>
                           </td>
-                          <td className="px-3 py-3 lg:px-6 lg:py-4 text-center">
-                            <div className="text-sm font-bold text-slate-800 flex items-center justify-center gap-3">
+                          <td className="px-4 py-3.5 text-center">
+                            <div className="inline-flex items-center justify-center gap-1.5 flex-wrap">
                               {group.inspeksi_silang === 0 ? (
-                                <span className="flex items-center gap-1.5">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-emerald-200/60">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                   Normal
                                 </span>
                               ) : (
                                 <>
-                                  <span className="flex items-center gap-1.5">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-emerald-200/60">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                     {group.inspeksi_ceklis} Normal
                                   </span>
-                                  <span className="flex items-center gap-1.5">
-                                    <XCircle className="w-4 h-4 text-rose-500" />
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-rose-200/60">
+                                    <XCircle className="w-3 h-3 text-rose-600" />
                                     {group.inspeksi_silang} Cacat
                                   </span>
                                 </>
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
-                            {group.tanggal_inspeksi} {group.start_inspect || "-"}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            <div className="flex flex-col text-xs">
+                              <span className="font-bold text-slate-700 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                {group.start_inspect || "-"} - {group.finish_inspect || "-"}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium pl-4">
+                                {group.tanggal_inspeksi}
+                              </span>
+                            </div>
                           </td>
-                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-mono text-slate-800 text-xs font-bold whitespace-nowrap">
-                            {group.tanggal_inspeksi} {group.finish_inspect || "-"}
-                          </td>
-                          <td className="px-3 py-3 lg:px-4 lg:py-4 font-extrabold text-amber-700 text-xs text-center whitespace-nowrap">
-                            {calculateDurationStr(group.start_inspect, group.finish_inspect, group.pause_seconds || 0, group.elapsed_seconds)}
+                          <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-200/60 font-extrabold text-xs">
+                              {calculateDurationStr(group.start_inspect, group.finish_inspect, group.pause_seconds || 0, group.elapsed_seconds)}
+                            </span>
                           </td>
                         </tr>
                       );
