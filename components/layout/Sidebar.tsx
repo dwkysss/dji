@@ -153,7 +153,7 @@ export default function Sidebar() {
           name: "Laporan Bulanan",
           href: "/reports/monthly-machine",
           icon: FileSpreadsheet,
-          roles: ["admin", "manager", "inspeksi", "mending"],
+          roles: ["admin", "manager"],
         },
         {
           name: "Laporan Produksi",
