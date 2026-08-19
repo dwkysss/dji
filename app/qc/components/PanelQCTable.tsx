@@ -443,6 +443,8 @@ export default function PanelQCTable({
             }
 
             const cleanPanelNo = rawPanelNo.replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
+            const isBsPanel = isBsAwal || isBsAkhir || (String(rawPanelNo).includes("(BS)")) || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
+            const hasError = item.indikator_stop || !!item.kategori_masalah || !!item.detail_masalah || isBsPanel || (item.production_defects && item.production_defects.length > 0);
 
             return (
             <tr key={item.id} className={`${hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
@@ -470,7 +472,7 @@ export default function PanelQCTable({
                 {showOpr ? (item.oprBase || grpStr || "-") : (hasIstirahat ? "Istirahat" : "")}
               </td>
               <td className="px-1 py-1 text-center font-bold text-sm border-r border-slate-100">
-                {item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
+                {hasError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
               </td>
               
               <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isIstirahatOnly ? 'text-slate-500' : 'text-rose-600'}`}>

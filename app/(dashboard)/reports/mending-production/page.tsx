@@ -19,7 +19,7 @@ import {
   Wrench
 } from "lucide-react";
 import * as xlsx from "xlsx";
-import { PROBLEM_DETAILS } from "../../../qc/page";
+import { PROBLEM_DETAILS, REGISTERED_MACHINES } from "../../../qc/page";
 
 const cleanMeterVal = (val: any) => {
   if (val === null || val === undefined) return "";
@@ -172,7 +172,7 @@ export const calculateOverallGradeData = (
 
 export default function MendingProductionReportPage() {
   const [options, setOptions] = useState<{ mesins: string[], potongans: number[] }>({
-    mesins: [],
+    mesins: REGISTERED_MACHINES,
     potongans: []
   });
 
@@ -651,8 +651,11 @@ export default function MendingProductionReportPage() {
   }, []);
 
   useEffect(() => {
-    handleSearch();
-    setCurrentPage(1);
+    const timer = setTimeout(() => {
+      handleSearch();
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
   }, [filters.nomor_mc, filters.potongan_ke]);
 
   useEffect(() => {
@@ -1210,16 +1213,13 @@ export default function MendingProductionReportPage() {
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               Pilih Potongan Ke
             </label>
-            <select
+            <input
+              type="text"
               value={filters.potongan_ke}
               onChange={(e) => setFilters({ ...filters, potongan_ke: e.target.value })}
+              placeholder="Ketik potongan (contoh: 332)..."
               className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full transition-colors"
-            >
-              <option value="">-- Semua Potongan --</option>
-              {options.potongans.map((p) => (
-                <option key={p} value={String(p)}>Potongan Ke-{p}</option>
-              ))}
-            </select>
+            />
           </div>
 
           <div className="flex flex-col gap-1 w-full">
@@ -1760,7 +1760,8 @@ export default function MendingProductionReportPage() {
 
                               let cacat = cacatLines.join("\n") || "-";
                               const isGradable = isMeterRow ? item.isGradable : true;
-                              const hasError = isMeterRow ? item.hasErrorDetail : !!det.kategori_masalah;
+                              const isBsRow = String(rowNo).toUpperCase().includes("AWAL") || String(rowNo).toUpperCase().includes("AKHIR") || String(rowNo).toUpperCase().includes("BS") || det.jml_hasil_produksi === 0 || det.status_inspeksi === "BS";
+                              const hasError = isMeterRow ? item.hasErrorDetail : (!!det.kategori_masalah || !!det.detail_masalah || isBsRow);
                               
                               return (
                                 <tr key={item.id || itemIndex} className="hover:bg-slate-50 transition-colors">

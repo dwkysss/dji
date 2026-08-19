@@ -1157,14 +1157,17 @@ function MendingDetailContent() {
                       if (isSisa) {
                         masalahLines = [isBsAwal ? "Sisa Awal Potongan" : "Sisa Akhir Potongan"];
                       } else if (!isIstirahat) {
+                        const isTambahanQc = !!detail.keterangan_cacat?.includes("[TAMBAHAN QC]") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS";
                         let dtEvents: any[] = [];
-                        try {
-                          if (itemHeader.downtime_events) {
-                            dtEvents = typeof itemHeader.downtime_events === 'string'
-                              ? JSON.parse(itemHeader.downtime_events)
-                              : itemHeader.downtime_events;
-                          }
-                        } catch (e) { }
+                        if (!isTambahanQc) {
+                          try {
+                            if (itemHeader.downtime_events) {
+                              dtEvents = typeof itemHeader.downtime_events === 'string'
+                                ? JSON.parse(itemHeader.downtime_events)
+                                : itemHeader.downtime_events;
+                            }
+                          } catch (e) { }
+                        }
 
                         const matchedEvents = dtEvents.filter((e: any) =>
                           !e.pcsKe || e.pcsKe === "Semua" || e.pcsKe == detail.pcs_index

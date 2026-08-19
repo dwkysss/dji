@@ -446,7 +446,7 @@ export async function searchMendingHistory(filters: {
         items:mending_items!inner (
           id, hasil_mending,
           detail:production_details!inner (
-            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah,
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, indikator_stop,
             header:production_headers!inner (id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, operator_backup, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operators(nama_operator), groups(nama_grup))
           )
         )
@@ -766,15 +766,31 @@ export async function getMendingDetailsByGroup(nomor_mc: string, design_id: stri
 export async function getMendingReportOptions() {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("mending_batches")
-      .select("nomor_mc, potongan_ke, design_id");
+    const [mendingRes, headersRes] = await Promise.all([
+      supabase.from("mending_batches").select("nomor_mc, potongan_ke, design_id"),
+      supabase.from("production_headers").select("nomor_mc")
+    ]);
       
-    if (error) return { success: false, error: error.message };
+    const mendingData = mendingRes.data || [];
+    const headerData = headersRes.data || [];
     
-    const mesins = Array.from(new Set(data.map((d: any) => d.nomor_mc).filter(Boolean)));
-    const potongans = Array.from(new Set(data.map((d: any) => d.potongan_ke).filter(Boolean)));
-    const designs = Array.from(new Set(data.map((d: any) => d.design_id).filter(Boolean)));
+    const registeredMachines = [
+      "R1", "R2", "R3", "R6", "R11", "R12", "R16",
+      "T1C", "T2A", "R1C", "R2C", "R3B", "R5B",
+      "Warping D6", "Winding"
+    ];
+
+    const allMesins = [
+      ...registeredMachines,
+      ...mendingData.map((d: any) => d.nomor_mc),
+      ...headerData.map((d: any) => d.nomor_mc)
+    ].filter(Boolean);
+
+    const mesins = Array.from(new Set(allMesins)).sort((a: any, b: any) => 
+      String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+    );
+    const potongans = Array.from(new Set(mendingData.map((d: any) => d.potongan_ke).filter(Boolean)));
+    const designs = Array.from(new Set(mendingData.map((d: any) => d.design_id).filter(Boolean)));
     
     return { success: true, data: { mesins, potongans, designs } };
   } catch (err: any) {
@@ -804,11 +820,14 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
         )
       `);
       
-    if (nomor_mc) {
-      query = query.eq("nomor_mc", nomor_mc);
+    if (nomor_mc && nomor_mc.trim() !== "") {
+      query = query.eq("nomor_mc", nomor_mc.trim());
     }
-    if (potongan_ke) {
-      query = query.eq("potongan_ke", parseInt(potongan_ke));
+    if (potongan_ke && potongan_ke.trim() !== "") {
+      const pNum = parseInt(potongan_ke.trim().replace(/\D/g, ""), 10);
+      if (!isNaN(pNum)) {
+        query = query.eq("potongan_ke", pNum);
+      }
     }
     
     const { data, error } = await query;

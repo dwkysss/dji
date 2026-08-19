@@ -94,7 +94,7 @@ export default function PanelMendingTable({
                 {item.showOpr ? (item.oprBase || item.grpStr || "-") : ((item.isIstirahat || item.hasIstirahat) ? "Istirahat" : "")}
               </td>
               <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100 border-b border-slate-100">
-                {item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
+                {item.indikator_stop || !!item.kategori_masalah || !!item.detail_masalah || item.jml_hasil_produksi === 0 || String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR") || String(item.displayNo).includes("(BS)") ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
               </td>
               <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 border-b border-slate-100">
                 {(item.isIstirahat || item.hasIstirahat) ? (

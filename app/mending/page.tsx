@@ -106,7 +106,7 @@ const getActualMeter = (item: any, h: any) => {
 const MENDING_TOUR_STEPS: ProductTourStep[] = [
   {
     target: "mending-header",
-    title: "Proses Mending",
+    title: "Hasil Akhir Pengerjaan Mending",
     description:
       "Mulai dari halaman ini untuk memilih batch produksi yang perlu diperbaiki oleh tim mending.",
   },
@@ -2349,7 +2349,7 @@ export default function MendingPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
             <Scissors className="w-6 h-6 text-rose-500" />
-            Proses Mending
+            Hasil Akhir Pengerjaan Mending
           </h1>
           <p className="text-sm font-semibold text-slate-500">
             Total antrean baris yang belum dimending: <span className="text-rose-500 font-bold">{groupedPcsList.length} Antrean</span>

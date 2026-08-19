@@ -236,14 +236,17 @@ export default function PanelHistoryTable({
                   return key;
                 });
               } else {
+                const isTambahanQc = !!detail.keterangan_cacat?.includes("[TAMBAHAN QC]") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS";
                 let dtEvents: any[] = [];
-                try {
-                  if (itemHeader.downtime_events) {
-                    dtEvents = typeof itemHeader.downtime_events === 'string'
-                      ? JSON.parse(itemHeader.downtime_events)
-                      : itemHeader.downtime_events;
-                  }
-                } catch (e) { }
+                if (!isTambahanQc) {
+                  try {
+                    if (itemHeader.downtime_events) {
+                      dtEvents = typeof itemHeader.downtime_events === 'string'
+                        ? JSON.parse(itemHeader.downtime_events)
+                        : itemHeader.downtime_events;
+                    }
+                  } catch (e) { }
+                }
 
               const matchedEvents = dtEvents.filter((e: any) =>
                 !e.pcsKe || e.pcsKe === "Semua" || e.pcsKe == detail.pcs_index
@@ -416,17 +419,19 @@ export default function PanelHistoryTable({
               }
             }
 
+            const isBsRow = isBsAwal || isBsAkhir || String(rawPanelNo).includes("(BS)") || String(item.displayNo).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS" || detail.final_inspection_id === 4 || item.final_inspection_id === 4 || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
+
             return (
-              <tr key={item.id || idx} className={`${hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
-                <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
-                  {String(item.displayNo).toUpperCase().includes("AWAL") ? (
+              <tr key={item.id || idx} className={`${hasIstirahat ? "bg-amber-50/30" : (isBsRow ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
+                <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${hasIstirahat ? "bg-amber-100" : (isBsRow ? "bg-rose-50/50" : "bg-white")}`}>
+                  {isBsAwal ? (
                     <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
-                  ) : String(item.displayNo).toUpperCase().includes("AKHIR") ? (
+                  ) : isBsAkhir ? (
                     <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
                   ) : (
                     <div className="flex flex-col items-center justify-center">
                       <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
-                      {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
+                      {isBsRow && (
                         <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
                       )}
                     </div>
@@ -445,7 +450,7 @@ export default function PanelHistoryTable({
                    {isIstirahatOnly ? (
                      <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
                    ) : (
-                     detail.kategori_masalah || detail.detail_masalah ? (
+                     detail.kategori_masalah || detail.detail_masalah || isBsRow || detail.indikator_stop ? (
                        <XCircle className="w-4 h-4 text-rose-500 inline-block" />
                      ) : (
                        <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />

@@ -261,9 +261,10 @@ export default function PanelHistoryTable({
               backupOpName = itemHeader.operator_backup;
             }
           } else {
+            const isTambahanQc = !!detail.keterangan_cacat?.includes("[TAMBAHAN QC]") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS";
             let matchedEvents: any[] = [];
             
-            if (actualDowntimeRecords && actualDowntimeRecords.length > 0) {
+            if (!isTambahanQc && actualDowntimeRecords && actualDowntimeRecords.length > 0) {
               // Since downtime records are now native rows, we filter by header_id.
               // Note: For panels, downtime_records doesn't store pcs_index natively, 
               // but we can just map all downtimes of the header to the first PCS, 
@@ -277,7 +278,7 @@ export default function PanelHistoryTable({
               if (detail.pcs_index !== 1 && detail.pcs_index !== "1") {
                 matchedEvents = []; // Don't show downtime again on subsequent PCS
               }
-            } else {
+            } else if (!isTambahanQc) {
               // Fallback to legacy
               let dtEvents: any[] = [];
               try {
@@ -497,6 +498,8 @@ export default function PanelHistoryTable({
           const hasDefect = masalahLines.length > 0 && masalahLines[0] !== "-";
           if (masalahLines.length === 0) masalahLines.push("-");
 
+          const isBsRow = String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR") || String(item.displayNo).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS";
+
           return (
             <tr key={item.id || idx} className={`${hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
               <td className="px-1 py-1 font-bold text-slate-800 text-center border-r border-slate-100 flex flex-col items-center justify-center">
@@ -529,7 +532,7 @@ export default function PanelHistoryTable({
                 {isIstirahatOnly ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
                 ) : (
-                  detail.kategori_masalah || detail.detail_masalah ? (
+                  detail.kategori_masalah || detail.detail_masalah || isBsRow || detail.indikator_stop ? (
                     <XCircle className="w-4 h-4 text-rose-500 inline-block" />
                   ) : (
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />

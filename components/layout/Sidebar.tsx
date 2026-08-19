@@ -132,7 +132,7 @@ export default function Sidebar() {
       groupIcon: Wrench,
       items: [
         {
-          name: "Proses Mending",
+          name: "Hasil Akhir Pengerjaan Mending",
           href: "/mending",
           icon: Scissors,
           roles: ["admin", "mending", "inspeksi"],

@@ -468,7 +468,7 @@ export default function AnnouncementsPage() {
                     { key: "all", label: "Semua Akun (Public Broadcast)", desc: "Tampil untuk semua pengguna", icon: Globe },
                     { key: "operator", label: "Operator Knitting", desc: "Form Input & Status Mesin", icon: Factory },
                     { key: "qc", label: "QC & Inspeksi", desc: "Halaman QC Inspection", icon: ClipboardCheck },
-                    { key: "mending", label: "Mending", desc: "Halaman Proses Mending", icon: Scissors },
+                    { key: "mending", label: "Mending", desc: "Halaman Hasil Akhir Pengerjaan Mending", icon: Scissors },
                     { key: "admin", label: "Admin / Manager", desc: "Dashboard & Laporan", icon: ShieldCheck },
                   ].map((role) => {
                     const isSelected = targetRoles.includes(role.key);

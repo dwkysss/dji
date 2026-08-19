@@ -111,7 +111,6 @@ export default function MendingModal({
   useEffect(() => {
     if (isOpen) {
       const storedPetugas = localStorage.getItem("mending_petugas");
-
       if (storedPetugas) setValue("petugas_mending", storedPetugas);
 
       const storedStart = localStorage.getItem("mending_start");
@@ -127,6 +126,31 @@ export default function MendingModal({
       setValue("start_mending", initialStart);
       setValue("finish_mending", currentTime);
 
+      let initialBerat = 0;
+      const detailsList = detailData || headerData?.details || [];
+      for (const item of detailsList) {
+        const qcItems = item.qc_inspection_items;
+        if (Array.isArray(qcItems) && qcItems.length > 0) {
+          for (const qi of qcItems) {
+            const b = qi?.qc_inspection_batches;
+            const batch = Array.isArray(b) ? b[0] : b;
+            if (batch && batch.berat_kain !== null && batch.berat_kain !== undefined) {
+              const val = parseFloat(String(batch.berat_kain).replace(",", "."));
+              if (!isNaN(val) && val > 0) {
+                initialBerat = val;
+                break;
+              }
+            }
+          }
+        }
+        if (initialBerat > 0) break;
+      }
+      setValue("berat_kain", initialBerat);
+    }
+  }, [isOpen, setValue, startMendingTime]);
+
+  useEffect(() => {
+    if (isOpen) {
       let countA = 0;
       let countB = 0;
       let countBS = 0;
@@ -171,28 +195,8 @@ export default function MendingModal({
         setValue("mending_grade_b", countB);
         setValue("mending_grade_bs", countBS);
       }
-
-      let initialBerat = 0;
-      for (const item of detailsList) {
-        const qcItems = item.qc_inspection_items;
-        if (Array.isArray(qcItems) && qcItems.length > 0) {
-          for (const qi of qcItems) {
-            const b = qi?.qc_inspection_batches;
-            const batch = Array.isArray(b) ? b[0] : b;
-            if (batch && batch.berat_kain !== null && batch.berat_kain !== undefined) {
-              const val = parseFloat(String(batch.berat_kain).replace(",", "."));
-              if (!isNaN(val) && val > 0) {
-                initialBerat = val;
-                break;
-              }
-            }
-          }
-        }
-        if (initialBerat > 0) break;
-      }
-      setValue("berat_kain", initialBerat);
     }
-  }, [isOpen, setValue, selections, detailData, headerData, startMendingTime]);
+  }, [isOpen, selections, detailData, headerData, setValue]);
 
   const onSubmit = async (data: MendingFormData) => {
     setIsSubmitting(true);

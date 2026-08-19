@@ -563,7 +563,7 @@ export async function searchQCHistory(filters: {
         items:qc_inspection_items!inner (
           id, final_inspection_id,
           detail:production_details!inner (
-            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah,
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, indikator_stop,
             header:production_headers!inner (id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operator_backup, operators(nama_operator), groups(nama_grup))
           )
         )
@@ -1347,7 +1347,7 @@ export async function getQCHistoryDetailById(batchId: string) {
         items:qc_inspection_items (
           id, final_inspection_id,
           detail:production_details (
-            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah,
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, indikator_stop,
             header:production_headers (id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operator_backup, operators(nama_operator), groups(nama_grup))
           )
         )
