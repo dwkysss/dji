@@ -46,6 +46,7 @@ import {
   deleteTimerSession,
   getActiveTimerSessions,
 } from "@/actions/timer-actions";
+import { REGISTERED_MACHINES } from "@/app/qc/page";
 import MeterMendingTable from "./components/MeterMendingTable";
 import PanelMendingTable from "./components/PanelMendingTable";
 
@@ -163,7 +164,7 @@ export default function MendingPage() {
     if (res.success && res.data) {
       const map = new Map<string, any>();
       res.data.forEach((s: any) => {
-        const key = `${s.nomor_mc}_${s.design_id}_${s.potongan_ke}_${s.pcs_index}`;
+        const key = `${s.nomor_mc}_${s.potongan_ke}_${s.pcs_index}`;
         map.set(key, s);
       });
       setActiveSessionsMap(map);
@@ -580,8 +581,6 @@ export default function MendingPage() {
     setAllDetails([]);
     setActiveMendingPcs(null);
     setSelections({});
-    setSearchMesin("");
-    setSearchPotongan("");
     setCurrentPage(1);
 
     const queryTanggal = tanggal === "" ? "all" : tanggal;
@@ -596,23 +595,12 @@ export default function MendingPage() {
     setIsSearching(false);
   };
 
-  const uniqueMesins = React.useMemo(() => {
-    return Array.from(new Set(allDetails.map(d => d.production_headers?.nomor_mc).filter(Boolean)));
-  }, [allDetails]);
-
-  const uniquePotongans = React.useMemo(() => {
-    return Array.from(new Set(allDetails
-      .filter(d => !searchMesin || d.production_headers?.nomor_mc === searchMesin)
-      .map(d => d.production_headers?.potongan_ke)
-      .filter(Boolean)));
-  }, [allDetails, searchMesin]);
-
   const groupedPcsList = React.useMemo(() => {
     const batchPcsMap = new Map<string, Set<number>>();
     allDetails.forEach((d: any) => {
       const h = d.production_headers;
       if (!h) return;
-      const batchKey = `${h.nomor_mc}_${h.design_id}_${h.potongan_ke}`;
+      const batchKey = `${h.nomor_mc}_${h.potongan_ke}`;
       if (!batchPcsMap.has(batchKey)) {
         batchPcsMap.set(batchKey, new Set<number>());
       }
@@ -628,17 +616,18 @@ export default function MendingPage() {
       if (searchMesin && String(h?.nomor_mc) !== String(searchMesin)) return;
       if (searchPotongan && String(h?.potongan_ke) !== String(searchPotongan)) return;
 
-      const batchKey = `${h?.nomor_mc}_${h?.design_id}_${h?.potongan_ke}`;
+      const batchKey = `${h?.nomor_mc}_${h?.potongan_ke}`;
       const pcsSet = batchPcsMap.get(batchKey);
       const maxPcs = pcsSet && pcsSet.size > 0 ? Math.max(...Array.from(pcsSet)) : parseInt(d.pcs_index, 10) || 1;
 
-      const key = `${batchKey}_${d.pcs_index}`;
+      const pcsIndex = d.pcs_index ? String(d.pcs_index) : "1";
+      const key = `${batchKey}_${pcsIndex}`;
       if (!map.has(key)) {
         map.set(key, {
           nomor_mc: h?.nomor_mc,
           design_id: h?.design_id,
           potongan_ke: h?.potongan_ke,
-          pcs_index: d.pcs_index,
+          pcs_index: pcsIndex,
           total_pcs: maxPcs,
           meter_kain: d.meter_kain || null,
           header: h,
@@ -655,6 +644,8 @@ export default function MendingPage() {
       if (ts) {
         if (!group.lastInputTime || new Date(ts) > new Date(group.lastInputTime)) {
           group.lastInputTime = ts;
+          group.header = h;
+          group.design_id = h?.design_id;
         }
       }
     });
@@ -683,6 +674,30 @@ export default function MendingPage() {
     setCurrentPage(1);
   }, [searchMesin, searchPotongan, searchTanggal, sortOrder]);
 
+  const getInitialMendingGrade = (item: any): string => {
+    const pNo = String(item.production_headers?.panel_no || "").toUpperCase();
+    const isSisa = pNo.includes("AWAL") || pNo.includes("AKHIR");
+    const isBS = isSisa || item.final_inspection_id === 4 || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
+    if (isBS) return "BS";
+
+    const isQCPassed = item.final_inspection_id === 1 || item.final_inspection_id === 2 || item.status_inspeksi === "Ceklis";
+    if (isQCPassed) return "A";
+
+    const isQCSilang = item.final_inspection_id === 3 || item.status_inspeksi === "Silang";
+    if (isQCSilang) return "B";
+
+    const detailStr = (item.detail_masalah || "").toUpperCase();
+    const katStr = (item.kategori_masalah || "").toUpperCase();
+    const ketStr = (item.keterangan_cacat || "").toUpperCase();
+    const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT");
+    const cleanDetailNoIstirahat = (item.detail_masalah || "").replace(/istirahat/gi, "").replace(/G\s*-\s*/gi, "").trim();
+    const hasRealDefects = cleanDetailNoIstirahat.length > 0 || (item.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT"));
+    const isIstirahatOnly = hasIstirahatText && !hasRealDefects;
+
+    if (isIstirahatOnly || !hasRealDefects) return "A";
+    return "B";
+  };
+
   const refreshActiveMendingDetails = async (mc: string, des: string, pot: string, pcs: string, initSelections: boolean = false) => {
     const res = await getMendingDetailsByGroup(mc, des, pot, pcs);
     if (res.success && res.data) {
@@ -692,18 +707,7 @@ export default function MendingPage() {
         const next = initSelections ? {} : { ...prev };
         res.data.forEach((item: any) => {
           if (!next[item.id]) {
-            const hasDefect = item.indikator_stop || (item.kategori_masalah && item.kategori_masalah.trim() !== "");
-            if (item.final_inspection_id === 4) {
-              next[item.id] = "BS";
-            } else if (item.final_inspection_id === 3) {
-              next[item.id] = "B";
-            } else {
-              if (!hasDefect) {
-                next[item.id] = "A";
-              } else {
-                next[item.id] = "B";
-              }
-            }
+            next[item.id] = getInitialMendingGrade(item);
           }
         });
         return next;
@@ -724,22 +728,11 @@ export default function MendingPage() {
     setFullActiveMendingDetails(fetchedDetails);
 
     // Initialize selections for fetched details
-    setSelections((prev) => {
-      const next = { ...prev };
-      fetchedDetails.forEach((item: any) => {
-        if (!next[item.id]) {
-          const hasDefect = item.indikator_stop || (item.kategori_masalah && item.kategori_masalah.trim() !== "");
-          if (item.final_inspection_id === 4) {
-            next[item.id] = "BS";
-          } else if (item.final_inspection_id === 3) {
-            next[item.id] = "B";
-          } else {
-            next[item.id] = !hasDefect ? "A" : "B";
-          }
-        }
-      });
-      return next;
+    const nextSelections: Record<string, string> = {};
+    fetchedDetails.forEach((item: any) => {
+      nextSelections[item.id] = getInitialMendingGrade(item);
     });
+    setSelections(nextSelections);
 
     // 2. Check DB for active timer session
     const sessionRes = await getTimerSession("mending", nomor_mc, design_id, potongan_ke, pcs_index);
@@ -826,12 +819,25 @@ export default function MendingPage() {
         if (mA === Infinity && mB === Infinity) return 0;
         return mA - mB;
       } else {
-        const numA = parseInt(panelA, 10);
-        const numB = parseInt(panelB, 10);
+        const pAStr = String(panelA || "").trim().toUpperCase();
+        const pBStr = String(panelB || "").trim().toUpperCase();
+
+        const isAwalA = pAStr.includes("AWAL");
+        const isAwalB = pBStr.includes("AWAL");
+        if (isAwalA && !isAwalB) return -1;
+        if (!isAwalA && isAwalB) return 1;
+
+        const isAkhirA = pAStr.includes("AKHIR");
+        const isAkhirB = pBStr.includes("AKHIR");
+        if (isAkhirA && !isAkhirB) return 1;
+        if (!isAkhirA && isAkhirB) return -1;
+
+        const numA = parseInt(pAStr, 10);
+        const numB = parseInt(pBStr, 10);
         if (!isNaN(numA) && !isNaN(numB)) {
           if (numA !== numB) return numA - numB;
         }
-        return String(panelA || "").localeCompare(String(panelB || ""), undefined, { numeric: true });
+        return pAStr.localeCompare(pBStr, undefined, { numeric: true });
       }
     });
   }, [fullActiveMendingDetails]);
@@ -870,71 +876,10 @@ export default function MendingPage() {
           displayKeterangan = displayKeterangan.replace(/^,\s*|\s*,\s*$/g, "");
         }
 
-        let cacatLines: string[] = [];
-        const katsRaw = item.kategori_masalah;
-        const kats = katsRaw ? (Array.isArray(katsRaw) ? katsRaw : katsRaw.split(",").map((s: string) => s.trim())) : [];
-        
-        const pushDetailsForCat = (k: string, d: string) => {
-          if (!d) {
-            cacatLines.push(k);
-            return;
-          }
-          const knownDetailsForCat = problemDetailsMap[k] || DEFAULT_PROBLEM_DETAILS[k] || [];
-          const matchedDetails: string[] = [];
-          let remainingD = d;
-          const sortedKnown = [...knownDetailsForCat].sort((a, b) => b.length - a.length);
-          sortedKnown.forEach(known => {
-            if (remainingD.includes(known)) {
-              matchedDetails.push(known);
-              remainingD = remainingD.replace(known, "");
-            }
-          });
-          if (matchedDetails.length > 0) {
-            const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
-            matchedDetails.forEach(match => cacatLines.push(`${k} - ${match}`));
-            customParts.forEach(custom => cacatLines.push(`${k} - ${custom}`));
-          } else {
-            const parts = d.split(",").map((s: string) => s.trim()).filter(Boolean);
-            parts.forEach(p => cacatLines.push(`${k} - ${p}`));
-          }
-        };
-
-        if (kats.length > 0) {
-          if (displayDetail.includes(" | ")) {
-            const catDetails = displayDetail.split(" | ");
-            for (let i = 0; i < Math.max(kats.length, catDetails.length); i++) {
-              const k = kats[i] || "Unknown";
-              const d = catDetails[i] || "";
-              pushDetailsForCat(k, d);
-            }
-          } else if (displayDetail) {
-            if (kats.length === 1) {
-              pushDetailsForCat(kats[0], displayDetail);
-            } else {
-              const dets = displayDetail.split(", ");
-              if (kats.length === dets.length) {
-                for (let i = 0; i < kats.length; i++) {
-                  pushDetailsForCat(kats[i], dets[i]);
-                }
-              } else {
-                dets.forEach((det: string) => {
-                  let foundKat = "Unknown";
-                  for (const [kat, detList] of Object.entries(problemDetailsMap || DEFAULT_PROBLEM_DETAILS)) {
-                    if ((detList as string[]).some((d: string) => det.toLowerCase().includes(d.toLowerCase()))) {
-                      foundKat = kat;
-                      break;
-                    }
-                  }
-                  cacatLines.push(`${foundKat !== "Unknown" ? foundKat + " - " : ""}${det}`);
-                });
-              }
-            }
-          } else {
-            cacatLines.push(kats.join(", "));
-          }
-        } else if (displayDetail) {
-          cacatLines.push(displayDetail);
-        }
+        const rawPanelNo = item.production_headers?.panel_no || "-";
+        const isBsAwal = String(rawPanelNo).toUpperCase().includes("AWAL");
+        const isBsAkhir = String(rawPanelNo).toUpperCase().includes("AKHIR");
+        const isSisa = isBsAwal || isBsAkhir;
 
         let ketCacat = displayKeterangan;
         const hasTambahanQC = ketCacat.includes("[TAMBAHAN QC]");
@@ -942,40 +887,110 @@ export default function MendingPage() {
         ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
         ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
 
-        if (ketCacat) {
-          if (cacatLines.length > 0) {
-            const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
-            if (cacatLines.length === 1 && parts.length > 1) {
-              const cleanAllBlocks = parts
-                .map((p: string) => p.replace(/blok\s*/gi, "").trim())
-                .filter(Boolean)
-                .join(", ");
-              cacatLines = cacatLines.map((line) =>
-                line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanAllBlocks})`
-              );
-            } else {
-              cacatLines = cacatLines.map((line, i) => {
-                if (line.match(/\(Blok/i)) return line;
-                const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
-                let partIndex = i;
-                const katsRaw2 = item.kategori_masalah;
-                const kats2 = katsRaw2 ? (Array.isArray(katsRaw2) ? katsRaw2 : katsRaw2.split(",").map((s: any) => s.trim())) : [];
-                if (lineKat && kats2.includes(lineKat)) {
-                  partIndex = kats2.indexOf(lineKat);
-                }
-                if (parts[partIndex] && parts[partIndex] !== "") {
-                  const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                  return `${line} (Blok ${cleanB})`;
-                } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                  const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                  return `${line} (Blok ${cleanB})`;
-                }
-                return line;
-              });
+        let cacatLines: string[] = [];
+        const katsRaw = item.kategori_masalah;
+        const kats = katsRaw ? (Array.isArray(katsRaw) ? katsRaw : katsRaw.split(",").map((s: string) => s.trim())) : [];
+        
+        if (isSisa) {
+          cacatLines = [isBsAwal ? "Sisa Awal Potongan" : "Sisa Akhir Potongan"];
+        } else {
+          const pushDetailsForCat = (k: string, d: string) => {
+            if (!d) {
+              cacatLines.push(k);
+              return;
             }
-          } else {
-            const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-            cacatLines.push(`(Blok ${cleanB})`);
+            const knownDetailsForCat = problemDetailsMap[k] || DEFAULT_PROBLEM_DETAILS[k] || [];
+            const matchedDetails: string[] = [];
+            let remainingD = d;
+            const sortedKnown = [...knownDetailsForCat].sort((a, b) => b.length - a.length);
+            sortedKnown.forEach(known => {
+              if (remainingD.includes(known)) {
+                matchedDetails.push(known);
+                remainingD = remainingD.replace(known, "");
+              }
+            });
+            if (matchedDetails.length > 0) {
+              const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
+              matchedDetails.forEach(match => cacatLines.push(`${k} - ${match}`));
+              customParts.forEach(custom => cacatLines.push(`${k} - ${custom}`));
+            } else {
+              const parts = d.split(",").map((s: string) => s.trim()).filter(Boolean);
+              parts.forEach(p => cacatLines.push(`${k} - ${p}`));
+            }
+          };
+
+          if (kats.length > 0) {
+            if (displayDetail.includes(" | ")) {
+              const catDetails = displayDetail.split(" | ");
+              for (let i = 0; i < Math.max(kats.length, catDetails.length); i++) {
+                const k = kats[i] || "Unknown";
+                const d = catDetails[i] || "";
+                pushDetailsForCat(k, d);
+              }
+            } else if (displayDetail) {
+              if (kats.length === 1) {
+                pushDetailsForCat(kats[0], displayDetail);
+              } else {
+                const dets = displayDetail.split(", ");
+                if (kats.length === dets.length) {
+                  for (let i = 0; i < kats.length; i++) {
+                    pushDetailsForCat(kats[i], dets[i]);
+                  }
+                } else {
+                  dets.forEach((det: string) => {
+                    let foundKat = "Unknown";
+                    for (const [kat, detList] of Object.entries(problemDetailsMap || DEFAULT_PROBLEM_DETAILS || {})) {
+                      if ((detList as string[]).some((d: string) => det.toLowerCase().includes(d.toLowerCase()))) {
+                        foundKat = kat;
+                        break;
+                      }
+                    }
+                    cacatLines.push(`${foundKat !== "Unknown" ? foundKat + " - " : ""}${det}`);
+                  });
+                }
+              }
+            } else {
+              cacatLines.push(kats.join(", "));
+            }
+          } else if (displayDetail) {
+            cacatLines.push(displayDetail);
+          }
+
+          if (ketCacat) {
+            if (cacatLines.length > 0) {
+              const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
+              if (cacatLines.length === 1 && parts.length > 1) {
+                const cleanAllBlocks = parts
+                  .map((p: string) => p.replace(/blok\s*/gi, "").trim())
+                  .filter(Boolean)
+                  .join(", ");
+                cacatLines = cacatLines.map((line) =>
+                  line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanAllBlocks})`
+                );
+              } else {
+                cacatLines = cacatLines.map((line, i) => {
+                  if (line.match(/\(Blok/i)) return line;
+                  const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
+                  let partIndex = i;
+                  const katsRaw2 = item.kategori_masalah;
+                  const kats2 = katsRaw2 ? (Array.isArray(katsRaw2) ? katsRaw2 : katsRaw2.split(",").map((s: any) => s.trim())) : [];
+                  if (lineKat && kats2.includes(lineKat)) {
+                    partIndex = kats2.indexOf(lineKat);
+                  }
+                  if (parts[partIndex] && parts[partIndex] !== "") {
+                    const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
+                    return `${line} (Blok ${cleanB})`;
+                  } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
+                    const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
+                    return `${line} (Blok ${cleanB})`;
+                  }
+                  return line;
+                });
+              }
+            } else {
+              const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
+              cacatLines.push(`(Blok ${cleanB})`);
+            }
           }
         }
 
@@ -1084,6 +1099,11 @@ export default function MendingPage() {
               ? [operatorStr.match(/\(([^)]+)\)/)?.[1] || "", operatorStr.replace(/^\([^)]+\)\s*/, "")]
               : ["", operatorStr];
 
+            const countBS = currentOpIds.filter(id => {
+              const d = detailsToDisplay.find(item => item.id === id);
+              return selections[id] === "BS" || d?.jml_hasil_produksi === 0 || d?.status_inspeksi === "BS";
+            }).length;
+
             items.push({
               id: `total-${operatorStr}-${Math.random()}`,
               isTotalRow: true,
@@ -1091,7 +1111,7 @@ export default function MendingPage() {
               totalCount: currentOpCount,
               countA: currentOpIds.filter(id => selections[id] === "A").length,
               countB: currentOpIds.filter(id => selections[id] === "B").length,
-              countBS: currentOpIds.filter(id => selections[id] === "BS").length,
+              countBS,
             });
           }
           currentOpCount = 0;
@@ -1478,28 +1498,18 @@ export default function MendingPage() {
   };
 
   useEffect(() => {
-    if (!activeMendingPcs) return;
+    if (!activeMendingPcs || detailsToDisplay.length === 0) return;
     const autoSelections: Record<string, string> = {};
     for (const d of detailsToDisplay) {
-      const detailStr = (d.detail_masalah || "").toUpperCase();
-      const katStr = (d.kategori_masalah || "").toUpperCase();
-      const ketStr = (d.keterangan_cacat || "").toUpperCase();
-      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT");
-      const cleanDetailNoIstirahat = (d.detail_masalah || "").replace(/istirahat/gi, "").replace(/G\s*-\s*/gi, "").trim();
-      const hasRealDefects = cleanDetailNoIstirahat.length > 0 || (d.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT"));
-      const isIstirahatOnly = hasIstirahatText && !hasRealDefects;
-
-      if (isIstirahatOnly) {
-        autoSelections[d.id] = "A";
-      } else if (d.final_inspection_id === 1 || d.final_inspection_id === 2) {
-        autoSelections[d.id] = "A"; // Ceklis → auto Grade A
-      } else if (d.final_inspection_id === 3) {
-        autoSelections[d.id] = "B"; // Silang → auto Grade B
-      } else if (d.final_inspection_id === 4) {
-        autoSelections[d.id] = "BS"; // BS → auto Grade BS
-      }
+      autoSelections[d.id] = getInitialMendingGrade(d);
     }
-    setSelections((prev) => ({ ...autoSelections, ...prev }));
+    setSelections((prev) => {
+      const next: Record<string, string> = {};
+      detailsToDisplay.forEach((d) => {
+        next[d.id] = prev[d.id] || autoSelections[d.id];
+      });
+      return next;
+    });
   }, [activeMendingPcs, detailsToDisplay]);
 
   const handleOpenDetail = async (headerId: string) => {
@@ -1529,25 +1539,77 @@ export default function MendingPage() {
   const totalBS = gradableItems.filter((item: any) => selections[item.id] === "BS").length;
   const firstDetail = detailsToDisplay.length > 0 ? detailsToDisplay[0] : null;
   const h = firstDetail?.production_headers || {};
+
+  const getHeaderField = (getter: (head: any) => any, fallback: string = "-") => {
+    for (const d of detailsToDisplay) {
+      const val = getter(d.production_headers || {});
+      if (val !== undefined && val !== null && val !== "" && val !== "-") {
+        return val;
+      }
+    }
+    return fallback;
+  };
+
+  const resolvedTanggalProduksi = (() => {
+    let oldest = "";
+    detailsToDisplay.forEach((d: any) => {
+      const ph = d.production_headers;
+      const ts = ph?.tanggal_jam || ph?.created_at || ph?.tgl;
+      if (ts && (!oldest || String(ts).localeCompare(String(oldest)) < 0)) {
+        oldest = ts;
+      }
+    });
+    return oldest || h.tanggal_jam || h.created_at || h.tgl || "-";
+  })();
+
+  const resolvedTanggalPotong = (() => {
+    let latestTs = "";
+    detailsToDisplay.forEach((d: any) => {
+      const ph = d.production_headers;
+      const ts = ph?.tanggal_jam || ph?.created_at || ph?.tgl;
+      if (ts && (!latestTs || String(ts).localeCompare(String(latestTs)) > 0)) {
+        latestTs = ts;
+      }
+    });
+
+    const bsAkhir = detailsToDisplay.find((d: any) => {
+      const pNo = String(d.production_headers?.panel_no || "").trim().toUpperCase();
+      return pNo.includes("AKHIR") || pNo === "BS AKHIR";
+    });
+
+    const explicitPotong = bsAkhir?.production_headers?.tanggal_potong
+      || detailsToDisplay.find((d: any) => d.production_headers?.tanggal_potong && String(d.production_headers?.tanggal_potong).trim() !== "")?.production_headers?.tanggal_potong;
+
+    if (explicitPotong) {
+      const latestDate = latestTs ? latestTs.split("T")[0].split(" ")[0] : "";
+      if (latestDate && latestDate.localeCompare(explicitPotong) > 0) {
+        return latestTs || latestDate;
+      }
+      return explicitPotong;
+    }
+
+    return latestTs || "-";
+  })();
+
   const compactProps = {
-    nomorMc: h.nomor_mc || "-",
-    shiftName: h.groups?.nama_grup || "-",
-    operatorName: h.operators?.nama_operator || h.pic || "-",
-    design: h.design_id || "-",
+    nomorMc: getHeaderField((ph) => ph.nomor_mc, activeMendingPcs?.nomor_mc || "-"),
+    shiftName: getHeaderField((ph) => ph.groups?.nama_grup, "-"),
+    operatorName: getHeaderField((ph) => ph.operators?.nama_operator || ph.pic, "-"),
+    design: getHeaderField((ph) => ph.design_id, activeMendingPcs?.design_id || "-"),
     pcsCount: detailsToDisplay.length,
-    panelPotongan: `${h.panel_no || "-"} / ${h.potongan_ke || "-"}`,
-    courseRpm: `${h.course || "-"} / ${h.rpm || "-"}`,
-    noCustomer: h.no_customer || "-",
-    noOrder: h.no_order_barang || "-",
-    tanggalPotong: h.tanggal_potong || "-",
-    statusMatching: h.status_matching || "-",
-    pick: String(h.pick || "-"),
-    benangDasar: h.jenis_benang_dasar || "-",
-    liner: h.liner || "-",
-    heavy: h.heavy || "-",
-    shadow: h.shadow || "-",
-    pinggiran: h.pinggiran || "-",
-    tanggalProduksi: h.tanggal_jam || h.created_at || h.tgl || "-",
+    panelPotongan: `${getHeaderField((ph) => ph.panel_no, "-")} / ${getHeaderField((ph) => ph.potongan_ke, activeMendingPcs?.potongan_ke || "-")}`,
+    courseRpm: `${getHeaderField((ph) => ph.course, "-")} / ${getHeaderField((ph) => ph.rpm, "-")}`,
+    noCustomer: getHeaderField((ph) => ph.no_customer, "-"),
+    noOrder: getHeaderField((ph) => ph.no_order_barang, "-"),
+    tanggalPotong: resolvedTanggalPotong,
+    statusMatching: getHeaderField((ph) => ph.status_matching, "-"),
+    pick: String(getHeaderField((ph) => ph.pick, "-")),
+    benangDasar: getHeaderField((ph) => ph.jenis_benang_dasar, "-"),
+    liner: getHeaderField((ph) => ph.liner, "-"),
+    heavy: getHeaderField((ph) => ph.heavy, "-"),
+    shadow: getHeaderField((ph) => ph.shadow, "-"),
+    pinggiran: getHeaderField((ph) => ph.pinggiran, "-"),
+    tanggalProduksi: resolvedTanggalProduksi,
     rollNo: firstDetail?.roll_no || "-"
   };
 
@@ -2315,6 +2377,18 @@ export default function MendingPage() {
           <div className="flex flex-col gap-1 w-full">
             <label className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between">
               <span>Tanggal</span>
+              {searchTanggal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTanggal("");
+                    handleSearch("");
+                  }}
+                  className="text-[10px] text-rose-500 hover:text-rose-600 font-extrabold transition-all lowercase"
+                >
+                  [reset filter]
+                </button>
+              )}
             </label>
             <input
               type="date"
@@ -2333,7 +2407,7 @@ export default function MendingPage() {
               className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-rose-400 focus:bg-white outline-none w-full cursor-pointer"
             >
               <option value="">Semua Mesin</option>
-              {uniqueMesins.map(m => (
+              {REGISTERED_MACHINES.map(m => (
                 <option key={String(m)} value={String(m)}>{String(m)}</option>
               ))}
             </select>
@@ -2342,16 +2416,13 @@ export default function MendingPage() {
             <label className="text-xs font-bold text-slate-500 uppercase">
               Potongan
             </label>
-            <select
+            <input
+              type="number"
               value={searchPotongan}
               onChange={(e) => setSearchPotongan(e.target.value)}
-              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-rose-400 focus:bg-white outline-none w-full cursor-pointer"
-            >
-              <option value="">Semua Potongan</option>
-              {uniquePotongans.map(p => (
-                <option key={String(p)} value={String(p)}>{String(p)}</option>
-              ))}
-            </select>
+              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-rose-400 focus:bg-white outline-none w-full"
+              placeholder="Cari Potongan..."
+            />
           </div>
           <div className="flex flex-col gap-1 w-full">
             <label className="text-xs font-bold text-slate-500 uppercase">
@@ -2395,7 +2466,7 @@ export default function MendingPage() {
             {/* Mobile & Tablet Card View (< md) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 md:hidden">
               {currentPcsList.map((g: any) => {
-                const sessionKey = `${g.nomor_mc}_${g.design_id}_${g.potongan_ke}_${g.pcs_index}`;
+                const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${g.pcs_index}`;
                 const session = activeSessionsMap.get(sessionKey);
                 const isPausedItem = session?.is_paused;
                 const isProcessingItem = session && !session.is_paused;
@@ -2475,7 +2546,7 @@ export default function MendingPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
                   {currentPcsList.map((g: any) => {
-                    const sessionKey = `${g.nomor_mc}_${g.design_id}_${g.potongan_ke}_${g.pcs_index}`;
+                    const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${g.pcs_index}`;
                     const session = activeSessionsMap.get(sessionKey);
                     const isPausedItem = session?.is_paused;
                     const isProcessingItem = session && !session.is_paused;

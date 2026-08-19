@@ -19,4 +19,9 @@
 - ketika membuat sebuah layout, selalu pikirkan bagaimana user akan berinteraksi dengan layout tersebut
 - selalu pikirkan tentang user experience agar user tidak kesulitan saat menggunakan aplikasi
 
-jika anda seorang ui ux yang sudah sangat berpengalaman, apa yang akan anda sarankan dalam penampilan data berikut
+# Cara Perhitungan Panel
+- di halaman riwayat input, untuk perhitungan tidak menyertakan panel BS (sudah benar)
+- di halaman inspeksi dan halaman mending, panel BS tetap dihitung
+- baris BS AWAL dan BS AKHIR dihitung masing-masing 1 panel BS secara individual (bukan digabung jadi 1)
+- untuk halaman Laporan Bulanan, kolom produksi diisi nilai dengan panel BS tidak disertakan
+- untuk halaman Laporan Potong Kain, kolom Roll/Panel menyertakan panel BS ya

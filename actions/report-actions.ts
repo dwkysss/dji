@@ -294,7 +294,13 @@ export async function getMonthlyMachineReport(
         const panelNoStr = String(header.panel_no).toUpperCase();
         
         const isBerhenti = panelNoStr === "BERHENTI";
-        const isGagal = panelNoStr.includes("(GAGAL)") || panelNoStr.includes("(BS)");
+        const isGagal = panelNoStr.includes("(GAGAL)") || 
+                        panelNoStr.includes("(BS)") || 
+                        panelNoStr.includes("BS AWAL") || 
+                        panelNoStr.includes("BS AKHIR") || 
+                        panelNoStr === "BS" || 
+                        panelNoStr.startsWith("BS ") ||
+                        (row.jml_hasil_produksi === 0);
         
         if (!isBerhenti && !isGagal) {
           const cutScope = header.potongan_ke || header.design_id || header.id;

@@ -252,9 +252,25 @@ function MendingDetailContent() {
         if (mA === Infinity && mB === Infinity) return 0;
         return mA - mB;
       }
-      const panelA = parseInt(a.production_headers?.panel_no || "0", 10);
-      const panelB = parseInt(b.production_headers?.panel_no || "0", 10);
-      return panelA - panelB;
+      const pAStr = String(a.production_headers?.panel_no || "").trim().toUpperCase();
+      const pBStr = String(b.production_headers?.panel_no || "").trim().toUpperCase();
+
+      const isAwalA = pAStr.includes("AWAL");
+      const isAwalB = pBStr.includes("AWAL");
+      if (isAwalA && !isAwalB) return -1;
+      if (!isAwalA && isAwalB) return 1;
+
+      const isAkhirA = pAStr.includes("AKHIR");
+      const isAkhirB = pBStr.includes("AKHIR");
+      if (isAkhirA && !isAkhirB) return 1;
+      if (!isAkhirA && isAkhirB) return -1;
+
+      const panelA = parseInt(pAStr, 10);
+      const panelB = parseInt(pBStr, 10);
+      if (!isNaN(panelA) && !isNaN(panelB)) {
+        if (panelA !== panelB) return panelA - panelB;
+      }
+      return pAStr.localeCompare(pBStr, undefined, { numeric: true });
     });
   }, [mendingData, group.items, header, isMeteran, allPcsDetails]);
 
@@ -361,6 +377,11 @@ function MendingDetailContent() {
         lastGrp = grp;
         lastOpr = hasIstirahat ? "Istirahat" : opr;
 
+        const rawPanelNo = item.production_headers?.panel_no || item.displayNo || "-";
+        const isBsAwal = String(rawPanelNo).toUpperCase().includes("AWAL");
+        const isBsAkhir = String(rawPanelNo).toUpperCase().includes("AKHIR");
+        const isSisa = isBsAwal || isBsAkhir;
+
         items.push({
           ...item,
           isMeter: false,
@@ -371,7 +392,7 @@ function MendingDetailContent() {
           isFinishReport: false,
           displayNo: item.production_headers?.panel_no || "-",
           meterDisplay: "-",
-          cacatDisplay: item.detail_masalah || item.keterangan_cacat || "-",
+          cacatDisplay: isSisa ? (isBsAwal ? "Sisa Awal Potongan" : "Sisa Akhir Potongan") : (item.detail_masalah || item.keterangan_cacat || "-"),
           isGradable,
           showTgl,
           showGrp,
@@ -800,8 +821,31 @@ function MendingDetailContent() {
         panelPotongan={`- / ${header.potongan_ke || "-"}`}
         courseRpm={`${header.course || "-"} / ${header.rpm || "-"}`}
         noCustomer={header.no_customer || header.no_order_barang || "-"}
+        tanggalPotong={(() => {
+          let latest = header.tanggal_potong || "";
+          let latestTs = "";
+          if (group.items && Array.isArray(group.items)) {
+            group.items.forEach((it: any) => {
+              const ts = it.detail?.tanggal_jam || it.detail?.created_at || it.header?.tanggal_jam;
+              if (ts && (!latestTs || String(ts).localeCompare(String(latestTs)) > 0)) {
+                latestTs = ts;
+              }
+              const pot = it.header?.tanggal_potong || it.detail?.header?.tanggal_potong;
+              if (pot && (!latest || String(pot).localeCompare(String(latest)) > 0)) {
+                latest = pot;
+              }
+            });
+          }
+          if (latest) {
+            const latestDate = latestTs ? latestTs.split("T")[0].split(" ")[0] : "";
+            if (latestDate && latestDate.localeCompare(latest) > 0) {
+              return latestTs || latestDate;
+            }
+            return latest;
+          }
+          return latestTs || "-";
+        })()}
         noOrder={header.no_order_barang || "-"}
-        tanggalPotong={header.tanggal_potong || "-"}
         statusMatching={header.status_matching || "-"}
         pick={header.pick || "-"}
         benangDasar={header.jenis_benang_dasar || "-"}
@@ -974,7 +1018,18 @@ function MendingDetailContent() {
                       return (
                         <tr key={item.id || index} className="hover:bg-slate-50 transition-colors">
                           <td className="px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100">
-                            {item.displayNo}
+                            {String(item.displayNo).toUpperCase().includes("AWAL") ? (
+                              <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
+                            ) : String(item.displayNo).toUpperCase().includes("AKHIR") ? (
+                              <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center">
+                                <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
+                                {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
+                                  <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100 border-b border-slate-100">
                             {item.showTgl ? item.tglStr : ""}
@@ -1093,8 +1148,15 @@ function MendingDetailContent() {
                         iconColor = "text-rose-500";
                       }
 
+                      const rawPanelNo = itemHeader.panel_no || detail.displayNo || "";
+                      const isBsAwal = String(rawPanelNo).toUpperCase().includes("AWAL");
+                      const isBsAkhir = String(rawPanelNo).toUpperCase().includes("AKHIR");
+                      const isSisa = isBsAwal || isBsAkhir;
+
                       let masalahLines: string[] = [];
-                      if (!isIstirahat) {
+                      if (isSisa) {
+                        masalahLines = [isBsAwal ? "Sisa Awal Potongan" : "Sisa Akhir Potongan"];
+                      } else if (!isIstirahat) {
                         let dtEvents: any[] = [];
                         try {
                           if (itemHeader.downtime_events) {
@@ -1281,10 +1343,19 @@ function MendingDetailContent() {
 
                       return (
                         <tr key={item.id || idx} className="hover:bg-sky-50/30 transition-colors group">
-                          <td className="px-2 py-1 font-bold text-slate-800 border-r border-slate-100 border-b border-slate-100">
-                            <span className="text-[11px] font-extrabold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
-                              {itemHeader.panel_no === "METERAN" ? (detail.meter_kain ?? "-") : itemHeader.panel_no}
-                            </span>
+                          <td className="px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100">
+                            {isBsAwal ? (
+                              <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
+                            ) : isBsAkhir ? (
+                              <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center">
+                                <span>{(itemHeader.panel_no === "METERAN" ? (detail.meter_kain ?? "-") : String(itemHeader.panel_no || "-")).replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
+                                {(String(itemHeader.panel_no).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS") && (
+                                  <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-2 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
                             {displayTgl}

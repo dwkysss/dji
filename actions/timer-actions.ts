@@ -24,7 +24,7 @@ const buildSessionId = (
   potongan_ke: string | number,
   pcs_index: string | number
 ) => {
-  return `${type}_${nomor_mc}_${design_id}_${potongan_ke}_${pcs_index}`;
+  return `${type}_${nomor_mc}_${potongan_ke}_${pcs_index}`;
 };
 
 export async function getTimerSession(

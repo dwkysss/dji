@@ -74,7 +74,27 @@ export default function PanelHistoryTable({
   }, [panels]);
 
   const displayItems = React.useMemo(() => {
-    const processed = detailsToDisplay.map((item: any) => {
+    const sorted = [...detailsToDisplay].sort((a: any, b: any) => {
+      const pAStr = String(a.production_headers?.panel_no || "").trim().toUpperCase();
+      const pBStr = String(b.production_headers?.panel_no || "").trim().toUpperCase();
+
+      const isAwalA = pAStr.includes("AWAL");
+      const isAwalB = pBStr.includes("AWAL");
+      if (isAwalA && !isAwalB) return -1;
+      if (!isAwalA && isAwalB) return 1;
+
+      const isAkhirA = pAStr.includes("AKHIR");
+      const isAkhirB = pBStr.includes("AKHIR");
+      if (isAkhirA && !isAkhirB) return 1;
+      if (!isAkhirA && isAkhirB) return -1;
+
+      const pA = parseInt(pAStr || "0");
+      const pB = parseInt(pBStr || "0");
+      if (pA !== pB) return pA - pB;
+      return (b.jml_hasil_produksi || 0) - (a.jml_hasil_produksi || 0);
+    });
+
+    const processed = sorted.map((item: any) => {
       const h = item.production_headers || {};
       const opr = h.operators?.nama_operator || h.pic || "";
       const grp = h.groups?.nama_grup || "";
@@ -286,12 +306,19 @@ export default function PanelHistoryTable({
               }
             }
 
+            const rawPanelNo = itemHeader.panel_no || item.displayNo || "-";
+            const isBsAwal = String(rawPanelNo).toUpperCase().includes("AWAL");
+            const isBsAkhir = String(rawPanelNo).toUpperCase().includes("AKHIR");
+            const isSisa = isBsAwal || isBsAkhir;
+
             let cacatLines: string[] = [];
             
             const katsRaw = detail.kategori_masalah;
             const kats = katsRaw ? (Array.isArray(katsRaw) ? katsRaw : katsRaw.split(",").map((s: string) => s.trim())) : [];
             
-            if (detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0) {
+            if (isSisa) {
+              cacatLines = [isBsAwal ? "Sisa Awal Potongan" : "Sisa Akhir Potongan"];
+            } else if (detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0) {
               const groupedMap = new Map<string, Set<string>>();
               const orderList: string[] = [];
 
@@ -473,9 +500,17 @@ export default function PanelHistoryTable({
           return (
             <tr key={item.id || idx} className={`${hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
               <td className="px-1 py-1 font-bold text-slate-800 text-center border-r border-slate-100 flex flex-col items-center justify-center">
-                <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
-                {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
-                  <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                {String(item.displayNo).toUpperCase().includes("AWAL") ? (
+                  <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
+                ) : String(item.displayNo).toUpperCase().includes("AKHIR") ? (
+                  <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
+                ) : (
+                  <div className="flex flex-col items-center justify-center">
+                    <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
+                    {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
+                      <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                    )}
+                  </div>
                 )}
               </td>
               <td className="px-1 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100">

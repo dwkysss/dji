@@ -28,7 +28,6 @@ import ProductionDetailModal from "@/components/ProductionDetailModal";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import {
-  getAvailableQCFilters,
   addQCDefectDetail,
   getAllPendingQCDetails,
   getPendingQCDetailsByBatch,
@@ -96,6 +95,24 @@ export const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = {
   F: ["Perbaikan cilynder Angin", "Ganti Bellow", "Perbaikan gear/Take Up Roll", "Ganti rantai/pertensi", "Ganti Black grip roll", "Ganti Oli", "Pelumasan/greace pada mesin", "Ganti Vanbelt", "Perawatan Panel Listrik", "Servis Overhaul"],
   G: ["Hari Libur", "Tidak ada order", "Tunggu info", "Demo", "Bencana/gempa/banjir", "Istirahat selama buka puasa", "Tunggu Sparepart", "Mati Listrik"],
 };
+
+export const REGISTERED_MACHINES = [
+  "R1",
+  "R2",
+  "R3",
+  "R6",
+  "R11",
+  "R12",
+  "R16",
+  "T1C",
+  "T2A",
+  "R1C",
+  "R2C",
+  "R3B",
+  "R5B",
+  "Warping D6",
+  "Winding",
+];
 
 export const PROBLEM_DETAILS = DEFAULT_PROBLEM_DETAILS;
 
@@ -211,7 +228,7 @@ export default function QCPage() {
     if (res.success && res.data) {
       const map = new Map<string, any>();
       res.data.forEach((s: any) => {
-        const key = `${s.nomor_mc}_${s.design_id}_${s.potongan_ke}_${s.pcs_index}`;
+        const key = `${s.nomor_mc}_${s.potongan_ke}_${s.pcs_index}`;
         map.set(key, s);
       });
       setActiveSessionsMap(map);
@@ -227,8 +244,7 @@ export default function QCPage() {
       fetchActiveSessions(),
       getProblemCategories(),
       getProblemDetailsGrouped(),
-      getAvailableQCFilters(),
-    ]).then(([_, catRes, groupRes, filterRes]) => {
+    ]).then(([_, catRes, groupRes]) => {
       if (catRes?.success && catRes.categories && catRes.categories.length > 0) {
         const mapped = catRes.categories.map((c) => ({
           id: c.kode,
@@ -238,9 +254,6 @@ export default function QCPage() {
       }
       if (groupRes?.success && groupRes.grouped && Object.keys(groupRes.grouped).length > 0) {
         setProblemDetailsMap(groupRes.grouped);
-      }
-      if (filterRes?.success && filterRes.data) {
-        setAvailableFilters(filterRes.data);
       }
       setIsLoadingFilters(false);
     }).catch((e) => console.error("Error loading parallel metadata:", e));
@@ -445,12 +458,33 @@ export default function QCPage() {
     }
   }, [fullActiveQcDetails]);
 
-  const availableTanggals = Array.from(new Set(availableFilters.map((f) => f.tgl))).sort().reverse();
-  const availableMesins = Array.from(new Set(availableFilters.map((f) => f.nomor_mc))).sort();
+  const saveQCFilters = (t: string, m: string, p: string, s: "desc" | "asc") => {
+    try {
+      const payload = { tanggal: t, mesin: m, potongan: p, sortOrder: s };
+      sessionStorage.setItem("dji_qc_filters", JSON.stringify(payload));
+      localStorage.setItem("dji_qc_filters", JSON.stringify(payload));
+    } catch (e) {}
+  };
 
   useEffect(() => {
-    handleSearch(searchTanggal, searchMesin, searchPotongan);
-  }, [searchTanggal]);
+    let initT = "";
+    let initM = "";
+    let initP = "";
+    let initS: "desc" | "asc" = "desc";
+
+    try {
+      const saved = sessionStorage.getItem("dji_qc_filters") || localStorage.getItem("dji_qc_filters");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.tanggal !== undefined) { initT = parsed.tanggal; setSearchTanggal(parsed.tanggal); }
+        if (parsed.mesin !== undefined) { initM = parsed.mesin; setSearchMesin(parsed.mesin); }
+        if (parsed.potongan !== undefined) { initP = parsed.potongan; setSearchPotongan(parsed.potongan); }
+        if (parsed.sortOrder === "asc" || parsed.sortOrder === "desc") { initS = parsed.sortOrder; setSortOrder(parsed.sortOrder); }
+      }
+    } catch (e) {}
+
+    handleSearch(initT, initM, initP);
+  }, []);
 
   const handleSearch = async (tanggal?: string, mesin?: string, potongan?: string) => {
     setIsSearching(true);
@@ -463,6 +497,8 @@ export default function QCPage() {
     const t = tanggal !== undefined ? tanggal : searchTanggal;
     const m = mesin !== undefined ? mesin : searchMesin;
     const p = potongan !== undefined ? potongan : searchPotongan;
+
+    saveQCFilters(t, m, p, sortOrder);
 
     const res = await getAllPendingQCDetails({
       tanggal: t || undefined,
@@ -483,7 +519,7 @@ export default function QCPage() {
     allDetails.forEach((d: any) => {
       const h = d.production_headers;
       if (!h) return;
-      const batchKey = `${h.nomor_mc}_${h.design_id}_${h.potongan_ke}`;
+      const batchKey = `${h.nomor_mc}_${h.potongan_ke}`;
       if (!batchPcsMap.has(batchKey)) {
         batchPcsMap.set(batchKey, new Set<number>());
       }
@@ -499,17 +535,18 @@ export default function QCPage() {
       if (searchMesin && String(h?.nomor_mc) !== String(searchMesin)) return;
       if (searchPotongan && String(h?.potongan_ke) !== String(searchPotongan)) return;
 
-      const batchKey = `${h?.nomor_mc}_${h?.design_id}_${h?.potongan_ke}`;
+      const batchKey = `${h?.nomor_mc}_${h?.potongan_ke}`;
       const pcsSet = batchPcsMap.get(batchKey);
       const maxPcs = pcsSet && pcsSet.size > 0 ? Math.max(...Array.from(pcsSet)) : parseInt(d.pcs_index, 10) || 1;
 
-      const key = `${batchKey}_${d.pcs_index}`;
+      const pcsIndex = d.pcs_index ? String(d.pcs_index) : "1";
+      const key = `${batchKey}_${pcsIndex}`;
       if (!map.has(key)) {
         map.set(key, {
           nomor_mc: h?.nomor_mc,
           design_id: h?.design_id,
           potongan_ke: h?.potongan_ke,
-          pcs_index: d.pcs_index,
+          pcs_index: pcsIndex,
           total_pcs: maxPcs,
           meter_kain: d.meter_kain || null,
           header: h,
@@ -526,6 +563,8 @@ export default function QCPage() {
       if (ts) {
         if (!group.lastInputTime || new Date(ts) > new Date(group.lastInputTime)) {
           group.lastInputTime = ts;
+          group.header = h;
+          group.design_id = h?.design_id;
         }
       }
     });
@@ -563,7 +602,7 @@ export default function QCPage() {
 
     // 1. Fetch details first
     const res = await getPendingQCDetailsByBatch(nomor_mc, design_id, potongan_ke);
-    const filteredByPcs = (res.success && res.data) ? res.data.filter((d: any) => String(d.pcs_index) === String(pcs_index)) : [];
+    const filteredByPcs = (res.success && res.data) ? res.data.filter((d: any) => String(d.pcs_index || "1") === String(pcs_index || "1")) : [];
     setFullActiveQcDetails(filteredByPcs);
 
     // 2. Check DB for active session
@@ -706,9 +745,12 @@ export default function QCPage() {
       setSelections((prev) => {
         const newSelections: Record<string, number> = {};
         detailsToDisplay.forEach((d) => {
+          const pNo = String(d.production_headers?.panel_no || "").toUpperCase();
+          const isSisa = pNo.includes("AWAL") || pNo.includes("AKHIR");
+
           if (prev[d.id]) {
             newSelections[d.id] = prev[d.id];
-          } else if (d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS") {
+          } else if (d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS" || isSisa) {
             newSelections[d.id] = 4;
           } else {
             const isDefect = checkIsDefectRow(d);
@@ -972,25 +1014,77 @@ export default function QCPage() {
   };
 
   const h = firstDetail?.production_headers || {};
+
+  const getHeaderField = (getter: (head: any) => any, fallback: string = "-") => {
+    for (const d of detailsToDisplay) {
+      const val = getter(d.production_headers || {});
+      if (val !== undefined && val !== null && val !== "" && val !== "-") {
+        return val;
+      }
+    }
+    return fallback;
+  };
+
+  const resolvedTanggalProduksi = (() => {
+    let oldest = "";
+    detailsToDisplay.forEach((d: any) => {
+      const ph = d.production_headers;
+      const ts = ph?.tanggal_jam || ph?.created_at || ph?.tgl;
+      if (ts && (!oldest || String(ts).localeCompare(String(oldest)) < 0)) {
+        oldest = ts;
+      }
+    });
+    return oldest || h.tanggal_jam || h.created_at || h.tgl || "-";
+  })();
+
+  const resolvedTanggalPotong = (() => {
+    let latestTs = "";
+    detailsToDisplay.forEach((d: any) => {
+      const ph = d.production_headers;
+      const ts = ph?.tanggal_jam || ph?.created_at || ph?.tgl;
+      if (ts && (!latestTs || String(ts).localeCompare(String(latestTs)) > 0)) {
+        latestTs = ts;
+      }
+    });
+
+    const bsAkhir = detailsToDisplay.find((d: any) => {
+      const pNo = String(d.production_headers?.panel_no || "").trim().toUpperCase();
+      return pNo.includes("AKHIR") || pNo === "BS AKHIR";
+    });
+
+    const explicitPotong = bsAkhir?.production_headers?.tanggal_potong
+      || detailsToDisplay.find((d: any) => d.production_headers?.tanggal_potong && String(d.production_headers?.tanggal_potong).trim() !== "")?.production_headers?.tanggal_potong;
+
+    if (explicitPotong) {
+      const latestDate = latestTs ? latestTs.split("T")[0].split(" ")[0] : "";
+      if (latestDate && latestDate.localeCompare(explicitPotong) > 0) {
+        return latestTs || latestDate;
+      }
+      return explicitPotong;
+    }
+
+    return latestTs || "-";
+  })();
+
   const compactProps = {
-    nomorMc: h.nomor_mc || "-",
-    shiftName: h.groups?.nama_grup || "-",
-    operatorName: h.operators?.nama_operator || h.pic || "-",
-    design: h.design_id || "-",
+    nomorMc: getHeaderField((ph) => ph.nomor_mc, activeQcPcs?.nomor_mc || "-"),
+    shiftName: getHeaderField((ph) => ph.groups?.nama_grup, "-"),
+    operatorName: getHeaderField((ph) => ph.operators?.nama_operator || ph.pic, "-"),
+    design: getHeaderField((ph) => ph.design_id, activeQcPcs?.design_id || "-"),
     pcsCount: detailsToDisplay.length,
-    panelPotongan: `${h.panel_no || "-"} / ${h.potongan_ke || "-"}`,
-    courseRpm: `${h.course || "-"} / ${h.rpm || "-"}`,
-    noCustomer: h.no_customer || "-",
-    noOrder: h.no_order_barang || "-",
-    tanggalPotong: h.tanggal_potong || "-",
-    statusMatching: h.status_matching || "-",
-    pick: String(h.pick || "-"),
-    benangDasar: h.jenis_benang_dasar || "-",
-    liner: h.liner || "-",
-    heavy: h.heavy || "-",
-    shadow: h.shadow || "-",
-    pinggiran: h.pinggiran || "-",
-    tanggalProduksi: h.tanggal_jam || h.created_at || h.tgl || "-",
+    panelPotongan: `${getHeaderField((ph) => ph.panel_no, "-")} / ${getHeaderField((ph) => ph.potongan_ke, activeQcPcs?.potongan_ke || "-")}`,
+    courseRpm: `${getHeaderField((ph) => ph.course, "-")} / ${getHeaderField((ph) => ph.rpm, "-")}`,
+    noCustomer: getHeaderField((ph) => ph.no_customer, "-"),
+    noOrder: getHeaderField((ph) => ph.no_order_barang, "-"),
+    tanggalPotong: resolvedTanggalPotong,
+    statusMatching: getHeaderField((ph) => ph.status_matching, "-"),
+    pick: String(getHeaderField((ph) => ph.pick, "-")),
+    benangDasar: getHeaderField((ph) => ph.jenis_benang_dasar, "-"),
+    liner: getHeaderField((ph) => ph.liner, "-"),
+    heavy: getHeaderField((ph) => ph.heavy, "-"),
+    shadow: getHeaderField((ph) => ph.shadow, "-"),
+    pinggiran: getHeaderField((ph) => ph.pinggiran, "-"),
+    tanggalProduksi: resolvedTanggalProduksi,
     rollNo: firstDetail?.roll_no || "-"
   };
 
@@ -1151,7 +1245,7 @@ export default function QCPage() {
               setActiveQcPcs(null);
               setFullActiveQcDetails([]);
               setSelections({});
-              handleSearch(searchTanggal);
+              handleSearch(searchTanggal, searchMesin, searchPotongan);
             }}
           />
         )}
@@ -1710,7 +1804,11 @@ export default function QCPage() {
               <span>Tanggal</span>
               {searchTanggal && (
                 <button
-                  onClick={() => setSearchTanggal("")}
+                  onClick={() => {
+                    setSearchTanggal("");
+                    saveQCFilters("", searchMesin, searchPotongan, sortOrder);
+                    handleSearch("", searchMesin, searchPotongan);
+                  }}
                   className="text-[10px] text-rose-500 hover:text-rose-600 font-extrabold transition-all lowercase"
                 >
                   [reset filter]
@@ -1720,7 +1818,12 @@ export default function QCPage() {
             <input
               type="date"
               value={searchTanggal}
-              onChange={(e) => setSearchTanggal(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchTanggal(val);
+                saveQCFilters(val, searchMesin, searchPotongan, sortOrder);
+                handleSearch(val, searchMesin, searchPotongan);
+              }}
               className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full cursor-pointer"
             />
           </div>
@@ -1730,11 +1833,15 @@ export default function QCPage() {
             </label>
             <select
               value={searchMesin}
-              onChange={(e) => setSearchMesin(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchMesin(val);
+                saveQCFilters(searchTanggal, val, searchPotongan, sortOrder);
+              }}
               className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full cursor-pointer"
             >
               <option value="">Semua Mesin</option>
-              {availableMesins.map(m => (
+              {REGISTERED_MACHINES.map(m => (
                 <option key={String(m)} value={String(m)}>{String(m)}</option>
               ))}
             </select>
@@ -1746,7 +1853,11 @@ export default function QCPage() {
             <input
               type="number"
               value={searchPotongan}
-              onChange={(e) => setSearchPotongan(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchPotongan(val);
+                saveQCFilters(searchTanggal, searchMesin, val, sortOrder);
+              }}
               className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full"
               placeholder="Cari Potongan..."
             />
@@ -1757,7 +1868,11 @@ export default function QCPage() {
             </label>
             <select
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
+              onChange={(e) => {
+                const val = e.target.value as "desc" | "asc";
+                setSortOrder(val);
+                saveQCFilters(searchTanggal, searchMesin, searchPotongan, val);
+              }}
               className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full cursor-pointer"
             >
               <option value="desc">Terbaru</option>
@@ -1793,7 +1908,7 @@ export default function QCPage() {
             {/* Mobile & Tablet Card View (< md) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 md:hidden">
               {currentPcsList.map((g: any) => {
-                const sessionKey = `${g.nomor_mc}_${g.design_id}_${g.potongan_ke}_${g.pcs_index}`;
+                const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${g.pcs_index}`;
                 const session = activeSessionsMap.get(sessionKey);
                 const isPausedItem = session?.is_paused;
                 const isProcessingItem = session && !session.is_paused;
@@ -1874,7 +1989,7 @@ export default function QCPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[11px] font-medium text-slate-700">
                   {currentPcsList.map((g: any) => {
-                    const sessionKey = `${g.nomor_mc}_${g.design_id}_${g.potongan_ke}_${g.pcs_index}`;
+                    const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${g.pcs_index}`;
                     const session = activeSessionsMap.get(sessionKey);
                     const isPausedItem = session?.is_paused;
                     const isProcessingItem = session && !session.is_paused;

@@ -324,9 +324,8 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
 
     let query = supabase
       .from("production_headers")
-      .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup), production_details(id, pcs_index, meter_kain, detail_masalah)")
+      .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_jam, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup), production_details(id, pcs_index, meter_kain, detail_masalah)")
       .eq("nomor_mc", mesin)
-      .eq("design_id", designId)
       .eq("potongan_ke", parseInt(potonganKe));
 
     if (tanggal) {
@@ -794,8 +793,8 @@ export async function getPendingQCDetailsByDate(tanggal: string) {
 
     let filteredData = data;
     if (tanggal && tanggal !== "all") {
-      const groupsOnDate = new Set(data.filter((d: any) => d.production_headers?.tgl === tanggal).map((d: any) => `${d.production_headers?.nomor_mc}_${d.production_headers?.design_id}_${d.production_headers?.potongan_ke}_${d.pcs_index}`));
-      filteredData = data.filter((d: any) => groupsOnDate.has(`${d.production_headers?.nomor_mc}_${d.production_headers?.design_id}_${d.production_headers?.potongan_ke}_${d.pcs_index}`));
+      const groupsOnDate = new Set(data.filter((d: any) => d.production_headers?.tgl === tanggal).map((d: any) => `${d.production_headers?.nomor_mc}_${d.production_headers?.potongan_ke}_${d.pcs_index || 1}`));
+      filteredData = data.filter((d: any) => groupsOnDate.has(`${d.production_headers?.nomor_mc}_${d.production_headers?.potongan_ke}_${d.pcs_index || 1}`));
     }
 
     // Sort by mesin -> design -> potongan -> pcs
@@ -1294,7 +1293,6 @@ export async function getQCDetailsByGroup(nomor_mc: string, design_id: string, p
       `)
       .is("final_inspection_id", null)
       .eq("production_headers.nomor_mc", nomor_mc)
-      .eq("production_headers.design_id", design_id)
       .eq("production_headers.potongan_ke", potongan_ke)
       .eq("pcs_index", pcs_index);
 

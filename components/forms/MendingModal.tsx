@@ -87,17 +87,17 @@ export default function MendingModal({
                          (detailData?.[0]?.production_headers?.panel_no === "METERAN");
 
   const totalKeseluruhanMeter = React.useMemo(() => {
-    if (!headerData?.details && !detailData) return 0;
+    const detailsList = detailData || headerData?.details || [];
+    if (detailsList.length === 0) return 0;
     if (isMeteranBatch) {
       let maxM = 0;
-      const detailsList = detailData || headerData?.details || [];
       detailsList.forEach((d: any) => {
         const endM = Number(d.production_headers?.meter_akhir) || 0;
         if (endM > maxM) maxM = endM;
       });
       return maxM;
     }
-    return detailData?.reduce((sum, d) => sum + (Number(d.jml_hasil_produksi) || 0), 0) || 0;
+    return detailsList.length;
   }, [headerData, detailData, isMeteranBatch]);
 
   useEffect(() => {
@@ -124,23 +124,8 @@ export default function MendingModal({
       let countBS = 0;
 
       const detailsList = detailData || headerData?.details || [];
-      const detailMap = new Map<string, any>();
-      detailsList.forEach((d: any) => { if (d.id) detailMap.set(d.id, d); });
-
-      Object.entries(selections).forEach(([id, val]) => {
-        const item = detailMap.get(id);
-        if (item) {
-          const detailStr = (item.detail_masalah || "").toUpperCase();
-          const katStr = (item.kategori_masalah || "").toUpperCase();
-          const ketStr = (item.keterangan_cacat || "").toUpperCase();
-          const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT");
-          const cleanDetailNoIstirahat = (item.detail_masalah || "").replace(/istirahat/gi, "").replace(/G\s*-\s*/gi, "").trim();
-          const hasRealDefects = cleanDetailNoIstirahat.length > 0 || (item.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT"));
-          if (hasIstirahatText && !hasRealDefects) {
-            return; // Filter out Istirahat-only rows from grade B / BS counts
-          }
-        }
-
+      detailsList.forEach((item: any) => {
+        const val = selections[item.id];
         if (val === "A") countA++;
         else if (val === "B") countB++;
         else if (val === "BS") countBS++;
@@ -202,12 +187,11 @@ export default function MendingModal({
     setErrorMsg(null);
 
     try {
-      const detailsArray = Object.entries(selections).map(
-        ([detailId, grade]) => ({
-          detailId,
-          grade,
-        }),
-      );
+      const detailsList = detailData || headerData?.details || [];
+      const detailsArray = detailsList.map((d: any) => ({
+        detailId: d.id,
+        grade: selections[d.id] || "BS",
+      }));
 
       const res = await submitMending({
         details: detailsArray,
@@ -244,6 +228,8 @@ export default function MendingModal({
 
   if (!isOpen) return null;
 
+  const detailsList = detailData || headerData?.details || [];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
       <div className="bg-white rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
@@ -254,7 +240,7 @@ export default function MendingModal({
               <ClipboardList className="w-5 h-5 text-[#0070bc]" /> Form Rangkuman Mending
             </h3>
             <p className="text-xs text-slate-500 font-medium">
-              Isi seluruh data mending untuk {Object.keys(selections).length} baris yang telah Anda pilih gradenya.
+              Isi seluruh data mending untuk {detailsList.length} baris yang telah Anda pilih gradenya.
             </p>
           </div>
           <button
@@ -331,8 +317,7 @@ export default function MendingModal({
                       }
                       return `${maxMeter} METER`;
                     } else {
-                      const totalPanel = detailData?.reduce((sum, d) => sum + (Number(d.jml_hasil_produksi) || 0), 0) || 0;
-                      return `${totalPanel} PANEL`;
+                      return `${detailsList.length} PANEL`;
                     }
                   })()}
                 </span>

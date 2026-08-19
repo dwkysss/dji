@@ -22,8 +22,21 @@ export default function PanelQCTable({
     
     // Step 1: Pre-process items to identify operators and Istirahat
     const sorted = [...detailsToDisplay].sort((a, b) => {
-      const pA = parseInt(a.production_headers?.panel_no || "0");
-      const pB = parseInt(b.production_headers?.panel_no || "0");
+      const pAStr = String(a.production_headers?.panel_no || "").trim().toUpperCase();
+      const pBStr = String(b.production_headers?.panel_no || "").trim().toUpperCase();
+
+      const isAwalA = pAStr.includes("AWAL");
+      const isAwalB = pBStr.includes("AWAL");
+      if (isAwalA && !isAwalB) return -1;
+      if (!isAwalA && isAwalB) return 1;
+
+      const isAkhirA = pAStr.includes("AKHIR");
+      const isAkhirB = pBStr.includes("AKHIR");
+      if (isAkhirA && !isAkhirB) return 1;
+      if (!isAkhirA && isAkhirB) return -1;
+
+      const pA = parseInt(pAStr || "0");
+      const pB = parseInt(pBStr || "0");
       if (pA !== pB) return pA - pB;
       return (b.jml_hasil_produksi || 0) - (a.jml_hasil_produksi || 0);
     });
@@ -137,7 +150,9 @@ export default function PanelQCTable({
             const sel = selections[itemP.item.id];
             if (sel === 1) countPass += 1;
             else if (sel === 3) countDefect += 1;
-            else if (sel === 4) countBS += 1;
+            else if (sel === 4 || itemP.item.jml_hasil_produksi === 0 || itemP.item.status_inspeksi === "BS") {
+              countBS += 1;
+            }
           }
         });
 
@@ -167,7 +182,9 @@ export default function PanelQCTable({
       const sel = selections[item.id];
       if (sel === 1) p += 1;
       else if (sel === 3) d += 1;
-      else if (sel === 4) bs += 1;
+      else if (sel === 4 || isBS) {
+        bs += 1;
+      }
     });
     return { totalGradable: g, totalPass: p, totalDefect: d, totalBS: bs };
   }, [detailsToDisplay, selections]);
@@ -234,9 +251,16 @@ export default function PanelQCTable({
               displayKeterangan = displayKeterangan.replace(/^,\s*|\s*,\s*$/g, "");
             }
 
+            const rawPanelNo = item.production_headers?.panel_no || "-";
+            const isBsAwal = String(rawPanelNo).toUpperCase().includes("AWAL");
+            const isBsAkhir = String(rawPanelNo).toUpperCase().includes("AKHIR");
+            const isSisa = isBsAwal || isBsAkhir;
+
             let cacatLines: string[] = [];
             
-            if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
+            if (isSisa) {
+              cacatLines = [isBsAwal ? "Sisa Awal Potongan" : "Sisa Akhir Potongan"];
+            } else if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
               const groupedMap = new Map<string, Set<string>>();
               const orderList: string[] = [];
 
@@ -418,15 +442,22 @@ export default function PanelQCTable({
               }
             }
 
-            const rawPanelNo = item.production_headers?.panel_no || "-";
             const cleanPanelNo = rawPanelNo.replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
 
             return (
             <tr key={item.id} className={`${hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
               <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "bg-white")}`}>
-                <span>{cleanPanelNo}</span>
-                {item.jml_hasil_produksi === 0 && (
-                  <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                {isBsAwal ? (
+                  <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
+                ) : isBsAkhir ? (
+                  <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
+                ) : (
+                  <div className="flex flex-col items-center justify-center">
+                    <span>{cleanPanelNo}</span>
+                    {(String(rawPanelNo).includes("(BS)") || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS") && (
+                      <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                    )}
+                  </div>
                 )}
               </td>
               <td className="px-1 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100">
@@ -499,10 +530,10 @@ export default function PanelQCTable({
             );
           })}
 
-          {totalGradable > 0 && (
+          {(totalGradable > 0 || totalBS > 0) && (
             <tr className="bg-slate-50 font-bold border-t border-slate-200 text-[11px] text-slate-700 uppercase tracking-wider">
               <td className="px-2 py-3 text-right font-extrabold border-r border-slate-100" colSpan={7}>
-                TOTAL ({totalGradable} PANEL):
+                TOTAL ({totalGradable + totalBS} PANEL):
               </td>
               <td className="px-1 py-3 text-center text-emerald-600 bg-emerald-50/40 font-black border-r border-slate-100">
                 {totalPass}

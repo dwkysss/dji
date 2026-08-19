@@ -482,6 +482,43 @@ export async function createProductionReport(
           }
         }
 
+        // Otomatisasi BS AWAL (Sisa Awal Potongan / Kepala Kain)
+        if (potonganKeNum && validated.nomorMc && (validated.panelNo === "1" || String(validated.panelNo).trim() === "1")) {
+          const { data: existingBsAwal } = await supabase
+            .from("production_headers")
+            .select("id")
+            .eq("nomor_mc", validated.nomorMc)
+            .eq("potongan_ke", potonganKeNum)
+            .eq("panel_no", "BS AWAL")
+            .limit(1);
+
+          if (!existingBsAwal || existingBsAwal.length === 0) {
+            const bsAwalHeaderId = generateExcelStyleId();
+            const bsAwalHeader = {
+              ...headerData,
+              id: bsAwalHeaderId,
+              panel_no: "BS AWAL",
+              idempotency_key: null,
+            };
+            const bsAwalDetails = pcsDataToProcess.map((pcsItem, idx) => ({
+              id: generateExcelStyleId() + "-bs-awal-" + idx,
+              header_id: bsAwalHeaderId,
+              pcs_index: parseInt(pcsItem.pcsIndex || (idx + 1).toString()),
+              jml_hasil_produksi: 0,
+              indikator_stop: false,
+              kategori_masalah: "BS",
+              detail_masalah: "Sisa Awal Potongan",
+              spesifik_masalah: null,
+              keterangan_cacat: "Sisa Awal Potongan",
+              meter_kain: null,
+              status_inspeksi: "BS",
+            }));
+
+            await supabase.from("production_headers").insert(bsAwalHeader);
+            await supabase.from("production_details").insert(bsAwalDetails as any);
+          }
+        }
+
         // A. Insert ke Tabel Header
         const { error: insertHeaderError } = await supabase
           .from("production_headers")
@@ -524,6 +561,44 @@ export async function createProductionReport(
             .insert(downtimeRecordsData);
           if (downtimeError) {
             console.error("Gagal menyimpan downtime_records:", downtimeError);
+          }
+        }
+
+        // Otomatisasi BS AKHIR (Sisa Akhir Potongan / Ekor Kain)
+        if (validated.tanggalPotong && validated.nomorMc && potonganKeNum) {
+          const { data: existingBsAkhir } = await supabase
+            .from("production_headers")
+            .select("id")
+            .eq("nomor_mc", validated.nomorMc)
+            .eq("potongan_ke", potonganKeNum)
+            .eq("panel_no", "BS AKHIR")
+            .limit(1);
+
+          if (!existingBsAkhir || existingBsAkhir.length === 0) {
+            const bsAkhirHeaderId = generateExcelStyleId();
+            const bsAkhirHeader = {
+              ...headerData,
+              id: bsAkhirHeaderId,
+              panel_no: "BS AKHIR",
+              idempotency_key: null,
+              tanggal_potong: validated.tanggalPotong,
+            };
+            const bsAkhirDetails = pcsDataToProcess.map((pcsItem, idx) => ({
+              id: generateExcelStyleId() + "-bs-akhir-" + idx,
+              header_id: bsAkhirHeaderId,
+              pcs_index: parseInt(pcsItem.pcsIndex || (idx + 1).toString()),
+              jml_hasil_produksi: 0,
+              indikator_stop: false,
+              kategori_masalah: "BS",
+              detail_masalah: "Sisa Akhir Potongan",
+              spesifik_masalah: null,
+              keterangan_cacat: "Sisa Akhir Potongan",
+              meter_kain: null,
+              status_inspeksi: "BS",
+            }));
+
+            await supabase.from("production_headers").insert(bsAkhirHeader);
+            await supabase.from("production_details").insert(bsAkhirDetails as any);
           }
         }
 

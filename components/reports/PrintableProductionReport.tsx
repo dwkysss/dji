@@ -250,7 +250,20 @@ function buildPanelRows(panels: any[], shiftName: string) {
   const sorted = [...panels]
     .filter((p: any) => p.panel_no !== "METERAN")
     .sort((a, b) => {
-      const pA = parseInt(a.panel_no || "0"); const pB = parseInt(b.panel_no || "0");
+      const pAStr = String(a.panel_no || "").trim().toUpperCase();
+      const pBStr = String(b.panel_no || "").trim().toUpperCase();
+
+      const isAwalA = pAStr.includes("AWAL");
+      const isAwalB = pBStr.includes("AWAL");
+      if (isAwalA && !isAwalB) return -1;
+      if (!isAwalA && isAwalB) return 1;
+
+      const isAkhirA = pAStr.includes("AKHIR");
+      const isAkhirB = pBStr.includes("AKHIR");
+      if (isAkhirA && !isAkhirB) return 1;
+      if (!isAkhirA && isAkhirB) return -1;
+
+      const pA = parseInt(pAStr || "0"); const pB = parseInt(pBStr || "0");
       if (pA === pB) return String(a.tanggal_jam || "").localeCompare(String(b.tanggal_jam || ""));
       return pA - pB;
     });
@@ -299,8 +312,12 @@ function buildPanelRows(panels: any[], shiftName: string) {
         }
       }
 
-      // cacat display: for finish show "FINISH", for istirahat show backup name or "-"
-      const displayCacat = isFinish ? "FINISH" : isIstirahat ? (backupOpName || "-") : cacatText;
+      const isBsAwal = String(panel.panel_no || "").toUpperCase().includes("AWAL");
+      const isBsAkhir = String(panel.panel_no || "").toUpperCase().includes("AKHIR");
+      const isSisa = isBsAwal || isBsAkhir;
+
+      // cacat display: for finish show "FINISH", for istirahat show backup name or "-", for sisa show Sisa Awal/Akhir Potongan
+      const displayCacat = isSisa ? (isBsAwal ? "Sisa Awal Potongan" : "Sisa Akhir Potongan") : isFinish ? "FINISH" : isIstirahat ? (backupOpName || "-") : cacatText;
 
       rows.push({ panelNo: panel.panel_no, tglStr, grpStr, oprStr, showTgl, showGrp, showOpr, isIstirahat, isFinish, hasDefect, isGagal, cacatText: displayCacat, downtimeStr, grade, backupOpName });
     });
@@ -481,7 +498,13 @@ function PanelPrintTable({ rows }: { rows: any[] }) {
         <tbody className="divide-y divide-slate-300">
           {rows.map((row, i) => (
             <tr key={i} className="leading-snug bg-white text-slate-950">
-              <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.panelNo}</td>
+              <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">
+                {String(row.panelNo).toUpperCase().includes("AWAL")
+                  ? "BS AWAL"
+                  : String(row.panelNo).toUpperCase().includes("AKHIR")
+                  ? "BS AKHIR"
+                  : row.panelNo}
+              </td>
               <td className="py-0.5 px-0.5 border-r border-slate-300 whitespace-nowrap">{row.showTgl ? row.tglStr : ""}</td>
               <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.showGrp ? row.grpStr : ""}</td>
               <td className="py-0.5 px-0.5 border-r border-slate-300 font-semibold truncate max-w-[64px]">
@@ -858,7 +881,20 @@ export default function PrintableProductionReport({ detailData, isOpen, onClose 
             const pcsPanels = pcsGroups[pcsKey].sort((a: any, b: any) => {
               if (a.panel_no === "METERAN" && b.panel_no === "METERAN") return String(a.tanggal_jam || "").localeCompare(String(b.tanggal_jam || ""));
               if (a.panel_no === "METERAN") return 1; if (b.panel_no === "METERAN") return -1;
-              const pA = parseInt(a.panel_no || "0"); const pB = parseInt(b.panel_no || "0");
+              const pAStr = String(a.panel_no || "").trim().toUpperCase();
+              const pBStr = String(b.panel_no || "").trim().toUpperCase();
+
+              const isAwalA = pAStr.includes("AWAL");
+              const isAwalB = pBStr.includes("AWAL");
+              if (isAwalA && !isAwalB) return -1;
+              if (!isAwalA && isAwalB) return 1;
+
+              const isAkhirA = pAStr.includes("AKHIR");
+              const isAkhirB = pBStr.includes("AKHIR");
+              if (isAkhirA && !isAkhirB) return 1;
+              if (!isAkhirA && isAkhirB) return -1;
+
+              const pA = parseInt(pAStr || "0"); const pB = parseInt(pBStr || "0");
               if (pA === pB) return String(a.tanggal_jam || "").localeCompare(String(b.tanggal_jam || ""));
               return pA - pB;
             });

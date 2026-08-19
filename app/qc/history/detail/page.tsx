@@ -257,8 +257,31 @@ function QCDetailContent() {
         panelPotongan={`- / ${header.potongan_ke || "-"}`}
         courseRpm={`${header.course || "-"} / ${header.rpm || "-"}`}
         noCustomer={header.no_customer || header.no_order_barang || "-"}
+        tanggalPotong={(() => {
+          let latest = header.tanggal_potong || "";
+          let latestTs = "";
+          if (group.items && Array.isArray(group.items)) {
+            group.items.forEach((it: any) => {
+              const ts = it.detail?.tanggal_jam || it.detail?.created_at || it.header?.tanggal_jam;
+              if (ts && (!latestTs || String(ts).localeCompare(String(latestTs)) > 0)) {
+                latestTs = ts;
+              }
+              const pot = it.header?.tanggal_potong || it.detail?.header?.tanggal_potong;
+              if (pot && (!latest || String(pot).localeCompare(String(latest)) > 0)) {
+                latest = pot;
+              }
+            });
+          }
+          if (latest) {
+            const latestDate = latestTs ? latestTs.split("T")[0].split(" ")[0] : "";
+            if (latestDate && latestDate.localeCompare(latest) > 0) {
+              return latestTs || latestDate;
+            }
+            return latest;
+          }
+          return latestTs || "-";
+        })()}
         noOrder={header.no_order_barang || "-"}
-        tanggalPotong={header.tanggal_potong || "-"}
         statusMatching={header.status_matching || "-"}
         pick={header.pick || "-"}
         benangDasar={header.jenis_benang_dasar || "-"}

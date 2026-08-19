@@ -71,7 +71,18 @@ export default function PanelMendingTable({
           return (
             <tr key={item.id} className={`transition-colors ${(item.isIstirahat || item.hasIstirahat) ? "bg-amber-50/30 hover:bg-amber-50/50" : "bg-white hover:bg-slate-50"}`}>
               <td className={`sticky left-0 z-10 px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${(item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
-                {item.displayNo}
+                {String(item.displayNo).toUpperCase().includes("AWAL") ? (
+                  <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
+                ) : String(item.displayNo).toUpperCase().includes("AKHIR") ? (
+                  <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
+                ) : (
+                  <div className="flex flex-col items-center justify-center">
+                    <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
+                    {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
+                      <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                    )}
+                  </div>
+                )}
               </td>
               <td className="px-2 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
                 {item.showTgl ? (item.tglStr || "-") : ""}
@@ -147,10 +158,10 @@ export default function PanelMendingTable({
             </tr>
           );
         })}
-        {totalGradable > 0 && (
+        {(totalGradable > 0 || totalBS > 0) && (
           <tr className="bg-slate-50 font-bold border-t border-slate-200 text-[11px] text-slate-700 uppercase tracking-wider">
             <td className="px-2 py-3 text-right font-extrabold border-r border-slate-100" colSpan={7}>
-              Total ({totalGradable} Panel):
+              Total ({totalGradable + totalBS} Panel):
             </td>
             <td className="px-1 py-3 text-center text-emerald-600 bg-emerald-50/40 font-black border-r border-slate-100">
               {totalA}

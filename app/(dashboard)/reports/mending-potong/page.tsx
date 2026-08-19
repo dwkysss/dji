@@ -168,7 +168,26 @@ export default function LaporanPotongKainPage() {
         obStm = obRaw;
       }
       const design = header.design_id || "";
-      const panelCount = batch.total_panel || 0;
+      
+      // Hitung total panel termasuk panel BS (dihitung satu-satu)
+      let panelCount = batch.total_panel || 0;
+      if (batch.items && batch.items.length > 0) {
+        let regPanels = 0;
+        let totalBs = 0;
+
+        batch.items.forEach((it: any) => {
+          const pNo = String(it.detail?.header?.panel_no || it.header?.panel_no || "").trim().toUpperCase();
+          if (pNo.includes("BS") || pNo.includes("AWAL") || pNo.includes("AKHIR") || it.detail?.jml_hasil_produksi === 0) {
+            totalBs += 1;
+          } else if (pNo !== "METERAN" && pNo !== "START" && pNo !== "FINISH") {
+            regPanels += 1;
+          }
+        });
+
+        if (regPanels > 0 || totalBs > 0) {
+          panelCount = regPanels + totalBs;
+        }
+      }
       
       let qtyKg = firstItem.qc_batch?.berat_kain;
       if (!qtyKg && batch.items) {

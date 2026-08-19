@@ -210,7 +210,9 @@ export default function QCInspectionModal({
         Object.entries(selections).forEach(([detailId, val]) => {
           if (val === 1) countCeklis++;
           else if (val === 2 || val === 3) countSilang++;
-          else if (val === 4) countBS++;
+          else if (val === 4) {
+            countBS++;
+          }
         });
 
         if (headerData?.details) {
@@ -219,6 +221,7 @@ export default function QCInspectionModal({
             if (!isTambahanQC) {
               const isBS = d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS";
               const isDefect = checkIsDefectRow(d);
+
               if (isBS) {
                 countProdBS++;
               } else if (isDefect) {

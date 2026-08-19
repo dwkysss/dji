@@ -54,10 +54,10 @@ export async function getAvailableMendingFilters() {
           // Untuk meteran, hanya dianggap pending inspeksi jika ada cacat/masalah
           const kat = (row as any).kategori_masalah;
           if (kat && kat.trim() !== "") {
-            pendingInspGroups.add(`${h.nomor_mc}__${h.design_id}__${h.potongan_ke}__${(row as any).pcs_index}`);
+            pendingInspGroups.add(`${h.nomor_mc}__${h.potongan_ke}__${(row as any).pcs_index || 1}`);
           }
         } else {
-          pendingInspGroups.add(`${h.nomor_mc}__${h.design_id}__${h.potongan_ke}__${(row as any).pcs_index}`);
+          pendingInspGroups.add(`${h.nomor_mc}__${h.potongan_ke}__${(row as any).pcs_index || 1}`);
         }
       }
     }
@@ -67,8 +67,8 @@ export async function getAvailableMendingFilters() {
     for (const row of pendingMending || []) {
       const h = (row as any).production_headers;
       if (h) {
-        const pcsKey = `${h.nomor_mc}__${h.design_id}__${h.potongan_ke}__${(row as any).pcs_index}`;
-        const batchKey = `${h.nomor_mc}__${h.design_id}__${h.potongan_ke}`;
+        const pcsKey = `${h.nomor_mc}__${h.potongan_ke}__${(row as any).pcs_index || 1}`;
+        const batchKey = `${h.nomor_mc}__${h.potongan_ke}`;
         
         // If this specific PCS is fully inspected
         if (!pendingInspGroups.has(pcsKey)) {
@@ -91,9 +91,8 @@ export async function getPendingMendingDetailsByBatch(mesin: string, designId: s
     
     const { data: headers, error: headerError } = await supabase
       .from("production_headers")
-      .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, operators(nama_operator)")
+      .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_jam, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup)")
       .eq("nomor_mc", mesin)
-      .eq("design_id", designId)
       .eq("potongan_ke", parseInt(potonganKe));
 
     if (headerError) return { success: false, error: headerError.message };
@@ -722,7 +721,6 @@ export async function getMendingDetailsByGroup(nomor_mc: string, design_id: stri
       .not("final_inspection_id", "is", null)
       .is("status_mending", null)
       .eq("production_headers.nomor_mc", nomor_mc)
-      .eq("production_headers.design_id", design_id)
       .eq("production_headers.potongan_ke", potongan_ke)
       .eq("pcs_index", pcs_index);
 
