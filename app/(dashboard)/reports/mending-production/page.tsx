@@ -332,14 +332,18 @@ export default function MendingProductionReportPage() {
       }
 
       const sortedItems = [...items].sort((a, b) => {
-        const pA = a.detail?.header?.panel_no;
-        const pB = b.detail?.header?.panel_no;
+        const pA = String(a.detail?.header?.panel_no || "").trim().toUpperCase();
+        const pB = String(b.detail?.header?.panel_no || "").trim().toUpperCase();
         if (pA === "METERAN" && pB === "METERAN") {
           return parseFloat(a.detail?.meter_kain || 0) - parseFloat(b.detail?.meter_kain || 0);
         }
         if (pA === "METERAN") return 1;
         if (pB === "METERAN") return -1;
-        return parseInt(pA || 0) - parseInt(pB || 0);
+        if (pA.includes("AWAL") && !pB.includes("AWAL")) return -1;
+        if (!pA.includes("AWAL") && pB.includes("AWAL")) return 1;
+        if (pA.includes("AKHIR") && !pB.includes("AKHIR")) return 1;
+        if (!pA.includes("AKHIR") && pB.includes("AKHIR")) return -1;
+        return parseInt(pA || "0", 10) - parseInt(pB || "0", 10);
       });
 
       const displayItems: any[] = [];
@@ -1592,6 +1596,10 @@ export default function MendingProductionReportPage() {
 
                               // Shared cacat-building logic for both panel and meter rows
                               const buildCacatLines = (srcDet: any, stripTitik = false): string[] => {
+                                const pNoStr = String(srcDet?.header?.panel_no || srcDet?.panel_no || "").trim().toUpperCase();
+                                if (pNoStr.includes("AWAL")) return ["Sisa Awal Potongan"];
+                                if (pNoStr.includes("AKHIR")) return ["Sisa Akhir Potongan"];
+
                                 const lines: string[] = [];
                                 const katsRaw = srcDet?.kategori_masalah;
                                 const kats = katsRaw ? (Array.isArray(katsRaw) ? katsRaw : katsRaw.split(",").map((s: string) => s.trim())) : [];
@@ -1723,7 +1731,17 @@ export default function MendingProductionReportPage() {
                               
                               return (
                                 <tr key={item.id || itemIndex} className="hover:bg-slate-50 transition-colors">
-                                  <td className="px-2 py-1 font-bold text-slate-800">{isMeterRow ? (item.displayNo || "-") : (rowNo || "-")}</td>
+                                  <td className="px-2 py-1 font-bold text-slate-800">
+                                    {isMeterRow ? (
+                                      item.displayNo || "-"
+                                    ) : String(rowNo).toUpperCase().includes("AWAL") ? (
+                                      <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
+                                    ) : String(rowNo).toUpperCase().includes("AKHIR") ? (
+                                      <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
+                                    ) : (
+                                      rowNo || "-"
+                                    )}
+                                  </td>
                                   <td className="px-2 py-1 text-slate-600 whitespace-nowrap">{tgl}</td>
                                   <td className="px-1 py-1 font-medium text-slate-700 text-center">{grpStr}</td>
                                   <td className="px-1 py-1 font-medium text-slate-700 leading-tight">{oprStr}</td>

@@ -173,7 +173,6 @@ export default function MendingModal({
       }
 
       let initialBerat = 0;
-      const detailsList = detailData || headerData?.details || [];
       for (const item of detailsList) {
         const qcItems = item.qc_inspection_items;
         if (Array.isArray(qcItems) && qcItems.length > 0) {
