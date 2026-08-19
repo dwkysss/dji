@@ -23,7 +23,15 @@ const qcSchema = z.object({
   petugas_inspeksi_3: z.string().optional(),
   start_inspect: z.string().min(1, "Wajib diisi"),
   finish_inspect: z.string().min(1, "Wajib diisi"),
-  berat_kain: z.number().min(0, "Harus >= 0").optional().nullable(),
+  berat_kain: z.preprocess((val) => {
+    if (val === null || val === undefined || val === "") return 0;
+    if (typeof val === "string") {
+      const cleaned = val.replace(",", ".").trim();
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    }
+    return Number(val);
+  }, z.number().min(0, "Harus >= 0")),
   prod_ceklis: z.number().min(0),
   prod_silang: z.number().min(0),
 
@@ -543,13 +551,18 @@ export default function QCInspectionModal({
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                   Berat Kain (kg)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register("berat_kain", { valueAsNumber: true })}
-                  onWheel={(e) => (e.target as HTMLElement).blur()}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm focus:border-sky-500 outline-none"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    {...register("berat_kain")}
+                    className="w-full h-10 px-3 pr-10 rounded-xl border border-slate-200 text-sm font-semibold focus:border-sky-500 outline-none"
+                    placeholder="0"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    KG
+                  </span>
+                </div>
                 {errors.berat_kain && (
                   <p className="text-red-500 text-[10px] mt-1">
                     {errors.berat_kain.message}

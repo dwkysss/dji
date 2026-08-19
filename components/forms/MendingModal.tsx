@@ -26,7 +26,15 @@ const mendingSchema = z.object({
   mending_grade_b: z.number().min(0),
   mending_grade_bs: z.number().min(0),
 
-  berat_kain: z.number().min(0, "Wajib diisi").optional(),
+  berat_kain: z.preprocess((val) => {
+    if (val === null || val === undefined || val === "") return 0;
+    if (typeof val === "string") {
+      const cleaned = val.replace(",", ".").trim();
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    }
+    return Number(val);
+  }, z.number().min(0, "Harus >= 0").optional().nullable()),
   notes: z.string().optional(),
 });
 
@@ -165,18 +173,23 @@ export default function MendingModal({
       }
 
       let initialBerat = 0;
-      if (detailData && detailData.length > 0) {
-        const firstDetail = detailData[0];
-        if (
-          firstDetail.qc_inspection_items &&
-          firstDetail.qc_inspection_items.length > 0
-        ) {
-          initialBerat =
-            Number(
-              firstDetail.qc_inspection_items[0].qc_inspection_batches
-                ?.berat_kain,
-            ) || 0;
+      const detailsList = detailData || headerData?.details || [];
+      for (const item of detailsList) {
+        const qcItems = item.qc_inspection_items;
+        if (Array.isArray(qcItems) && qcItems.length > 0) {
+          for (const qi of qcItems) {
+            const b = qi?.qc_inspection_batches;
+            const batch = Array.isArray(b) ? b[0] : b;
+            if (batch && batch.berat_kain !== null && batch.berat_kain !== undefined) {
+              const val = parseFloat(String(batch.berat_kain).replace(",", "."));
+              if (!isNaN(val) && val > 0) {
+                initialBerat = val;
+                break;
+              }
+            }
+          }
         }
+        if (initialBerat > 0) break;
       }
       setValue("berat_kain", initialBerat);
     }
@@ -399,11 +412,11 @@ export default function MendingModal({
                 </label>
                 <div className="relative">
                   <input
-                    type="number"
-                    step="0.01"
-                    {...register("berat_kain", { valueAsNumber: true })}
-                    onWheel={(e) => (e.target as HTMLElement).blur()}
+                    type="text"
+                    inputMode="decimal"
+                    {...register("berat_kain")}
                     className="w-full h-10 px-3 pr-10 rounded-xl border border-slate-200 text-sm font-semibold focus:border-sky-500 outline-none"
+                    placeholder="0"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
                     KG
