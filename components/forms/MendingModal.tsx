@@ -34,7 +34,7 @@ const mendingSchema = z.object({
       return isNaN(num) ? 0 : num;
     }
     return Number(val);
-  }, z.number().min(0, "Harus >= 0").optional().nullable()),
+  }, z.number().min(0, "Harus >= 0")),
   notes: z.string().optional(),
 });
 
@@ -74,7 +74,7 @@ export default function MendingModal({
     watch,
     formState: { errors },
   } = useForm<MendingFormData>({
-    resolver: zodResolver(mendingSchema),
+    resolver: zodResolver(mendingSchema) as any,
     defaultValues: {
       petugas_mending: "",
       start_mending: "",

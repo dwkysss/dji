@@ -54,6 +54,122 @@ const getActualMeter = (item: any, h: any) => {
   return null;
 };
 
+export const isBsAwalAkhir = (item: any) => {
+  const pNo = String(
+    item.detail?.header?.panel_no ||
+    item.header?.panel_no ||
+    item.detail?.panel_no ||
+    item.panel_no ||
+    ""
+  ).trim().toUpperCase();
+  return pNo.includes("AWAL") || pNo.includes("AKHIR");
+};
+
+export const calculateOverallGradeData = (
+  items: any[],
+  isMeter: boolean,
+  totalMeterSum?: number
+) => {
+  let totalQty = 0;
+  let totalCacat = 0;
+  const unit = isMeter ? "Meter" : "Panel";
+
+  if (isMeter) {
+    if (totalMeterSum !== undefined && totalMeterSum > 0) {
+      totalQty = totalMeterSum;
+    } else {
+      (items || []).forEach((i: any) => {
+        totalQty = Math.max(totalQty, Number(i.detail?.jml_hasil_produksi || 0));
+      });
+      if (totalQty === 0) totalQty = 300;
+    }
+
+    (items || []).forEach((i: any) => {
+      if (isBsAwalAkhir(i)) return;
+      const isSpecial =
+        ((!!i.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") ||
+          !!i.kategori_masalah?.toUpperCase().includes("ISTIRAHAT")) &&
+          !i.kategori_masalah &&
+          !i.detail_masalah) ||
+        i.cacatDisplay === "START" ||
+        i.cacatDisplay === "FINISH" ||
+        i.cacatDisplay === "ISTIRAHAT";
+      if (isSpecial) return;
+
+      // Diambil dari SETELAH INSPECT (hasil_mending), bukan data produksi
+      if (i.hasil_mending === "B" || i.hasil_mending === "BS") {
+        totalCacat += 1;
+      }
+    });
+  } else {
+    // Panel: Panel BS Awal dan BS Akhir tidak disertakan
+    const regularItems = (items || []).filter((i: any) => !isBsAwalAkhir(i));
+    totalQty = regularItems.length;
+
+    // Total Cacat diambil dari SETELAH INSPECT (hasil_mending)
+    regularItems.forEach((i: any) => {
+      if (i.hasil_mending === "B" || i.hasil_mending === "BS") {
+        totalCacat += 1;
+      }
+    });
+  }
+
+  let overallGrade = "-";
+  let bucket = 0;
+
+  if (totalQty > 0) {
+    if (isMeter) {
+      bucket = 300;
+      if (totalQty > 450) bucket = 500;
+      else if (totalQty > 400) bucket = 450;
+      else if (totalQty > 350) bucket = 400;
+      else if (totalQty > 300) bucket = 350;
+      else bucket = 300;
+
+      let limitA = 9, limitB = 15, limitC = 21;
+      if (bucket === 350) { limitA = 11; limitB = 18; limitC = 25; }
+      if (bucket === 400) { limitA = 12; limitB = 20; limitC = 28; }
+      if (bucket === 450) { limitA = 14; limitB = 23; limitC = 32; }
+      if (bucket === 500) { limitA = 15; limitB = 25; limitC = 35; }
+
+      if (totalCacat <= limitA) overallGrade = "A";
+      else if (totalCacat <= limitB) overallGrade = "B";
+      else if (totalCacat <= limitC) overallGrade = "C";
+      else overallGrade = "D";
+    } else {
+      bucket = 50;
+      if (totalQty > 125) bucket = 150;
+      else if (totalQty > 120) bucket = 125;
+      else if (totalQty > 100) bucket = 120;
+      else if (totalQty > 75) bucket = 100;
+      else if (totalQty > 65) bucket = 75;
+      else if (totalQty > 50) bucket = 65;
+      else bucket = 50;
+
+      let limitA = 5, limitB = 8, limitC = 9;
+      if (bucket === 65) { limitA = 7; limitB = 10; limitC = 13; }
+      if (bucket === 75) { limitA = 8; limitB = 12; limitC = 15; }
+      if (bucket === 100) { limitA = 10; limitB = 15; limitC = 19; }
+      if (bucket === 120) { limitA = 12; limitB = 18; limitC = 23; }
+      if (bucket === 125) { limitA = 13; limitB = 19; limitC = 25; }
+      if (bucket === 150) { limitA = 15; limitB = 23; limitC = 29; }
+
+      if (totalCacat <= limitA) overallGrade = "A";
+      else if (totalCacat <= limitB) overallGrade = "B";
+      else if (totalCacat <= limitC) overallGrade = "C";
+      else overallGrade = "D";
+    }
+  }
+
+  return {
+    overallGrade,
+    bucket,
+    totalQty,
+    totalCacat,
+    unit
+  };
+};
+
 export default function MendingProductionReportPage() {
   const [options, setOptions] = useState<{ mesins: string[], potongans: number[] }>({
     mesins: [],
@@ -484,7 +600,7 @@ export default function MendingProductionReportPage() {
       
       const pot = map.get(key);
       if (isMeter) {
-        // Meter: totalB = defect titik, totalBS = BS titik, totalA = total meter - totalB
+        // Meter: totalB = defect titik setelah inspect, totalBS = BS titik, totalA = total meter - totalB
         let totalMeterSum = 0;
         pcs.displayItems?.forEach((di: any) => {
           if (di.isTotalRow && di.totalMeter) {
@@ -493,13 +609,12 @@ export default function MendingProductionReportPage() {
           }
         });
         
-        const defectItemsProd = pcs.items?.filter((i: any) => i.detail?.kategori_masalah) || [];
-        const prodBCount = defectItemsProd.length;
-        const prodBSCount = pcs.items?.filter((i: any) => i.detail?.kategori_masalah && i.hasil_mending === "BS").length || 0;
+        const inspectBCount = pcs.items?.filter((i: any) => i.hasil_mending === "B").length || 0;
+        const inspectBSCount = pcs.items?.filter((i: any) => i.hasil_mending === "BS").length || 0;
         
-        pot.totalB += prodBCount;
-        pot.totalBS += prodBSCount;
-        pot.totalA += totalMeterSum - prodBCount;
+        pot.totalB += inspectBCount;
+        pot.totalBS += inspectBSCount;
+        pot.totalA += Math.max(0, totalMeterSum - inspectBCount);
       } else {
         // Panel: count per hasil_mending grade
         (pcs.items || []).forEach((item: any) => {
@@ -577,6 +692,10 @@ export default function MendingProductionReportPage() {
 
         const updatedData = await Promise.all(
           sortedData.map(async (pcs: any) => {
+            const isMeter = checkIsMeter(pcs);
+            if (!isMeter) {
+              return { ...pcs, allPcsDetails: pcs.items?.map((i: any) => i.detail) || [] };
+            }
             const headerInfo = pcs.header || {};
             const nomor_mc = pcs.nomor_mc;
             const design_id = headerInfo.design_id;
@@ -885,90 +1004,56 @@ export default function MendingProductionReportPage() {
       }
       
       const items = pcs.items || [];
-      const prodA = items.filter((i:any) => !i.detail?.kategori_masalah).length;
-      const prodB = items.filter((i:any) => i.detail?.kategori_masalah).length;
-      const prodBS = 0;
-      
-      const inspectA = items.filter((i:any) => i.hasil_mending === "A").length;
-      const inspectB = items.filter((i:any) => i.hasil_mending === "B").length;
-      const inspectBS = items.filter((i:any) => i.hasil_mending === "BS").length;
-
       const isMeter = checkIsMeter(pcs);
-      let totalQty = 0;
-      let totalCacat = 0;
+      let totalMeterSum = 0;
       if (isMeter) {
-        items.forEach((i: any) => {
-          totalQty = Math.max(totalQty, Number(i.detail?.jml_hasil_produksi || 0));
-          if (i.detail?.kategori_masalah || i.hasil_mending === "B" || i.hasil_mending === "BS") {
-            totalCacat += 1;
-          }
-        });
-        if (totalQty === 0) totalQty = 300;
-      } else {
-        items.forEach((i: any) => {
-          totalQty += Number(i.detail?.jml_hasil_produksi || 0);
-          if (i.detail?.kategori_masalah || i.hasil_mending === "B" || i.hasil_mending === "BS") {
-            totalCacat += Number(i.detail?.jml_hasil_produksi || 1);
+        pcs.displayItems?.forEach((di: any) => {
+          if (di.isTotalRow && di.totalMeter) {
+            const m = parseFloat(di.totalMeter);
+            if (!isNaN(m)) totalMeterSum += m;
           }
         });
       }
-      
-      const computedTotalQty = totalQty;
-      const sortedItems = items;
 
-      const totalSetelahInspect = sortedItems.length;
+      let prodA: number | string = 0;
+      let prodB: number | string = 0;
+      let prodBS: number | string = 0;
+      let inspectA: number | string = 0;
+      let inspectB: number | string = 0;
+      let inspectBS: number | string = 0;
+
+      if (isMeter) {
+        const defectItemsProd = items.filter((i: any) => i.detail?.kategori_masalah) || [];
+        const prodBCount = defectItemsProd.length;
+        const prodBSCount = items.filter((i: any) => i.detail?.kategori_masalah && i.hasil_mending === "BS").length || 0;
+        prodA = `${totalMeterSum - prodBCount} Meter`;
+        prodB = prodBCount;
+        prodBS = prodBSCount;
+
+        const inspectBCount = items.filter((i: any) => i.hasil_mending === "B").length || 0;
+        const inspectBSCount = items.filter((i: any) => i.hasil_mending === "BS").length || 0;
+        inspectA = `${totalMeterSum - inspectBCount} Meter`;
+        inspectB = inspectBCount;
+        inspectBS = inspectBSCount;
+      } else {
+        prodA = items.filter((i: any) => !i.detail?.kategori_masalah).length;
+        prodB = items.filter((i: any) => i.detail?.kategori_masalah).length;
+        prodBS = 0;
+        inspectA = items.filter((i: any) => i.hasil_mending === "A").length;
+        inspectB = items.filter((i: any) => i.hasil_mending === "B").length;
+        inspectBS = items.filter((i: any) => i.hasil_mending === "BS").length;
+      }
+
+      const gradeInfo = calculateOverallGradeData(items, isMeter, totalMeterSum);
+      const { overallGrade, bucket, totalQty, totalCacat } = gradeInfo;
+
+      const sortedItems = items;
+      const totalSetelahInspect = isMeter ? `${totalMeterSum} Meter` : sortedItems.length;
       const beratInspect = pcs.qc_batch?.berat_kain || "";
       const tanggalInspect = pcs.qc_batch?.tanggal_inspeksi || "";
       const petugasInspect = [pcs.qc_batch?.petugas_inspeksi, pcs.qc_batch?.petugas_inspeksi_2, pcs.qc_batch?.petugas_inspeksi_3].filter(Boolean).join(", ") || "";
       const startInspect = pcs.qc_batch?.start_inspect || "";
       const finishInspect = pcs.qc_batch?.finish_inspect || "";
-
-      // Calculate Overall Grade
-      let overallGrade = "-";
-      let bucket = 0;
-      if (totalQty > 0) {
-        if (isMeter) {
-          bucket = 300;
-          if (totalQty > 450) bucket = 500;
-          else if (totalQty > 400) bucket = 450;
-          else if (totalQty > 350) bucket = 400;
-          else if (totalQty > 300) bucket = 350;
-          else bucket = 300;
-          
-          let limitA = 9, limitB = 15, limitC = 21;
-          if (bucket === 350) { limitA = 11; limitB = 18; limitC = 25; }
-          if (bucket === 400) { limitA = 12; limitB = 20; limitC = 28; }
-          if (bucket === 450) { limitA = 14; limitB = 23; limitC = 32; }
-          if (bucket === 500) { limitA = 15; limitB = 25; limitC = 35; }
-          
-          if (totalCacat <= limitA) overallGrade = "A";
-          else if (totalCacat <= limitB) overallGrade = "B";
-          else if (totalCacat <= limitC) overallGrade = "C";
-          else overallGrade = "D";
-        } else {
-          bucket = 50;
-          if (totalQty > 125) bucket = 150;
-          else if (totalQty > 120) bucket = 125;
-          else if (totalQty > 100) bucket = 120;
-          else if (totalQty > 75) bucket = 100;
-          else if (totalQty > 65) bucket = 75;
-          else if (totalQty > 50) bucket = 65;
-          else bucket = 50;
-
-          let limitA = 5, limitB = 8, limitC = 9; 
-          if (bucket === 65) { limitA = 7; limitB = 10; limitC = 13; }
-          if (bucket === 75) { limitA = 8; limitB = 12; limitC = 15; }
-          if (bucket === 100) { limitA = 10; limitB = 15; limitC = 19; }
-          if (bucket === 120) { limitA = 12; limitB = 18; limitC = 23; }
-          if (bucket === 125) { limitA = 13; limitB = 19; limitC = 25; }
-          if (bucket === 150) { limitA = 15; limitB = 23; limitC = 29; }
-
-          if (totalCacat <= limitA) overallGrade = "A";
-          else if (totalCacat <= limitB) overallGrade = "B";
-          else if (totalCacat <= limitC) overallGrade = "C";
-          else overallGrade = "D";
-        }
-      }
 
       const unit = isMeter ? 'Meter' : 'Panel';
 
@@ -1154,6 +1239,14 @@ export default function MendingProductionReportPage() {
         </form>
       </div>
       </div>
+
+      {isLoading && (
+        <div className="bg-white rounded-2xl p-16 shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center animate-fadeIn">
+          <Loader2 className="w-10 h-10 text-[#0070bc] animate-spin mb-4" />
+          <h3 className="text-lg font-bold text-slate-800 mb-1">Memuat Data Laporan...</h3>
+          <p className="text-slate-500 text-xs">Sedang mengambil dan menyusun data produksi mending</p>
+        </div>
+      )}
 
       {hasSearched && data.length === 0 && !isLoading && (
         <div className="bg-white rounded-2xl p-16 shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center">
@@ -1449,77 +1542,17 @@ export default function MendingProductionReportPage() {
                     inspectBS = pcs.items?.filter((i: any) => i.hasil_mending === "BS").length || 0;
                   }
 
-                  let totalQty = 0;
-                  let totalCacat = 0;
-                  if (isMeter) {
-                    pcs.items?.forEach((i: any) => {
-                      totalQty = Math.max(totalQty, Number(i.detail?.jml_hasil_produksi || 0));
-                      if (i.detail?.kategori_masalah || i.hasil_mending === "B" || i.hasil_mending === "BS") {
-                        totalCacat += 1;
-                      }
-                    });
-                    if (totalQty === 0) totalQty = 300;
-                  } else {
-                    pcs.items?.forEach((i: any) => {
-                      totalQty += Number(i.detail?.jml_hasil_produksi || 0);
-                      if (i.detail?.kategori_masalah || i.hasil_mending === "B" || i.hasil_mending === "BS") {
-                        totalCacat += Number(i.detail?.jml_hasil_produksi || 1);
-                      }
-                    });
-                  }
+                  const gradeInfo = calculateOverallGradeData(pcs.items || [], isMeter, totalMeterSum);
+                  const { overallGrade, bucket, totalQty, totalCacat } = gradeInfo;
 
                   const totalSetelahInspect = isMeter ? `${totalMeterSum} Meter` : sortedItems.length;
-                  const beratInspect = pcs.qc_batch?.berat_kain || "-";
+                  const beratInspect = (pcs.qc_batch?.berat_kain !== null && pcs.qc_batch?.berat_kain !== undefined && pcs.qc_batch?.berat_kain !== "") 
+                    ? `${pcs.qc_batch.berat_kain} kg` 
+                    : "-";
                   const tanggalInspect = pcs.qc_batch?.tanggal_inspeksi || "-";
                   const petugasInspect = [pcs.qc_batch?.petugas_inspeksi, pcs.qc_batch?.petugas_inspeksi_2, pcs.qc_batch?.petugas_inspeksi_3].filter(Boolean).join(", ") || "-";
                   const startInspect = pcs.qc_batch?.start_inspect || "-";
                   const finishInspect = pcs.qc_batch?.finish_inspect || "-";
-
-                  let overallGrade = "-";
-                  let bucket = 0;
-                  if (totalQty > 0) {
-                    if (isMeter) {
-                      bucket = 300;
-                      if (totalQty > 450) bucket = 500;
-                      else if (totalQty > 400) bucket = 450;
-                      else if (totalQty > 350) bucket = 400;
-                      else if (totalQty > 300) bucket = 350;
-                      else bucket = 300;
-
-                      let limitA = 9, limitB = 15, limitC = 21;
-                      if (bucket === 350) { limitA = 11; limitB = 18; limitC = 25; }
-                      if (bucket === 400) { limitA = 12; limitB = 20; limitC = 28; }
-                      if (bucket === 450) { limitA = 14; limitB = 23; limitC = 32; }
-                      if (bucket === 500) { limitA = 15; limitB = 25; limitC = 35; }
-
-                      if (totalCacat <= limitA) overallGrade = "A";
-                      else if (totalCacat <= limitB) overallGrade = "B";
-                      else if (totalCacat <= limitC) overallGrade = "C";
-                      else overallGrade = "D";
-                    } else {
-                      bucket = 50;
-                      if (totalQty > 125) bucket = 150;
-                      else if (totalQty > 120) bucket = 125;
-                      else if (totalQty > 100) bucket = 120;
-                      else if (totalQty > 75) bucket = 100;
-                      else if (totalQty > 65) bucket = 75;
-                      else if (totalQty > 50) bucket = 65;
-                      else bucket = 50;
-
-                      let limitA = 5, limitB = 8, limitC = 9;
-                      if (bucket === 65) { limitA = 7; limitB = 10; limitC = 13; }
-                      if (bucket === 75) { limitA = 8; limitB = 12; limitC = 15; }
-                      if (bucket === 100) { limitA = 10; limitB = 15; limitC = 19; }
-                      if (bucket === 120) { limitA = 12; limitB = 18; limitC = 23; }
-                      if (bucket === 125) { limitA = 13; limitB = 19; limitC = 25; }
-                      if (bucket === 150) { limitA = 15; limitB = 23; limitC = 29; }
-
-                      if (totalCacat <= limitA) overallGrade = "A";
-                      else if (totalCacat <= limitB) overallGrade = "B";
-                      else if (totalCacat <= limitC) overallGrade = "C";
-                      else overallGrade = "D";
-                    }
-                  }
 
                   return (
                     <div 

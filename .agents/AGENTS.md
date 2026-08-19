@@ -25,3 +25,4 @@
 - baris BS AWAL dan BS AKHIR dihitung masing-masing 1 panel BS secara individual (bukan digabung jadi 1)
 - untuk halaman Laporan Bulanan, kolom produksi diisi nilai dengan panel BS tidak disertakan
 - untuk halaman Laporan Potong Kain, kolom Roll/Panel menyertakan panel BS ya
+- untuk penentuan Grade Keseluruhan (Overall Grade), perhitungan mengambil data SETELAH INSPECT (hasil mending), dan nilai panel BS AWAL serta BS AKHIR tidak disertakan dalam perhitungan total panel maupun total cacat.

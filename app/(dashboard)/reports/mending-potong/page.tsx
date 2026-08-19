@@ -84,23 +84,51 @@ export default function LaporanPotongKainPage() {
     }
   };
 
+  const isBsAwalAkhir = (item: any) => {
+    const pNo = String(
+      item.detail?.header?.panel_no ||
+      item.header?.panel_no ||
+      item.detail?.panel_no ||
+      item.panel_no ||
+      ""
+    ).trim().toUpperCase();
+    return pNo.includes("AWAL") || pNo.includes("AKHIR");
+  };
+
   const calculateOverallGrade = (batch: any) => {
     const isMeter = batch.header?.panel_no === "METERAN";
     let totalQty = 0;
     let totalCacat = 0;
+
     if (isMeter) {
       batch.items?.forEach((i: any) => {
         totalQty = Math.max(totalQty, Number(i.detail?.jml_hasil_produksi || 0));
-        if (i.detail?.kategori_masalah || i.hasil_mending === "B" || i.hasil_mending === "BS") {
+        if (isBsAwalAkhir(i)) return;
+        const isSpecial =
+          ((!!i.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") ||
+            !!i.kategori_masalah?.toUpperCase().includes("ISTIRAHAT")) &&
+            !i.kategori_masalah &&
+            !i.detail_masalah) ||
+          i.cacatDisplay === "START" ||
+          i.cacatDisplay === "FINISH" ||
+          i.cacatDisplay === "ISTIRAHAT";
+        if (isSpecial) return;
+
+        // Diambil dari SETELAH INSPECT (hasil_mending), bukan data produksi
+        if (i.hasil_mending === "B" || i.hasil_mending === "BS") {
           totalCacat += 1;
         }
       });
       if (totalQty === 0) totalQty = 300;
     } else {
-      batch.items?.forEach((i: any) => {
-        totalQty += Number(i.detail?.jml_hasil_produksi || 0);
-        if (i.detail?.kategori_masalah || i.hasil_mending === "B" || i.hasil_mending === "BS") {
-          totalCacat += Number(i.detail?.jml_hasil_produksi || 1);
+      // Panel: Panel BS Awal dan BS Akhir tidak disertakan
+      const regularItems = (batch.items || []).filter((i: any) => !isBsAwalAkhir(i));
+      totalQty = regularItems.length;
+
+      // Total Cacat diambil dari SETELAH INSPECT (hasil_mending)
+      regularItems.forEach((i: any) => {
+        if (i.hasil_mending === "B" || i.hasil_mending === "BS") {
+          totalCacat += 1;
         }
       });
     }

@@ -75,7 +75,7 @@ export default function QCInspectionModal({
     watch,
     formState: { errors },
   } = useForm<QCFormData>({
-    resolver: zodResolver(qcSchema),
+    resolver: zodResolver(qcSchema) as any,
     defaultValues: {
       petugas_inspeksi: "",
       petugas_inspeksi_2: "",

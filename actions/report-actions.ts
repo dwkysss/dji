@@ -50,42 +50,63 @@ export async function getMonthlyMachineReport(
     const prevDate = new Date(year, month - 1, 0).toISOString().split("T")[0];
     const nextDate = new Date(year, month, 2).toISOString().split("T")[0];
 
-    // Fetch all production details joined with headers for the specific machine and month
-    const { data, error } = await supabase
-      .from("production_details")
-      .select(`
-        id,
-        jml_hasil_produksi,
-        kategori_masalah,
-        detail_masalah,
-        indikator_stop,
-        production_defects(kategori),
-        production_headers!inner (
-          id,
-          nomor_mc,
-          tgl,
-          tanggal_jam,
-          panel_no,
-          potongan_ke,
-          total_produksi_meter,
-          pcs,
-          design_id,
-          course,
-          pick,
-          rpm,
-          total_downtime_detik,
-          pic,
-          groups ( nama_grup ),
-          operators ( nama_operator )
-        )
-      `)
-      .eq("production_headers.nomor_mc", machineId)
-      .gte("production_headers.tgl", prevDate)
-      .lte("production_headers.tgl", nextDate);
+    // Fetch all production details joined with headers for the specific machine and month (paginated to overcome 1000 limit)
+    let data: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) {
-      console.error("Error fetching report data:", error);
-      throw new Error("Gagal mengambil data laporan: " + error.message);
+    while (hasMore) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+      const { data: pageData, error } = await supabase
+        .from("production_details")
+        .select(`
+          id,
+          jml_hasil_produksi,
+          kategori_masalah,
+          detail_masalah,
+          indikator_stop,
+          production_defects(kategori),
+          production_headers!inner (
+            id,
+            nomor_mc,
+            tgl,
+            tanggal_jam,
+            panel_no,
+            potongan_ke,
+            total_produksi_meter,
+            pcs,
+            design_id,
+            course,
+            pick,
+            rpm,
+            total_downtime_detik,
+            pic,
+            groups ( nama_grup ),
+            operators ( nama_operator )
+          )
+        `)
+        .eq("production_headers.nomor_mc", machineId)
+        .gte("production_headers.tgl", prevDate)
+        .lte("production_headers.tgl", nextDate)
+        .range(from, to);
+
+      if (error) {
+        console.error("Error fetching report data:", error);
+        throw new Error("Gagal mengambil data laporan: " + error.message);
+      }
+
+      if (pageData && pageData.length > 0) {
+        data.push(...pageData);
+        if (pageData.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
     }
 
     // Process data to aggregate by date (1-31) and team (A, B, C)

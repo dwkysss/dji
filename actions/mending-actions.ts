@@ -813,6 +813,14 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
     
     const { data, error } = await query;
     if (error) return { success: false, error: error.message };
+
+    // Also fetch qc_inspection_batches as a reliable fallback matching by mc, potongan, pcs
+    let qcBatchQuery = supabase
+      .from("qc_inspection_batches")
+      .select("id, nomor_mc, potongan_ke, pcs_index, berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi");
+    if (nomor_mc) qcBatchQuery = qcBatchQuery.eq("nomor_mc", nomor_mc);
+    if (potongan_ke) qcBatchQuery = qcBatchQuery.eq("potongan_ke", parseInt(potongan_ke));
+    const { data: allQcBatches } = await qcBatchQuery;
     
     const formattedData = (data || []).map((batch: any) => {
       const firstItem = batch.items && batch.items.length > 0 ? batch.items[0] : null;
@@ -826,14 +834,34 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
         qc_batch: item.detail?.qc_items?.[0]?.batch || {}
       }));
 
-      const firstQcBatch = formattedItems[0]?.qc_batch || {};
+      // Find first item with a populated qc_batch
+      let resolvedQcBatch: any = {};
+      for (const fi of formattedItems) {
+        const qb = fi.qc_batch;
+        if (qb && (qb.berat_kain !== undefined || qb.petugas_inspeksi || qb.tanggal_inspeksi || qb.start_inspect)) {
+          resolvedQcBatch = qb;
+          break;
+        }
+      }
+
+      // Direct fallback from qc_inspection_batches table
+      if ((!resolvedQcBatch.petugas_inspeksi && !resolvedQcBatch.start_inspect && !resolvedQcBatch.berat_kain) && allQcBatches) {
+        const match = allQcBatches.find((qb: any) => 
+          String(qb.nomor_mc) === String(batch.nomor_mc) &&
+          Number(qb.potongan_ke) === Number(batch.potongan_ke) &&
+          Number(qb.pcs_index || 1) === Number(batch.pcs_index || 1)
+        );
+        if (match) {
+          resolvedQcBatch = match;
+        }
+      }
 
       return {
         ...batch,
         header,
         detail: { pcs_index: batch.pcs_index },
         items: formattedItems,
-        qc_batch: firstQcBatch
+        qc_batch: resolvedQcBatch
       };
     });
 
@@ -867,7 +895,6 @@ export async function getAllDetailsForPcs(nomor_mc: string, design_id: string, p
         )
       `)
       .eq("production_headers.nomor_mc", nomor_mc)
-      .eq("production_headers.design_id", design_id)
       .eq("production_headers.potongan_ke", potongan_ke)
       .eq("pcs_index", pcs_index);
 
