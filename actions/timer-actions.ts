@@ -37,11 +37,14 @@ export async function getTimerSession(
   try {
     const supabase = await createClient();
     const sessionId = buildSessionId(type, nomor_mc, design_id, potongan_ke, pcs_index);
+    const legacySessionId = `${type}_${nomor_mc}_${design_id}_${potongan_ke}_${pcs_index}`;
 
     const { data, error } = await supabase
       .from("inspection_timer_sessions")
       .select("*")
-      .eq("id", sessionId)
+      .or(`id.eq."${sessionId}",id.eq."${legacySessionId}",and(type.eq.${type},nomor_mc.eq.${nomor_mc},potongan_ke.eq.${potongan_ke},pcs_index.eq.${pcs_index})`)
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (error) {
@@ -77,6 +80,15 @@ export async function upsertTimerSession(params: {
       params.potongan_ke,
       params.pcs_index
     );
+
+    // Clean up any legacy duplicates first
+    const legacySessionId = `${params.type}_${params.nomor_mc}_${params.design_id}_${params.potongan_ke}_${params.pcs_index}`;
+    if (legacySessionId !== sessionId) {
+      await supabase
+        .from("inspection_timer_sessions")
+        .delete()
+        .eq("id", legacySessionId);
+    }
 
     // Check existing
     const { data: existing } = await supabase
@@ -130,11 +142,12 @@ export async function deleteTimerSession(
   try {
     const supabase = await createClient();
     const sessionId = buildSessionId(type, nomor_mc, design_id, potongan_ke, pcs_index);
+    const legacySessionId = `${type}_${nomor_mc}_${design_id}_${potongan_ke}_${pcs_index}`;
 
     const { error } = await supabase
       .from("inspection_timer_sessions")
       .delete()
-      .eq("id", sessionId);
+      .or(`id.eq."${sessionId}",id.eq."${legacySessionId}",and(type.eq.${type},nomor_mc.eq.${nomor_mc},potongan_ke.eq.${potongan_ke},pcs_index.eq.${pcs_index})`);
 
     if (error) {
       console.error("Error deleting timer session:", error);

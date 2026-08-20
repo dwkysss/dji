@@ -933,14 +933,31 @@ export async function searchEmployeeHistory(filters: {
     if (filters.no_customer)
       query = query.ilike("no_customer", `%${filters.no_customer}%`);
 
-    // Removed pagination from DB query because we need to group by batch first
-    // We will fetch a large limit of matched rows and group them in memory
-    const { data, error } = await query.limit(5000);
+    // Use chunked pagination to fetch all matching rows from Supabase (bypassing the 1000-row limit)
+    let allData: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (error) {
-      console.error("Error fetching history:", error);
-      return { success: false, error: error.message };
+    while (hasMore) {
+      const { data: chunk, error: chunkError } = await query.range(from, from + PAGE_SIZE - 1);
+      if (chunkError) {
+        console.error("Error fetching history chunk:", chunkError);
+        return { success: false, error: chunkError.message };
+      }
+      if (chunk && chunk.length > 0) {
+        allData = allData.concat(chunk);
+        if (chunk.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          from += PAGE_SIZE;
+        }
+      } else {
+        hasMore = false;
+      }
     }
+
+    const data = allData;
 
     // Grouping by Batch (nomor_mc + potongan_ke)
     const batchesMap = new Map<string, any>();
@@ -1008,7 +1025,7 @@ export async function searchEmployeeHistory(filters: {
 
       let currentMaxPanel = 0;
       const pStr = String(row.panel_no || "");
-      const isBsRow = pStr.includes("BS") || (row.production_details && row.production_details.some((d: any) => d.kategori_masalah === "X" || d.grade === "BS"));
+      const isBsRow = pStr.includes("BS") || pStr.includes("AWAL") || pStr.includes("AKHIR");
       
       if (!isBsRow) {
         if (row.panel_no && !isNaN(parseInt(row.panel_no))) {
@@ -1016,7 +1033,7 @@ export async function searchEmployeeHistory(filters: {
         }
         if (row.production_details && Array.isArray(row.production_details)) {
           row.production_details.forEach((det: any) => {
-            if (det.pcs_index && !isNaN(parseInt(det.pcs_index))) {
+            if (det.pcs_index && !isNaN(parseInt(det.pcs_index)) && !det.is_deleted && det.status_inspeksi !== "Dihapus") {
               currentMaxPanel = Math.max(currentMaxPanel, parseInt(det.pcs_index));
             }
           });
@@ -1026,7 +1043,20 @@ export async function searchEmployeeHistory(filters: {
         }
       }
       batch.total_panels = Math.max(batch.total_panels, currentMaxPanel);
-      batch.total_downtime_detik += row.total_downtime_detik || 0;
+
+      let dtDetik = row.total_downtime_detik || 0;
+      if (dtDetik === 0 && row.downtime_records && Array.isArray(row.downtime_records) && row.downtime_records.length > 0) {
+        dtDetik = row.downtime_records.reduce((sum: number, rec: any) => sum + (rec.durasi_detik || 0), 0);
+      }
+      if (dtDetik === 0 && row.downtime_events) {
+        try {
+          const events = typeof row.downtime_events === "string" ? JSON.parse(row.downtime_events) : row.downtime_events;
+          if (Array.isArray(events)) {
+            dtDetik = events.reduce((sum: number, ev: any) => sum + (parseInt(ev.durasiDetik || ev.durasi_detik, 10) || 0), 0);
+          }
+        } catch (e) {}
+      }
+      batch.total_downtime_detik += dtDetik;
       if (row.panel_no === "METERAN") {
         batch.is_meter = true;
         const meterAkhir = parseFloat(row.meter_akhir);

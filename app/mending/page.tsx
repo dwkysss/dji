@@ -1945,6 +1945,7 @@ export default function MendingPage() {
                 pause_seconds: pauseSeconds,
                 elapsed_seconds: elapsedSeconds,
               });
+              await fetchActiveSessions();
             }
             setActiveMendingPcs(null);
           }}
