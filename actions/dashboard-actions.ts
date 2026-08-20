@@ -52,23 +52,38 @@ export async function getRealProductionsData(): Promise<{
   try {
     const supabase = await createClient();
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const dateLimit = thirtyDaysAgo.toISOString().split("T")[0];
+    // Query 1: Get all dashboard view data via chunked pagination to bypass the 1000-row limit
+    let allData: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    // Query 1: Get dashboard view data
-    const { data, error } = await supabase
-      .from("dashboard_production_view")
-      .select("*")
-      .gte("tanggal", dateLimit)
-      .order("tanggal", { ascending: false });
+    while (hasMore) {
+      const { data: chunk, error: chunkError } = await supabase
+        .from("dashboard_production_view")
+        .select("*")
+        .order("tanggal", { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
 
-    if (error) {
-      console.error("Dashboard error fetching dashboard_production_view:", error);
-      throw error;
+      if (chunkError) {
+        console.error("Dashboard error fetching dashboard_production_view chunk:", chunkError);
+        throw chunkError;
+      }
+      if (chunk && chunk.length > 0) {
+        allData = allData.concat(chunk);
+        if (chunk.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          from += PAGE_SIZE;
+        }
+      } else {
+        hasMore = false;
+      }
     }
 
-    // Query 2: Fetch header timestamps for exact shift date attribution
+    const data = allData;
+
+    // Query 2: Fetch header timestamps for exact shift date attribution in batches of 500
     const headerIds = Array.from(
       new Set(
         (data || [])
@@ -79,16 +94,22 @@ export async function getRealProductionsData(): Promise<{
 
     const headerTimeMap = new Map<string, string>();
     if (headerIds.length > 0) {
-      const { data: headersData } = await supabase
-        .from("production_headers")
-        .select("id, tanggal_jam")
-        .in("id", headerIds);
+      const CHUNK_SIZE = 500;
+      for (let i = 0; i < headerIds.length; i += CHUNK_SIZE) {
+        const batch = headerIds.slice(i, i + CHUNK_SIZE);
+        const { data: headersData, error: hError } = await supabase
+          .from("production_headers")
+          .select("id, tanggal_jam")
+          .in("id", batch);
 
-      (headersData || []).forEach((h: any) => {
-        if (h.id && h.tanggal_jam) {
-          headerTimeMap.set(String(h.id), String(h.tanggal_jam));
+        if (!hError && headersData) {
+          headersData.forEach((h: any) => {
+            if (h.id && h.tanggal_jam) {
+              headerTimeMap.set(String(h.id), String(h.tanggal_jam));
+            }
+          });
         }
-      });
+      }
     }
 
     const mappedData: RealProductionItem[] = (data || []).map((item: any) => {
