@@ -111,7 +111,7 @@ export default function QCInspectionModal({
       });
       return maxM;
     }
-    return headerData.details.length;
+    return headerData.details.filter((d: any) => !d.is_deleted && d.status_inspeksi !== "Dihapus" && !(d.keterangan_cacat || "").includes("[DIHAPUS]")).length;
   }, [headerData, isMeteranBatch]);
 
   useEffect(() => {
@@ -225,6 +225,8 @@ export default function QCInspectionModal({
 
         if (headerData?.details) {
           headerData.details.forEach((d: any) => {
+            const isDeleted = !!d.is_deleted || d.status_inspeksi === "Dihapus" || (d.keterangan_cacat || "").includes("[DIHAPUS]");
+            if (isDeleted) return;
             const isTambahanQC = !!d.hasTambahanQC || (d.keterangan_cacat || "").includes("[TAMBAHAN QC]");
             if (!isTambahanQC) {
               const isBS = d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS";
@@ -282,12 +284,13 @@ export default function QCInspectionModal({
               finalInspectionId: grade !== undefined ? grade : 1,
             };
           })
-        : headerData.details
-            .filter((d: any) => selections[d.id] !== undefined)
-            .map((d: any) => ({
+        : headerData.details.map((d: any) => {
+            const isDel = !!d.is_deleted || d.status_inspeksi === "Dihapus" || (d.keterangan_cacat || "").includes("[DIHAPUS]");
+            return {
               detailId: d.id,
-              finalInspectionId: selections[d.id],
-            }));
+              finalInspectionId: isDel ? 0 : (selections[d.id] !== undefined ? selections[d.id] : 1),
+            };
+          });
 
       const payload = {
         details: detailsArray,

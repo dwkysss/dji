@@ -74,8 +74,9 @@ export default function PanelHistoryTable({
     processed.forEach((p: any, i: number) => {
       const { item, isIstirahatOnly, hasIstirahat, isGradable, opr, grp, tgl, operatorStr } = p;
 
+      const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
       const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4;
-      if (!isBS) {
+      if (!isBS && !isDeleted) {
         currentOpCount += 1;
       }
 
@@ -419,11 +420,12 @@ export default function PanelHistoryTable({
               }
             }
 
+            const isDeleted = !!detail.is_deleted || detail.status_inspeksi === "Dihapus" || (detail.keterangan_cacat || "").includes("[DIHAPUS]");
             const isBsRow = isBsAwal || isBsAkhir || String(rawPanelNo).includes("(BS)") || String(item.displayNo).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS" || detail.final_inspection_id === 4 || item.final_inspection_id === 4 || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
 
             return (
-              <tr key={item.id || idx} className={`${hasIstirahat ? "bg-amber-50/30" : (isBsRow ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
-                <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${hasIstirahat ? "bg-amber-100" : (isBsRow ? "bg-rose-50/50" : "bg-white")}`}>
+              <tr key={item.id || idx} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : hasIstirahat ? "bg-amber-50/30" : (isBsRow ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
+                <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${isDeleted ? "bg-slate-100" : hasIstirahat ? "bg-amber-100" : (isBsRow ? "bg-rose-50/50" : "bg-white")}`}>
                   {isBsAwal ? (
                     <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                   ) : isBsAkhir ? (
@@ -431,9 +433,13 @@ export default function PanelHistoryTable({
                   ) : (
                     <div className="flex flex-col items-center justify-center">
                       <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
-                      {isBsRow && (
+                      {isDeleted ? (
+                        <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">
+                          DIHAPUS
+                        </span>
+                      ) : isBsRow ? (
                         <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                      )}
+                      ) : null}
                     </div>
                   )}
                 </td>
@@ -447,7 +453,9 @@ export default function PanelHistoryTable({
                   {item.showOpr ? (item.oprBase || displayGrp || "-") : (hasIstirahat ? "Istirahat" : "")}
                 </td>
                  <td className="px-1 py-1 text-center border-r border-slate-100">
-                   {isIstirahatOnly ? (
+                   {isDeleted ? (
+                     <span className="text-slate-400 font-bold">-</span>
+                   ) : isIstirahatOnly ? (
                      <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
                    ) : (
                      detail.kategori_masalah || detail.detail_masalah || isBsRow || detail.indikator_stop ? (
@@ -457,8 +465,10 @@ export default function PanelHistoryTable({
                      )
                    )}
                  </td>
-                 <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${hasIstirahat ? 'text-slate-500' : (masalahLines.length > 0 && masalahLines[0] !== '-' ? 'text-rose-600' : 'text-slate-700')}`}>
-                   {hasIstirahat ? (
+                 <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isDeleted ? 'text-slate-400 italic' : hasIstirahat ? 'text-slate-500' : (masalahLines.length > 0 && masalahLines[0] !== '-' ? 'text-rose-600' : 'text-slate-700')}`}>
+                   {isDeleted ? (
+                     <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
+                   ) : hasIstirahat ? (
                      <>
                        {extractedBackupOp ? (
                          <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>
@@ -475,19 +485,31 @@ export default function PanelHistoryTable({
                  </td>
 
                 <td className="px-1 py-1 text-center border-r border-slate-100">
-                  <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md border ${detail.final_inspection_id === 1 ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm" : "border-slate-200 bg-white text-slate-300"}`}>
-                    {detail.final_inspection_id === 1 ? <CheckCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5 text-slate-200" />}
-                  </div>
+                  {isDeleted ? (
+                    <span className="text-slate-300 font-bold block text-center">-</span>
+                  ) : (
+                    <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md border ${detail.final_inspection_id === 1 ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm" : "border-slate-200 bg-white text-slate-300"}`}>
+                      {detail.final_inspection_id === 1 ? <CheckCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5 text-slate-200" />}
+                    </div>
+                  )}
                 </td>
                 <td className="px-1 py-1 text-center border-r border-slate-100">
-                  <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md border ${detail.final_inspection_id === 3 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300"}`}>
-                    {detail.final_inspection_id === 3 ? <X className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5 text-slate-200" />}
-                  </div>
+                  {isDeleted ? (
+                    <span className="text-slate-300 font-bold block text-center">-</span>
+                  ) : (
+                    <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md border ${detail.final_inspection_id === 3 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300"}`}>
+                      {detail.final_inspection_id === 3 ? <X className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5 text-slate-200" />}
+                    </div>
+                  )}
                 </td>
                 <td className="px-1 py-1 text-center">
-                  <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md border ${detail.final_inspection_id === 4 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300"}`}>
-                    <span className={`text-[10px] font-black ${detail.final_inspection_id === 4 ? "text-rose-700" : "text-slate-300"}`}>BS</span>
-                  </div>
+                  {isDeleted ? (
+                    <span className="text-slate-300 font-bold block text-center">-</span>
+                  ) : (
+                    <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md border ${detail.final_inspection_id === 4 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300"}`}>
+                      <span className={`text-[10px] font-black ${detail.final_inspection_id === 4 ? "text-rose-700" : "text-slate-300"}`}>BS</span>
+                    </div>
+                  )}
                 </td>
               </tr>
             );

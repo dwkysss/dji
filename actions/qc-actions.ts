@@ -187,21 +187,32 @@ export async function submitQCInspection(params: {
       // Supabase JS doesn't have a direct bulk update via array easily,
       // so we iterate (it's safe enough for a few dozen rows)
       for (const d of params.details) {
-        let statusInspeksi = "Ceklis";
-        if (d.finalInspectionId === 3) statusInspeksi = "Silang";
-        if (d.finalInspectionId === 4) statusInspeksi = "BS";
-        
-        const { error: updateError } = await supabase
-          .from("production_details")
-          .update({
-            final_inspection_id: d.finalInspectionId,
-            status_inspeksi: statusInspeksi,
-            keterangan_qc: params.notes || null
-          })
-          .eq("id", d.detailId);
+        if (d.finalInspectionId === 0 || d.finalInspectionId === null) {
+          await supabase
+            .from("production_details")
+            .update({
+              is_deleted: true,
+              status_inspeksi: "Dihapus",
+              keterangan_qc: params.notes || null
+            })
+            .eq("id", d.detailId);
+        } else {
+          let statusInspeksi = "Ceklis";
+          if (d.finalInspectionId === 3) statusInspeksi = "Silang";
+          if (d.finalInspectionId === 4) statusInspeksi = "BS";
+          
+          const { error: updateError } = await supabase
+            .from("production_details")
+            .update({
+              final_inspection_id: d.finalInspectionId,
+              status_inspeksi: statusInspeksi,
+              keterangan_qc: params.notes || null
+            })
+            .eq("id", d.detailId);
 
-        if (updateError) {
-          throw new Error("Gagal mengupdate status detail: " + updateError.message);
+          if (updateError) {
+            throw new Error("Gagal mengupdate status detail: " + updateError.message);
+          }
         }
       }
 
@@ -341,7 +352,7 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
 
     const { data: details, error: detailsError } = await supabase
       .from("production_details")
-      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id, production_defects(*)")
+      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id, is_deleted, status_inspeksi, status_mending, production_defects(*)")
       .in("header_id", headerIds)
       .is("final_inspection_id", null);
 
@@ -445,7 +456,7 @@ export async function getQCHistory() {
         *,
         qc_inspection_items (
           production_details (
-            id, pcs_index, final_inspection_id, header_id, roll_no, keterangan_qc,
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, jml_hasil_produksi, status_inspeksi, status_mending, is_deleted,
             production_headers (
               id, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, status_matching
             )
@@ -516,7 +527,7 @@ export async function getQCHistoryByBatch(designId: string, potonganKe: string) 
       qc_inspection_items!inner (
         production_detail_id,
         production_details (
-          id, pcs_index, final_inspection_id, header_id, roll_no, keterangan_qc, 
+          id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, jml_hasil_produksi, status_inspeksi, status_mending, is_deleted, 
           production_headers (id, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, status_matching)
         )
       )
@@ -563,7 +574,7 @@ export async function searchQCHistory(filters: {
         items:qc_inspection_items!inner (
           id, final_inspection_id,
           detail:production_details!inner (
-            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, indikator_stop,
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, status_mending, indikator_stop, is_deleted,
             header:production_headers!inner (id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operator_backup, operators(nama_operator), groups(nama_grup))
           )
         )
@@ -812,9 +823,38 @@ export async function getPendingQCDetailsByDate(tanggal: string) {
   }
 }
 
-export async function deleteProductionDetailRow(detailId: string) {
+export async function deleteProductionDetailRow(detailId: string, mode: "shift" | "keep_slot" = "shift") {
   try {
     const supabase = await createAdminClient();
+
+    if (mode === "keep_slot") {
+      // Opsi 2: Tandai data rincian sebagai dihapus (slot & nomor panel tetap tidak bergeser)
+      await supabase
+        .from("production_defects")
+        .delete()
+        .eq("production_detail_id", detailId);
+
+      const { error: updateErr } = await supabase
+        .from("production_details")
+        .update({
+          is_deleted: true,
+          status_inspeksi: "Dihapus",
+          status_mending: "Dihapus",
+          jml_hasil_produksi: 0,
+          keterangan_cacat: "[DIHAPUS]",
+          detail_masalah: "PANEL DIHAPUS",
+          kategori_masalah: null,
+          spesifik_masalah: null,
+          final_inspection_id: null,
+        })
+        .eq("id", detailId);
+
+      if (updateErr) {
+        return { success: false, error: "Gagal menandai detail dihapus: " + updateErr.message };
+      }
+
+      return { success: true };
+    }
 
     // 1. Fetch the detail to get its header_id, pcs_index, and jml_hasil_produksi
     const { data: detail, error: detailErr } = await supabase
@@ -1347,7 +1387,7 @@ export async function getQCHistoryDetailById(batchId: string) {
         items:qc_inspection_items (
           id, final_inspection_id,
           detail:production_details (
-            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, indikator_stop,
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, status_mending, indikator_stop, is_deleted,
             header:production_headers (id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operator_backup, operators(nama_operator), groups(nama_grup))
           )
         )

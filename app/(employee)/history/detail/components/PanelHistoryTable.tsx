@@ -139,8 +139,9 @@ export default function PanelHistoryTable({
     processed.forEach((p: any, i: number) => {
       const { item, isIstirahatOnly, hasIstirahat, isGradable, opr, grp, tgl, jamStr, operatorStr } = p;
 
+      const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
       const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || item.kategori_masalah === "X";
-      if (!isBS) {
+      if (!isBS && !isDeleted) {
         currentOpCount += 1;
       }
 
@@ -498,11 +499,12 @@ export default function PanelHistoryTable({
           const hasDefect = masalahLines.length > 0 && masalahLines[0] !== "-";
           if (masalahLines.length === 0) masalahLines.push("-");
 
+          const isDeleted = !!detail.is_deleted || detail.status_inspeksi === "Dihapus" || detail.status_mending === "Dihapus" || (detail.keterangan_cacat || "").includes("[DIHAPUS]");
           const isBsRow = String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR") || String(item.displayNo).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS";
 
           return (
-            <tr key={item.id || idx} className={`${hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
-              <td className="px-1 py-1 font-bold text-slate-800 text-center border-r border-slate-100 flex flex-col items-center justify-center">
+            <tr key={item.id || idx} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
+              <td className={`px-1 py-1 font-bold text-slate-800 text-center border-r border-slate-100 flex flex-col items-center justify-center ${isDeleted ? "bg-slate-100" : ""}`}>
                 {String(item.displayNo).toUpperCase().includes("AWAL") ? (
                   <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                 ) : String(item.displayNo).toUpperCase().includes("AKHIR") ? (
@@ -510,9 +512,13 @@ export default function PanelHistoryTable({
                 ) : (
                   <div className="flex flex-col items-center justify-center">
                     <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
-                    {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
+                    {isDeleted ? (
+                      <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">
+                        DIHAPUS
+                      </span>
+                    ) : (String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) ? (
                       <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </td>
@@ -529,7 +535,9 @@ export default function PanelHistoryTable({
                 {item.showOpr ? (item.oprStr || "-") : (hasIstirahat ? "Istirahat" : "")}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100">
-                {isIstirahatOnly ? (
+                {isDeleted ? (
+                  <span className="text-slate-400 font-bold">-</span>
+                ) : isIstirahatOnly ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
                 ) : (
                   detail.kategori_masalah || detail.detail_masalah || isBsRow || detail.indikator_stop ? (
@@ -539,8 +547,10 @@ export default function PanelHistoryTable({
                   )
                 )}
               </td>
-              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${hasIstirahat ? 'text-slate-500' : (hasDefect ? 'text-rose-600' : 'text-slate-400')}`}>
-                {hasIstirahat && (
+              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${isDeleted ? 'text-slate-400 italic' : hasIstirahat ? 'text-slate-500' : (hasDefect ? 'text-rose-600' : 'text-slate-400')}`}>
+                {isDeleted ? (
+                  <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
+                ) : hasIstirahat ? (
                   <>
                     {(backupOpName && backupOpName.trim().toLowerCase() !== (item.oprStr || "").trim().toLowerCase()) ? (
                       <div className="font-bold text-slate-700 mb-0.5">{backupOpName}</div>
@@ -553,14 +563,17 @@ export default function PanelHistoryTable({
                       <div className="text-rose-600">{masalahLines.join("\n")}</div>
                     )}
                   </>
+                ) : (
+                  masalahLines.length > 0 ? masalahLines.join("\n") : "-"
                 )}
-                {!hasIstirahat && (masalahLines.length > 0 ? masalahLines.join("\n") : "-")}
               </td>
               <td className={`px-1 py-1 text-center text-[11px] font-bold border-r border-slate-100 ${downtimeDisplay && downtimeDisplay !== "-" ? "text-rose-600" : "text-slate-400"}`}>
                 {downtimeDisplay}
               </td>
               <td className="px-1 py-1 text-center">
-                {itemHeader?.id && detail.keterangan_cacat !== "FINISH" && (
+                {isDeleted ? (
+                  <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
+                ) : itemHeader?.id && detail.keterangan_cacat !== "FINISH" ? (
                   <Link
                     href={`/edit/${itemHeader.id}`}
                     className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
@@ -568,7 +581,7 @@ export default function PanelHistoryTable({
                   >
                     <Edit className="w-3.5 h-3.5" />
                   </Link>
-                )}
+                ) : null}
               </td>
             </tr>
           );

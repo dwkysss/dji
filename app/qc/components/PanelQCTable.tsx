@@ -80,8 +80,9 @@ export default function PanelQCTable({
     processed.forEach((p, i) => {
       const { item, isIstirahatOnly, hasIstirahat, oprBase, opr, grp, tgl, operatorStr } = p;
 
+      const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
       const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
-      if (!isBS) {
+      if (!isBS && !isDeleted) {
         currentOpCount += 1;
       }
 
@@ -121,7 +122,7 @@ export default function PanelQCTable({
         displayNo: item.production_headers?.panel_no || "-",
         meterDisplay: "-",
         cacatDisplay: item.detail_masalah || item.keterangan_cacat || "-",
-        isGradable: true,
+        isGradable: !isDeleted,
         showTgl,
         showGrp,
         showOpr,
@@ -147,6 +148,8 @@ export default function PanelQCTable({
 
         processed.forEach((itemP) => {
           if (itemP.operatorStr === operatorStr) {
+            const isPDeleted = !!itemP.item.is_deleted || itemP.item.status_inspeksi === "Dihapus" || (itemP.item.keterangan_cacat || "").includes("[DIHAPUS]");
+            if (isPDeleted) return;
             const sel = selections[itemP.item.id];
             if (sel === 1) countPass += 1;
             else if (sel === 3) countDefect += 1;
@@ -175,6 +178,8 @@ export default function PanelQCTable({
   const { totalGradable, totalPass, totalDefect, totalBS } = React.useMemo(() => {
     let g = 0, p = 0, d = 0, bs = 0;
     detailsToDisplay.forEach((item) => {
+      const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+      if (isDeleted) return;
       const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
       if (!isBS) {
         g += 1;
@@ -443,12 +448,13 @@ export default function PanelQCTable({
             }
 
             const cleanPanelNo = rawPanelNo.replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
+            const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
             const isBsPanel = isBsAwal || isBsAkhir || (String(rawPanelNo).includes("(BS)")) || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
             const hasError = item.indikator_stop || !!item.kategori_masalah || !!item.detail_masalah || isBsPanel || (item.production_defects && item.production_defects.length > 0);
 
             return (
-            <tr key={item.id} className={`${hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
-              <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "bg-white")}`}>
+            <tr key={item.id} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
+              <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isDeleted ? "bg-slate-100" : hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "bg-white")}`}>
                 {isBsAwal ? (
                   <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                 ) : isBsAkhir ? (
@@ -456,9 +462,13 @@ export default function PanelQCTable({
                 ) : (
                   <div className="flex flex-col items-center justify-center">
                     <span>{cleanPanelNo}</span>
-                    {(String(rawPanelNo).includes("(BS)") || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS") && (
+                    {isDeleted ? (
+                      <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">
+                        DIHAPUS
+                      </span>
+                    ) : (String(rawPanelNo).includes("(BS)") || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS") ? (
                       <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </td>
@@ -472,11 +482,13 @@ export default function PanelQCTable({
                 {showOpr ? (item.oprBase || grpStr || "-") : (hasIstirahat ? "Istirahat" : "")}
               </td>
               <td className="px-1 py-1 text-center font-bold text-sm border-r border-slate-100">
-                {hasError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
+                {isDeleted ? <span className="text-slate-400 font-bold">-</span> : hasError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
               </td>
               
-              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isIstirahatOnly ? 'text-slate-500' : 'text-rose-600'}`}>
-                {hasIstirahat ? (
+              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isDeleted ? 'text-slate-400 italic' : isIstirahatOnly ? 'text-slate-500' : 'text-rose-600'}`}>
+                {isDeleted ? (
+                  <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
+                ) : hasIstirahat ? (
                   <>
                     {extractedBackupOp && <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>}
                     {cacat ? (
@@ -494,39 +506,55 @@ export default function PanelQCTable({
               
               <td className="px-1 py-1 border-r border-slate-100">
                 <div className="flex items-center justify-center gap-1">
-                  <button
-                    onClick={() => setDetailToDelete({ id: item.id, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
-                    className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-sm"
-                    title="Hapus Rincian"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {isDeleted ? (
+                    <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
+                  ) : (
+                    <button
+                      onClick={() => setDetailToDelete({ id: item.id, panelNo: cleanPanelNo, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
+                      className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-sm"
+                      title="Hapus Rincian"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </td>
 
               <td className="px-1 py-1 text-center border-r border-slate-100">
-                <button
-                  onClick={() => handleSelectGrade(item.id, 1)}
-                  className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 1 ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-emerald-300 hover:text-emerald-500"}`}
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                </button>
+                {isDeleted ? (
+                  <span className="text-slate-300 font-bold block text-center">-</span>
+                ) : (
+                  <button
+                    onClick={() => handleSelectGrade(item.id, 1)}
+                    className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 1 ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-emerald-300 hover:text-emerald-500"}`}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100">
-                <button
-                  onClick={() => handleSelectGrade(item.id, 3)}
-                  className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 3 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                {isDeleted ? (
+                  <span className="text-slate-300 font-bold block text-center">-</span>
+                ) : (
+                  <button
+                    onClick={() => handleSelectGrade(item.id, 3)}
+                    className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 3 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </td>
               <td className="px-1 py-1 text-center">
-                <button
-                  onClick={() => handleSelectGrade(item.id, 4)}
-                  className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 4 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}
-                >
-                  <span className="text-[10px] font-black">BS</span>
-                </button>
+                {isDeleted ? (
+                  <span className="text-slate-300 font-bold block text-center">-</span>
+                ) : (
+                  <button
+                    onClick={() => handleSelectGrade(item.id, 4)}
+                    className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 4 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}
+                  >
+                    <span className="text-[10px] font-black">BS</span>
+                  </button>
+                )}
               </td>
             </tr>
             );

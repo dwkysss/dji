@@ -68,19 +68,26 @@ export default function PanelMendingTable({
             );
           }
 
+          const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+          const cleanPanelNo = (item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
+
           return (
-            <tr key={item.id} className={`transition-colors ${(item.isIstirahat || item.hasIstirahat) ? "bg-amber-50/30 hover:bg-amber-50/50" : "bg-white hover:bg-slate-50"}`}>
-              <td className={`sticky left-0 z-10 px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${(item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
+            <tr key={item.id} className={`transition-colors ${isDeleted ? "bg-slate-100/60 opacity-80" : (item.isIstirahat || item.hasIstirahat) ? "bg-amber-50/30 hover:bg-amber-50/50" : "bg-white hover:bg-slate-50"}`}>
+              <td className={`sticky left-0 z-10 px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isDeleted ? "bg-slate-100" : (item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
                 {String(item.displayNo).toUpperCase().includes("AWAL") ? (
                   <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                 ) : String(item.displayNo).toUpperCase().includes("AKHIR") ? (
                   <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
                 ) : (
                   <div className="flex flex-col items-center justify-center">
-                    <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
-                    {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
+                    <span>{cleanPanelNo}</span>
+                    {isDeleted ? (
+                      <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">
+                        DIHAPUS
+                      </span>
+                    ) : (String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) ? (
                       <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </td>
@@ -94,10 +101,18 @@ export default function PanelMendingTable({
                 {item.showOpr ? (item.oprBase || item.grpStr || "-") : ((item.isIstirahat || item.hasIstirahat) ? "Istirahat" : "")}
               </td>
               <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100 border-b border-slate-100">
-                {item.indikator_stop || !!item.kategori_masalah || !!item.detail_masalah || item.jml_hasil_produksi === 0 || String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR") || String(item.displayNo).includes("(BS)") ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
+                {isDeleted ? (
+                  <span className="text-slate-400 font-bold">-</span>
+                ) : (item.indikator_stop || !!item.kategori_masalah || !!item.detail_masalah || item.jml_hasil_produksi === 0 || String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR") || String(item.displayNo).includes("(BS)")) ? (
+                  <span className="text-rose-600">X</span>
+                ) : (
+                  <span className="text-emerald-600">✓</span>
+                )}
               </td>
-              <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 border-b border-slate-100">
-                {(item.isIstirahat || item.hasIstirahat) ? (
+              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 border-b border-slate-100 ${isDeleted ? 'text-slate-400 italic' : ''}`}>
+                {isDeleted ? (
+                  <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
+                ) : (item.isIstirahat || item.hasIstirahat) ? (
                   <>
                     {item.backupOpName && <div className="font-bold text-slate-700 mb-0.5">{item.backupOpName}</div>}
                     {item.cacatDisplay && item.cacatDisplay !== "-" ? (
@@ -113,11 +128,13 @@ export default function PanelMendingTable({
                 )}
               </td>
               <td className="px-2 py-1 border-r border-slate-100 border-b border-slate-100">
-                {item.isGradable ? (
+                {isDeleted ? (
+                  <span className="text-[10px] text-slate-400 font-semibold italic text-center block">Dihapus</span>
+                ) : item.isGradable ? (
                   <div className="flex items-center justify-center gap-1">
                     <button
-                      onClick={() => onDeleteDetail({ id: item.id, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
-                      className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-sm"
+                      onClick={() => onDeleteDetail({ id: item.id, panelNo: cleanPanelNo, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
+                      className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-sm cursor-pointer"
                       title="Hapus Rincian"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -126,7 +143,9 @@ export default function PanelMendingTable({
                 ) : null}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100 w-16">
-                {item.isGradable ? (
+                {isDeleted ? (
+                  <span className="text-slate-300 font-bold block text-center">-</span>
+                ) : item.isGradable ? (
                   <button
                     onClick={() => onSelectGrade(item.id, "A")}
                     className={`w-7 h-7 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === "A" ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-emerald-300 hover:text-emerald-500"}`}
@@ -136,7 +155,9 @@ export default function PanelMendingTable({
                 ) : null}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100 w-16">
-                {item.isGradable ? (
+                {isDeleted ? (
+                  <span className="text-slate-300 font-bold block text-center">-</span>
+                ) : item.isGradable ? (
                   <button
                     onClick={() => onSelectGrade(item.id, "B")}
                     className={`w-7 h-7 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === "B" ? "border-amber-500 bg-amber-100 text-amber-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-amber-300 hover:text-amber-500"}`}
@@ -146,7 +167,9 @@ export default function PanelMendingTable({
                 ) : null}
               </td>
               <td className="px-1 py-1 text-center border-b border-slate-100 w-16">
-                {item.isGradable ? (
+                {isDeleted ? (
+                  <span className="text-slate-300 font-bold block text-center">-</span>
+                ) : item.isGradable ? (
                   <button
                     onClick={() => onSelectGrade(item.id, "BS")}
                     className={`w-7 h-7 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === "BS" ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}

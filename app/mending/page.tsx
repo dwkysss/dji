@@ -675,6 +675,9 @@ export default function MendingPage() {
   }, [searchMesin, searchPotongan, searchTanggal, sortOrder]);
 
   const getInitialMendingGrade = (item: any): string => {
+    if (item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]")) {
+      return "Dihapus";
+    }
     const pNo = String(item.production_headers?.panel_no || "").toUpperCase();
     const isSisa = pNo.includes("AWAL") || pNo.includes("AKHIR");
     const isBS = isSisa || item.final_inspection_id === 4 || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
@@ -777,7 +780,8 @@ export default function MendingPage() {
     setStartMendingTime(formatHHMM(startIso));
   };
 
-  const [detailToDelete, setDetailToDelete] = useState<{ id: string, name: string } | null>(null);
+  const [detailToDelete, setDetailToDelete] = useState<{ id: string; name: string; panelNo?: string } | null>(null);
+  const [pendingDeleteMode, setPendingDeleteMode] = useState<"shift" | "keep_slot" | null>(null);
   const [isDeletingDetail, setIsDeletingDetail] = useState(false);
 
   const detailsToDisplay = React.useMemo(() => {
@@ -856,7 +860,6 @@ export default function MendingPage() {
         const isIstirahat = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT");
         const isFinish = item.keterangan_cacat === "FINISH" || item.production_headers?.panel_no === "FINISH";
         const isStart = item.keterangan_cacat === "START" || item.production_headers?.panel_no === "START";
-        const isGradable = !isFinish && !isStart;
 
         let extractedBackupOp = h.operator_backup || "";
         if (!extractedBackupOp && item.keterangan_cacat) {
@@ -1004,7 +1007,9 @@ export default function MendingPage() {
           }
         }
 
-        const cacatText = cacatLines.join("\n");
+        const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+        const isGradable = !isFinish && !isStart && !isDeleted;
+        const cacatText = isDeleted ? "[Panel Dihapus]" : cacatLines.join("\n");
 
         return {
           item,
@@ -1012,6 +1017,7 @@ export default function MendingPage() {
           isFinish,
           isStart,
           isGradable,
+          isDeleted,
           opr,
           grp,
           tgl,
@@ -1031,13 +1037,13 @@ export default function MendingPage() {
       let lastOpr = "";
 
       processed.forEach((p, i) => {
-        const { item, isIstirahat, isFinish, isStart, isGradable, opr, grp, tgl, operatorStr, oprStr, cacatText } = p;
+        const { item, isIstirahat, isFinish, isStart, isGradable, isDeleted, opr, grp, tgl, operatorStr, oprStr, cacatText } = p;
 
         const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || selections[item.id] === "BS";
-        if (isGradable && !isBS) {
+        if (isGradable && !isBS && !isDeleted) {
           currentOpCount += 1;
         }
-        if (isGradable) {
+        if (isGradable && !isDeleted) {
           currentOpIds.push(item.id);
         }
 
@@ -1072,12 +1078,13 @@ export default function MendingPage() {
           isMeter: false,
           isStartRow: false,
           isIstirahat,
+          isDeleted,
           isFinishReport: isFinish,
           displayNo: item.production_headers?.panel_no || "-",
           meterDisplay: "-",
           cacatDisplay: cacatText,
           backupOpName: p.backupOpName,
-          isGradable,
+          isGradable: isGradable && !isDeleted,
           showTgl,
           showGrp,
           showOpr,
@@ -1474,15 +1481,16 @@ export default function MendingPage() {
   }, [detailsToDisplay, isMeteranBatch, selections]);
 
   const gradableItems = React.useMemo(() => {
-    return displayItems.filter((item: any) => item.isGradable);
+    return displayItems.filter((item: any) => item.isGradable && !item.isDeleted);
   }, [displayItems]);
 
-  const handleDeleteDetail = async () => {
+  const handleDeleteDetail = async (mode: "shift" | "keep_slot" = "shift") => {
     if (!detailToDelete) return;
     setIsDeletingDetail(true);
-    const res = await deleteProductionDetailRow(detailToDelete.id);
+    const res = await deleteProductionDetailRow(detailToDelete.id, mode);
     if (res.success) {
       setDetailToDelete(null);
+      setPendingDeleteMode(null);
       handleSearch(searchTanggal);
       if (activeMendingPcs) {
         refreshActiveMendingDetails(activeMendingPcs.nomor_mc, activeMendingPcs.design_id, activeMendingPcs.potongan_ke, activeMendingPcs.pcs_index);
@@ -1501,11 +1509,13 @@ export default function MendingPage() {
     if (!activeMendingPcs || detailsToDisplay.length === 0) return;
     const autoSelections: Record<string, string> = {};
     for (const d of detailsToDisplay) {
+      if (d.is_deleted || d.status_inspeksi === "Dihapus" || d.status_mending === "Dihapus") continue;
       autoSelections[d.id] = getInitialMendingGrade(d);
     }
     setSelections((prev) => {
       const next: Record<string, string> = {};
       detailsToDisplay.forEach((d) => {
+        if (d.is_deleted || d.status_inspeksi === "Dihapus" || d.status_mending === "Dihapus") return;
         next[d.id] = prev[d.id] || autoSelections[d.id];
       });
       return next;
@@ -2294,44 +2304,134 @@ export default function MendingPage() {
         )}
         
         {/* Pop up modal hapus rincian */}
+        {/* Pop up modal hapus rincian */}
         {detailToDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100">
-              <div className="flex items-center gap-3 mb-4 text-rose-600">
-                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <h3 className="text-lg font-bold">Hapus Baris Data?</h3>
-              </div>
-              
-              <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                Anda yakin ingin menghapus baris rincian data ini secara permanen?<br/>
-                <span className="font-semibold block mt-2 p-3 bg-slate-50 rounded-lg border border-slate-100 text-slate-800">
-                  {detailToDelete.name}
-                </span>
-              </p>
-              
-              <div className="flex gap-3 justify-end mt-4">
-                <button
-                  onClick={() => setDetailToDelete(null)}
-                  disabled={isDeletingDetail}
-                  className="px-4 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleDeleteDetail}
-                  disabled={isDeletingDetail}
-                  className="px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-rose-600 hover:bg-rose-700 shadow-md shadow-rose-600/20 transition-all flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isDeletingDetail ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-200">
+              {pendingDeleteMode === null ? (
+                /* Step 1: Pilih Opsi Hapus */
+                <>
+                  <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
+                    <AlertTriangle className="w-6 h-6 text-rose-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">Pilih Opsi Hapus Panel</h3>
+                  <p className="text-xs text-center text-slate-500 mb-5">
+                    Panel: <span className="font-semibold text-slate-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo} - ` : ""}{detailToDelete.name}</span>
+                  </p>
+                  
+                  <div className="flex flex-col gap-3 mb-5">
+                    {/* Opsi 1: Hapus & Geser */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteMode("shift")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
+                        1
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
+                          <span>Hapus & Geser Nomor Panel</span>
+                          <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Permanen</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          Hapus data baris ini sepenuhnya. Nomor panel berikutnya akan digeser naik 1 angka (contoh: Panel 4 jadi Panel 3).
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Opsi 2: Tandai Dihapus (Nomor Tetap) */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteMode("keep_slot")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
+                        2
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
+                          <span>Tandai Dihapus (Nomor Tetap)</span>
+                          <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">Nomor Tetap</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          Nomor panel tetap berada di posisinya (tidak bergeser), panel diberi tanda <span className="font-semibold text-rose-600">DIHAPUS</span>, dan tidak dihitung dalam total penjumlahan panel.
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDetailToDelete(null);
+                        setPendingDeleteMode(null);
+                      }}
+                      className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Step 2: Layar Konfirmasi Kedua */
+                <>
+                  <div className={`w-12 h-12 rounded-full ${pendingDeleteMode === "shift" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"} flex items-center justify-center mb-3 mx-auto`}>
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">Konfirmasi Penghapusan</h3>
+                  <p className="text-xs text-center text-slate-500 mb-4">
+                    Apakah Anda yakin ingin melanjutkan tindakan ini?
+                  </p>
+
+                  {pendingDeleteMode === "shift" ? (
+                    <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
+                        <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">1</span>
+                        Opsi 1: Hapus & Geser Nomor Panel
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        Data baris <span className="font-semibold text-rose-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>dihapus permanen</strong> dan nomor panel setelahnya akan <strong>digeser naik 1 nomor</strong>.
+                      </p>
+                    </div>
                   ) : (
-                    <Trash2 className="w-4 h-4" />
+                    <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
+                        <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
+                        Opsi 2: Tandai Dihapus (Nomor Tetap)
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        Nomor panel <span className="font-semibold text-amber-800">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>tetap di tempat</strong> dan berstatus <strong>DIHAPUS</strong> (tidak dihitung dalam total penjumlahan panel).
+                      </p>
+                    </div>
                   )}
-                  Ya, Hapus Data
-                </button>
-              </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteMode(null)}
+                      disabled={isDeletingDetail}
+                      className="flex-1 h-11 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 border border-slate-200 cursor-pointer"
+                    >
+                      Kembali
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDetail(pendingDeleteMode)}
+                      disabled={isDeletingDetail}
+                      className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${pendingDeleteMode === "shift" ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20" : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"} shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
+                    >
+                      {isDeletingDetail ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      Ya, Hapus Data
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

@@ -82,10 +82,19 @@ export default function MeterMendingTable({
             );
           }
 
+          const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+
           return (
-            <tr key={item.id || index} className={`transition-colors ${(item.isIstirahat || item.hasIstirahat) ? "bg-amber-50/30 hover:bg-amber-50/50" : "bg-white hover:bg-slate-50"}`}>
-              <td className={`sticky left-0 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${(item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
-                {item.displayNo}
+            <tr key={item.id || index} className={`transition-colors ${isDeleted ? "bg-slate-100/60 opacity-80" : (item.isIstirahat || item.hasIstirahat) ? "bg-amber-50/30 hover:bg-amber-50/50" : "bg-white hover:bg-slate-50"}`}>
+              <td className={`sticky left-0 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isDeleted ? "bg-slate-100" : (item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
+                <div className="flex flex-col items-center justify-center">
+                  <span>{item.displayNo}</span>
+                  {isDeleted && (
+                    <span className="text-[8px] font-black bg-rose-100 text-rose-700 px-1 py-0.2 rounded mt-0.5 leading-none shadow-sm border border-rose-200">
+                      DIHAPUS
+                    </span>
+                  )}
+                </div>
               </td>
               <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100 border-b border-slate-100">
                 {item.showTgl ? item.tglStr : ""}
@@ -100,22 +109,31 @@ export default function MeterMendingTable({
                 {item.meterDisplay}
               </td>
               <td className="px-1.5 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100 border-b border-slate-100">
-                {!item.isGradable ? "" : (item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
+                {isDeleted ? <span className="text-slate-400 font-bold">-</span> : !item.isGradable ? "" : (item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
               </td>
               <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100 ${
+                isDeleted ? "text-slate-400 italic" :
                 item.hasIstirahat || item.cacatDisplay === "ISTIRAHAT" || item.cacatDisplay === "FINISH"
                   ? "text-slate-500"
                   : (item.cacatDisplay && item.cacatDisplay !== "-" && item.cacatDisplay !== "START" ? "text-rose-600" : "text-slate-400")
               }`}>
-                {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
-                {!item.hasIstirahat && (item.cacatDisplay || "-")}
-                {item.hasIstirahat && item.cacatDisplay && item.cacatDisplay !== "-" && item.cacatDisplay !== "ISTIRAHAT" && (
-                  <div className="text-rose-600">{item.cacatDisplay}</div>
+                {isDeleted ? (
+                  <div className="italic text-slate-400 font-medium">[Titik Dihapus]</div>
+                ) : (
+                  <>
+                    {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
+                    {!item.hasIstirahat && (item.cacatDisplay || "-")}
+                    {item.hasIstirahat && item.cacatDisplay && item.cacatDisplay !== "-" && item.cacatDisplay !== "ISTIRAHAT" && (
+                      <div className="text-rose-600">{item.cacatDisplay}</div>
+                    )}
+                    {item.hasIstirahat && (!item.cacatDisplay || item.cacatDisplay === "-" || item.cacatDisplay === "ISTIRAHAT") && !item.backupOpName && "-"}
+                  </>
                 )}
-                {item.hasIstirahat && (!item.cacatDisplay || item.cacatDisplay === "-" || item.cacatDisplay === "ISTIRAHAT") && !item.backupOpName && "-"}
               </td>
               <td className="px-2 py-1.5 text-center w-24 border-r border-slate-100 border-b border-slate-100">
-                {item.isGradable ? (
+                {isDeleted ? (
+                  <span className="text-[10px] text-slate-400 font-semibold italic text-center block">Dihapus</span>
+                ) : item.isGradable ? (
                   <div className="flex items-center justify-center gap-1">
                     <button
                       onClick={() => onDeleteDetail({ id: item.id, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
@@ -128,7 +146,9 @@ export default function MeterMendingTable({
                 ) : null}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100 w-16">
-                {item.isGradable ? (
+                {isDeleted ? (
+                  <span className="text-slate-300 font-bold block text-center">-</span>
+                ) : item.isGradable ? (
                   <button
                     onClick={() => onSelectGrade(item.id, "A")}
                     className={`w-7 h-7 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === "A" ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-emerald-300 hover:text-emerald-500"}`}
@@ -138,7 +158,9 @@ export default function MeterMendingTable({
                 ) : null}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100 w-16">
-                {item.isGradable ? (
+                {isDeleted ? (
+                  <span className="text-slate-300 font-bold block text-center">-</span>
+                ) : item.isGradable ? (
                   <button
                     onClick={() => onSelectGrade(item.id, "B")}
                     className={`w-7 h-7 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === "B" ? "border-amber-500 bg-amber-100 text-amber-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-amber-300 hover:text-amber-500"}`}
@@ -148,7 +170,9 @@ export default function MeterMendingTable({
                 ) : null}
               </td>
               <td className="px-1 py-1 text-center border-b border-slate-100 w-16">
-                {item.isGradable ? (
+                {isDeleted ? (
+                  <span className="text-slate-300 font-bold block text-center">-</span>
+                ) : item.isGradable ? (
                   <button
                     onClick={() => onSelectGrade(item.id, "BS")}
                     className={`w-7 h-7 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === "BS" ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}

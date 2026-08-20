@@ -178,41 +178,65 @@ function MendingDetailContent() {
   const detailsToDisplay = React.useMemo(() => {
     if (!mendingData) return [];
 
-    if (isMeteran && allPcsDetails.length > 0) {
+    if (allPcsDetails.length > 0) {
       return allPcsDetails.map((detail: any) => {
-        const mendingItem = (group.items || []).find((item: any) => item.detail?.id === detail.id);
+        const mendingItem = (group.items || []).find((item: any) => item.detail?.id === detail.id || item.production_detail_id === detail.id);
         return {
           ...detail,
-          hasil_mending_original: mendingItem?.hasil_mending || null,
+          hasil_mending_original: mendingItem?.hasil_mending || detail.status_mending || null,
           final_inspection_id: detail.final_inspection_id,
           production_headers: detail.production_headers || detail.header || header,
         };
       }).sort((a: any, b: any) => {
-        const hjA = String(a.production_headers?.tanggal_jam || "");
-        const hjB = String(b.production_headers?.tanggal_jam || "");
-        if (hjA !== hjB) return hjA.localeCompare(hjB);
+        if (
+          a.production_headers?.panel_no === "METERAN" ||
+          b.production_headers?.panel_no === "METERAN"
+        ) {
+          const hjA = String(a.production_headers?.tanggal_jam || "");
+          const hjB = String(b.production_headers?.tanggal_jam || "");
+          if (hjA !== hjB) return hjA.localeCompare(hjB);
 
-        const isSpecialA = ((!!a.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || !!a.kategori_masalah?.toUpperCase().includes("ISTIRAHAT"))
-              && !a.kategori_masalah && !a.detail_masalah)
-          || (a.production_headers?.meter_akhir !== null && a.production_headers?.meter_akhir !== undefined
-              && String(a.production_headers?.meter_akhir).trim() !== ""
-              && (a.meter_kain === null || a.meter_kain === undefined));
-        const isSpecialB = ((!!b.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || !!b.kategori_masalah?.toUpperCase().includes("ISTIRAHAT"))
-              && !b.kategori_masalah && !b.detail_masalah)
-          || (b.production_headers?.meter_akhir !== null && b.production_headers?.meter_akhir !== undefined
-              && String(b.production_headers?.meter_akhir).trim() !== ""
-              && (b.meter_kain === null || b.meter_kain === undefined));
+          const isSpecialA = ((!!a.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || !!a.kategori_masalah?.toUpperCase().includes("ISTIRAHAT"))
+                && !a.kategori_masalah && !a.detail_masalah)
+            || (a.production_headers?.meter_akhir !== null && a.production_headers?.meter_akhir !== undefined
+                && String(a.production_headers?.meter_akhir).trim() !== ""
+                && (a.meter_kain === null || a.meter_kain === undefined));
+          const isSpecialB = ((!!b.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || !!b.kategori_masalah?.toUpperCase().includes("ISTIRAHAT"))
+                && !b.kategori_masalah && !b.detail_masalah)
+            || (b.production_headers?.meter_akhir !== null && b.production_headers?.meter_akhir !== undefined
+                && String(b.production_headers?.meter_akhir).trim() !== ""
+                && (b.meter_kain === null || b.meter_kain === undefined));
 
-        if (isSpecialA && !isSpecialB) return 1;
-        if (!isSpecialA && isSpecialB) return -1;
-        if (isSpecialA && isSpecialB) return 0;
+          if (isSpecialA && !isSpecialB) return 1;
+          if (!isSpecialA && isSpecialB) return -1;
+          if (isSpecialA && isSpecialB) return 0;
 
-        const valA = getActualMeter(a, a.production_headers);
-        const valB = getActualMeter(b, b.production_headers);
-        const mA = valA !== null ? valA : Infinity;
-        const mB = valB !== null ? valB : Infinity;
-        if (mA === Infinity && mB === Infinity) return 0;
-        return mA - mB;
+          const valA = getActualMeter(a, a.production_headers);
+          const valB = getActualMeter(b, b.production_headers);
+          const mA = valA !== null ? valA : Infinity;
+          const mB = valB !== null ? valB : Infinity;
+          if (mA === Infinity && mB === Infinity) return 0;
+          return mA - mB;
+        }
+        const pAStr = String(a.production_headers?.panel_no || "").trim().toUpperCase();
+        const pBStr = String(b.production_headers?.panel_no || "").trim().toUpperCase();
+
+        const isAwalA = pAStr.includes("AWAL");
+        const isAwalB = pBStr.includes("AWAL");
+        if (isAwalA && !isAwalB) return -1;
+        if (!isAwalA && isAwalB) return 1;
+
+        const isAkhirA = pAStr.includes("AKHIR");
+        const isAkhirB = pBStr.includes("AKHIR");
+        if (isAkhirA && !isAkhirB) return 1;
+        if (!isAkhirA && isAkhirB) return -1;
+
+        const panelA = parseInt(pAStr, 10);
+        const panelB = parseInt(pBStr, 10);
+        if (!isNaN(panelA) && !isNaN(panelB)) {
+          if (panelA !== panelB) return panelA - panelB;
+        }
+        return pAStr.localeCompare(pBStr, undefined, { numeric: true });
       });
     }
 
@@ -328,11 +352,13 @@ function MendingDetailContent() {
           backupOpName = extractedBackupOp;
         }
         
+        const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
         const isStartOrFinish = h.panel_no === "START" || h.panel_no === "FINISH" || item.meter_kain === "START" || item.meter_kain === "FINISH";
-        const isGradable = !isStartOrFinish;
+        const isGradable = !isStartOrFinish && !isDeleted;
 
         return {
           item,
+          isDeleted,
           isIstirahat,
           hasIstirahat,
           backupOpName,
@@ -346,9 +372,9 @@ function MendingDetailContent() {
       });
 
       processed.forEach((p: any, idx: number) => {
-        const { item, isIstirahat, hasIstirahat, backupOpName, isGradable, opr, grp, tgl, operatorStr, oprStr } = p;
+        const { item, isDeleted, isIstirahat, hasIstirahat, backupOpName, isGradable, opr, grp, tgl, operatorStr, oprStr } = p;
 
-        if (isGradable) {
+        if (isGradable && !isDeleted) {
           currentOpCount += 1;
           if (item.hasil_mending_original === "A") currentOpA++;
           if (item.hasil_mending_original === "B") currentOpB++;
@@ -1344,8 +1370,10 @@ function MendingDetailContent() {
                       }
                       if (masalahLines.length === 0) masalahLines.push("-");
 
+                      const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+
                       return (
-                        <tr key={item.id || idx} className="hover:bg-sky-50/30 transition-colors group">
+                        <tr key={item.id || idx} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : "hover:bg-sky-50/30"} transition-colors group`}>
                           <td className="px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100">
                             {isBsAwal ? (
                               <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
@@ -1354,9 +1382,13 @@ function MendingDetailContent() {
                             ) : (
                               <div className="flex flex-col items-center justify-center">
                                 <span>{(itemHeader.panel_no === "METERAN" ? (detail.meter_kain ?? "-") : String(itemHeader.panel_no || "-")).replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
-                                {(String(itemHeader.panel_no).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS") && (
+                                {isDeleted ? (
+                                  <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">
+                                    DIHAPUS
+                                  </span>
+                                ) : (String(itemHeader.panel_no).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS") ? (
                                   <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                                )}
+                                ) : null}
                               </div>
                             )}
                           </td>
@@ -1370,45 +1402,56 @@ function MendingDetailContent() {
                             {item.hasIstirahat ? "Istirahat" : displayOp}
                           </td>
                           <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100 border-b border-slate-100">
-                            {Icon ? <Icon className={`w-3.5 h-3.5 mx-auto ${iconColor}`} /> : <span className="text-slate-300">-</span>}
+                            {isDeleted ? (
+                              <span className="text-slate-400 font-bold">-</span>
+                            ) : Icon ? (
+                              <Icon className={`w-3.5 h-3.5 mx-auto ${iconColor}`} />
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
                           </td>
                           <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100 ${
+                            isDeleted ? "text-rose-600 font-semibold" :
                             item.hasIstirahat || (masalahLines.length === 1 && (masalahLines[0] === "ISTIRAHAT" || masalahLines[0] === "FINISH" || masalahLines[0] === "-"))
                               ? "text-slate-500"
                               : "text-rose-600"
                           }`}>
-                            <div className="flex flex-col gap-0.5">
-                              {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
-                              {masalahLines.map((line: string, i: number) => {
-                                if (item.hasIstirahat && line === "ISTIRAHAT") return null;
-                                if (item.hasIstirahat && item.backupOpName && line === "-") return null;
-                                if (item.hasIstirahat && !item.backupOpName && masalahLines.length === 1 && line === "-") {
-                                    return <span key={i} title={line}>-</span>;
-                                }
-                                return (
-                                  <span key={i} title={line} className={item.hasIstirahat && line !== "-" ? "text-rose-600" : ""}>
-                                    {line}
-                                  </span>
-                                );
-                              })}
-                            </div>
+                            {isDeleted ? (
+                              <span>[Panel Dihapus]</span>
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
+                                {masalahLines.map((line: string, i: number) => {
+                                  if (item.hasIstirahat && line === "ISTIRAHAT") return null;
+                                  if (item.hasIstirahat && item.backupOpName && line === "-") return null;
+                                  if (item.hasIstirahat && !item.backupOpName && masalahLines.length === 1 && line === "-") {
+                                      return <span key={i} title={line}>-</span>;
+                                  }
+                                  return (
+                                    <span key={i} title={line} className={item.hasIstirahat && line !== "-" ? "text-rose-600" : ""}>
+                                      {line}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </td>
                           <td className="px-1 py-1.5 text-center border-r border-slate-100 border-b border-slate-100">
-                            {isGradable ? (
+                            {isGradable && !isDeleted ? (
                               <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md border ${item.hasil_mending_original === "A" ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm" : "border-slate-200 bg-slate-50 text-slate-300"}`}>
                                 <CheckCircle className="w-3.5 h-3.5" />
                               </div>
                             ) : null}
                           </td>
                           <td className="px-1 py-1.5 text-center border-r border-slate-100 border-b border-slate-100">
-                            {isGradable ? (
+                            {isGradable && !isDeleted ? (
                               <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md border ${item.hasil_mending_original === "B" ? "border-amber-500 bg-amber-100 text-amber-700 shadow-sm" : "border-slate-200 bg-slate-50 text-slate-300"}`}>
                                 <span className="text-[10px] font-black">B</span>
                               </div>
                             ) : null}
                           </td>
                           <td className="px-1 py-1.5 text-center border-b border-slate-100">
-                            {isGradable ? (
+                            {isGradable && !isDeleted ? (
                               <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md border ${item.hasil_mending_original === "BS" ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-slate-50 text-slate-300"}`}>
                                 <span className="text-[10px] font-black">BS</span>
                               </div>

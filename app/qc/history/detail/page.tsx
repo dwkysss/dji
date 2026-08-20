@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import { getQCHistoryDetailById } from "@/actions/qc-actions";
+import { getAllDetailsForPcs } from "@/actions/mending-actions";
 import MeterHistoryTable from "./components/MeterHistoryTable";
 import PanelHistoryTable from "./components/PanelHistoryTable";
 
@@ -97,6 +98,7 @@ function QCDetailContent() {
   const id = searchParams.get("id");
 
   const [qcData, setQcData] = useState<any>(null);
+  const [allPcsDetails, setAllPcsDetails] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -105,8 +107,71 @@ function QCDetailContent() {
   const isMeteran = header.panel_no === "METERAN";
   const itemLabel = isMeteran ? "Titik Meter" : "Panel";
 
+  useEffect(() => {
+    if (!qcData) return;
+    const h = qcData.header || {};
+    const nomor_mc = h.nomor_mc;
+    const design_id = h.design_id;
+    const potongan_ke = h.potongan_ke;
+    const pcs_index = qcData.pcs_index || qcData.detail?.pcs_index;
+
+    if (!nomor_mc || !design_id || !potongan_ke || !pcs_index) return;
+
+    getAllDetailsForPcs(nomor_mc, design_id, parseInt(potongan_ke), parseInt(pcs_index)).then((res) => {
+      if (res.success && res.data) {
+        setAllPcsDetails(res.data);
+      }
+    });
+  }, [qcData]);
+
   const detailsToDisplay = React.useMemo(() => {
     if (!qcData) return [];
+
+    if (allPcsDetails.length > 0) {
+      return allPcsDetails.map((detail: any) => {
+        const qcItem = (group.items || []).find((item: any) => item.detail?.id === detail.id || item.production_detail_id === detail.id);
+        return {
+          ...detail,
+          final_inspection_id: qcItem?.final_inspection_id ?? detail.final_inspection_id,
+          production_headers: detail.production_headers || detail.header || header,
+        };
+      }).sort((a: any, b: any) => {
+        if (
+          a.production_headers?.panel_no === "METERAN" ||
+          b.production_headers?.panel_no === "METERAN"
+        ) {
+          const hjA = String(a.production_headers?.tanggal_jam || "");
+          const hjB = String(b.production_headers?.tanggal_jam || "");
+          if (hjA !== hjB) return hjA.localeCompare(hjB);
+
+          const isSpecialA = ((!!a.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || !!a.kategori_masalah?.toUpperCase().includes("ISTIRAHAT"))
+                && !a.kategori_masalah && !a.detail_masalah)
+            || (a.production_headers?.meter_akhir !== null && a.production_headers?.meter_akhir !== undefined
+                && String(a.production_headers?.meter_akhir).trim() !== ""
+                && (a.meter_kain === null || a.meter_kain === undefined));
+          const isSpecialB = ((!!b.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || !!b.kategori_masalah?.toUpperCase().includes("ISTIRAHAT"))
+                && !b.kategori_masalah && !b.detail_masalah)
+            || (b.production_headers?.meter_akhir !== null && b.production_headers?.meter_akhir !== undefined
+                && String(b.production_headers?.meter_akhir).trim() !== ""
+                && (b.meter_kain === null || b.meter_kain === undefined));
+
+          if (isSpecialA && !isSpecialB) return 1;
+          if (!isSpecialA && isSpecialB) return -1;
+          if (isSpecialA && isSpecialB) return 0;
+
+          const valA = getActualMeter(a, a.production_headers);
+          const valB = getActualMeter(b, b.production_headers);
+          const mA = valA !== null ? valA : Infinity;
+          const mB = valB !== null ? valB : Infinity;
+          if (mA === Infinity && mB === Infinity) return 0;
+          return mA - mB;
+        }
+        const panelA = parseInt(a.production_headers?.panel_no || "0", 10);
+        const panelB = parseInt(b.production_headers?.panel_no || "0", 10);
+        return panelA - panelB;
+      });
+    }
+
     return (group.items || []).map((item: any) => ({
       ...item.detail,
       final_inspection_id: item.final_inspection_id ?? item.detail?.final_inspection_id,
@@ -149,7 +214,7 @@ function QCDetailContent() {
       const panelB = parseInt(b.production_headers?.panel_no || "0", 10);
       return panelA - panelB;
     });
-  }, [qcData, group.items, header]);
+  }, [qcData, group.items, header, allPcsDetails]);
 
 
 

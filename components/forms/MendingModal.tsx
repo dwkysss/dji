@@ -105,7 +105,7 @@ export default function MendingModal({
       });
       return maxM;
     }
-    return detailsList.length;
+    return detailsList.filter((d: any) => !d.is_deleted && d.status_inspeksi !== "Dihapus" && d.status_mending !== "Dihapus" && !(d.keterangan_cacat || "").includes("[DIHAPUS]")).length;
   }, [headerData, detailData, isMeteranBatch]);
 
   useEffect(() => {
@@ -157,6 +157,8 @@ export default function MendingModal({
 
       const detailsList = detailData || headerData?.details || [];
       detailsList.forEach((item: any) => {
+        const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+        if (isDeleted) return;
         const val = selections[item.id];
         if (val === "A") countA++;
         else if (val === "B") countB++;
@@ -186,8 +188,13 @@ export default function MendingModal({
             if (m > maxMeter) maxMeter = m;
           });
         }
+        
+        const countCacat = countA + countB + countBS;
+        const sisaNormal = Math.max(0, maxMeter - countCacat);
+        
+        countA = sisaNormal + countA;
 
-        setValue("mending_grade_a", maxMeter);
+        setValue("mending_grade_a", countA);
         setValue("mending_grade_b", countB);
         setValue("mending_grade_bs", countBS);
       } else {
@@ -204,10 +211,13 @@ export default function MendingModal({
 
     try {
       const detailsList = detailData || headerData?.details || [];
-      const detailsArray = detailsList.map((d: any) => ({
-        detailId: d.id,
-        grade: selections[d.id] || "BS",
-      }));
+      const detailsArray = detailsList.map((d: any) => {
+        const isDel = !!d.is_deleted || d.status_inspeksi === "Dihapus" || d.status_mending === "Dihapus" || (d.keterangan_cacat || "").includes("[DIHAPUS]");
+        return {
+          detailId: d.id,
+          grade: isDel ? "Dihapus" : (selections[d.id] || "BS"),
+        };
+      });
 
       const res = await submitMending({
         details: detailsArray,
@@ -333,7 +343,8 @@ export default function MendingModal({
                       }
                       return `${maxMeter} METER`;
                     } else {
-                      return `${detailsList.length} PANEL`;
+                      const validCount = detailsList.filter((d: any) => !d.is_deleted && d.status_inspeksi !== "Dihapus" && d.status_mending !== "Dihapus" && !(d.keterangan_cacat || "").includes("[DIHAPUS]")).length;
+                      return `${validCount} PANEL`;
                     }
                   })()}
                 </span>

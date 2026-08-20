@@ -22,6 +22,7 @@ import {
   Pause,
   Timer,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import QCInspectionModal from "@/components/forms/QCInspectionModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
@@ -364,6 +365,7 @@ export default function QCPage() {
   const [detailData, setDetailData] = useState<any | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailToDelete, setDetailToDelete] = useState<any>(null);
+  const [pendingDeleteMode, setPendingDeleteMode] = useState<"shift" | "keep_slot" | null>(null);
   const [insertPanelMode, setInsertPanelMode] = useState<"insert" | "append" | null>(null);
   const [insertPanelAt, setInsertPanelAt] = useState<string>("");
   const [isInsertingPanel, setIsInsertingPanel] = useState(false);
@@ -745,6 +747,7 @@ export default function QCPage() {
       setSelections((prev) => {
         const newSelections: Record<string, number> = {};
         detailsToDisplay.forEach((d) => {
+          if (d.is_deleted || d.status_inspeksi === "Dihapus") return;
           const pNo = String(d.production_headers?.panel_no || "").toUpperCase();
           const isSisa = pNo.includes("AWAL") || pNo.includes("AKHIR");
 
@@ -770,7 +773,12 @@ export default function QCPage() {
     setSelections((prev) => ({ ...prev, [detailId]: grade }));
   };
 
-  const isAllSelected = detailsToDisplay.length > 0 && detailsToDisplay.every((d) => selections[d.id]);
+  const isAllSelected =
+    detailsToDisplay.length > 0 &&
+    detailsToDisplay.every((d) => {
+      if (d.is_deleted || d.status_inspeksi === "Dihapus") return true;
+      return !!selections[d.id];
+    });
   
   const handleDefectToggleKategori = (catId: string) => {
     setDefectKategori((prev) => {
@@ -981,13 +989,14 @@ export default function QCPage() {
     }
   };
 
-  const handleDeletePanel = async () => {
+  const handleDeletePanel = async (mode: "shift" | "keep_slot" = "shift") => {
     if (!detailToDelete || !activeQcPcs) return;
     setIsDeleting(true);
     try {
-      const res = await deleteProductionDetailRow(detailToDelete.id);
+      const res = await deleteProductionDetailRow(detailToDelete.id, mode);
       if (res.success) {
         setDetailToDelete(null);
+        setPendingDeleteMode(null);
         // refresh active QC details
         const refreshRes = await getPendingQCDetailsByBatch(activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke);
         if (refreshRes.success && refreshRes.data) {
@@ -1733,32 +1742,134 @@ export default function QCPage() {
         )}
 
         {/* Delete Detail Modal */}
+        {/* Delete Detail Modal */}
         {detailToDelete && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
-              <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-4 mx-auto">
-                <AlertTriangle className="w-6 h-6 text-rose-600" />
-              </div>
-              <h3 className="text-lg font-bold text-center text-slate-800 mb-2">Hapus Rincian Panel?</h3>
-              <p className="text-sm text-center text-slate-500 mb-6">
-                Anda yakin ingin menghapus data rincian panel <span className="font-semibold text-slate-700">{detailToDelete.name}</span>? Tindakan ini tidak dapat dibatalkan.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDetailToDelete(null)}
-                  disabled={isDeleting}
-                  className="flex-1 h-11 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleDeletePanel}
-                  disabled={isDeleting}
-                  className="flex-1 h-11 rounded-xl font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition-all shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Ya, Hapus"}
-                </button>
-              </div>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+              {pendingDeleteMode === null ? (
+                /* Step 1: Pilih Opsi Hapus */
+                <>
+                  <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
+                    <AlertTriangle className="w-6 h-6 text-rose-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">Pilih Opsi Hapus Panel</h3>
+                  <p className="text-xs text-center text-slate-500 mb-5">
+                    Panel: <span className="font-semibold text-slate-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo} - ` : ""}{detailToDelete.name}</span>
+                  </p>
+                  
+                  <div className="flex flex-col gap-3 mb-5">
+                    {/* Opsi 1: Hapus & Geser */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteMode("shift")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
+                        1
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
+                          <span>Hapus & Geser Nomor Panel</span>
+                          <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Permanen</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          Hapus data baris ini sepenuhnya. Nomor panel berikutnya akan digeser naik 1 angka (contoh: Panel 4 jadi Panel 3).
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Opsi 2: Tandai Dihapus (Nomor Tetap) */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteMode("keep_slot")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
+                        2
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
+                          <span>Tandai Dihapus (Nomor Tetap)</span>
+                          <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">Nomor Tetap</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          Nomor panel tetap berada di posisinya (tidak bergeser), panel diberi tanda <span className="font-semibold text-rose-600">DIHAPUS</span>, dan tidak dihitung dalam total penjumlahan panel.
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDetailToDelete(null);
+                        setPendingDeleteMode(null);
+                      }}
+                      className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Step 2: Layar Konfirmasi Kedua */
+                <>
+                  <div className={`w-12 h-12 rounded-full ${pendingDeleteMode === "shift" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"} flex items-center justify-center mb-3 mx-auto`}>
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">Konfirmasi Penghapusan</h3>
+                  <p className="text-xs text-center text-slate-500 mb-4">
+                    Apakah Anda yakin ingin melanjutkan tindakan ini?
+                  </p>
+
+                  {pendingDeleteMode === "shift" ? (
+                    <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
+                        <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">1</span>
+                        Opsi 1: Hapus & Geser Nomor Panel
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        Data baris <span className="font-semibold text-rose-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>dihapus permanen</strong> dan nomor panel setelahnya akan <strong>digeser naik 1 nomor</strong>.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
+                        <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
+                        Opsi 2: Tandai Dihapus (Nomor Tetap)
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        Nomor panel <span className="font-semibold text-amber-800">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>tetap di tempat</strong> dan berstatus <strong>DIHAPUS</strong> (tidak dihitung dalam total penjumlahan panel).
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteMode(null)}
+                      disabled={isDeleting}
+                      className="flex-1 h-11 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 border border-slate-200 cursor-pointer"
+                    >
+                      Kembali
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePanel(pendingDeleteMode)}
+                      disabled={isDeleting}
+                      className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${pendingDeleteMode === "shift" ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20" : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"} shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
+                    >
+                      {isDeleting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      Ya, Hapus Data
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

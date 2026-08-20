@@ -33,6 +33,7 @@ export async function getAvailableMendingFilters() {
       .select(`
         pcs_index,
         kategori_masalah,
+        is_deleted,
         production_headers!inner (
           nomor_mc,
           design_id,
@@ -40,7 +41,8 @@ export async function getAvailableMendingFilters() {
           panel_no
         )
       `)
-      .is("final_inspection_id", null);
+      .is("final_inspection_id", null)
+      .eq("is_deleted", false);
 
     if (err2) return { success: false, error: err2.message };
 
@@ -103,18 +105,18 @@ export async function getPendingMendingDetailsByBatch(mesin: string, designId: s
     // Get ALL items in this batch to determine which PCS are fully inspected
     const { data: allItems, error: allError } = await supabase
       .from("production_details")
-      .select("id, pcs_index, final_inspection_id, status_mending, header_id, kategori_masalah")
+      .select("id, pcs_index, final_inspection_id, status_mending, header_id, kategori_masalah, is_deleted")
       .in("header_id", headerIds);
 
     if (allError) return { success: false, error: allError.message };
 
-    // Find PCS indexes that still have uninspected items (final_inspection_id IS NULL)
+    // Find PCS indexes that still have uninspected items (final_inspection_id IS NULL and not deleted)
     const pcsWithPendingInspection = new Set<number>();
     for (const item of (allItems || []) as any[]) {
       const h = headers.find((h: any) => h.id === item.header_id);
       const isMeteran = h && h.panel_no === "METERAN";
       
-      if (item.final_inspection_id === null) {
+      if (item.final_inspection_id === null && !item.is_deleted) {
         if (isMeteran) {
           // Jika tipe meteran, hanya dianggap pending inspeksi jika baris tersebut memang memiliki cacat/masalah
           if (item.kategori_masalah && item.kategori_masalah.trim() !== "") {
@@ -126,18 +128,20 @@ export async function getPendingMendingDetailsByBatch(mesin: string, designId: s
       }
     }
 
-    // Get inspected & unmended items, but only from fully-inspected PCS indexes
+    // Get inspected & unmended items (or deleted items), but only from fully-inspected PCS indexes
     const { data: details, error: detailsError } = await supabase
       .from("production_details")
-      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id, qc_inspection_items(qc_inspection_batches(berat_kain)), production_defects(*)")
-      .in("header_id", headerIds)
-      .not("final_inspection_id", "is", null)
-      .is("status_mending", null);
+      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id, is_deleted, status_inspeksi, status_mending, qc_inspection_items(qc_inspection_batches(berat_kain)), production_defects(*)")
+      .in("header_id", headerIds);
 
     if (detailsError) return { success: false, error: detailsError.message };
 
     // Filter out items from PCS indexes that are not fully inspected yet (lewati pengecekan ini untuk tipe METERAN)
     const filteredDetails = (details || []).filter((d: any) => {
+      const isInspectedOrDeleted = d.final_inspection_id !== null || d.is_deleted === true || d.status_inspeksi === "Dihapus";
+      const isPendingMendingOrDeleted = d.status_mending === null || d.status_mending === "Dihapus" || d.is_deleted === true;
+      if (!isInspectedOrDeleted || !isPendingMendingOrDeleted) return false;
+
       const h = headers.find((h: any) => h.id === d.header_id);
       if (h && h.panel_no === "METERAN") {
         return true; // Tipe meteran tidak diblokir oleh pengecekan indeks PCS
@@ -184,13 +188,23 @@ export async function submitMending(params: {
     
     // Bulk update status_mending in production_details
     for (const d of params.details) {
-      const { error: updateError } = await supabase
-        .from("production_details")
-        .update({ status_mending: d.grade })
-        .eq("id", d.detailId);
-        
-      if (updateError) {
-        console.error("Gagal update status mending:", updateError);
+      if (d.grade === "Dihapus") {
+        await supabase
+          .from("production_details")
+          .update({
+            is_deleted: true,
+            status_mending: "Dihapus"
+          })
+          .eq("id", d.detailId);
+      } else {
+        const { error: updateError } = await supabase
+          .from("production_details")
+          .update({ status_mending: d.grade })
+          .eq("id", d.detailId);
+          
+        if (updateError) {
+          console.error("Gagal update status mending:", updateError);
+        }
       }
     }
 
@@ -252,7 +266,7 @@ export async function submitMending(params: {
       start_mending: params.start_mending,
       finish_mending: params.finish_mending,
       keterangan_mending: ketMending.trim(),
-      total_panel: params.details.length,
+      total_panel: params.details.filter(d => d.grade !== "Dihapus").length,
       nomor_mc: headerInfo.nomor_mc,
       design_id: headerInfo.design_id,
       potongan_ke: headerInfo.potongan_ke,
@@ -446,7 +460,7 @@ export async function searchMendingHistory(filters: {
         items:mending_items!inner (
           id, hasil_mending,
           detail:production_details!inner (
-            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, indikator_stop,
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, status_mending, indikator_stop, is_deleted,
             header:production_headers!inner (id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, operator_backup, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operators(nama_operator), groups(nama_grup))
           )
         )
@@ -566,7 +580,7 @@ export async function getMendingBatchById(id: string) {
         items:mending_items!inner (
           id, hasil_mending,
           detail:production_details!inner (
-            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah,
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, status_mending, is_deleted,
             header:production_headers!inner (id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, operator_backup, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operators(nama_operator), groups(nama_grup))
           )
         )
@@ -636,6 +650,41 @@ export async function getMendingBatchById(id: string) {
   }
 }
 
+export async function getAllDetailsForPcs(nomor_mc: string, design_id: string, potongan_ke: number, pcs_index: number) {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("production_details")
+      .select(`
+        id, 
+        pcs_index, 
+        jml_hasil_produksi, 
+        kategori_masalah, 
+        detail_masalah, 
+        keterangan_cacat, 
+        meter_kain, 
+        roll_no, 
+        indikator_stop, 
+        final_inspection_id, 
+        status_inspeksi,
+        status_mending,
+        is_deleted,
+        header_id,
+        production_headers!inner (
+          id, tanggal_jam, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup)
+        )
+      `)
+      .eq("production_headers.nomor_mc", nomor_mc)
+      .eq("production_headers.potongan_ke", potongan_ke)
+      .eq("pcs_index", pcs_index);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 export async function getPendingMendingDetailsByDate(tanggal: string) {
   try {
     const supabase = await createClient();
@@ -655,6 +704,7 @@ export async function getPendingMendingDetailsByDate(tanggal: string) {
         final_inspection_id, 
         status_inspeksi,
         status_mending,
+        is_deleted,
         header_id,
         production_headers!inner (
           id, tanggal_jam, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup)
@@ -664,7 +714,8 @@ export async function getPendingMendingDetailsByDate(tanggal: string) {
         )
       `)
       .not("final_inspection_id", "is", null)
-      .is("status_mending", null);
+      .is("status_mending", null)
+      .limit(5000);
 
     const { data, error } = await query;
 
@@ -710,6 +761,7 @@ export async function getMendingDetailsByGroup(nomor_mc: string, design_id: stri
         final_inspection_id, 
         status_inspeksi,
         status_mending,
+        is_deleted,
         header_id,
         production_headers!inner (
           id, tanggal_jam, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup)
@@ -718,8 +770,6 @@ export async function getMendingDetailsByGroup(nomor_mc: string, design_id: stri
           qc_inspection_batches (berat_kain, inspeksi_ceklis, inspeksi_silang)
         )
       `)
-      .not("final_inspection_id", "is", null)
-      .is("status_mending", null)
       .eq("production_headers.nomor_mc", nomor_mc)
       .eq("production_headers.potongan_ke", potongan_ke)
       .eq("pcs_index", pcs_index);
@@ -890,39 +940,7 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
   }
 }
 
-export async function getAllDetailsForPcs(nomor_mc: string, design_id: string, potongan_ke: number, pcs_index: number) {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("production_details")
-      .select(`
-        id, 
-        pcs_index, 
-        jml_hasil_produksi, 
-        kategori_masalah, 
-        detail_masalah, 
-        keterangan_cacat, 
-        meter_kain, 
-        roll_no, 
-        indikator_stop, 
-        final_inspection_id, 
-        status_inspeksi,
-        status_mending,
-        header_id,
-        production_headers!inner (
-          id, tanggal_jam, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup)
-        )
-      `)
-      .eq("production_headers.nomor_mc", nomor_mc)
-      .eq("production_headers.potongan_ke", potongan_ke)
-      .eq("pcs_index", pcs_index);
 
-    if (error) return { success: false, error: error.message };
-    return { success: true, data };
-  } catch (err: any) {
-    return { success: false, error: err.message };
-  }
-}
 
 export async function getMechanicDowntimesForReport(tanggal?: string, nomor_mc?: string) {
   try {
