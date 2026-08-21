@@ -134,7 +134,7 @@ function MendingDetailContent() {
         const parsed = JSON.parse(cachedData);
         const batch = parsed.find((b: any) => b.id.toString() === id);
 
-        if (batch) {
+        if (batch && batch.items && batch.items.length > 0 && batch.items[0]?.detail?.header) {
           setMendingData(batch);
           setIsLoading(false);
           return;

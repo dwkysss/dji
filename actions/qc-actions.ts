@@ -550,14 +550,17 @@ export async function getQCHistoryByBatch(designId: string, potonganKe: string) 
   }
 }
 
-export async function searchQCHistory(filters: {
-  date?: string;
-  nomor_mc?: string;
-  petugas_ids?: string[];
-  design_id?: string;
-  potongan_ke?: string;
-  no_customer?: string;
-}) {
+export async function searchQCHistory(
+  filters: {
+    date?: string;
+    nomor_mc?: string;
+    petugas_ids?: string[];
+    design_id?: string;
+    potongan_ke?: string;
+    no_customer?: string;
+  },
+  includeDetails: boolean = false
+) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -567,6 +570,77 @@ export async function searchQCHistory(filters: {
 
     const supabase = await createClient();
 
+    if (!includeDetails) {
+      // Lightweight Query: Only fetch batch summary fields without massive nested details & defect joins
+      let query = supabase
+        .from("qc_inspection_batches")
+        .select(`
+          id,
+          batch_no,
+          tanggal_inspeksi,
+          start_inspect,
+          finish_inspect,
+          elapsed_seconds,
+          pause_seconds,
+          nomor_mc,
+          design_id,
+          potongan_ke,
+          pcs_index,
+          petugas_inspeksi,
+          petugas_inspeksi_2,
+          petugas_inspeksi_3,
+          inspeksi_ceklis,
+          inspeksi_silang,
+          berat_kain,
+          keterangan_inspeksi,
+          created_at
+        `)
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      if (filters.date) {
+        query = query.eq("tanggal_inspeksi", filters.date);
+      }
+
+      if (filters.nomor_mc) {
+        query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
+      }
+
+      if (filters.design_id) {
+        query = query.ilike("design_id", `%${filters.design_id}%`);
+      }
+
+      if (filters.potongan_ke) {
+        query = query.eq("potongan_ke", parseInt(filters.potongan_ke));
+      }
+
+      if (filters.petugas_ids && filters.petugas_ids.length > 0) {
+        const orConds = filters.petugas_ids.map(p => `petugas_inspeksi.eq."${p}",petugas_inspeksi_2.eq."${p}"`).join(",");
+        query = query.or(orConds);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error searching QC history (lightweight):", error);
+        return { success: false, error: error.message };
+      }
+
+      const formattedData = (data || []).map((batch: any) => ({
+        ...batch,
+        header: {
+          nomor_mc: batch.nomor_mc,
+          design_id: batch.design_id,
+          potongan_ke: batch.potongan_ke,
+        },
+        detail: { pcs_index: batch.pcs_index },
+        items: []
+      }));
+
+      return { success: true, data: formattedData };
+    }
+
+    // Full query with items & details
     let query = supabase
       .from("qc_inspection_batches")
       .select(`
@@ -580,7 +654,8 @@ export async function searchQCHistory(filters: {
         )
       `)
       .order("created_at", { ascending: false })
-      .limit(1000);
+      .limit(500);
+
     if (filters.date) {
       query = query.eq("tanggal_inspeksi", filters.date);
     }
@@ -615,11 +690,9 @@ export async function searchQCHistory(filters: {
 
     // Format data to match the UI expectations
     const formattedData = (data || []).map((batch: any) => {
-      // Extract the header from the first item, as all items in a batch share the same batch info
       const firstItem = batch.items && batch.items.length > 0 ? batch.items[0] : null;
       const header = firstItem?.detail?.header || {};
 
-      // Map items to match the old detail structure slightly if needed, but UI will mostly use batch.items
       const formattedItems = (batch.items || []).map((item: any) => ({
         id: item.id,
         final_inspection_id: item.final_inspection_id,
@@ -630,7 +703,7 @@ export async function searchQCHistory(filters: {
       return {
         ...batch,
         header,
-        detail: { pcs_index: batch.pcs_index }, // Mock detail.pcs_index for backward compatibility in some places
+        detail: { pcs_index: batch.pcs_index },
         items: formattedItems
       };
     });

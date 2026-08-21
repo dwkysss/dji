@@ -64,11 +64,7 @@ export default function WifiController() {
 
   const handleConnect = (e?: React.SyntheticEvent) => {
     if (e) e.preventDefault();
-    requestPinAuth(
-      "Menghubungkan ESP32 Wi-Fi",
-      "Masukkan PIN Supervisor / Admin untuk mengubah koneksi ESP32.",
-      () => connect(inputHost)
-    );
+    connect(inputHost);
   };
 
   const handleDisconnect = () => {

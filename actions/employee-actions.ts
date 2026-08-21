@@ -478,12 +478,13 @@ export async function createProductionReport(
             return {
               success: false,
               error: `Potongan ke-${potonganKeNum} dengan Panel ${validated.panelNo} sudah ada untuk operator ini!`,
-            };
+            }
           }
         }
 
         // Otomatisasi BS AWAL (Sisa Awal Potongan / Kepala Kain)
-        if (potonganKeNum && validated.nomorMc && (validated.panelNo === "1" || String(validated.panelNo).trim() === "1")) {
+        const isPanelOne = parseInt(String(validated.panelNo || "0")) === 1 || validated.panelNo === "1";
+        if (isPanelOne && validated.nomorMc && potonganKeNum) {
           const { data: existingBsAwal } = await supabase
             .from("production_headers")
             .select("id")
@@ -516,6 +517,63 @@ export async function createProductionReport(
 
             await supabase.from("production_headers").insert(bsAwalHeader);
             await supabase.from("production_details").insert(bsAwalDetails as any);
+          }
+
+          // Otomatisasi Auto-Close Potongan Sebelumnya jika belum ada BS AKHIR
+          if (potonganKeNum > 1) {
+            try {
+              const { data: prevHeaders } = await supabase
+                .from("production_headers")
+                .select("id, tgl, tanggal_jam, operator_id, group_id, design_id, nomor_mc, status_matching, course, rpm, potongan_ke, pcs, pick, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, panel_no, tanggal_potong")
+                .eq("nomor_mc", validated.nomorMc)
+                .lt("potongan_ke", potonganKeNum)
+                .order("potongan_ke", { ascending: false })
+                .order("tanggal_jam", { ascending: false });
+
+              if (prevHeaders && prevHeaders.length > 0) {
+                const prevPotonganNum = prevHeaders[0].potongan_ke;
+                const headersOfPrev = prevHeaders.filter((h: any) => h.potongan_ke === prevPotonganNum);
+                const hasBsAkhir = headersOfPrev.some((h: any) => String(h.panel_no || "").trim().toUpperCase() === "BS AKHIR");
+
+                if (!hasBsAkhir && headersOfPrev.length > 0) {
+                  const lastPrevHeader = headersOfPrev[0];
+                  const cutDate = lastPrevHeader.tgl || tgl;
+                  const autoBsAkhirHeaderId = generateExcelStyleId();
+                  const autoBsAkhirHeader = {
+                    ...lastPrevHeader,
+                    id: autoBsAkhirHeaderId,
+                    panel_no: "BS AKHIR",
+                    idempotency_key: null,
+                    tanggal_potong: cutDate,
+                  };
+                  const autoBsAkhirDetails = pcsDataToProcess.map((pcsItem, idx) => ({
+                    id: generateExcelStyleId() + "-auto-bs-akhir-" + idx,
+                    header_id: autoBsAkhirHeaderId,
+                    pcs_index: parseInt(pcsItem.pcsIndex || (idx + 1).toString()),
+                    jml_hasil_produksi: 0,
+                    indikator_stop: false,
+                    kategori_masalah: "BS",
+                    detail_masalah: "Sisa Akhir Potongan",
+                    spesifik_masalah: null,
+                    keterangan_cacat: "Sisa Akhir Potongan",
+                    meter_kain: null,
+                    status_inspeksi: "BS",
+                  }));
+
+                  await supabase.from("production_headers").insert(autoBsAkhirHeader);
+                  await supabase.from("production_details").insert(autoBsAkhirDetails as any);
+
+                  // Update tanggal_potong massal untuk potongan sebelumnya
+                  await supabase
+                    .from("production_headers")
+                    .update({ tanggal_potong: cutDate })
+                    .eq("nomor_mc", validated.nomorMc)
+                    .eq("potongan_ke", prevPotonganNum);
+                }
+              }
+            } catch (autoCloseErr) {
+              console.error("Error auto-closing previous potongan BS AKHIR:", autoCloseErr);
+            }
           }
         }
 
@@ -849,6 +907,7 @@ export async function searchEmployeeHistory(filters: {
   perPage?: number;
   sortBy?: "time" | "downtime" | null;
   sortDir?: "asc" | "desc" | null;
+  includeDetails?: boolean;
 }): Promise<{
   success: boolean;
   data?: any[];
@@ -869,13 +928,15 @@ export async function searchEmployeeHistory(filters: {
     }
 
     const supabase = await createClient();
-    let selectFields =
-      "id, tgl, tanggal_jam, pic, potongan_ke, pcs, no_order_barang, no_customer, panel_no, nomor_mc, total_downtime_detik, operator_backup, operators(nama_operator), groups(nama_grup), design_id, production_details(id, pcs_index, kategori_masalah, detail_masalah, keterangan_cacat, jml_hasil_produksi, meter_kain, production_defects(*)), created_by_name, tanggal_potong, pick, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, downtime_records(*)";
+    const selectFields = filters.includeDetails
+      ? "id, tgl, tanggal_jam, pic, potongan_ke, pcs, no_order_barang, no_customer, panel_no, nomor_mc, total_downtime_detik, operator_backup, operators(nama_operator), groups(nama_grup), design_id, production_details(id, pcs_index, kategori_masalah, detail_masalah, keterangan_cacat, jml_hasil_produksi, meter_kain, production_defects(*)), created_by_name, tanggal_potong, pick, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, downtime_records(*)"
+      : "id, tgl, tanggal_jam, pic, potongan_ke, pcs, no_order_barang, no_customer, panel_no, nomor_mc, total_downtime_detik, operator_backup, operators(nama_operator), groups(nama_grup), design_id, created_by_name, tanggal_potong, pick, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, meter_awal, meter_akhir";
 
     // Prepare base query with exact count
-    let query = supabase
-      .from("production_headers")
-      .select(selectFields, { count: "exact" });
+    let query: any = (supabase.from("production_headers") as any).select(
+      selectFields,
+      { count: "exact" },
+    );
 
     // Sorting
     const sortField =
@@ -1500,6 +1561,64 @@ export async function updateProductionReport(
 
       // Update tanggal_potong massal untuk potongan_ke yang sama
       if (data.tanggalPotong && data.nomorMc && potonganKeNum) {
+        // Cek dan buat BS AKHIR jika belum ada
+        const { data: existingBsAkhir } = await supabase
+          .from("production_headers")
+          .select("id")
+          .eq("nomor_mc", data.nomorMc)
+          .eq("potongan_ke", potonganKeNum)
+          .eq("panel_no", "BS AKHIR")
+          .limit(1);
+
+        if (!existingBsAkhir || existingBsAkhir.length === 0) {
+          const bsAkhirHeaderId = generateExcelStyleId();
+          const bsAkhirHeader = {
+            id: bsAkhirHeaderId,
+            tgl: data.tanggalProduksi || data.tanggalPotong,
+            tanggal_jam: (data.tanggalPotong || data.tanggalProduksi || "") + " 00:00:00",
+            operator_id:
+              data.operatorId && !isNaN(parseInt(data.operatorId))
+                ? parseInt(data.operatorId)
+                : null,
+            group_id: data.groupId ? parseInt(data.groupId) : null,
+            design_id: data.designId,
+            nomor_mc: data.nomorMc || null,
+            course: data.course || null,
+            rpm: rpmNum,
+            potongan_ke: potonganKeNum,
+            panel_no: "BS AKHIR",
+            pcs: data.pcsData?.length || 1,
+            tanggal_potong: data.tanggalPotong,
+            pick: data.pick || null,
+            pic: data.pic || null,
+            created_by_name: data.created_by_name || null,
+            no_order_barang: data.noOrderBarang || null,
+            no_customer: data.noCustomer || null,
+            jenis_benang_dasar: data.jenisBenangDasar || null,
+            liner: data.liner || null,
+            heavy: data.heavy || null,
+            shadow: data.shadow || null,
+            pinggiran: data.pinggiran || null,
+            idempotency_key: null,
+          };
+          const bsAkhirDetails = (data.pcsData || []).map((pcsItem: any, idx: number) => ({
+            id: generateExcelStyleId() + "-bs-akhir-upd-" + idx,
+            header_id: bsAkhirHeaderId,
+            pcs_index: parseInt(pcsItem.pcsIndex || (idx + 1).toString()),
+            jml_hasil_produksi: 0,
+            indikator_stop: false,
+            kategori_masalah: "BS",
+            detail_masalah: "Sisa Akhir Potongan",
+            spesifik_masalah: null,
+            keterangan_cacat: "Sisa Akhir Potongan",
+            meter_kain: null,
+            status_inspeksi: "BS",
+          }));
+
+          await supabase.from("production_headers").insert(bsAkhirHeader);
+          await supabase.from("production_details").insert(bsAkhirDetails as any);
+        }
+
         // Ambil ID laporan sebelumnya yang terkait
         const { data: previousHeaders } = await supabase
           .from("production_headers")
@@ -1620,3 +1739,96 @@ export async function updateProductionReport(
     };
   }
 }
+
+export async function markPotonganAsCut(
+  nomorMc: string,
+  potonganKe: string | number,
+  tanggalPotong?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const potonganNum = parseInt(String(potonganKe));
+    const targetDate = tanggalPotong || new Date().toISOString().split("T")[0];
+
+    // 1. Ambil data headers untuk potongan ini
+    const { data: headers, error: fetchErr } = await supabase
+      .from("production_headers")
+      .select("*, production_details(*)")
+      .eq("nomor_mc", nomorMc)
+      .eq("potongan_ke", potonganNum)
+      .order("tanggal_jam", { ascending: true });
+
+    if (fetchErr) throw fetchErr;
+    if (!headers || headers.length === 0) {
+      return { success: false, error: "Data potongan tidak ditemukan." };
+    }
+
+    // 2. Cek apakah BS AKHIR sudah ada
+    const hasBsAkhir = headers.some(
+      (h: any) => String(h.panel_no || "").trim().toUpperCase() === "BS AKHIR"
+    );
+
+    if (!hasBsAkhir) {
+      const lastHeader = headers[headers.length - 1];
+      const pcsCount = lastHeader.production_details?.length || 1;
+      const bsAkhirHeaderId = generateExcelStyleId();
+
+      const bsAkhirHeader = {
+        id: bsAkhirHeaderId,
+        tgl: lastHeader.tgl || targetDate,
+        tanggal_jam: lastHeader.tanggal_jam || `${targetDate} 00:00:00`,
+        operator_id: lastHeader.operator_id,
+        group_id: lastHeader.group_id,
+        design_id: lastHeader.design_id,
+        nomor_mc: lastHeader.nomor_mc,
+        status_matching: lastHeader.status_matching,
+        course: lastHeader.course,
+        rpm: lastHeader.rpm,
+        potongan_ke: potonganNum,
+        panel_no: "BS AKHIR",
+        pcs: lastHeader.pcs || pcsCount,
+        tanggal_potong: targetDate,
+        pick: lastHeader.pick,
+        no_order_barang: lastHeader.no_order_barang,
+        no_customer: lastHeader.no_customer,
+        jenis_benang_dasar: lastHeader.jenis_benang_dasar,
+        liner: lastHeader.liner,
+        heavy: lastHeader.heavy,
+        shadow: lastHeader.shadow,
+        pinggiran: lastHeader.pinggiran,
+        idempotency_key: null,
+      };
+
+      const bsAkhirDetails = Array.from({ length: pcsCount }).map((_, idx) => ({
+        id: generateExcelStyleId() + "-bs-akhir-manual-" + idx,
+        header_id: bsAkhirHeaderId,
+        pcs_index: idx + 1,
+        jml_hasil_produksi: 0,
+        indikator_stop: false,
+        kategori_masalah: "BS",
+        detail_masalah: "Sisa Akhir Potongan",
+        spesifik_masalah: null,
+        keterangan_cacat: "Sisa Akhir Potongan",
+        meter_kain: null,
+        status_inspeksi: "BS",
+      }));
+
+      await supabase.from("production_headers").insert(bsAkhirHeader);
+      await supabase.from("production_details").insert(bsAkhirDetails as any);
+    }
+
+    // 3. Update tanggal_potong untuk semua header potongan ini
+    await supabase
+      .from("production_headers")
+      .update({ tanggal_potong: targetDate })
+      .eq("nomor_mc", nomorMc)
+      .eq("potongan_ke", potonganNum);
+
+    revalidatePath("/(employee)/history");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error markPotonganAsCut:", err);
+    return { success: false, error: err.message || "Gagal menandai potong kain." };
+  }
+}
+

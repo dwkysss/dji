@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -31,20 +31,74 @@ import {
   Megaphone,
   ListFilter,
   SlidersHorizontal,
+  Bell,
 } from "lucide-react";
 
-export default function Sidebar() {
-  const { user, logout } = useAuth();
-  const pathname = usePathname();
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [inputRoute, setInputRoute] = React.useState("/input");
+const MACHINE_INPUT_TYPES: Record<string, string> = {
+  "MC-01": "METER",
+  "MC-02": "METER",
+};
 
-  React.useEffect(() => {
-    const saved = localStorage.getItem("last_input_route");
-    if (saved) {
-      setInputRoute(saved);
-    }
-  }, [pathname]);
+function isNavItemActive(
+  itemHref: string,
+  currentPathname: string,
+  allItems: any[],
+): boolean {
+  if (currentPathname === itemHref) return true;
+
+  if (itemHref === "/input" || itemHref === "/input-meter") {
+    if (currentPathname === "/input" || currentPathname === "/input-meter")
+      return true;
+  }
+
+  if (itemHref === "/") {
+    return currentPathname === "/";
+  }
+
+  if (currentPathname.startsWith(itemHref + "/")) {
+    const hasMoreSpecificMatch = allItems.some(
+      (other: any) =>
+        other.href !== itemHref &&
+        other.href.length > itemHref.length &&
+        (currentPathname === other.href ||
+          currentPathname.startsWith(other.href + "/")),
+    );
+    return !hasMoreSpecificMatch;
+  }
+
+  return false;
+}
+
+export default function Sidebar() {
+  const pathname = usePathname();
+  const { user, logout } = useAuth();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [inputRoute, setInputRoute] = useState<string>("/input");
+
+  useEffect(() => {
+    const checkInputRoute = () => {
+      try {
+        const saved = localStorage.getItem("dji_form_header");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.nomorMc) {
+            const isMeter = MACHINE_INPUT_TYPES[parsed.nomorMc.toUpperCase()] === "METER";
+            setInputRoute(isMeter ? "/input-meter" : "/input");
+            return;
+          }
+        }
+      } catch (e) { }
+      setInputRoute("/input");
+    };
+
+    checkInputRoute();
+    window.addEventListener("storage", checkInputRoute);
+    window.addEventListener("focus", checkInputRoute);
+    return () => {
+      window.removeEventListener("storage", checkInputRoute);
+      window.removeEventListener("focus", checkInputRoute);
+    };
+  }, []);
 
   if (!user) return null;
 
@@ -222,16 +276,17 @@ export default function Sidebar() {
           roles: ["admin", "manager"],
         },
         {
-          name: "Sync Status",
+          name: "Pengumuman Internal",
+          href: "#announcement-modal",
+          icon: Bell,
+          roles: ["admin", "manager", "operator", "inspeksi", "mending"],
+          isModal: true,
+        },
+        {
+          name: "Sync Spreadsheet",
           href: "/sync",
           icon: RefreshCw,
           roles: ["admin"],
-        },
-        {
-          name: "Profil / Password",
-          href: "/profile",
-          icon: User,
-          roles: ["admin", "manager", "operator", "inspeksi", "mending"],
         },
       ],
     },
@@ -246,17 +301,19 @@ export default function Sidebar() {
     item.roles.includes(user.role),
   );
 
-  // Compute which groups have any active child, to auto-expand them
+  const allNavItems = [
+    ...menuGroups.flatMap((g) => g.items),
+    ...generalItems,
+  ];
+
   const getInitialOpenGroups = () => {
     const open: Record<string, boolean> = {};
     menuGroups.forEach((group) => {
-      const hasActive = group.items.some(
-        (item) =>
-          pathname === item.href || pathname.startsWith(item.href + "/"),
+      const hasActive = group.items.some((item) =>
+        isNavItemActive(item.href, pathname, allNavItems),
       );
       open[group.label] = hasActive;
     });
-    // Also default-open the first visible group if nothing is active
     const anyOpen = Object.values(open).some(Boolean);
     if (!anyOpen && menuGroups.length > 0) {
       open[menuGroups[0].label] = true;
@@ -264,7 +321,6 @@ export default function Sidebar() {
     return open;
   };
 
-  // Group collapse state — we put it outside SidebarContent so it survives re-renders
   return (
     <SidebarInner
       user={user}
@@ -276,6 +332,7 @@ export default function Sidebar() {
       generalItems={generalItems}
       filteredGeneralItems={filteredGeneralItems}
       getInitialOpenGroups={getInitialOpenGroups}
+      allNavItems={allNavItems}
     />
   );
 }
@@ -290,6 +347,7 @@ function SidebarInner({
   generalItems,
   filteredGeneralItems,
   getInitialOpenGroups,
+  allNavItems,
 }: any) {
   const [openGroups, setOpenGroups] =
     useState<Record<string, boolean>>(getInitialOpenGroups);
@@ -301,7 +359,6 @@ function SidebarInner({
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-[#f0f2f5] text-slate-800 md:border md:border-[#dbe1eb] md:rounded-[32px] md:shadow-[0_8px_30px_rgba(0,0,0,0.02)] overflow-hidden">
-      {/* Brand Logo Area */}
       <div className="h-20 flex items-center px-5 md:group-hover:px-6 border-b border-[#dbe1eb] gap-3 transition-all duration-300">
         <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 transition-all duration-500 md:group-hover:scale-110 overflow-hidden shadow-xs">
           <img
@@ -320,7 +377,6 @@ function SidebarInner({
         </div>
       </div>
 
-      {/* Navigation */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {menuGroups.map((group: any) => {
           const visibleItems = group.items.filter((item: any) =>
@@ -329,20 +385,17 @@ function SidebarInner({
           if (visibleItems.length === 0) return null;
 
           const isGroupOpen = openGroups[group.label] ?? false;
-          const hasActiveChild = visibleItems.some(
-            (item: any) =>
-              pathname === item.href || pathname.startsWith(item.href + "/"),
+          const hasActiveChild = visibleItems.some((item: any) =>
+            isNavItemActive(item.href, pathname, allNavItems),
           );
 
           return (
             <div key={group.label} className="overflow-hidden">
-              {/* Group Header Button */}
               <button
                 onClick={() => toggleGroup(group.label)}
                 className="w-full flex items-center justify-between gap-3 px-3.5 h-10 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
               >
                 <div className="flex items-center gap-3">
-                  {/* Group icon */}
                   {(() => {
                     const GIcon = group.groupIcon;
                     return (
@@ -351,28 +404,25 @@ function SidebarInner({
                       />
                     );
                   })()}
-                  {/* Label — hidden in collapsed desktop sidebar */}
                   <span
                     className={`whitespace-nowrap text-[11px] font-extrabold tracking-wider uppercase transition-all duration-300 md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto overflow-hidden ${hasActiveChild ? "text-[#0070bc]" : ""}`}
                   >
                     {group.label}
                   </span>
                 </div>
-                {/* Chevron */}
                 <ChevronDown
                   className={`w-3.5 h-3.5 shrink-0 transition-all duration-300 md:opacity-0 md:group-hover:opacity-100
                     ${isGroupOpen ? "rotate-180" : "rotate-0"}`}
                 />
               </button>
 
-              {/* Group Items — hidden in collapsed desktop, shown on hover */}
               <div
                 className={`overflow-hidden transition-all duration-300 ease-in-out md:hidden md:group-hover:block ${isGroupOpen ? "max-h-96 opacity-100 mt-0.5" : "max-h-0 opacity-0"}`}
               >
                 <nav className="space-y-0.5 pl-4 border-l-2 border-slate-200/80 ml-5 mb-1">
                   {visibleItems.map((item: any) => {
                     const Icon = item.icon;
-                    const isActive = pathname === item.href;
+                    const isActive = isNavItemActive(item.href, pathname, allNavItems);
                     if (item.isModal) {
                       return (
                         <button
@@ -418,16 +468,14 @@ function SidebarInner({
           );
         })}
 
-        {/* Divider */}
         {filteredGeneralItems.length > 0 && (
           <div className="h-px bg-slate-200/80 mx-2 my-2 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300" />
         )}
 
-        {/* General Items */}
         <div className="space-y-0.5">
           {filteredGeneralItems.map((item: any) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive = isNavItemActive(item.href, pathname, allNavItems);
             return (
               <Link
                 key={item.name}
@@ -450,7 +498,6 @@ function SidebarInner({
             );
           })}
 
-          {/* Logout */}
           <button
             onClick={logout}
             className="w-full flex items-center gap-4 px-3.5 h-10 rounded-2xl text-xs sm:text-sm font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50/80 transition-all duration-200 cursor-pointer group/logout"

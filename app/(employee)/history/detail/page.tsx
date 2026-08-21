@@ -3,9 +3,9 @@
 import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { searchEmployeeHistory } from "@/actions/employee-actions";
+import { searchEmployeeHistory, markPotonganAsCut } from "@/actions/employee-actions";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
-import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight, Printer } from "lucide-react";
+import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight, Printer, Scissors, CheckCircle, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import PanelHistoryTable from "./components/PanelHistoryTable";
 import MeterHistoryTable from "./components/MeterHistoryTable";
@@ -26,6 +26,12 @@ function HistoryDetailContent() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
+  // Tandai Potong Kain Modal State
+  const [isMarkCutModalOpen, setIsMarkCutModalOpen] = useState(false);
+  const [markCutDate, setMarkCutDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [isSubmittingMarkCut, setIsSubmittingMarkCut] = useState(false);
+  const [markCutError, setMarkCutError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!nomor_mc || !potongan_ke) {
       setErrorMsg("Parameter tidak lengkap.");
@@ -40,6 +46,7 @@ function HistoryDetailContent() {
           nomor_mc: nomor_mc,
           design_id: design_id || undefined,
           potongan_ke: potongan_ke,
+          includeDetails: true,
         });
 
         if (res.success && res.data && res.data.length > 0) {
@@ -129,15 +136,36 @@ function HistoryDetailContent() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsPrintModalOpen(true)}
-          className="h-9 px-3.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-black text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
-          title="Cetak Laporan / Simpan PDF"
-        >
-          <Printer className="w-4 h-4" />
-          <span>Cetak Laporan</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {(!detailData?.panels?.some((p: any) =>
+            String(p.panel_no || "").toUpperCase().includes("BS AKHIR") ||
+            String(p.panel_no || "").toUpperCase() === "BS AKHIR"
+          )) && (
+            <button
+              type="button"
+              onClick={() => {
+                setMarkCutDate(detailData?.tgl || new Date().toISOString().split("T")[0]);
+                setMarkCutError(null);
+                setIsMarkCutModalOpen(true);
+              }}
+              className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
+              title="Tandai Selesai Potong & Buat BS Akhir"
+            >
+              <Scissors className="w-4 h-4" />
+              <span>Tandai Potong Kain</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsPrintModalOpen(true)}
+            className="h-9 px-3.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-black text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
+            title="Cetak Laporan / Simpan PDF"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Cetak Laporan</span>
+          </button>
+        </div>
       </div>
 
 
@@ -603,6 +631,99 @@ function HistoryDetailContent() {
          })()}
 
        </div>
+
+       {isMarkCutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Scissors className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm">Tandai Selesai Potong Kain</h3>
+                  <p className="text-[11px] font-semibold text-slate-500">Mesin {nomor_mc} - Potongan Ke-{potongan_ke}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsMarkCutModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {markCutError && (
+                <div className="p-3 rounded-xl bg-red-50 text-red-600 border border-red-200 font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{markCutError}</span>
+                </div>
+              )}
+
+              <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-emerald-900 leading-relaxed text-xs">
+                Tindakan ini akan <strong>menandai potongan kain telah selesai</strong> dan otomatis menambahkan baris <strong>BS AKHIR (Sisa Akhir Potongan)</strong> ke dalam database & riwayat.
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Tanggal Potong Kain</label>
+                <input
+                  type="date"
+                  value={markCutDate}
+                  onChange={(e) => setMarkCutDate(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsMarkCutModalOpen(false)}
+                disabled={isSubmittingMarkCut}
+                className="h-9 px-4 rounded-xl text-slate-600 font-bold text-xs hover:bg-slate-200/60 transition-colors disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingMarkCut || !markCutDate}
+                onClick={async () => {
+                  if (!nomor_mc || !potongan_ke) return;
+                  setIsSubmittingMarkCut(true);
+                  setMarkCutError(null);
+                  const res = await markPotonganAsCut(nomor_mc, potongan_ke, markCutDate);
+                  if (res.success) {
+                    setIsMarkCutModalOpen(false);
+                    // Refetch detail
+                    const refreshRes = await searchEmployeeHistory({
+                      nomor_mc: nomor_mc,
+                      design_id: design_id || undefined,
+                      potongan_ke: potongan_ke,
+                      includeDetails: true,
+                    });
+                    if (refreshRes.success && refreshRes.data && refreshRes.data.length > 0) {
+                      const batch = refreshRes.data.find(
+                        (b: any) =>
+                          String(b.nomor_mc || "").trim().toUpperCase() === String(nomor_mc || "").trim().toUpperCase() &&
+                          b.potongan_ke == potongan_ke
+                      );
+                      setDetailData(batch || refreshRes.data[0]);
+                    }
+                  } else {
+                    setMarkCutError(res.error || "Gagal menandai potong kain.");
+                  }
+                  setIsSubmittingMarkCut(false);
+                }}
+                className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50 active:scale-95 cursor-pointer"
+              >
+                {isSubmittingMarkCut ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                <span>Simpan & Buat BS Akhir</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <PrintableProductionReport
         detailData={detailData}

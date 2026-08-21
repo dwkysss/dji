@@ -116,20 +116,32 @@ export default function CompactHeaderCard(props: CompactHeaderCardProps) {
         {/* Decorative background glow */}
         <div className="absolute -right-10 -bottom-10 w-44 h-44 rounded-full bg-white/5 pointer-events-none" />
 
-        {/* Left: Machine + Potongan */}
-        <div className="flex items-center gap-4 z-10">
+        {/* Left: Machine + Potongan Blocks */}
+        <div className="flex items-center gap-4 sm:gap-6 z-10">
           <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-slate-900/60 backdrop-blur-sm flex items-center justify-center border border-slate-700/80 shrink-0 shadow-inner">
             <Factory className="w-6 h-6 sm:w-7 sm:h-7 text-slate-300" />
           </div>
-          <div>
-            <div className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest leading-none mb-1">
-              NOMOR MESIN
+
+          <div className="flex items-center gap-4 sm:gap-6">
+            <div>
+              <div className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest leading-none mb-1">
+                NOMOR MESIN
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">
+                {props.nomorMc || "—"}
+              </div>
             </div>
-            <div className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none">
-              {props.nomorMc || "—"}
-            </div>
-            <div className="mt-1 text-[#38bdf8] text-xs sm:text-sm font-bold">
-              Potongan Ke-{potKe}
+
+            {/* Divider */}
+            <div className="h-8 w-px bg-white/20" />
+
+            <div>
+              <div className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest leading-none mb-1">
+                POTONGAN
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">
+                {potKe || "—"}
+              </div>
             </div>
           </div>
         </div>

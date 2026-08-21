@@ -400,7 +400,7 @@ export default function QCHistoryPage() {
                             <span className="font-extrabold text-slate-800 text-xs">
                               {isMeteran
                                 ? `${group.inspeksi_ceklis || 0} Meter`
-                                : `${group.items?.length || 0} Panel`}
+                                : `${(group.inspeksi_ceklis || 0) + (group.inspeksi_silang || 0) || group.items?.length || 0} Panel`}
                             </span>
                           </td>
                           <td className="px-4 py-3.5">

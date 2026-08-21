@@ -1682,1099 +1682,1097 @@ export default function ContinuousForm({
           </div>
         </div>
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-slate-100 pb-4 mb-6 gap-4">
-          <div className="flex items-center justify-between w-full sm:w-auto gap-3">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">
-                Form Input Produksi (Meteran)
-              </h3>
-              <p className="text-xs text-slate-400 font-normal mt-1">
-                Data Header akan otomatis tersimpan untuk roll/meteran berikutnya.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsHistoryDrawerOpen(true)}
-              className="px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 text-xs font-black shadow-md shadow-amber-200 transition-all flex items-center gap-2 cursor-pointer shrink-0"
-            >
-              <History className="w-4 h-4 stroke-[2.5]" />
-              <span>Riwayat Shift Ini</span>
-            </button>
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6 gap-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Form Input Produksi (Meteran)
+            </h3>
+            <p className="text-xs text-slate-400 font-normal mt-1">
+              Data Header akan otomatis tersimpan untuk roll/meteran berikutnya.
+            </p>
           </div>
 
-          {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "PANEL" && (
-            <div className="p-3 bg-indigo-50 border border-indigo-200/80 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-100/80 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-4 h-4 text-indigo-600" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wide leading-none">
-                    Mesin {watch("nomorMc")} Di-set Input PANEL
-                  </h4>
-                  <p className="text-[11px] font-medium text-indigo-700 leading-snug mt-1">
-                    Admin mengatur mesin ini khusus untuk pelaporan <strong>Panel</strong>.
-                  </p>
-                </div>
-              </div>
-              <a
-                href={`/input?mc=${encodeURIComponent(watch("nomorMc"))}`}
-                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
-              >
-                <span>Pindah Form Panel</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </a>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsHistoryDrawerOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0 group"
+          >
+            <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors" />
+            <span>Riwayat Potongan Ini</span>
+          </button>
         </div>
 
-        {errorMsg && (
-          <div className="mb-6 p-4 bg-red-50/50 border border-red-100 text-red-700 rounded-xl flex items-start gap-2.5 text-xs font-semibold animate-fadeIn">
-            <AlertCircle
-              className="w-4 h-4 shrink-0 text-red-500"
-              strokeWidth={2}
-            />
-            <span>{errorMsg}</span>
-          </div>
-        )}
-
-        {isEdit && (
-          <div className="mb-6 p-4 bg-yellow-50/50 border border-yellow-200 text-yellow-800 rounded-xl flex items-start gap-3 text-sm animate-fadeIn shadow-sm">
-            <AlertTriangle className="w-5 h-5 shrink-0 text-yellow-500" strokeWidth={2} />
-            <div>
-              <strong className="block font-bold mb-1">Perhatian Saat Mengedit Data</strong>
-              Form ini mengedit <b>seluruh laporan (termasuk PCS/potongan lain)</b>. Jangan menekan tombol "Hapus" pada potongan lain kecuali Anda benar-benar ingin menghapusnya secara permanen dari laporan. Tambahkan/edit masalah langsung melalui tombol <b>Tambah Masalah</b>.
-            </div>
-          </div>
-        )}
-
-
-        <form
-          onSubmit={handleSubmit(onSubmit, onInvalid)}
-          className="space-y-4"
-        >
-          <div className="bg-white border border-slate-200 shadow-sm rounded-[20px] p-3 sm:p-4 lg:p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-[3fr_2fr] gap-3 sm:gap-4 lg:gap-5 items-stretch">
-              <div data-tour="meter-header-summary" className="w-full h-full">
-                <HeaderSummaryCard
-                  operatorName={getOperatorName(watch("operatorId"))}
-                  shiftName={activeShiftName}
-                  nomorMc={watch("nomorMc") || ""}
-                  design={watch("designId") || ""}
-                  statusMatching={watch("statusMatching") || ""}
-                  potonganKe={watch("potonganKe")}
-                  onEdit={() => {
-                    setIsHeaderModalOpen(true);
-                    setHighlightPotonganKe(false);
-                    setHighlightOperator(false);
-                  }}
-                  showEditButton
-                  showEditButtonPlacement="bottom"
-                />
+        {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "PANEL" && (
+          <div className="p-3 bg-indigo-50 border border-indigo-200/80 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-100/80 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-indigo-600" />
               </div>
+              <div>
+                <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wide leading-none">
+                  Mesin {watch("nomorMc")} Di-set Input PANEL
+                </h4>
+                <p className="text-[11px] font-medium text-indigo-700 leading-snug mt-1">
+                  Admin mengatur mesin ini khusus untuk pelaporan <strong>Panel</strong>.
+                </p>
+              </div>
+            </div>
+            <a
+              href={`/input?mc=${encodeURIComponent(watch("nomorMc"))}`}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
+            >
+              <span>Pindah Form Panel</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        )}
+      </div>
 
-              <ProductionHeaderModal
-                isOpen={isHeaderModalOpen}
-                onClose={() => {
-                  setIsHeaderModalOpen(false);
+      {errorMsg && (
+        <div className="mb-6 p-4 bg-red-50/50 border border-red-100 text-red-700 rounded-xl flex items-start gap-2.5 text-xs font-semibold animate-fadeIn">
+          <AlertCircle
+            className="w-4 h-4 shrink-0 text-red-500"
+            strokeWidth={2}
+          />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {isEdit && (
+        <div className="mb-6 p-4 bg-yellow-50/50 border border-yellow-200 text-yellow-800 rounded-xl flex items-start gap-3 text-sm animate-fadeIn shadow-sm">
+          <AlertTriangle className="w-5 h-5 shrink-0 text-yellow-500" strokeWidth={2} />
+          <div>
+            <strong className="block font-bold mb-1">Perhatian Saat Mengedit Data</strong>
+            Form ini mengedit <b>seluruh laporan (termasuk PCS/potongan lain)</b>. Jangan menekan tombol "Hapus" pada potongan lain kecuali Anda benar-benar ingin menghapusnya secara permanen dari laporan. Tambahkan/edit masalah langsung melalui tombol <b>Tambah Masalah</b>.
+          </div>
+        </div>
+      )}
+
+
+      <form
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
+        className="space-y-4"
+      >
+        <div className="bg-white border border-slate-200 shadow-sm rounded-[20px] p-3 sm:p-4 lg:p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-[3fr_2fr] gap-3 sm:gap-4 lg:gap-5 items-stretch">
+            <div data-tour="meter-header-summary" className="w-full h-full">
+              <HeaderSummaryCard
+                operatorName={getOperatorName(watch("operatorId"))}
+                shiftName={activeShiftName}
+                nomorMc={watch("nomorMc") || ""}
+                design={watch("designId") || ""}
+                statusMatching={watch("statusMatching") || ""}
+                potonganKe={watch("potonganKe")}
+                onEdit={() => {
+                  setIsHeaderModalOpen(true);
                   setHighlightPotonganKe(false);
                   setHighlightOperator(false);
                 }}
-                register={register}
-                errors={errors}
-                watch={watch}
-                groups={groups}
-                operators={activeOperators}
-                activeShiftName={activeShiftName}
-                onClearHeader={handleClearHeader}
-                highlightPotonganKe={highlightPotonganKe}
-                highlightOperator={highlightOperator}
-                pcsCount={fields.length}
-                onChangePcsCount={handleChangePcsCount}
+                showEditButton
+                showEditButtonPlacement="bottom"
               />
+            </div>
 
-              {/* Tombol Pemicu Pop-up Meteran */}
-              <div
-                data-tour="meter-final-report"
-                className="w-full min-h-full p-3 sm:p-4 lg:p-6 bg-emerald-50/80 border-2 border-emerald-200 rounded-2xl relative shadow-md flex flex-col justify-center"
+            <ProductionHeaderModal
+              isOpen={isHeaderModalOpen}
+              onClose={() => {
+                setIsHeaderModalOpen(false);
+                setHighlightPotonganKe(false);
+                setHighlightOperator(false);
+              }}
+              register={register}
+              errors={errors}
+              watch={watch}
+              groups={groups}
+              operators={activeOperators}
+              activeShiftName={activeShiftName}
+              onClearHeader={handleClearHeader}
+              highlightPotonganKe={highlightPotonganKe}
+              highlightOperator={highlightOperator}
+              pcsCount={fields.length}
+              onChangePcsCount={handleChangePcsCount}
+            />
+
+            {/* Tombol Pemicu Pop-up Meteran */}
+            <div
+              data-tour="meter-final-report"
+              className="w-full min-h-full p-3 sm:p-4 lg:p-6 bg-emerald-50/80 border-2 border-emerald-200 rounded-2xl relative shadow-md flex flex-col justify-center"
+            >
+              <button
+                type="button"
+                onClick={() => setShowReportCardInfo((prev) => !prev)}
+                className={`absolute top-2.5 right-2.5 transition-colors z-20 cursor-pointer p-0.5 rounded-full ${showReportCardInfo
+                  ? "text-emerald-900"
+                  : "text-emerald-600/80 hover:text-emerald-800"
+                  }`}
+                title="Info Laporan"
               >
+                <Info className="w-4 h-4" />
+              </button>
+
+              {showReportCardInfo && (
+                <div className="absolute top-10 left-2.5 right-2.5 p-3 bg-slate-900 text-white text-[11px] font-medium leading-relaxed rounded-xl z-30 shadow-xl border border-slate-700 animate-fadeIn">
+                  {watch("nomorMc") === "T2A"
+                    ? "Gunakan tombol di bawah untuk melaporkan meter produksi."
+                    : "Gunakan tombol di bawah jika ingin istirahat, jika beres potongan atau shift selesai."}
+                </div>
+              )}
+
+              <div className="absolute -top-3.5 lg:-top-4 left-1/2 -translate-x-1/2 bg-emerald-600 px-3 lg:px-5 py-1 lg:py-1.5 text-[9px] lg:text-[11px] font-black text-white uppercase tracking-widest border-2 border-white rounded-full shadow-md whitespace-nowrap">
+                {watch("nomorMc") === "T2A"
+                  ? "Laporan Meter"
+                  : "Laporan Hasil"}
+              </div>
+
+              <div className="mt-3 flex flex-col items-center justify-center text-center gap-4">
+                <div>
+                  <h4 className="text-sm sm:text-base lg:text-lg font-black text-emerald-900">
+                    {watch("nomorMc") === "T2A"
+                      ? "Laporan Meter"
+                      : "Laporan Istirahat dan Shift"}
+                  </h4>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setShowReportCardInfo((prev) => !prev)}
-                  className={`absolute top-2.5 right-2.5 transition-colors z-20 cursor-pointer p-0.5 rounded-full ${showReportCardInfo
-                      ? "text-emerald-900"
-                      : "text-emerald-600/80 hover:text-emerald-800"
-                    }`}
-                  title="Info Laporan"
+                  onClick={async () => {
+                    await refreshAutomaticMeterStart();
+                    setIsMeterModalOpen(true);
+                  }}
+                  className="w-full max-w-xs px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
                 >
-                  <Info className="w-4 h-4" />
-                </button>
-
-                {showReportCardInfo && (
-                  <div className="absolute top-10 left-2.5 right-2.5 p-3 bg-slate-900 text-white text-[11px] font-medium leading-relaxed rounded-xl z-30 shadow-xl border border-slate-700 animate-fadeIn">
-                    {watch("nomorMc") === "T2A"
-                      ? "Gunakan tombol di bawah untuk melaporkan meter produksi."
-                      : "Gunakan tombol di bawah jika ingin istirahat, jika beres potongan atau shift selesai."}
-                  </div>
-                )}
-
-                <div className="absolute -top-3.5 lg:-top-4 left-1/2 -translate-x-1/2 bg-emerald-600 px-3 lg:px-5 py-1 lg:py-1.5 text-[9px] lg:text-[11px] font-black text-white uppercase tracking-widest border-2 border-white rounded-full shadow-md whitespace-nowrap">
+                  <FileText className="w-5 h-5" />
                   {watch("nomorMc") === "T2A"
-                    ? "Laporan Meter"
-                    : "Laporan Hasil"}
-                </div>
-
-                <div className="mt-3 flex flex-col items-center justify-center text-center gap-4">
-                  <div>
-                    <h4 className="text-sm sm:text-base lg:text-lg font-black text-emerald-900">
-                      {watch("nomorMc") === "T2A"
-                        ? "Laporan Meter"
-                        : "Laporan Istirahat dan Shift"}
-                    </h4>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await refreshAutomaticMeterStart();
-                      setIsMeterModalOpen(true);
-                    }}
-                    className="w-full max-w-xs px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
-                  >
-                    <FileText className="w-5 h-5" />
-                    {watch("nomorMc") === "T2A"
-                      ? "Lapor Meter"
-                      : "Lapor Meter Terakhir"}
-                  </button>
-                </div>
+                    ? "Lapor Meter"
+                    : "Lapor Meter Terakhir"}
+                </button>
               </div>
             </div>
-
-            {/* ARRAY OF PCS (HIDDEN) - use actual pcsIndex from field data, not sequential position */}
-            {/* NOTE: Do NOT use value={index+1} here — that overwrites pcsIndex and breaks PCS 2, 3, etc. on edit */}
-            <div className="hidden">
-              {fields.map((field: any, index) => (
-                <input
-                  key={field.id}
-                  type="hidden"
-                  {...register(`pcsData.${index}.pcsIndex` as const)}
-                  defaultValue={field.pcsIndex || (index + 1)}
-                />
-              ))}
-            </div>
           </div>
 
-          <div className="flex flex-col w-full mb-6">
-            <div data-tour="downtime" className="w-full">
-              <input type="hidden" {...register("totalDowntime")} />
-              <DowntimeTracker
-                control={control}
-                setValue={setValue}
-                watch={watch}
-                showBlockInput={true}
-                showMeterInput={true}
-                defaultMeter={defaultMeter}
-                defaultPcsIndex={defaultPcsIndex}
-                operators={activeOperators}
-                currentOperatorName={getOperatorName(watch("operatorId"))}
-                isEdit={isEdit}
-                isPanelType={false}
+          {/* ARRAY OF PCS (HIDDEN) - use actual pcsIndex from field data, not sequential position */}
+          {/* NOTE: Do NOT use value={index+1} here — that overwrites pcsIndex and breaks PCS 2, 3, etc. on edit */}
+          <div className="hidden">
+            {fields.map((field: any, index) => (
+              <input
+                key={field.id}
+                type="hidden"
+                {...register(`pcsData.${index}.pcsIndex` as const)}
+                defaultValue={field.pcsIndex || (index + 1)}
               />
-            </div>
+            ))}
           </div>
+        </div>
 
-          {(errors.pcsData as any)?.message && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 mb-6 animate-pulse">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <p className="text-xs font-bold text-red-600">
-                {(errors.pcsData as any)?.message}
-              </p>
-            </div>
-          )}
-          {(errors.pcsData as any)?.root?.message && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 mb-6 animate-pulse">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <p className="text-xs font-bold text-red-600">
-                {(errors.pcsData as any)?.root?.message}
-              </p>
-            </div>
-          )}
+        <div className="flex flex-col w-full mb-6">
+          <div data-tour="downtime" className="w-full">
+            <input type="hidden" {...register("totalDowntime")} />
+            <DowntimeTracker
+              control={control}
+              setValue={setValue}
+              watch={watch}
+              showBlockInput={true}
+              showMeterInput={true}
+              defaultMeter={defaultMeter}
+              defaultPcsIndex={defaultPcsIndex}
+              operators={activeOperators}
+              currentOperatorName={getOperatorName(watch("operatorId"))}
+              isEdit={isEdit}
+              isPanelType={false}
+            />
+          </div>
+        </div>
 
-          {/* Tindakan Akhir Panel Toggle Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (showAdvancedActions) {
-                handleCancelAdvancedActions();
-              } else {
-                setShowAdvancedActions(true);
-              }
-            }}
-            className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-rose-300 border-dashed text-rose-600 font-bold text-sm hover:bg-rose-50 hover:text-rose-700 hover:border-rose-400 transition-all duration-200"
+        {(errors.pcsData as any)?.message && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 mb-6 animate-pulse">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <p className="text-xs font-bold text-red-600">
+              {(errors.pcsData as any)?.message}
+            </p>
+          </div>
+        )}
+        {(errors.pcsData as any)?.root?.message && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 mb-6 animate-pulse">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <p className="text-xs font-bold text-red-600">
+              {(errors.pcsData as any)?.root?.message}
+            </p>
+          </div>
+        )}
+
+        {/* Tindakan Akhir Panel Toggle Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (showAdvancedActions) {
+              handleCancelAdvancedActions();
+            } else {
+              setShowAdvancedActions(true);
+            }
+          }}
+          className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-rose-300 border-dashed text-rose-600 font-bold text-sm hover:bg-rose-50 hover:text-rose-700 hover:border-rose-400 transition-all duration-200"
+        >
+          {showAdvancedActions ? (
+            <>Tutup Opsi Lanjutan</>
+          ) : (
+            <>Potong Kain & BS</>
+          )}
+        </button>
+
+        {/* Tindakan Akhir Panel Modal Pop-Up */}
+        {showAdvancedActions && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+            onClick={handleCancelAdvancedActions}
           >
-            {showAdvancedActions ? (
-              <>Tutup Opsi Lanjutan</>
-            ) : (
-              <>Potong Kain & BS</>
-            )}
-          </button>
-
-          {/* Tindakan Akhir Panel Modal Pop-Up */}
-          {showAdvancedActions && (
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
-              onClick={handleCancelAdvancedActions}
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh] animate-scaleIn"
+              onClick={(e) => e.stopPropagation()}
             >
-              <div
-                className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh] animate-scaleIn"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50">
-                  <h3 className="font-black text-slate-800 text-lg">
-                    Opsi Lanjutan Meter
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={handleCancelAdvancedActions}
-                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div
-                  className="p-5 sm:p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/30 custom-scrollbar"
-                  onClick={() => setActiveInfo(null)}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50">
+                <h3 className="font-black text-slate-800 text-lg">
+                  Opsi Lanjutan Meter
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleCancelAdvancedActions}
+                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
                 >
-                  {/* Potong Kain Toggle */}
-                  {(() => {
-                    const currentPcsData = watch("pcsData") || [];
-                    const hasBsSelected = currentPcsData.some((p) => p?.isBs);
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-                    return (
-                      <>
-                        <div className="flex flex-col gap-2 relative" data-tour="meter-cut-roll">
-                          <label className={`relative flex flex-col items-center justify-center p-4 h-32 rounded-2xl border-2 transition-all duration-300 text-center ${hasBsSelected
-                              ? "bg-slate-100 border-slate-200 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none grayscale"
-                              : isLastRoll
-                                ? "bg-gradient-to-br from-[#0070bc] to-[#004777] border-transparent shadow-lg shadow-sky-500/30 text-white cursor-pointer"
-                                : "bg-white border-slate-200 hover:border-sky-300 text-slate-600 hover:bg-sky-50 cursor-pointer"
-                            }`}>
-                            <input
-                              type="checkbox"
-                              disabled={hasBsSelected}
-                              checked={isLastRoll}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setIsLastRoll(checked);
-                                if (checked) {
-                                  setValue("tanggalPotong", new Date().toISOString().split("T")[0]);
-                                  if (fields && fields.length > 0) {
-                                    fields.forEach((_, i) => setValue(`pcsData.${i}.isBs` as const, false));
-                                  }
-                                } else {
-                                  setValue("tanggalPotong", "");
+              <div
+                className="p-5 sm:p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/30 custom-scrollbar"
+                onClick={() => setActiveInfo(null)}
+              >
+                {/* Potong Kain Toggle */}
+                {(() => {
+                  const currentPcsData = watch("pcsData") || [];
+                  const hasBsSelected = currentPcsData.some((p) => p?.isBs);
+
+                  return (
+                    <>
+                      <div className="flex flex-col gap-2 relative" data-tour="meter-cut-roll">
+                        <label className={`relative flex flex-col items-center justify-center p-4 h-32 rounded-2xl border-2 transition-all duration-300 text-center ${hasBsSelected
+                          ? "bg-slate-100 border-slate-200 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none grayscale"
+                          : isLastRoll
+                            ? "bg-gradient-to-br from-[#0070bc] to-[#004777] border-transparent shadow-lg shadow-sky-500/30 text-white cursor-pointer"
+                            : "bg-white border-slate-200 hover:border-sky-300 text-slate-600 hover:bg-sky-50 cursor-pointer"
+                          }`}>
+                          <input
+                            type="checkbox"
+                            disabled={hasBsSelected}
+                            checked={isLastRoll}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setIsLastRoll(checked);
+                              if (checked) {
+                                setValue("tanggalPotong", new Date().toISOString().split("T")[0]);
+                                if (fields && fields.length > 0) {
+                                  fields.forEach((_, i) => setValue(`pcsData.${i}.isBs` as const, false));
                                 }
-                              }}
-                              className="hidden"
-                            />
-                            <Scissors className={`w-8 h-8 mb-2 transition-transform duration-300 ${isLastRoll ? "-rotate-12 scale-110" : "text-slate-400"}`} style={{ transform: isLastRoll ? "scaleX(-1) rotate(12deg)" : "scaleX(-1)" }} />
-                            <span className="font-black uppercase text-xs tracking-wide">Potong Kain</span>
+                              } else {
+                                setValue("tanggalPotong", "");
+                              }
+                            }}
+                            className="hidden"
+                          />
+                          <Scissors className={`w-8 h-8 mb-2 transition-transform duration-300 ${isLastRoll ? "-rotate-12 scale-110" : "text-slate-400"}`} style={{ transform: isLastRoll ? "scaleX(-1) rotate(12deg)" : "scaleX(-1)" }} />
+                          <span className="font-black uppercase text-xs tracking-wide">Potong Kain</span>
 
-                            {isLastRoll && (
-                              <div className="absolute top-2 right-2 bg-white/20 rounded-full p-1">
-                                <CheckCircle2 className="w-4 h-4 text-white" />
-                              </div>
-                            )}
-                          </label>
+                          {isLastRoll && (
+                            <div className="absolute top-2 right-2 bg-white/20 rounded-full p-1">
+                              <CheckCircle2 className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setActiveInfo(activeInfo === "potong" ? null : "potong");
+                          }}
+                          className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "potong"
+                            ? "bg-slate-800 text-white"
+                            : isLastRoll ? "bg-white/20 text-white hover:bg-white/30" : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                            }`}
+                        >
+                          <Info className="w-4 h-4" />
+                        </button>
+                        {activeInfo === "potong" && (
+                          <div className="absolute top-12 left-0 w-full p-3 bg-slate-800 text-white text-[11px] leading-relaxed rounded-xl z-50 shadow-xl animate-fadeIn">
+                            Tandai khusus untuk potongan terakhir dalam roll kain.
+                          </div>
+                        )}
+
+                        {isLastRoll && (
+                          <div className="animate-fadeIn mt-1">
+                            <input
+                              type="date"
+                              {...register("tanggalPotong")}
+                              className="h-10 px-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none shadow-sm w-full text-center"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Pilih PCS yang BS */}
+                      {fields.length > 0 && (
+                        <div className="flex flex-col gap-2 relative">
+                          <div className={`relative flex flex-col items-center justify-center p-4 min-h-32 h-auto rounded-2xl border-2 transition-all duration-300 text-center shadow-sm ${isLastRoll
+                            ? "bg-slate-100 border-slate-200 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none grayscale"
+                            : "bg-gradient-to-br from-rose-50 to-white border-rose-200"
+                            }`}>
+                            <AlertCircle className="w-7 h-7 mb-2 text-rose-500" />
+                            <span className="font-black uppercase text-xs text-rose-700 tracking-wide mb-2">Tandai PCS BS</span>
+
+                            <div className="flex flex-wrap justify-center gap-1.5 w-full">
+                              {fields.map((field, index) => (
+                                <div key={field.id} className="relative flex-1 min-w-[45%] z-10">
+                                  <input
+                                    type="checkbox"
+                                    id={`pcsBs-${index}`}
+                                    disabled={isLastRoll}
+                                    {...register(`pcsData.${index}.isBs` as const)}
+                                    className="peer hidden"
+                                  />
+                                  <label htmlFor={`pcsBs-${index}`} className="flex items-center justify-center cursor-pointer py-1.5 px-2 rounded-lg border-2 bg-white border-rose-200 text-rose-600 font-bold text-[10px] uppercase transition-all duration-300 hover:border-rose-400 hover:bg-rose-50 peer-checked:bg-rose-500 peer-checked:border-rose-600 peer-checked:text-white peer-checked:shadow-md">
+                                    PCS {index + 1}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
 
                           <button
                             type="button"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              setActiveInfo(activeInfo === "potong" ? null : "potong");
+                              setActiveInfo(activeInfo === "pcs" ? null : "pcs");
                             }}
-                            className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "potong"
-                                ? "bg-slate-800 text-white"
-                                : isLastRoll ? "bg-white/20 text-white hover:bg-white/30" : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                            className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "pcs" ? "bg-slate-800 text-white" : "bg-rose-100 text-rose-400 hover:bg-rose-200"
                               }`}
                           >
                             <Info className="w-4 h-4" />
                           </button>
-                          {activeInfo === "potong" && (
+                          {activeInfo === "pcs" && (
                             <div className="absolute top-12 left-0 w-full p-3 bg-slate-800 text-white text-[11px] leading-relaxed rounded-xl z-50 shadow-xl animate-fadeIn">
-                              Tandai khusus untuk potongan terakhir dalam roll kain.
-                            </div>
-                          )}
-
-                          {isLastRoll && (
-                            <div className="animate-fadeIn mt-1">
-                              <input
-                                type="date"
-                                {...register("tanggalPotong")}
-                                className="h-10 px-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none shadow-sm w-full text-center"
-                              />
+                              Klik tombol PCS yang cacat/rusak. Otomatis akan menahan nomor urut potongan selanjutnya.
                             </div>
                           )}
                         </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
 
-                        {/* Pilih PCS yang BS */}
-                        {fields.length > 0 && (
-                          <div className="flex flex-col gap-2 relative">
-                            <div className={`relative flex flex-col items-center justify-center p-4 min-h-32 h-auto rounded-2xl border-2 transition-all duration-300 text-center shadow-sm ${isLastRoll
-                                ? "bg-slate-100 border-slate-200 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none grayscale"
-                                : "bg-gradient-to-br from-rose-50 to-white border-rose-200"
-                              }`}>
-                              <AlertCircle className="w-7 h-7 mb-2 text-rose-500" />
-                              <span className="font-black uppercase text-xs text-rose-700 tracking-wide mb-2">Tandai PCS BS</span>
-
-                              <div className="flex flex-wrap justify-center gap-1.5 w-full">
-                                {fields.map((field, index) => (
-                                  <div key={field.id} className="relative flex-1 min-w-[45%] z-10">
-                                    <input
-                                      type="checkbox"
-                                      id={`pcsBs-${index}`}
-                                      disabled={isLastRoll}
-                                      {...register(`pcsData.${index}.isBs` as const)}
-                                      className="peer hidden"
-                                    />
-                                    <label htmlFor={`pcsBs-${index}`} className="flex items-center justify-center cursor-pointer py-1.5 px-2 rounded-lg border-2 bg-white border-rose-200 text-rose-600 font-bold text-[10px] uppercase transition-all duration-300 hover:border-rose-400 hover:bg-rose-50 peer-checked:bg-rose-500 peer-checked:border-rose-600 peer-checked:text-white peer-checked:shadow-md">
-                                      PCS {index + 1}
-                                    </label>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setActiveInfo(activeInfo === "pcs" ? null : "pcs");
-                              }}
-                              className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "pcs" ? "bg-slate-800 text-white" : "bg-rose-100 text-rose-400 hover:bg-rose-200"
-                                }`}
-                            >
-                              <Info className="w-4 h-4" />
-                            </button>
-                            {activeInfo === "pcs" && (
-                              <div className="absolute top-12 left-0 w-full p-3 bg-slate-800 text-white text-[11px] leading-relaxed rounded-xl z-50 shadow-xl animate-fadeIn">
-                                Klik tombol PCS yang cacat/rusak. Otomatis akan menahan nomor urut potongan selanjutnya.
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-
-                <div className="p-4 sm:p-5 bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] flex gap-3">
+              <div className="p-4 sm:p-5 bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleCancelAdvancedActions}
+                  className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all uppercase tracking-wider cursor-pointer"
+                >
+                  Batal
+                </button>
+                {isLastRoll ? (
                   <button
                     type="button"
-                    onClick={handleCancelAdvancedActions}
-                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all uppercase tracking-wider cursor-pointer"
+                    onClick={async () => {
+                      setShowAdvancedActions(false);
+                      setValue("jenisLaporan", "");
+                      await refreshAutomaticMeterStart();
+                      setIsMeterModalOpen(true);
+                    }}
+                    className="flex-1 h-12 sm:h-14 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-900/20 transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    Batal
+                    <Save className="w-5 h-5" />
+                    <span>Lanjut Isi Total Meter</span>
                   </button>
-                  {isLastRoll ? (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setShowAdvancedActions(false);
-                        setValue("jenisLaporan", "");
-                        await refreshAutomaticMeterStart();
-                        setIsMeterModalOpen(true);
-                      }}
-                      className="flex-1 h-12 sm:h-14 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-900/20 transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Save className="w-5 h-5" />
-                      <span>Lanjut Isi Total Meter</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={isSubmitting}
-                      onClick={() => {
-                        setShowAdvancedActions(false);
-                        handleSubmit(onSubmit, onInvalid)();
-                      }}
-                      className="flex-1 h-12 sm:h-14 bg-[#0070bc] hover:bg-[#004777] active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-sky-900/20 transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      <Save className="w-5 h-5" />
-                      <span>{isSubmitting ? "Menyimpan..." : "Kirim Laporan Sekarang"}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-4 mt-6">
-            {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "PANEL" ? (
-              <button
-                type="button"
-                disabled
-                className="w-full h-12 rounded-xl bg-slate-200 text-slate-500 font-extrabold text-xs uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2 border border-slate-300"
-              >
-                <Lock className="w-4 h-4 text-slate-500" />
-                <span>Ditolak: Mesin {watch("nomorMc")} Khusus Input PANEL</span>
-              </button>
-            ) : (
-              <button
-                data-tour="meter-submit-defect"
-                type="button"
-                onClick={() => {
-                  if (watch("nomorMc") !== "T2A") {
-                    setValue("meterAwal", "");
-                  }
-                  setValue("meterAkhir", "");
-                  handleSubmit(onSubmit, onInvalid)();
-                }}
-                disabled={isSubmitting}
-                className={`w-full h-12 rounded-xl active:scale-[0.99] disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-md ${isLastRoll ? "bg-slate-400 hover:bg-slate-500" : "bg-[#0070bc] hover:bg-[#004777]"}`}
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" /> Menyimpan...
-                  </>
                 ) : (
-                  <>
-                    <Save className="w-5 h-5" />{" "}
-                    {isEdit
-                      ? "Simpan Perubahan Cacat"
-                      : "Kirim Laporan Titik Cacat"}
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-
-          {isMeterModalOpen && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
-              onClick={() => setIsMeterModalOpen(false)}
-            >
-              <div
-                data-tour="meter-modal"
-                className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl flex flex-col animate-scaleIn relative overflow-hidden max-h-[95vh] md:max-h-[90vh]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 opacity-10"></div>
-
-                <div className="flex justify-between items-center mb-6 relative z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-                      <Database className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-black text-slate-800">
-                        {isLastRoll ? "Laporan Potong Kain" : "Laporan Meteran"}
-                      </h3>
-                      <p className="text-[10px] text-slate-500 font-medium">
-                        {isLastRoll ? "Isi meteran untuk potong kain" : "Isi di akhir shift"}
-                      </p>
-                    </div>
-                  </div>
                   <button
                     type="button"
-                    onClick={() => setIsMeterModalOpen(false)}
-                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setShowAdvancedActions(false);
+                      handleSubmit(onSubmit, onInvalid)();
+                    }}
+                    className="flex-1 h-12 sm:h-14 bg-[#0070bc] hover:bg-[#004777] active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-sky-900/20 transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
-                    <X className="w-4 h-4" />
+                    <Save className="w-5 h-5" />
+                    <span>{isSubmitting ? "Menyimpan..." : "Kirim Laporan Sekarang"}</span>
                   </button>
-                </div>
-
-                <div className="space-y-4 relative z-10 overflow-y-auto max-h-[48vh] sm:max-h-[58vh] pr-1 -mr-1 custom-scrollbar">
-                  {watch("nomorMc") === "T2A" ? (
-                    <div className="space-y-3">
-                      {isMeterAwalLocked && originalT2ATarget !== null && (
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                            <ClipboardList className="w-4 h-4 text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-bold text-blue-800 uppercase">
-                              Target Produksi Awal
-                            </p>
-                            <p className="text-base font-black text-blue-700">
-                              {originalT2ATarget} m
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-600 uppercase">
-                          {isMeterAwalLocked
-                            ? "Start Meter"
-                            : "Target Produksi (meter)"}
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          {...register("meterAwal")}
-                          readOnly={isMeterAwalLocked}
-                          className={`h-12 px-4 rounded-xl border text-base font-semibold outline-none transition-all ${isMeterAwalLocked
-                            ? "bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed"
-                            : "bg-white border-slate-200 focus:border-emerald-400"
-                            }`}
-                          placeholder="Contoh: 600"
-                        />
-                        {isMeterAwalLocked && (
-                          <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                            Dilanjutkan dari sisa meter shift sebelumnya.
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-600 uppercase">
-                          Finish Meter (Counter Mesin)
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          {...register("meterAkhir")}
-                          className="h-12 px-4 rounded-xl bg-white border border-slate-200 text-base font-semibold focus:border-emerald-400 outline-none transition-all text-right"
-                          placeholder="Masukkan angka di mesin saat ini"
-                        />
-                      </div>
-
-                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                        <label className="text-[10px] font-bold text-emerald-800 uppercase flex justify-between items-center mb-1">
-                          <span>Total Produksi</span>
-                        </label>
-                        <div className="text-right text-lg font-black text-emerald-700">
-                          {(() => {
-                            const akhirStr = watch("meterAkhir");
-                            if (!akhirStr || akhirStr.trim() === "")
-                              return "0 m";
-                            const t =
-                              parseFloat(watch("meterAwal") || "0") || 0;
-                            const p = parseFloat(akhirStr) || 0;
-                            const rem = Math.max(t - p, 0);
-                            return `${rem} m`;
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-600 uppercase">
-                          Start Meter Otomatis
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          {...register("meterAwal")}
-                          readOnly
-                          className="h-12 px-4 rounded-xl bg-slate-100 border border-slate-200 text-base font-semibold text-slate-700 outline-none transition-all cursor-not-allowed"
-                          placeholder="Otomatis dari finish terakhir"
-                        />
-                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                          Potongan baru mulai dari 0. Jika shift sebelumnya
-                          belum potong kain, nilai ini mengikuti finish meter
-                          terakhir.
-                        </p>
-                        {errors.meterAwal && (
-                          <span className="text-red-500 text-[10px] font-bold mt-0.5">
-                            {errors.meterAwal.message}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-600 uppercase">
-                          {watchJenisLaporan === "Mulai Istirahat"
-                            ? "Meter Ketika Istirahat"
-                            : watchJenisLaporan === "Selesai Istirahat"
-                              ? "Meter Selesai Istirahat"
-                              : "Finish Meter"}
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          {...register("meterAkhir")}
-                          className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
-                          placeholder="Contoh: 250"
-                        />
-                        {errors.meterAkhir && (
-                          <span className="text-red-500 text-[10px] font-bold mt-0.5">
-                            {errors.meterAkhir.message}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl mt-2">
-                        <label className="text-[10px] font-bold text-emerald-800 uppercase flex justify-between items-center mb-1">
-                          <span>Total Hasil Produksi</span>
-                          <span className="text-[9px] text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded font-black uppercase">
-                            Auto Calculate
-                          </span>
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          readOnly
-                          tabIndex={-1}
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          {...register("hasilProduksiMeter")}
-                          className="w-full h-12 px-4 rounded-xl bg-emerald-100/50 border border-emerald-300 text-lg font-black text-emerald-700 outline-none shadow-sm text-right cursor-not-allowed select-none"
-                          placeholder="0"
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="mt-4 relative z-10 bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-2">
-                  <label className="text-xs font-bold text-slate-700 uppercase">
-                    Jenis Laporan Meter
-                  </label>
-                  <input type="hidden" id="jenisLaporan" {...register("jenisLaporan")} />
-                  {isLastRoll ? (
-                    <div className="grid grid-cols-1 gap-2 mt-1">
-                      <button
-                        type="button"
-                        onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
-                        className="w-full px-3 py-3 rounded-xl border-2 border-[#0070bc] bg-sky-50 text-[#0070bc] text-xs font-bold transition-all flex items-center justify-center text-center gap-1 shadow-sm"
-                      >
-                        <span className="block font-black uppercase">Laporan Potong Kain</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
-                        <button
-                          type="button"
-                          onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
-                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-[0.98] ${watchJenisLaporan === ""
-                              ? "border-[#0070bc] bg-sky-50 text-[#0070bc] scale-[1.01]"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                            }`}
-                        >
-                          <span className="block font-black uppercase">Laporan Oper Shift</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setValue("jenisLaporan", "Mulai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${watchJenisLaporan === "Mulai Istirahat"
-                              ? "border-amber-500 bg-amber-50 text-amber-700 scale-[1.01]"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-                            }`}
-                        >
-                          <span className="block font-black uppercase">Mulai Istirahat</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setValue("jenisLaporan", "Selesai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                          className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${watchJenisLaporan === "Selesai Istirahat"
-                              ? "border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.01]"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-                            }`}
-                        >
-                          <span className="block font-black uppercase">Selesai Istirahat</span>
-                        </button>
-                      </div>
-
-                      {watchJenisLaporan === "Mulai Istirahat" && (
-                        <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                          <label className="text-[10px] font-black text-amber-800 uppercase block mb-1">
-                            Siapa yang menjaga mesin (Backup)?
-                          </label>
-                          <select
-                            value={backupOperator}
-                            onChange={(e) => setBackupOperator(e.target.value)}
-                            className="w-full h-10 px-3 rounded-lg border border-amber-300 text-sm font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-amber-400 outline-none"
-                          >
-                            <option value="">-- Pilih Operator --</option>
-                            {(() => {
-                              const currentOperatorId = watch("operatorId");
-                              const currentOp = operators.find(o => o.id.toString() === currentOperatorId);
-                              const backupOps = currentOp?.shift
-                                ? operators.filter(o => o.shift === currentOp.shift && o.id.toString() !== currentOperatorId)
-                                : operators;
-                              return backupOps.map(op => (
-                                <option key={op.id} value={op.name}>{op.name}</option>
-                              ));
-                            })()}
-                          </select>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div className="flex gap-3 mt-6 relative z-10">
-                  {watch("nomorMc") === "T2A" && !isMeterAwalLocked ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const target = watch("meterAwal");
-                          if (
-                            !target ||
-                            target.trim() === "" ||
-                            target === "0"
-                          ) {
-                            setErrorMsg(
-                              "Masukkan Target Produksi terlebih dahulu.",
-                            );
-                            return;
-                          }
-                          localStorage.setItem(
-                            "dji_form_draft_continuous",
-                            JSON.stringify(watch()),
-                          );
-                          setIsMeterModalOpen(false);
-                          setErrorMsg(null);
-                          setSuccessData({ isTargetSaved: true } as any);
-                        }}
-                        className="flex-1 py-3.5 bg-blue-500 hover:bg-blue-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-blue-500/20 flex justify-center items-center gap-2 text-sm"
-                      >
-                        <Save className="w-4 h-4" />
-                        Simpan
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await refreshAutomaticMeterStart();
-                          const isValid = await trigger([
-                            "meterAwal",
-                            "meterAkhir",
-                          ]);
-                          if (!isValid) return;
-
-                          const currentMc = watch("nomorMc");
-                          const currentMeterAkhir = parseFloat(
-                            watch("meterAkhir") || "0",
-                          );
-                          if (currentMc === "T2A" && currentMeterAkhir === 0) {
-                            setIsLastRoll(true);
-                            setValue(
-                              "tanggalPotong",
-                              getJakartaDateString(),
-                            );
-                          }
-
-                          const currentPcs = watch("pcsData") || [];
-                          const cleanPcs = currentPcs.map((pcs) => ({
-                            ...pcs,
-                            indikatorStop: false,
-                            kategoriMasalah: [],
-                            detailMasalahMap: undefined,
-                            detailMasalah: "",
-                            spesifikMasalah: "",
-                            keteranganCacat: "",
-                          }));
-                          setValue("pcsData", cleanPcs);
-                          setValue("totalDowntime", "");
-
-                          setIsMeterModalOpen(false);
-                          handleSubmit(onSubmit, onInvalid)();
-                        }}
-                        disabled={isSubmitting}
-                        className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm"
-                      >
-                        {isSubmitting ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Send className="w-4 h-4" />
-                        )}
-                        Kirim
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setIsMeterModalOpen(false)}
-                        className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors text-sm"
-                      >
-                        Batal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await refreshAutomaticMeterStart();
-                          const isValid = await trigger([
-                            "meterAwal",
-                            "meterAkhir",
-                          ]);
-                          if (!isValid) return;
-
-                          const currentMc = watch("nomorMc");
-                          const currentMeterAkhir = parseFloat(
-                            watch("meterAkhir") || "0",
-                          );
-                          if (currentMc === "T2A" && currentMeterAkhir === 0) {
-                            setIsLastRoll(true);
-                            setValue(
-                              "tanggalPotong",
-                              getJakartaDateString(),
-                            );
-                          }
-
-                          const currentPcs = watch("pcsData") || [];
-                          const cleanPcs = currentPcs.map((pcs) => ({
-                            ...pcs,
-                            indikatorStop: false,
-                            kategoriMasalah: [],
-                            detailMasalahMap: undefined,
-                            detailMasalah: "",
-                            spesifikMasalah: "",
-                            keteranganCacat: "",
-                          }));
-                          setValue("pcsData", cleanPcs);
-                          setValue("totalDowntime", "");
-
-                          setIsMeterModalOpen(false);
-                          handleSubmit(onSubmit, onInvalid)();
-                        }}
-                        disabled={isSubmitting}
-                        className="flex-[2] py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm"
-                      >
-                        {isSubmitting ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
-                        Simpan & Kirim Meteran
-                      </button>
-                    </>
-                  )}
-                </div>
+                )}
               </div>
             </div>
-          )}
-        </form>
+          </div>
+        )}
 
-        {isTourOpen && currentTourStep && (
-          <div className="fixed inset-0 z-[70]">
-            <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-[1px]" />
-            {tourRect && (
-              <div
-                className="absolute rounded-2xl border-2 border-emerald-300 bg-white/10 shadow-[0_0_0_9999px_rgba(15,23,42,0.45),0_0_0_6px_rgba(16,185,129,0.18)] transition-all duration-200 pointer-events-none"
-                style={{
-                  top: Math.max(tourRect.top - 8, 8),
-                  left: Math.max(tourRect.left - 8, 8),
-                  width: tourRect.width + 16,
-                  height: tourRect.height + 16,
-                }}
-              />
-            )}
-            <div
-              className="absolute w-[calc(100vw-2rem)] max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 p-5"
-              style={{ top: tourCardTop, left: tourCardLeft }}
+        <div className="flex flex-col gap-4 mt-6">
+          {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "PANEL" ? (
+            <button
+              type="button"
+              disabled
+              className="w-full h-12 rounded-xl bg-slate-200 text-slate-500 font-extrabold text-xs uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2 border border-slate-300"
             >
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
-                    Step {tourStepIndex + 1} dari {METER_TOUR_STEPS.length}
-                  </p>
-                  <h4 className="text-base font-black text-slate-900 mt-1">
-                    {currentTourStep.title}
-                  </h4>
+              <Lock className="w-4 h-4 text-slate-500" />
+              <span>Ditolak: Mesin {watch("nomorMc")} Khusus Input PANEL</span>
+            </button>
+          ) : (
+            <button
+              data-tour="meter-submit-defect"
+              type="button"
+              onClick={() => {
+                if (watch("nomorMc") !== "T2A") {
+                  setValue("meterAwal", "");
+                }
+                setValue("meterAkhir", "");
+                handleSubmit(onSubmit, onInvalid)();
+              }}
+              disabled={isSubmitting}
+              className={`w-full h-12 rounded-xl active:scale-[0.99] disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-md ${isLastRoll ? "bg-slate-400 hover:bg-slate-500" : "bg-[#0070bc] hover:bg-[#004777]"}`}
+            >
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" /> Menyimpan...
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />{" "}
+                  {isEdit
+                    ? "Simpan Perubahan Cacat"
+                    : "Kirim Laporan Titik Cacat"}
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {isMeterModalOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+            onClick={() => setIsMeterModalOpen(false)}
+          >
+            <div
+              data-tour="meter-modal"
+              className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl flex flex-col animate-scaleIn relative overflow-hidden max-h-[95vh] md:max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 opacity-10"></div>
+
+              <div className="flex justify-between items-center mb-6 relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-800">
+                      {isLastRoll ? "Laporan Potong Kain" : "Laporan Meteran"}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      {isLastRoll ? "Isi meteran untuk potong kain" : "Isi di akhir shift"}
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  onClick={closeTour}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors shrink-0"
-                  aria-label="Tutup tour"
+                  onClick={() => setIsMeterModalOpen(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                {currentTourStep.description}
-              </p>
-              <div className="flex items-center gap-2 mt-5">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setTourStepIndex((step) => Math.max(step - 1, 0))
-                  }
-                  disabled={tourStepIndex === 0}
-                  className="h-10 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Kembali
-                </button>
-                <button
-                  type="button"
-                  onClick={
-                    isLastTourStep
-                      ? closeTour
-                      : () => setTourStepIndex((step) => step + 1)
-                  }
-                  className="flex-1 h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  {isLastTourStep ? "Selesai" : "Lanjut"}
-                  {!isLastTourStep && <ArrowRight className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Modal Sukses */}
-        {successData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center">
-              <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-
-              {(successData as any).isTargetSaved ? (
-                <>
-                  <h4 className="text-lg font-bold text-slate-800">
-                    Target Tersimpan
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1 mb-5">
-                    Target Produksi {watch("meterAwal")} meter telah disimpan
-                    untuk potongan ke-{watch("potonganKe")}.
-                  </p>
-                  <button
-                    onClick={() => setSuccessData(null)}
-                    className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
-                  >
-                    OK
-                  </button>
-                </>
-              ) : (
-                <>
-                  <h4 className="text-lg font-bold text-slate-800">
-                    {(successData as any).isOfflineSaved
-                      ? "Tersimpan Offline"
-                      : "Laporan Berhasil Disimpan"}
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1 mb-5">
-                    {(successData as any).isOfflineSaved
-                      ? (successData as any).isCutSubmit
-                        ? `Tanggal potong Potongan ke-${successData.potonganKe} antre dikirim otomatis saat sinyal pulih.`
-                        : `Data Potongan ke-${successData.potonganKe} antre dikirim otomatis saat sinyal pulih.`
-                      : (successData as any).isCutSubmit
-                        ? `Laporan meteran Potongan ke-${successData.potonganKe} terekam. Tanggal potong juga diupdate pada semua data sebelumnya.`
-                        : `Data laporan untuk Potongan ke-${successData.potonganKe} telah terekam.`}
-                  </p>
-                  {(successData as any).autoAdjustedDowntimeMsg && (
-                    <div className="w-full mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-left shadow-inner">
-                      <p className="text-[11px] font-bold text-amber-700 leading-snug">
-                        <AlertCircle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
-                        {(successData as any).autoAdjustedDowntimeMsg}
-                      </p>
+              <div className="space-y-4 relative z-10 overflow-y-auto max-h-[48vh] sm:max-h-[58vh] pr-1 -mr-1 custom-scrollbar">
+                {watch("nomorMc") === "T2A" ? (
+                  <div className="space-y-3">
+                    {isMeterAwalLocked && originalT2ATarget !== null && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                          <ClipboardList className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-blue-800 uppercase">
+                            Target Produksi Awal
+                          </p>
+                          <p className="text-base font-black text-blue-700">
+                            {originalT2ATarget} m
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-slate-600 uppercase">
+                        {isMeterAwalLocked
+                          ? "Start Meter"
+                          : "Target Produksi (meter)"}
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        onWheel={(e) => (e.target as HTMLElement).blur()}
+                        {...register("meterAwal")}
+                        readOnly={isMeterAwalLocked}
+                        className={`h-12 px-4 rounded-xl border text-base font-semibold outline-none transition-all ${isMeterAwalLocked
+                          ? "bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed"
+                          : "bg-white border-slate-200 focus:border-emerald-400"
+                          }`}
+                        placeholder="Contoh: 600"
+                      />
+                      {isMeterAwalLocked && (
+                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                          Dilanjutkan dari sisa meter shift sebelumnya.
+                        </p>
+                      )}
                     </div>
-                  )}
-                  <button
-                    onClick={handleCloseSuccess}
-                    className="w-full py-3 bg-[#0070bc] text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
-                  >
-                    {isEdit ? "Kembali ke Riwayat" : "Input Masalah Berikutnya"}
-                  </button>
-                </>
-              )}
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-slate-600 uppercase">
+                        Finish Meter (Counter Mesin)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        onWheel={(e) => (e.target as HTMLElement).blur()}
+                        {...register("meterAkhir")}
+                        className="h-12 px-4 rounded-xl bg-white border border-slate-200 text-base font-semibold focus:border-emerald-400 outline-none transition-all text-right"
+                        placeholder="Masukkan angka di mesin saat ini"
+                      />
+                    </div>
+
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <label className="text-[10px] font-bold text-emerald-800 uppercase flex justify-between items-center mb-1">
+                        <span>Total Produksi</span>
+                      </label>
+                      <div className="text-right text-lg font-black text-emerald-700">
+                        {(() => {
+                          const akhirStr = watch("meterAkhir");
+                          if (!akhirStr || akhirStr.trim() === "")
+                            return "0 m";
+                          const t =
+                            parseFloat(watch("meterAwal") || "0") || 0;
+                          const p = parseFloat(akhirStr) || 0;
+                          const rem = Math.max(t - p, 0);
+                          return `${rem} m`;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-slate-600 uppercase">
+                        Start Meter Otomatis
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        onWheel={(e) => (e.target as HTMLElement).blur()}
+                        {...register("meterAwal")}
+                        readOnly
+                        className="h-12 px-4 rounded-xl bg-slate-100 border border-slate-200 text-base font-semibold text-slate-700 outline-none transition-all cursor-not-allowed"
+                        placeholder="Otomatis dari finish terakhir"
+                      />
+                      <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                        Potongan baru mulai dari 0. Jika shift sebelumnya
+                        belum potong kain, nilai ini mengikuti finish meter
+                        terakhir.
+                      </p>
+                      {errors.meterAwal && (
+                        <span className="text-red-500 text-[10px] font-bold mt-0.5">
+                          {errors.meterAwal.message}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-slate-600 uppercase">
+                        {watchJenisLaporan === "Mulai Istirahat"
+                          ? "Meter Ketika Istirahat"
+                          : watchJenisLaporan === "Selesai Istirahat"
+                            ? "Meter Selesai Istirahat"
+                            : "Finish Meter"}
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        onWheel={(e) => (e.target as HTMLElement).blur()}
+                        {...register("meterAkhir")}
+                        className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+                        placeholder="Contoh: 250"
+                      />
+                      {errors.meterAkhir && (
+                        <span className="text-red-500 text-[10px] font-bold mt-0.5">
+                          {errors.meterAkhir.message}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl mt-2">
+                      <label className="text-[10px] font-bold text-emerald-800 uppercase flex justify-between items-center mb-1">
+                        <span>Total Hasil Produksi</span>
+                        <span className="text-[9px] text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded font-black uppercase">
+                          Auto Calculate
+                        </span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        readOnly
+                        tabIndex={-1}
+                        onWheel={(e) => (e.target as HTMLElement).blur()}
+                        {...register("hasilProduksiMeter")}
+                        className="w-full h-12 px-4 rounded-xl bg-emerald-100/50 border border-emerald-300 text-lg font-black text-emerald-700 outline-none shadow-sm text-right cursor-not-allowed select-none"
+                        placeholder="0"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-4 relative z-10 bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-2">
+                <label className="text-xs font-bold text-slate-700 uppercase">
+                  Jenis Laporan Meter
+                </label>
+                <input type="hidden" id="jenisLaporan" {...register("jenisLaporan")} />
+                {isLastRoll ? (
+                  <div className="grid grid-cols-1 gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
+                      className="w-full px-3 py-3 rounded-xl border-2 border-[#0070bc] bg-sky-50 text-[#0070bc] text-xs font-bold transition-all flex items-center justify-center text-center gap-1 shadow-sm"
+                    >
+                      <span className="block font-black uppercase">Laporan Potong Kain</span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
+                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-[0.98] ${watchJenisLaporan === ""
+                          ? "border-[#0070bc] bg-sky-50 text-[#0070bc] scale-[1.01]"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                          }`}
+                      >
+                        <span className="block font-black uppercase">Laporan Oper Shift</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setValue("jenisLaporan", "Mulai Istirahat", { shouldDirty: true, shouldValidate: true })}
+                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${watchJenisLaporan === "Mulai Istirahat"
+                          ? "border-amber-500 bg-amber-50 text-amber-700 scale-[1.01]"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+                          }`}
+                      >
+                        <span className="block font-black uppercase">Mulai Istirahat</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setValue("jenisLaporan", "Selesai Istirahat", { shouldDirty: true, shouldValidate: true })}
+                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${watchJenisLaporan === "Selesai Istirahat"
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.01]"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+                          }`}
+                      >
+                        <span className="block font-black uppercase">Selesai Istirahat</span>
+                      </button>
+                    </div>
+
+                    {watchJenisLaporan === "Mulai Istirahat" && (
+                      <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                        <label className="text-[10px] font-black text-amber-800 uppercase block mb-1">
+                          Siapa yang menjaga mesin (Backup)?
+                        </label>
+                        <select
+                          value={backupOperator}
+                          onChange={(e) => setBackupOperator(e.target.value)}
+                          className="w-full h-10 px-3 rounded-lg border border-amber-300 text-sm font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-amber-400 outline-none"
+                        >
+                          <option value="">-- Pilih Operator --</option>
+                          {(() => {
+                            const currentOperatorId = watch("operatorId");
+                            const currentOp = operators.find(o => o.id.toString() === currentOperatorId);
+                            const backupOps = currentOp?.shift
+                              ? operators.filter(o => o.shift === currentOp.shift && o.id.toString() !== currentOperatorId)
+                              : operators;
+                            return backupOps.map(op => (
+                              <option key={op.id} value={op.name}>{op.name}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6 relative z-10">
+                {watch("nomorMc") === "T2A" && !isMeterAwalLocked ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = watch("meterAwal");
+                        if (
+                          !target ||
+                          target.trim() === "" ||
+                          target === "0"
+                        ) {
+                          setErrorMsg(
+                            "Masukkan Target Produksi terlebih dahulu.",
+                          );
+                          return;
+                        }
+                        localStorage.setItem(
+                          "dji_form_draft_continuous",
+                          JSON.stringify(watch()),
+                        );
+                        setIsMeterModalOpen(false);
+                        setErrorMsg(null);
+                        setSuccessData({ isTargetSaved: true } as any);
+                      }}
+                      className="flex-1 py-3.5 bg-blue-500 hover:bg-blue-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-blue-500/20 flex justify-center items-center gap-2 text-sm"
+                    >
+                      <Save className="w-4 h-4" />
+                      Simpan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await refreshAutomaticMeterStart();
+                        const isValid = await trigger([
+                          "meterAwal",
+                          "meterAkhir",
+                        ]);
+                        if (!isValid) return;
+
+                        const currentMc = watch("nomorMc");
+                        const currentMeterAkhir = parseFloat(
+                          watch("meterAkhir") || "0",
+                        );
+                        if (currentMc === "T2A" && currentMeterAkhir === 0) {
+                          setIsLastRoll(true);
+                          setValue(
+                            "tanggalPotong",
+                            getJakartaDateString(),
+                          );
+                        }
+
+                        const currentPcs = watch("pcsData") || [];
+                        const cleanPcs = currentPcs.map((pcs) => ({
+                          ...pcs,
+                          indikatorStop: false,
+                          kategoriMasalah: [],
+                          detailMasalahMap: undefined,
+                          detailMasalah: "",
+                          spesifikMasalah: "",
+                          keteranganCacat: "",
+                        }));
+                        setValue("pcsData", cleanPcs);
+                        setValue("totalDowntime", "");
+
+                        setIsMeterModalOpen(false);
+                        handleSubmit(onSubmit, onInvalid)();
+                      }}
+                      disabled={isSubmitting}
+                      className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm"
+                    >
+                      {isSubmitting ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      Kirim
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsMeterModalOpen(false)}
+                      className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors text-sm"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await refreshAutomaticMeterStart();
+                        const isValid = await trigger([
+                          "meterAwal",
+                          "meterAkhir",
+                        ]);
+                        if (!isValid) return;
+
+                        const currentMc = watch("nomorMc");
+                        const currentMeterAkhir = parseFloat(
+                          watch("meterAkhir") || "0",
+                        );
+                        if (currentMc === "T2A" && currentMeterAkhir === 0) {
+                          setIsLastRoll(true);
+                          setValue(
+                            "tanggalPotong",
+                            getJakartaDateString(),
+                          );
+                        }
+
+                        const currentPcs = watch("pcsData") || [];
+                        const cleanPcs = currentPcs.map((pcs) => ({
+                          ...pcs,
+                          indikatorStop: false,
+                          kategoriMasalah: [],
+                          detailMasalahMap: undefined,
+                          detailMasalah: "",
+                          spesifikMasalah: "",
+                          keteranganCacat: "",
+                        }));
+                        setValue("pcsData", cleanPcs);
+                        setValue("totalDowntime", "");
+
+                        setIsMeterModalOpen(false);
+                        handleSubmit(onSubmit, onInvalid)();
+                      }}
+                      disabled={isSubmitting}
+                      className="flex-[2] py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm"
+                    >
+                      {isSubmitting ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      Simpan & Kirim Meteran
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}
+      </form>
 
-        {/* Modal Peringatan/Error */}
-        {errorMsg && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn"
-            onClick={() => setErrorMsg(null)}
-          >
+      {isTourOpen && currentTourStep && (
+        <div className="fixed inset-0 z-[70]">
+          <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-[1px]" />
+          {tourRect && (
             <div
-              className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-red-500"></div>
-              <div className="w-14 h-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-4">
-                <AlertCircle className="w-8 h-8" />
+              className="absolute rounded-2xl border-2 border-emerald-300 bg-white/10 shadow-[0_0_0_9999px_rgba(15,23,42,0.45),0_0_0_6px_rgba(16,185,129,0.18)] transition-all duration-200 pointer-events-none"
+              style={{
+                top: Math.max(tourRect.top - 8, 8),
+                left: Math.max(tourRect.left - 8, 8),
+                width: tourRect.width + 16,
+                height: tourRect.height + 16,
+              }}
+            />
+          )}
+          <div
+            className="absolute w-[calc(100vw-2rem)] max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 p-5"
+            style={{ top: tourCardTop, left: tourCardLeft }}
+          >
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                  Step {tourStepIndex + 1} dari {METER_TOUR_STEPS.length}
+                </p>
+                <h4 className="text-base font-black text-slate-900 mt-1">
+                  {currentTourStep.title}
+                </h4>
               </div>
-              <h4 className="text-lg font-bold text-slate-800">Peringatan!</h4>
-              <p className="text-sm font-semibold text-slate-600 mt-2 mb-6 leading-relaxed">
-                {errorMsg}
-              </p>
               <button
                 type="button"
-                onClick={() => setErrorMsg(null)}
-                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl active:scale-95 transition-all text-sm"
+                onClick={closeTour}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors shrink-0"
+                aria-label="Tutup tour"
               >
-                Tutup & Perbaiki
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              {currentTourStep.description}
+            </p>
+            <div className="flex items-center gap-2 mt-5">
+              <button
+                type="button"
+                onClick={() =>
+                  setTourStepIndex((step) => Math.max(step - 1, 0))
+                }
+                disabled={tourStepIndex === 0}
+                className="h-10 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Kembali
+              </button>
+              <button
+                type="button"
+                onClick={
+                  isLastTourStep
+                    ? closeTour
+                    : () => setTourStepIndex((step) => step + 1)
+                }
+                className="flex-1 h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+              >
+                {isLastTourStep ? "Selesai" : "Lanjut"}
+                {!isLastTourStep && <ArrowRight className="w-4 h-4" />}
               </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Modal Konfirmasi Perubahan Jumlah PCS */}
-        {pcsConfirmModal.isOpen && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-sky-500"></div>
-              <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-500 flex items-center justify-center mb-4">
-                <AlertCircle className="w-8 h-8" />
-              </div>
-              <h4 className="text-lg font-bold text-slate-800">
-                {pcsConfirmModal.actionType === "increment"
-                  ? "Tambah PCS?"
-                  : "Hapus PCS?"}
-              </h4>
-              <p className="text-sm text-slate-600 mt-2 mb-6 leading-relaxed">
-                {pcsConfirmModal.actionType === "increment"
-                  ? `Apakah Anda yakin ingin menambah jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs?`
-                  : `Apakah Anda yakin ingin mengurangi jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs? Kolom isian meter untuk PCS di atas nomor tersebut akan hilang.`}
-              </p>
-              <div className="flex w-full gap-3">
+      {/* Modal Sukses */}
+      {successData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            {(successData as any).isTargetSaved ? (
+              <>
+                <h4 className="text-lg font-bold text-slate-800">
+                  Target Tersimpan
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 mb-5">
+                  Target Produksi {watch("meterAwal")} meter telah disimpan
+                  untuk potongan ke-{watch("potonganKe")}.
+                </p>
                 <button
-                  type="button"
-                  onClick={() => setPcsConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl active:scale-95 transition-all text-sm"
+                  onClick={() => setSuccessData(null)}
+                  className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
                 >
-                  Batal
+                  OK
                 </button>
+              </>
+            ) : (
+              <>
+                <h4 className="text-lg font-bold text-slate-800">
+                  {(successData as any).isOfflineSaved
+                    ? "Tersimpan Offline"
+                    : "Laporan Berhasil Disimpan"}
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 mb-5">
+                  {(successData as any).isOfflineSaved
+                    ? (successData as any).isCutSubmit
+                      ? `Tanggal potong Potongan ke-${successData.potonganKe} antre dikirim otomatis saat sinyal pulih.`
+                      : `Data Potongan ke-${successData.potonganKe} antre dikirim otomatis saat sinyal pulih.`
+                    : (successData as any).isCutSubmit
+                      ? `Laporan meteran Potongan ke-${successData.potonganKe} terekam. Tanggal potong juga diupdate pada semua data sebelumnya.`
+                      : `Data laporan untuk Potongan ke-${successData.potonganKe} telah terekam.`}
+                </p>
+                {(successData as any).autoAdjustedDowntimeMsg && (
+                  <div className="w-full mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-left shadow-inner">
+                    <p className="text-[11px] font-bold text-amber-700 leading-snug">
+                      <AlertCircle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
+                      {(successData as any).autoAdjustedDowntimeMsg}
+                    </p>
+                  </div>
+                )}
                 <button
-                  type="button"
-                  onClick={() => {
-                    if (pcsConfirmModal.actionType === "increment") {
-                      for (let i = fields.length; i < pcsConfirmModal.targetCount; i++) {
-                        append({
-                          pcsIndex: String(i + 1),
-                          jmlHasilProduksi: "1",
-                          meterKain: "",
-                        });
-                      }
-                    } else {
-                      for (let i = fields.length - 1; i >= pcsConfirmModal.targetCount; i--) {
-                        remove(i);
-                      }
+                  onClick={handleCloseSuccess}
+                  className="w-full py-3 bg-[#0070bc] text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
+                >
+                  {isEdit ? "Kembali ke Riwayat" : "Input Masalah Berikutnya"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Peringatan/Error */}
+      {errorMsg && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setErrorMsg(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute top-0 left-0 right-0 h-1 bg-red-500"></div>
+            <div className="w-14 h-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800">Peringatan!</h4>
+            <p className="text-sm font-semibold text-slate-600 mt-2 mb-6 leading-relaxed">
+              {errorMsg}
+            </p>
+            <button
+              type="button"
+              onClick={() => setErrorMsg(null)}
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl active:scale-95 transition-all text-sm"
+            >
+              Tutup & Perbaiki
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Perubahan Jumlah PCS */}
+      {pcsConfirmModal.isOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-sky-500"></div>
+            <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-500 flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800">
+              {pcsConfirmModal.actionType === "increment"
+                ? "Tambah PCS?"
+                : "Hapus PCS?"}
+            </h4>
+            <p className="text-sm text-slate-600 mt-2 mb-6 leading-relaxed">
+              {pcsConfirmModal.actionType === "increment"
+                ? `Apakah Anda yakin ingin menambah jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs?`
+                : `Apakah Anda yakin ingin mengurangi jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs? Kolom isian meter untuk PCS di atas nomor tersebut akan hilang.`}
+            </p>
+            <div className="flex w-full gap-3">
+              <button
+                type="button"
+                onClick={() => setPcsConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl active:scale-95 transition-all text-sm"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pcsConfirmModal.actionType === "increment") {
+                    for (let i = fields.length; i < pcsConfirmModal.targetCount; i++) {
+                      append({
+                        pcsIndex: String(i + 1),
+                        jmlHasilProduksi: "1",
+                        meterKain: "",
+                      });
                     }
-                    setPcsConfirmModal(prev => ({ ...prev, isOpen: false }));
-                  }}
-                  className="flex-1 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
-                >
-                  Ya, Ubah
-                </button>
-              </div>
+                  } else {
+                    for (let i = fields.length - 1; i >= pcsConfirmModal.targetCount; i--) {
+                      remove(i);
+                    }
+                  }
+                  setPcsConfirmModal(prev => ({ ...prev, isOpen: false }));
+                }}
+                className="flex-1 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
+              >
+                Ya, Ubah
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* SLIDE-OVER DRAWER RIWAYAT SHIFT */}
-        <ContinuousHistoryDrawer
-          isOpen={isHistoryDrawerOpen}
-          onClose={() => setIsHistoryDrawerOpen(false)}
-          currentNomorMc={watch("nomorMc")}
-          currentPotonganKe={watch("potonganKe")}
-        />
-      </div>
+      {/* SLIDE-OVER DRAWER RIWAYAT SHIFT */}
+      <ContinuousHistoryDrawer
+        isOpen={isHistoryDrawerOpen}
+        onClose={() => setIsHistoryDrawerOpen(false)}
+        currentNomorMc={watch("nomorMc")}
+        currentPotonganKe={watch("potonganKe")}
+      />
     </div>
   );
 }

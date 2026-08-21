@@ -429,21 +429,24 @@ export async function getMendingHistoryByBatch(designId: string, potonganKe: str
     }));
     
     return { success: true, data: formattedData };
-  } catch (err: any) { 
-    return { success: false, error: err.message }; 
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
 }
 
-export async function searchMendingHistory(filters: {
-  date?: string;
-  nomor_mc?: string;
-  petugas_ids?: string[];
-  design_id?: string;
-  potongan_ke?: string;
-  no_customer?: string;
-  page?: number;
-  limit?: number;
-}) {
+export async function searchMendingHistory(
+  filters: {
+    date?: string;
+    nomor_mc?: string;
+    petugas_ids?: string[];
+    design_id?: string;
+    potongan_ke?: string;
+    no_customer?: string;
+    page?: number;
+    limit?: number;
+  },
+  includeDetails: boolean = false
+) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -452,7 +455,104 @@ export async function searchMendingHistory(filters: {
     }
 
     const supabase = await createClient();
-    
+    const page = filters.page || 1;
+    const limit = filters.limit || 15;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    if (!includeDetails) {
+      // Lightweight Query: Fetch only batch summary fields
+      let query = supabase
+        .from("mending_batches")
+        .select(`
+          id,
+          batch_no,
+          tanggal_mending,
+          start_mending,
+          finish_mending,
+          elapsed_seconds,
+          pause_seconds,
+          nomor_mc,
+          design_id,
+          potongan_ke,
+          pcs_index,
+          petugas_mending,
+          mending_grade_a,
+          mending_grade_b,
+          mending_grade_bs,
+          total_panel,
+          keterangan_mending,
+          created_at
+        `, { count: "exact" })
+        .order("created_at", { ascending: false });
+
+      if (filters.date) {
+        query = query.eq("tanggal_mending", filters.date);
+      }
+      if (filters.nomor_mc) {
+        query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
+      }
+      if (filters.design_id) {
+        query = query.ilike("design_id", `%${filters.design_id}%`);
+      }
+      if (filters.potongan_ke) {
+        query = query.eq("potongan_ke", parseInt(filters.potongan_ke));
+      }
+      if (filters.petugas_ids && filters.petugas_ids.length > 0) {
+        const orConds = filters.petugas_ids.map(p => `petugas_mending.eq."${p}"`).join(",");
+        query = query.or(orConds);
+      }
+
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
+      if (error) {
+        console.error("Error searching Mending history (lightweight):", error);
+        return { success: false, error: error.message };
+      }
+
+      const formattedData = (data || []).map((batch: any) => {
+        let elapsedSec = batch.elapsed_seconds;
+        if (elapsedSec === undefined || elapsedSec === null) {
+          const match = (batch.keterangan_mending || "").match(/\[ELAPSED:(\d+)\]/);
+          if (match && match[1]) {
+            elapsedSec = parseInt(match[1], 10);
+          }
+        }
+
+        let pauseSec = batch.pause_seconds || 0;
+        if (!pauseSec) {
+          const matchP = (batch.keterangan_mending || "").match(/\[PAUSE:(\d+)\]/);
+          if (matchP && matchP[1]) {
+            pauseSec = parseInt(matchP[1], 10);
+          }
+        }
+
+        return {
+          ...batch,
+          elapsed_seconds: elapsedSec,
+          pause_seconds: pauseSec,
+          header: {
+            nomor_mc: batch.nomor_mc,
+            design_id: batch.design_id,
+            potongan_ke: batch.potongan_ke,
+          },
+          detail: { pcs_index: batch.pcs_index },
+          items: []
+        };
+      });
+
+      const totalPages = Math.ceil((count || 0) / limit);
+
+      return {
+        success: true,
+        data: formattedData,
+        total: count || 0,
+        page,
+        totalPages
+      };
+    }
+
     let query = supabase
       .from("mending_batches")
       .select(`
@@ -467,35 +567,16 @@ export async function searchMendingHistory(filters: {
       `, { count: "exact" })
       .order("created_at", { ascending: false });
 
-    if (filters.date) {
-      query = query.eq("tanggal_mending", filters.date);
-    }
-    
-    if (filters.nomor_mc) {
-      query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
-    }
-
-    if (filters.design_id) {
-      query = query.ilike("design_id", `%${filters.design_id}%`);
-    }
-    
-    if (filters.potongan_ke) {
-      query = query.eq("potongan_ke", parseInt(filters.potongan_ke));
-    }
-    
-    if (filters.no_customer) {
-      query = query.ilike("items.detail.header.no_order_barang", `%${filters.no_customer}%`);
-    }
+    if (filters.date) query = query.eq("tanggal_mending", filters.date);
+    if (filters.nomor_mc) query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
+    if (filters.design_id) query = query.ilike("design_id", `%${filters.design_id}%`);
+    if (filters.potongan_ke) query = query.eq("potongan_ke", parseInt(filters.potongan_ke));
+    if (filters.no_customer) query = query.ilike("items.detail.header.no_order_barang", `%${filters.no_customer}%`);
     
     if (filters.petugas_ids && filters.petugas_ids.length > 0) {
       const orConds = filters.petugas_ids.map(p => `petugas_mending.eq."${p}"`).join(",");
       query = query.or(orConds);
     }
-
-    const page = filters.page || 1;
-    const limit = filters.limit || 15;
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
 
     query = query.range(from, to);
 
@@ -573,77 +654,77 @@ export async function getMendingBatchById(id: string) {
   try {
     const supabase = await createClient();
 
-    const { data, error } = await supabase
+    const { data: batch, error } = await supabase
       .from("mending_batches")
       .select(`
         *,
-        items:mending_items!inner (
+        items:mending_items (
           id, hasil_mending,
-          detail:production_details!inner (
-            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, status_mending, is_deleted,
-            header:production_headers!inner (id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, operator_backup, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operators(nama_operator), groups(nama_grup))
+          detail:production_details (
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, keterangan_cacat, kategori_masalah, detail_masalah, jml_hasil_produksi, status_inspeksi, status_mending, indikator_stop, is_deleted,
+            header:production_headers (id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, operator_backup, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operators(nama_operator), groups(nama_grup))
           )
         )
       `)
       .eq("id", id)
-      .maybeSingle();
+      .single();
 
     if (error) {
-      console.error("Error getMendingBatchById:", error);
+      console.error("Error fetching mending batch by ID:", error);
       return { success: false, error: error.message };
     }
 
-    if (!data) {
-      return { success: false, error: "Data mending tidak ditemukan." };
+    if (!batch) {
+      return { success: false, error: "Data batch mending tidak ditemukan." };
     }
 
-    const firstItem = data.items && data.items.length > 0 ? data.items[0] : null;
+    const firstItem = batch.items && batch.items.length > 0 ? batch.items[0] : null;
     const header = firstItem?.detail?.header || {};
 
     let maxMeterAkhir = 0;
-    (data.items || []).forEach((item: any) => {
+    (batch.items || []).forEach((item: any) => {
       const m = Number(item.detail?.header?.meter_akhir) || 0;
       if (m > maxMeterAkhir) {
         maxMeterAkhir = m;
       }
     });
 
-    const formattedItems = (data.items || []).map((item: any) => ({
+    const formattedItems = (batch.items || []).map((item: any) => ({
       id: item.id,
       hasil_mending: item.hasil_mending,
       detail: item.detail || {},
       header: item.detail?.header || {}
     }));
 
-    let elapsedSec = data.elapsed_seconds;
+    let elapsedSec = batch.elapsed_seconds;
     if (elapsedSec === undefined || elapsedSec === null) {
-      const match = (data.keterangan_mending || "").match(/\[ELAPSED:(\d+)\]/);
+      const match = (batch.keterangan_mending || "").match(/\[ELAPSED:(\d+)\]/);
       if (match && match[1]) {
         elapsedSec = parseInt(match[1], 10);
       }
     }
 
-    let pauseSec = data.pause_seconds || 0;
+    let pauseSec = batch.pause_seconds || 0;
     if (!pauseSec) {
-      const matchP = (data.keterangan_mending || "").match(/\[PAUSE:(\d+)\]/);
+      const matchP = (batch.keterangan_mending || "").match(/\[PAUSE:(\d+)\]/);
       if (matchP && matchP[1]) {
         pauseSec = parseInt(matchP[1], 10);
       }
     }
 
-    const formatted = {
-      ...data,
+    const formattedData = {
+      ...batch,
       elapsed_seconds: elapsedSec,
       pause_seconds: pauseSec,
       header: {
         ...header,
         meter_akhir: maxMeterAkhir || header.meter_akhir
       },
-      detail: { pcs_index: data.pcs_index },
+      detail: { pcs_index: batch.pcs_index },
       items: formattedItems
     };
 
-    return { success: true, data: formatted };
+    return { success: true, data: formattedData };
   } catch (err: any) {
     console.error("Server action error in getMendingBatchById:", err);
     return { success: false, error: err.message };
@@ -653,7 +734,20 @@ export async function getMendingBatchById(id: string) {
 export async function getAllDetailsForPcs(nomor_mc: string, design_id: string, potongan_ke: number, pcs_index: number) {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
+
+    const { data: headers, error: headerError } = await supabase
+      .from("production_headers")
+      .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, operator_backup, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operators(nama_operator), groups(nama_grup), tanggal_jam")
+      .eq("nomor_mc", nomor_mc)
+      .eq("design_id", design_id)
+      .eq("potongan_ke", potongan_ke);
+
+    if (headerError) return { success: false, error: headerError.message };
+    if (!headers || headers.length === 0) return { success: true, data: [] };
+
+    const headerIds = headers.map((h: any) => h.id);
+
+    const { data: details, error: detailsError } = await supabase
       .from("production_details")
       .select(`
         id, 
@@ -670,16 +764,19 @@ export async function getAllDetailsForPcs(nomor_mc: string, design_id: string, p
         status_mending,
         is_deleted,
         header_id,
-        production_headers!inner (
-          id, tanggal_jam, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup)
-        )
+        production_defects(*)
       `)
-      .eq("production_headers.nomor_mc", nomor_mc)
-      .eq("production_headers.potongan_ke", potongan_ke)
+      .in("header_id", headerIds)
       .eq("pcs_index", pcs_index);
 
-    if (error) return { success: false, error: error.message };
-    return { success: true, data };
+    if (detailsError) return { success: false, error: detailsError.message };
+
+    const detailsWithHeader = (details || []).map((d: any) => {
+      const h = headers.find((h: any) => h.id === d.header_id);
+      return { ...d, production_headers: h };
+    });
+
+    return { success: true, data: detailsWithHeader };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
@@ -695,27 +792,20 @@ export async function getPendingMendingDetailsByDate(tanggal: string) {
         id, 
         pcs_index, 
         jml_hasil_produksi, 
-        kategori_masalah, 
-        detail_masalah, 
-        keterangan_cacat, 
         meter_kain, 
         roll_no, 
-        indikator_stop, 
         final_inspection_id, 
         status_inspeksi,
         status_mending,
         is_deleted,
         header_id,
         production_headers!inner (
-          id, tanggal_jam, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup)
-        ),
-        qc_inspection_items (
-          qc_inspection_batches (berat_kain, inspeksi_ceklis, inspeksi_silang)
+          id, tanggal_jam, panel_no, nomor_mc, tgl, tanggal_potong, design_id, potongan_ke, meter_awal, meter_akhir
         )
       `)
       .not("final_inspection_id", "is", null)
       .is("status_mending", null)
-      .limit(5000);
+      .limit(3000);
 
     const { data, error } = await query;
 

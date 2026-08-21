@@ -575,6 +575,8 @@ export default function PanelHistoryTable({
               <td className="px-1 py-1 text-center">
                 {isDeleted ? (
                   <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
+                ) : (String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR") || String(itemHeader?.panel_no || "").toUpperCase().includes("BS AWAL") || String(itemHeader?.panel_no || "").toUpperCase().includes("BS AKHIR")) ? (
+                  <span className="text-slate-300 font-medium">-</span>
                 ) : itemHeader?.id && detail.keterangan_cacat !== "FINISH" ? (
                   <Link
                     href={`/edit/${itemHeader.id}`}

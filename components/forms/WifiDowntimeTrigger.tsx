@@ -163,11 +163,7 @@ export default function WifiDowntimeTrigger({
             type="button"
             onClick={() => {
               if (connectionStatus === "terputus") {
-                requestPinAuth(
-                  "Menghubungkan ESP32 Wi-Fi",
-                  "Masukkan PIN Supervisor / Admin untuk mengaktifkan koneksi ESP32.",
-                  () => connect()
-                );
+                connect();
               }
             }}
             disabled={connectionStatus !== "terputus"}
@@ -177,7 +173,7 @@ export default function WifiDowntimeTrigger({
                   ? "bg-amber-100 text-amber-800 animate-pulse cursor-default"
                   : "bg-rose-100 hover:bg-rose-200 text-rose-800 cursor-pointer active:scale-95"
               }`}
-            title={connectionStatus === "terputus" ? "Klik untuk Menghubungkan ke ESP32 Wi-Fi (PIN Required)" : "Status ESP32"}
+            title={connectionStatus === "terputus" ? "Klik untuk Menghubungkan ke ESP32 Wi-Fi" : "Status ESP32"}
           >
             {connectionStatus === "terhubung"
               ? "Terhubung"
@@ -205,15 +201,9 @@ export default function WifiDowntimeTrigger({
 
           <button
             type="button"
-            onClick={() => {
-              requestPinAuth(
-                "Akses Pengaturan ESP32",
-                "Masukkan PIN untuk membuka panel kontrol ESP32.",
-                () => setShowControllerModal(true)
-              );
-            }}
+            onClick={() => setShowControllerModal(true)}
             className="w-7 h-7 p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors border border-slate-200 flex items-center justify-center shrink-0 cursor-pointer"
-            title="Pengaturan Wi-Fi & Terminal Log (PIN Required)"
+            title="Pengaturan Wi-Fi & Terminal Log"
           >
             <Settings className="w-3.5 h-3.5 text-slate-600" />
           </button>

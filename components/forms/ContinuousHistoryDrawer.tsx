@@ -64,67 +64,65 @@ export default function ContinuousHistoryDrawer({
       {/* Slide-over Panel */}
       <div className="fixed inset-y-0 right-0 max-w-full flex justify-end">
         <div className="w-full sm:w-[85vw] md:w-[75vw] lg:w-[65vw] max-w-4xl bg-white shadow-2xl flex flex-col h-full overflow-hidden animate-slideLeft">
-          {/* Drawer Header */}
-          <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between shrink-0">
+          {/* Drawer Header with Integrated Actions */}
+          <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md">
-                <History className="w-5 h-5 stroke-[2.5]" />
+              <div className="w-10 h-10 rounded-2xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center font-black shrink-0 shadow-xs">
+                <History className="w-5 h-5 text-sky-400" />
               </div>
               <div>
-                <h2 className="text-base font-black tracking-tight text-white flex items-center gap-2">
+                <h2 className="text-base font-black tracking-tight text-white">
                   Riwayat Input
                 </h2>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">
-                  {currentNomorMc
-                    ? `Mesin ${currentNomorMc}${currentPotonganKe ? ` • Potongan #${currentPotonganKe}` : ""}`
-                    : "Laporan Shift Berjalan"}
-                </p>
               </div>
             </div>
-          </div>
 
-          {/* Drawer Controls & Filter */}
-          <div className="p-3.5 bg-slate-50 border-b border-slate-200/80 space-y-2.5 shrink-0">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {currentNomorMc && (
-                  <button
-                    type="button"
-                    onClick={() => setFilterMcOnly(!filterMcOnly)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                      filterMcOnly
-                        ? "bg-amber-400 border-amber-500 text-slate-950 shadow-xs"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+            {/* Top Filter Buttons & Refresh */}
+            <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
+              {currentNomorMc && (
+                <button
+                  type="button"
+                  onClick={() => setFilterMcOnly(!filterMcOnly)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border active:scale-95 ${filterMcOnly
+                      ? "bg-[#0070bc] border-sky-500 text-white shadow-xs"
+                      : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white"
                     }`}
-                  >
-                    <Cpu className="w-3.5 h-3.5" />
-                    <span>{filterMcOnly ? `MC ${currentNomorMc}` : "Semua Mesin"}</span>
-                  </button>
-                )}
+                >
+                  <Cpu className="w-3.5 h-3.5" />
+                  <span>{filterMcOnly ? `MC ${currentNomorMc}` : "Semua Mesin"}</span>
+                </button>
+              )}
 
-                {filterMcOnly && currentPotonganKe && (
-                  <button
-                    type="button"
-                    onClick={() => setFilterPotonganOnly(!filterPotonganOnly)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                      filterPotonganOnly
-                        ? "bg-indigo-600 border-indigo-700 text-white shadow-xs"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+              {filterMcOnly && currentPotonganKe && (
+                <button
+                  type="button"
+                  onClick={() => setFilterPotonganOnly(!filterPotonganOnly)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border active:scale-95 ${filterPotonganOnly
+                      ? "bg-sky-500/20 border-sky-500/50 text-sky-300 shadow-xs"
+                      : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white"
                     }`}
-                  >
-                    <span>{filterPotonganOnly ? `Pot. #${currentPotonganKe}` : "Semua Pot."}</span>
-                  </button>
-                )}
-              </div>
+                >
+                  <span>{filterPotonganOnly ? `Pot. #${currentPotonganKe}` : "Semua Pot."}</span>
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={fetchHistory}
                 disabled={loading}
-                className="ml-auto px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-sky-400" : ""}`} />
                 <span>Refresh</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-sm transition-all cursor-pointer ml-1"
+                title="Tutup Drawer"
+              >
+                ✕
               </button>
             </div>
           </div>
@@ -133,7 +131,7 @@ export default function ContinuousHistoryDrawer({
           <div className="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar bg-slate-50/50">
             {loading ? (
               <div className="py-20 text-center text-slate-400 font-bold text-xs flex flex-col items-center gap-3">
-                <RefreshCw className="w-7 h-7 text-amber-500 animate-spin" />
+                <RefreshCw className="w-7 h-7 text-[#0070bc] animate-spin" />
                 <span>Memuat riwayat input...</span>
               </div>
             ) : historyItems.length === 0 ? (
@@ -240,7 +238,7 @@ export default function ContinuousHistoryDrawer({
                   }
 
                   const isIstirahat = panelClone.production_details?.some((d: any) => d.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT")) ||
-                                      dtEvents.some((e: any) => e.kategori?.toUpperCase().includes("ISTIRAHAT"));
+                    dtEvents.some((e: any) => e.kategori?.toUpperCase().includes("ISTIRAHAT"));
 
                   const isMeterInput = panelClone.panel_no === "METERAN";
                   const opr = panelClone.operators?.nama_operator || panelClone.pic || panelClone.created_by_name || "";
@@ -322,7 +320,7 @@ export default function ContinuousHistoryDrawer({
               onClick={onClose}
               className="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-extrabold text-xs hover:bg-slate-800 transition-all active:scale-95 cursor-pointer shadow-xs"
             >
-              Tutup Drawer
+              Tutup
             </button>
           </div>
         </div>

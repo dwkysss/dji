@@ -999,9 +999,7 @@ export default function EmployeeForm({
     }
 
     const isCutSubmit = !isEdit && !!data.tanggalPotong;
-    const submitData: ProductionFormInput = isCutSubmit
-      ? { ...data, panelNo: "" }
-      : data;
+    const submitData: ProductionFormInput = data;
 
     // Jika mesinMasihStop atau ada panel gagal/BS, tahan nomor panel (tidak maju)
     // Operator harus menginput panel fisik yang valid untuk nomor panel ini terlebih dahulu
@@ -1355,812 +1353,809 @@ export default function EmployeeForm({
           </a>
         </div>
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-slate-100 pb-4 mb-6 gap-4">
-          <div className="flex items-center justify-between w-full sm:w-auto gap-4">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">
-                Form Input Produksi (Jenis Panel)
-              </h3>
-              <p className="text-xs text-slate-400 font-normal mt-1">
-                Data Header akan otomatis tersimpan untuk panel berikutnya.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsHistoryDrawerOpen(true)}
-              className="px-3.5 py-2 rounded-2xl bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 text-xs font-black shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <History className="w-4 h-4 stroke-[2.5]" />
-              <span>Riwayat Shift Ini</span>
-            </button>
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6 gap-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Form Input Produksi
+            </h3>
+            <p className="text-xs text-slate-400 font-normal mt-1">
+              Data Header akan otomatis tersimpan untuk panel berikutnya.
+            </p>
           </div>
-
-          {isMeterMachine && (
-            <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-100/80 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-4 h-4 text-amber-600" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-amber-900 uppercase tracking-wide leading-none">
-                    Mesin {watchNomorMc} Di-set Input METER
-                  </h4>
-                  <p className="text-[11px] font-medium text-amber-700 leading-snug mt-1">
-                    Admin mengatur mesin ini khusus untuk pelaporan <strong>Meteran / Roll</strong>.
-                  </p>
-                </div>
-              </div>
-              <a
-                href={`/input-meter?mc=${encodeURIComponent(watchNomorMc)}`}
-                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
-              >
-                <span>Pindah Form Meter</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </a>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsHistoryDrawerOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0 group"
+          >
+            <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors" />
+            <span>Riwayat Potongan Ini</span>
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
-          <div className="bg-white border border-slate-200 shadow-sm rounded-[20px] p-3 sm:p-4 lg:p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 items-start">
-              {/* Kolom Kiri: Info Header & Info Panel */}
-              <div className="flex flex-col gap-3 sm:gap-4 lg:gap-5 self-start sm:min-h-[345px]">
-                <div data-tour="header-summary" className="w-full">
-                  <HeaderSummaryCard
-                    operatorName={currentOperatorName}
-                    shiftName={activeShiftName}
-                    nomorMc={watchNomorMc || ""}
-                    design={watch("designId") || ""}
-                    statusMatching={watch("statusMatching") || ""}
-                    potonganKe={watchPotonganKe}
-                    onEdit={() => setIsHeaderModalOpen(true)}
-                    showEditButton
-                    showEditButtonPlacement="bottom"
-                  />
+        {isMeterMachine && (
+          <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-100/80 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-amber-900 uppercase tracking-wide leading-none">
+                  Mesin {watchNomorMc} Di-set Input METER
+                </h4>
+                <p className="text-[11px] font-medium text-amber-700 leading-snug mt-1">
+                  Admin mengatur mesin ini khusus untuk pelaporan <strong>Meteran / Roll</strong>.
+                </p>
+              </div>
+            </div>
+            <a
+              href={`/input-meter?mc=${encodeURIComponent(watchNomorMc)}`}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
+            >
+              <span>Pindah Form Meter</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
+        <div className="bg-white border border-slate-200 shadow-sm rounded-[20px] p-3 sm:p-4 lg:p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 items-start">
+            {/* Kolom Kiri: Info Header & Info Panel */}
+            <div className="flex flex-col gap-3 sm:gap-4 lg:gap-5 self-start sm:min-h-[345px]">
+              <div data-tour="header-summary" className="w-full">
+                <HeaderSummaryCard
+                  operatorName={currentOperatorName}
+                  shiftName={activeShiftName}
+                  nomorMc={watchNomorMc || ""}
+                  design={watch("designId") || ""}
+                  statusMatching={watch("statusMatching") || ""}
+                  potonganKe={watchPotonganKe}
+                  onEdit={() => setIsHeaderModalOpen(true)}
+                  showEditButton
+                  showEditButtonPlacement="bottom"
+                />
+              </div>
+
+              {/* Data Panel Umum */}
+              <div
+                data-tour="panel-info"
+                className="w-full bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden relative grid grid-cols-2"
+              >
+                <input type="hidden" {...register("panelNo")} />
+
+                {/* Kiri: Label */}
+                <div className="flex flex-col items-center justify-center gap-1.5 border-r border-slate-200 p-4">
+                  <div className="w-7 h-7 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+                    <Hash className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest text-center">
+                    Nomor Panel:
+                  </span>
                 </div>
 
-                {/* Data Panel Umum */}
-                <div
-                  data-tour="panel-info"
-                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden relative grid grid-cols-2"
-                >
-                  <input type="hidden" {...register("panelNo")} />
-
-                  {/* Kiri: Label */}
-                  <div className="flex flex-col items-center justify-center gap-1.5 border-r border-slate-200 p-4">
-                    <div className="w-7 h-7 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
-                      <Hash className="w-4 h-4" />
-                    </div>
-                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest text-center">
-                      Nomor Panel:
-                    </span>
-                  </div>
-
-                  {/* Kanan: Angka */}
-                  <div className="flex items-center justify-center p-4">
-                    <span className="text-5xl sm:text-6xl font-black text-slate-800 leading-none">
-                      {String(watchPanelNo || "-")}
-                    </span>
-                  </div>
-
-                  {errors.panelNo && (
-                    <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 text-red-500 text-[10px] font-bold whitespace-nowrap">
-                      {errors.panelNo.message}
-                    </span>
-                  )}
+                {/* Kanan: Angka */}
+                <div className="flex items-center justify-center p-4">
+                  <span className="text-5xl sm:text-6xl font-black text-slate-800 leading-none">
+                    {String(watchPanelNo || "-")}
+                  </span>
                 </div>
 
-                {/* Banner Wi-Fi Trigger ESP32 (Disimpan tepat di bawah Card Nomor Panel) */}
-                {!isEdit && timerControls && (
-                  <div className="w-full">
-                    <WifiDowntimeTrigger
-                      selectedMachineCode={watch("nomorMc")}
-                      onStartTimer={timerControls.onStartTimer}
-                      onStopTimer={timerControls.onStopTimer}
-                      isTimerRunning={timerControls.isTimerRunning}
-                    />
-                  </div>
+                {errors.panelNo && (
+                  <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 text-red-500 text-[10px] font-bold whitespace-nowrap">
+                    {errors.panelNo.message}
+                  </span>
                 )}
               </div>
 
-              {/* Kolom Kanan: Downtime Tracker (Timer & Blok) */}
-              <div className="flex flex-col w-full self-start">
-                <div data-tour="downtime" className="w-full">
-                  <input type="hidden" {...register("totalDowntime")} />
-                  <DowntimeTracker
-                    control={control}
-                    setValue={setValue}
-                    watch={watch}
-                    showBlockInput={true}
-                    operators={activeOperators}
-                    currentOperatorName={currentOperatorName}
-                    isEdit={isEdit}
-                    onRegisterTimerControls={setTimerControls}
-                    isPanelType={true}
-                    viewMode="timer_only"
+              {/* Banner Wi-Fi Trigger ESP32 (Disimpan tepat di bawah Card Nomor Panel) */}
+              {!isEdit && timerControls && (
+                <div className="w-full">
+                  <WifiDowntimeTrigger
+                    selectedMachineCode={watch("nomorMc")}
+                    onStartTimer={timerControls.onStartTimer}
+                    onStopTimer={timerControls.onStopTimer}
+                    isTimerRunning={timerControls.isTimerRunning}
                   />
                 </div>
+              )}
+            </div>
+
+            {/* Kolom Kanan: Downtime Tracker (Timer & Blok) */}
+            <div className="flex flex-col w-full self-start">
+              <div data-tour="downtime" className="w-full">
+                <input type="hidden" {...register("totalDowntime")} />
+                <DowntimeTracker
+                  control={control}
+                  setValue={setValue}
+                  watch={watch}
+                  showBlockInput={true}
+                  operators={activeOperators}
+                  currentOperatorName={currentOperatorName}
+                  isEdit={isEdit}
+                  onRegisterTimerControls={setTimerControls}
+                  isPanelType={true}
+                  viewMode="timer_only"
+                />
               </div>
             </div>
-
-            {/* Section Merentang Penuh (Full Width): Antrean & Riwayat Kendala Mesin */}
-            <div className="w-full mt-4">
-              <DowntimeTracker
-                control={control}
-                setValue={setValue}
-                watch={watch}
-                showBlockInput={true}
-                operators={activeOperators}
-                currentOperatorName={currentOperatorName}
-                isEdit={isEdit}
-                isPanelType={true}
-                viewMode="events_only"
-              />
-            </div>
-
-            <ProductionHeaderModal
-              isOpen={isHeaderModalOpen}
-              onClose={() => {
-                setIsHeaderModalOpen(false);
-                setHighlightPotonganKe(false);
-                setHighlightOperator(false);
-              }}
-              register={register}
-              errors={errors}
-              watch={watch}
-              groups={groups}
-              operators={activeOperators}
-              activeShiftName={activeShiftName}
-              onClearHeader={handleClearHeader}
-              highlightPotonganKe={highlightPotonganKe}
-              highlightOperator={highlightOperator}
-              pcsCount={fields.length}
-              onChangePcsCount={handleChangePcsCount}
-            />
-
-            {/* Hidden PCS fields to match the array structure for form submission */}
-            {fields.map((field, index) => (
-              <input
-                key={field.id}
-                type="hidden"
-                {...register(`pcsData.${index}.jmlHasilProduksi` as const)}
-              />
-            ))}
           </div>
 
+          {/* Section Merentang Penuh (Full Width): Antrean & Riwayat Kendala Mesin */}
+          <div className="w-full mt-4">
+            <DowntimeTracker
+              control={control}
+              setValue={setValue}
+              watch={watch}
+              showBlockInput={true}
+              operators={activeOperators}
+              currentOperatorName={currentOperatorName}
+              isEdit={isEdit}
+              isPanelType={true}
+              viewMode="events_only"
+            />
+          </div>
 
-          {/* Tindakan Akhir Panel Toggle Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (showAdvancedActions) {
-                handleCancelAdvancedActions();
-              } else {
-                setShowAdvancedActions(true);
-              }
+          <ProductionHeaderModal
+            isOpen={isHeaderModalOpen}
+            onClose={() => {
+              setIsHeaderModalOpen(false);
+              setHighlightPotonganKe(false);
+              setHighlightOperator(false);
             }}
-            className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-rose-300 border-dashed text-rose-600 font-bold text-sm hover:bg-rose-50 hover:text-rose-700 hover:border-rose-400 transition-all duration-200"
-          >
-            {showAdvancedActions ? (
-              <>Tutup Opsi Lanjutan</>
-            ) : (
-              <>Potong Kain & BS</>
-            )}
-          </button>
+            register={register}
+            errors={errors}
+            watch={watch}
+            groups={groups}
+            operators={activeOperators}
+            activeShiftName={activeShiftName}
+            onClearHeader={handleClearHeader}
+            highlightPotonganKe={highlightPotonganKe}
+            highlightOperator={highlightOperator}
+            pcsCount={fields.length}
+            onChangePcsCount={handleChangePcsCount}
+          />
 
-          {/* Tindakan Akhir Panel Modal */}
-          {showAdvancedActions && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn" onClick={handleCancelAdvancedActions}>
+          {/* Hidden PCS fields to match the array structure for form submission */}
+          {fields.map((field, index) => (
+            <input
+              key={field.id}
+              type="hidden"
+              {...register(`pcsData.${index}.jmlHasilProduksi` as const)}
+            />
+          ))}
+        </div>
+
+
+        {/* Tindakan Akhir Panel Toggle Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (showAdvancedActions) {
+              handleCancelAdvancedActions();
+            } else {
+              setShowAdvancedActions(true);
+            }
+          }}
+          className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-rose-300 border-dashed text-rose-600 font-bold text-sm hover:bg-rose-50 hover:text-rose-700 hover:border-rose-400 transition-all duration-200"
+        >
+          {showAdvancedActions ? (
+            <>Tutup Opsi Lanjutan</>
+          ) : (
+            <>Potong Kain & BS</>
+          )}
+        </button>
+
+        {/* Tindakan Akhir Panel Modal */}
+        {showAdvancedActions && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn" onClick={handleCancelAdvancedActions}>
+            <div
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh] animate-scaleIn"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50">
+                <h3 className="font-black text-slate-800 text-lg">Opsi Lanjutan Panel</h3>
+                <button
+                  type="button"
+                  onClick={handleCancelAdvancedActions}
+                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
               <div
-                className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh] animate-scaleIn"
-                onClick={(e) => e.stopPropagation()}
+                className="p-5 sm:p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/30 custom-scrollbar"
+                onClick={() => setActiveInfo(null)}
               >
-                <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50">
-                  <h3 className="font-black text-slate-800 text-lg">Opsi Lanjutan Panel</h3>
+                {/* Potong Kain Toggle */}
+                <div className="flex flex-col gap-2 relative" data-tour="cut-panel">
+                  <label className={`relative flex flex-col items-center justify-center p-4 h-32 rounded-2xl border-2 cursor-pointer transition-all duration-300 text-center ${isLastPanel
+                    ? "bg-gradient-to-br from-[#0070bc] to-[#004777] border-transparent shadow-lg shadow-sky-500/30 text-white"
+                    : "bg-white border-slate-200 hover:border-sky-300 text-slate-600 hover:bg-sky-50"
+                    }`}>
+                    <input
+                      type="checkbox"
+                      checked={isLastPanel}
+                      onChange={(e) => {
+                        setIsLastPanel(e.target.checked);
+                        if (e.target.checked) {
+                          setValue("tanggalPotong", new Date().toISOString().split("T")[0]);
+                        } else {
+                          setValue("tanggalPotong", "");
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <Scissors className={`w-8 h-8 mb-2 transition-transform duration-300 ${isLastPanel ? "-rotate-12 scale-110" : "text-slate-400"}`} style={{ transform: isLastPanel ? "scaleX(-1) rotate(12deg)" : "scaleX(-1)" }} />
+                    <span className="font-black uppercase text-xs tracking-wide">Potong Kain</span>
+
+                    {isLastPanel && (
+                      <div className="absolute top-2 right-2 bg-white/20 rounded-full p-1">
+                        <CheckCircle2 className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                  </label>
+
                   <button
                     type="button"
-                    onClick={handleCancelAdvancedActions}
-                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setActiveInfo(activeInfo === "potong" ? null : "potong");
+                    }}
+                    className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "potong"
+                      ? "bg-slate-800 text-white"
+                      : isLastPanel ? "bg-white/20 text-white hover:bg-white/30" : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                      }`}
                   >
-                    <X className="w-5 h-5" />
+                    <Info className="w-4 h-4" />
                   </button>
+                  {activeInfo === "potong" && (
+                    <div className="absolute top-12 left-0 w-full p-3 bg-slate-800 text-white text-[11px] leading-relaxed rounded-xl z-50 shadow-xl animate-fadeIn">
+                      Tandai khusus untuk potongan terakhir dalam roll kain.
+                    </div>
+                  )}
+
+                  {isLastPanel && (
+                    <div className="animate-fadeIn">
+                      <input
+                        type="date"
+                        {...register("tanggalPotong")}
+                        className="h-10 px-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none shadow-sm w-full text-center"
+                      />
+                    </div>
+                  )}
                 </div>
 
-                <div
-                  className="p-5 sm:p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/30 custom-scrollbar"
-                  onClick={() => setActiveInfo(null)}
-                >
-                  {/* Potong Kain Toggle */}
-                  <div className="flex flex-col gap-2 relative" data-tour="cut-panel">
-                    <label className={`relative flex flex-col items-center justify-center p-4 h-32 rounded-2xl border-2 cursor-pointer transition-all duration-300 text-center ${isLastPanel
-                      ? "bg-gradient-to-br from-[#0070bc] to-[#004777] border-transparent shadow-lg shadow-sky-500/30 text-white"
-                      : "bg-white border-slate-200 hover:border-sky-300 text-slate-600 hover:bg-sky-50"
-                      }`}>
-                      <input
-                        type="checkbox"
-                        checked={isLastPanel}
-                        onChange={(e) => {
-                          setIsLastPanel(e.target.checked);
-                          if (e.target.checked) {
-                            setValue("tanggalPotong", new Date().toISOString().split("T")[0]);
-                          } else {
-                            setValue("tanggalPotong", "");
-                          }
-                        }}
-                        className="hidden"
-                      />
-                      <Scissors className={`w-8 h-8 mb-2 transition-transform duration-300 ${isLastPanel ? "-rotate-12 scale-110" : "text-slate-400"}`} style={{ transform: isLastPanel ? "scaleX(-1) rotate(12deg)" : "scaleX(-1)" }} />
-                      <span className="font-black uppercase text-xs tracking-wide">Potong Kain</span>
+                {/* Pilih PCS yang BS */}
+                {fields.length > 0 && (
+                  <div className="flex flex-col gap-2 relative">
+                    <div className="relative flex flex-col items-center justify-center p-4 min-h-32 h-auto rounded-2xl border-2 bg-gradient-to-br from-rose-50 to-white border-rose-200 text-center shadow-sm">
+                      <AlertCircle className="w-7 h-7 mb-2 text-rose-500" />
+                      <span className="font-black uppercase text-xs text-rose-700 tracking-wide mb-2">Tandai PCS BS</span>
 
-                      {isLastPanel && (
-                        <div className="absolute top-2 right-2 bg-white/20 rounded-full p-1">
-                          <CheckCircle2 className="w-4 h-4 text-white" />
-                        </div>
-                      )}
-                    </label>
+                      <div className="flex flex-wrap justify-center gap-1.5 w-full">
+                        {fields.map((field, index) => (
+                          <div key={field.id} className="relative flex-1 min-w-[45%] z-10">
+                            <input
+                              type="checkbox"
+                              id={`pcsBs-${index}`}
+                              {...register(`pcsData.${index}.isBs` as const)}
+                              className="peer hidden"
+                            />
+                            <label htmlFor={`pcsBs-${index}`} className="flex items-center justify-center cursor-pointer py-1.5 px-2 rounded-lg border-2 bg-white border-rose-200 text-rose-600 font-bold text-[10px] uppercase transition-all duration-300 hover:border-rose-400 hover:bg-rose-50 peer-checked:bg-rose-500 peer-checked:border-rose-600 peer-checked:text-white peer-checked:shadow-md">
+                              PCS {index + 1}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
                     <button
                       type="button"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setActiveInfo(activeInfo === "potong" ? null : "potong");
+                        setActiveInfo(activeInfo === "pcs" ? null : "pcs");
                       }}
-                      className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "potong"
-                        ? "bg-slate-800 text-white"
-                        : isLastPanel ? "bg-white/20 text-white hover:bg-white/30" : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                      className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "pcs" ? "bg-slate-800 text-white" : "bg-rose-100 text-rose-400 hover:bg-rose-200"
                         }`}
                     >
                       <Info className="w-4 h-4" />
                     </button>
-                    {activeInfo === "potong" && (
+                    {activeInfo === "pcs" && (
                       <div className="absolute top-12 left-0 w-full p-3 bg-slate-800 text-white text-[11px] leading-relaxed rounded-xl z-50 shadow-xl animate-fadeIn">
-                        Tandai khusus untuk potongan terakhir dalam roll kain.
-                      </div>
-                    )}
-
-                    {isLastPanel && (
-                      <div className="animate-fadeIn">
-                        <input
-                          type="date"
-                          {...register("tanggalPotong")}
-                          className="h-10 px-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none shadow-sm w-full text-center"
-                        />
+                        Klik tombol PCS yang cacat/rusak. Otomatis akan menahan nomor urut panel selanjutnya.
                       </div>
                     )}
                   </div>
-
-                  {/* Pilih PCS yang BS */}
-                  {fields.length > 0 && (
-                    <div className="flex flex-col gap-2 relative">
-                      <div className="relative flex flex-col items-center justify-center p-4 min-h-32 h-auto rounded-2xl border-2 bg-gradient-to-br from-rose-50 to-white border-rose-200 text-center shadow-sm">
-                        <AlertCircle className="w-7 h-7 mb-2 text-rose-500" />
-                        <span className="font-black uppercase text-xs text-rose-700 tracking-wide mb-2">Tandai PCS BS</span>
-
-                        <div className="flex flex-wrap justify-center gap-1.5 w-full">
-                          {fields.map((field, index) => (
-                            <div key={field.id} className="relative flex-1 min-w-[45%] z-10">
-                              <input
-                                type="checkbox"
-                                id={`pcsBs-${index}`}
-                                {...register(`pcsData.${index}.isBs` as const)}
-                                className="peer hidden"
-                              />
-                              <label htmlFor={`pcsBs-${index}`} className="flex items-center justify-center cursor-pointer py-1.5 px-2 rounded-lg border-2 bg-white border-rose-200 text-rose-600 font-bold text-[10px] uppercase transition-all duration-300 hover:border-rose-400 hover:bg-rose-50 peer-checked:bg-rose-500 peer-checked:border-rose-600 peer-checked:text-white peer-checked:shadow-md">
-                                PCS {index + 1}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setActiveInfo(activeInfo === "pcs" ? null : "pcs");
-                        }}
-                        className={`absolute top-2 left-2 p-1.5 rounded-lg transition-colors z-20 ${activeInfo === "pcs" ? "bg-slate-800 text-white" : "bg-rose-100 text-rose-400 hover:bg-rose-200"
-                          }`}
-                      >
-                        <Info className="w-4 h-4" />
-                      </button>
-                      {activeInfo === "pcs" && (
-                        <div className="absolute top-12 left-0 w-full p-3 bg-slate-800 text-white text-[11px] leading-relaxed rounded-xl z-50 shadow-xl animate-fadeIn">
-                          Klik tombol PCS yang cacat/rusak. Otomatis akan menahan nomor urut panel selanjutnya.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 sm:p-5 bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleCancelAdvancedActions}
-                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all uppercase tracking-wider cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => {
-                      setShowAdvancedActions(false);
-                      handleSubmit(onSubmit, onInvalid)();
-                    }}
-                    className="flex-1 h-12 sm:h-14 bg-[#0070bc] hover:bg-[#004777] active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-sky-900/20 transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    <Save className="w-5 h-5" />
-                    <span>{isSubmitting ? "Menyimpan..." : "Kirim Laporan Sekarang"}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700 uppercase">
-                Jenis Laporan / Info Istirahat
-              </label>
-              {watch("jenisLaporan") === "Istirahat" && backupOperatorName && (
-                <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300">
-                  Mode Istirahat Aktif
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {/* Normal */}
-              <div className="relative">
-                <input
-                  type="radio"
-                  id="jenisLaporanNormal"
-                  value=""
-                  {...register("jenisLaporan")}
-                  onChange={(e) => {
-                    register("jenisLaporan").onChange(e);
-                    setBackupOperatorName("");
-                    setValue("operatorBackup", "");
-                  }}
-                  className="peer hidden"
-                />
-                <label
-                  htmlFor="jenisLaporanNormal"
-                  className="flex items-center justify-center p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 text-center bg-white border-slate-200 hover:border-[#0070bc]/40 hover:bg-sky-50 text-slate-600 font-black text-xs sm:text-sm uppercase peer-checked:border-[#0070bc] peer-checked:bg-sky-50 peer-checked:text-[#0070bc] shadow-sm peer-checked:shadow-md"
-                >
-                  Normal
-                </label>
+                )}
               </div>
 
-              {/* Istirahat */}
-              <div className="relative">
-                <input
-                  type="radio"
-                  id="jenisLaporanIstirahat"
-                  value="Istirahat"
-                  {...register("jenisLaporan")}
-                  onChange={(e) => {
-                    const now = new Date();
-                    const currentHour = now.getHours();
-                    const currentMin = now.getMinutes();
-                    const timeVal = currentHour + currentMin / 60;
-
-                    let isAllowed = false;
-                    let shiftName = "";
-                    let allowedRange = "";
-
-                    if (timeVal >= 7.166 && timeVal < 15.166) {
-                      shiftName = "Shift 1";
-                      allowedRange = "10:00 - 13:00";
-                      if (timeVal >= 10.0 && timeVal < 13.0) {
-                        isAllowed = true;
-                      }
-                    } else if (timeVal >= 15.166 && timeVal < 23.166) {
-                      shiftName = "Shift 2";
-                      allowedRange = "18:00 - 21:00";
-                      if (timeVal >= 18.0 && timeVal < 21.0) {
-                        isAllowed = true;
-                      }
-                    } else {
-                      shiftName = "Shift 3";
-                      allowedRange = "02:00 - 05:00";
-                      if (currentHour >= 2 && currentHour < 5) {
-                        isAllowed = true;
-                      }
-                    }
-
-                    if (!isAllowed) {
-                      const timeStr = `${String(currentHour).padStart(2, "0")}:${String(currentMin).padStart(2, "0")}`;
-                      e.persist?.();
-                      setBreakWarningModal({
-                        isOpen: true,
-                        timeStr,
-                        shiftName,
-                        allowedRange,
-                        pendingEvent: e,
-                      });
-                      return;
-                    }
-
-                    register("jenisLaporan").onChange(e);
-                    setShowBackupModal(true);
-                  }}
-                  className="peer hidden"
-                />
-                <label
-                  htmlFor="jenisLaporanIstirahat"
-                  className="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 text-center bg-white border-slate-200 hover:border-amber-400 hover:bg-amber-50 text-slate-600 font-black text-xs sm:text-sm uppercase peer-checked:border-amber-500 peer-checked:bg-gradient-to-br peer-checked:from-amber-400 peer-checked:to-amber-500 peer-checked:text-white shadow-sm peer-checked:shadow-md peer-checked:shadow-amber-500/30"
-                >
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span>Istirahat</span>
-                    {backupOperatorName && (
-                      <span className="text-[9px] sm:text-[10px] bg-white/20 text-amber-900 px-2 py-0.5 rounded-md mt-0.5 font-bold tracking-wide">
-                        {backupOperatorName}
-                      </span>
-                    )}
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* Banner Operator Backup jika status Istirahat */}
-            {watch("jenisLaporan") === "Istirahat" && (
-              <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 animate-fadeIn ${backupOperatorName ? "bg-amber-50/80 border-amber-200" : "bg-rose-50 border-rose-200"}`}>
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
-                    Operator Backup:
-                  </span>
-                  <span className={`text-xs font-bold ${backupOperatorName ? "text-amber-950" : "text-rose-600"}`}>
-                    {backupOperatorName ? `👤 ${backupOperatorName}` : "⚠️ Belum Memilih Operator Backup"}
-                  </span>
-                </div>
+              <div className="p-4 sm:p-5 bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowBackupModal(true)}
-                  className={`px-3 py-1.5 font-bold text-xs rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer ${backupOperatorName ? "bg-amber-500 hover:bg-amber-600 text-white" : "bg-rose-600 hover:bg-rose-700 text-white animate-pulse"}`}
-                >
-                  {backupOperatorName ? "Ganti Backup" : "Pilih Sekarang"}
-                </button>
-              </div>
-            )}
-
-            <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
-              Pilih <strong>Istirahat</strong> jika panel ini adalah hasil kerja saat Anda beristirahat (operator pengganti).
-            </p>
-          </div>
-
-          {/* Kirim Button */}
-          {isMeterMachine ? (
-            <button
-              type="button"
-              disabled
-              className="w-full h-12 rounded-xl bg-slate-200 text-slate-500 font-extrabold text-xs uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2 border border-slate-300"
-            >
-              <Lock className="w-4 h-4 text-slate-500" />
-              <span>Ditolak: Mesin {watchNomorMc} Khusus Input METER</span>
-            </button>
-          ) : (
-            <button
-              data-tour="submit-panel"
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full h-12 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-[0.99] disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-md"
-            >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" /> Menyimpan...
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />{" "}
-                  {isEdit ? "Simpan Perubahan" : "Kirim Laporan Panel"}
-                </>
-              )}
-            </button>
-          )}
-        </form>
-
-        {isTourOpen && currentTourStep && (
-          <div className="fixed inset-0 z-[70]" onClick={closeTour}>
-            <div className="absolute inset-0 bg-slate-950/55" />
-          </div>
-        )}
-
-        {/* Modal Sukses */}
-        {successData && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn"
-            onClick={handleCloseSuccess}
-          >
-            <div
-              className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <h4 className="text-lg font-bold text-slate-800">
-                {(successData as any).isOfflineSaved
-                  ? "Tersimpan Offline"
-                  : "Laporan Berhasil Disimpan"}
-              </h4>
-              <p className="text-xs text-slate-500 mt-1 mb-5">
-                {(successData as any)?.isCutSubmit
-                  ? (successData as any)?.isOfflineSaved
-                    ? `Data potong kain Potongan ${successData?.potonganKe} antre dikirim otomatis saat sinyal pulih.`
-                    : `Potong kain untuk Potongan ${successData?.potonganKe} berhasil diupdate tanpa membuat baris panel baru.`
-                  : (successData as any)?.isOfflineSaved
-                    ? `Data Panel #${successData?.panelNo} antre dikirim otomatis saat sinyal pulih.`
-                    : `Data laporan untuk Panel #${successData?.panelNo} (Potongan ${successData?.potonganKe}) telah terekam.`}
-              </p>
-              {(successData as any).autoAdjustedDowntimeMsg && (
-                <div className="w-full mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-left shadow-inner">
-                  <p className="text-[11px] font-bold text-amber-700 leading-snug">
-                    <AlertCircle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
-                    {(successData as any).autoAdjustedDowntimeMsg}
-                  </p>
-                </div>
-              )}
-              <button
-                onClick={handleCloseSuccess}
-                className="w-full py-3 bg-[#0070bc] text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
-              >
-                {isEdit ? "Kembali ke Riwayat" : "Input Panel Berikutnya"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Modal Peringatan/Error */}
-        {errorMsg && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn"
-            onClick={() => setErrorMsg(null)}
-          >
-            <div
-              className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-red-500"></div>
-              <div className="w-14 h-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-4">
-                <AlertCircle className="w-8 h-8" />
-              </div>
-              <h4 className="text-lg font-bold text-slate-800">Peringatan!</h4>
-              <p className="text-sm font-semibold text-slate-600 mt-2 mb-6 leading-relaxed">
-                {errorMsg}
-              </p>
-              <button
-                type="button"
-                onClick={() => setErrorMsg(null)}
-                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl active:scale-95 transition-all text-sm"
-              >
-                Tutup & Perbaiki
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Modal Konfirmasi Perubahan Jumlah PCS */}
-        {pcsConfirmModal.isOpen && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-sky-500"></div>
-              <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-500 flex items-center justify-center mb-4">
-                <AlertCircle className="w-8 h-8" />
-              </div>
-              <h4 className="text-lg font-bold text-slate-800">
-                {pcsConfirmModal.actionType === "increment"
-                  ? "Tambah PCS?"
-                  : "Hapus PCS?"}
-              </h4>
-              <p className="text-sm text-slate-600 mt-2 mb-6 leading-relaxed">
-                {pcsConfirmModal.actionType === "increment"
-                  ? `Apakah Anda yakin ingin menambah jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs?`
-                  : `Apakah Anda yakin ingin mengurangi jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs? Tindakan ini akan menghapus data yang berkaitan dengan PCS di atas nomor tersebut.`}
-              </p>
-              <div className="flex w-full gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPcsConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl active:scale-95 transition-all text-sm"
+                  onClick={handleCancelAdvancedActions}
+                  className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all uppercase tracking-wider cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => {
-                    if (pcsConfirmModal.actionType === "increment") {
-                      for (let i = fields.length; i < pcsConfirmModal.targetCount; i++) {
-                        append({
-                          pcsIndex: String(i + 1),
-                          jmlHasilProduksi: "1",
-                        });
-                      }
-                    } else {
-                      for (let i = fields.length - 1; i >= pcsConfirmModal.targetCount; i--) {
-                        remove(i);
-                      }
-                    }
-                    setPcsConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    setShowAdvancedActions(false);
+                    handleSubmit(onSubmit, onInvalid)();
                   }}
-                  className="flex-1 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
+                  className="flex-1 h-12 sm:h-14 bg-[#0070bc] hover:bg-[#004777] active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-sky-900/20 transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  Ya, Ubah
+                  <Save className="w-5 h-5" />
+                  <span>{isSubmitting ? "Menyimpan..." : "Kirim Laporan Sekarang"}</span>
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Modal Backup Operator */}
-        {showBackupModal && (() => {
-          const currentOperatorId = watchOperatorId;
-          const currentOperator = operators.find((o: any) => o.id.toString() === currentOperatorId);
-          const currentShift = currentOperator?.shift;
-          const backupOperatorsSeShift = operators.filter((o: any) => o.shift === currentShift && o.id.toString() !== currentOperatorId);
-          const backupOperators = backupOperatorsSeShift.length > 0
-            ? backupOperatorsSeShift
-            : operators.filter((o: any) => o.id.toString() !== currentOperatorId);
+        <div className="mt-4 bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-700 uppercase">
+              Jenis Laporan / Info Istirahat
+            </label>
+            {watch("jenisLaporan") === "Istirahat" && backupOperatorName && (
+              <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300">
+                Mode Istirahat Aktif
+              </span>
+            )}
+          </div>
 
-          const handleCloseModal = () => {
-            if (!backupOperatorName) {
-              setValue("jenisLaporan", "");
-              setValue("operatorBackup", "");
-            }
-            setShowBackupModal(false);
-          };
+          <div className="grid grid-cols-2 gap-3">
+            {/* Normal */}
+            <div className="relative">
+              <input
+                type="radio"
+                id="jenisLaporanNormal"
+                value=""
+                {...register("jenisLaporan")}
+                onChange={(e) => {
+                  register("jenisLaporan").onChange(e);
+                  setBackupOperatorName("");
+                  setValue("operatorBackup", "");
+                }}
+                className="peer hidden"
+              />
+              <label
+                htmlFor="jenisLaporanNormal"
+                className="flex items-center justify-center p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 text-center bg-white border-slate-200 hover:border-[#0070bc]/40 hover:bg-sky-50 text-slate-600 font-black text-xs sm:text-sm uppercase peer-checked:border-[#0070bc] peer-checked:bg-sky-50 peer-checked:text-[#0070bc] shadow-sm peer-checked:shadow-md"
+              >
+                Normal
+              </label>
+            </div>
 
-          return (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
-              <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col animate-scaleIn relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-orange-500"></div>
-                <h4 className="text-lg font-bold text-slate-800 mb-1">Pilih Operator Backup</h4>
-                <p className="text-xs text-slate-500 mb-4">
-                  Wajib memilih rekan operator yang menjaga mesin saat Anda beristirahat.
-                </p>
+            {/* Istirahat */}
+            <div className="relative">
+              <input
+                type="radio"
+                id="jenisLaporanIstirahat"
+                value="Istirahat"
+                {...register("jenisLaporan")}
+                onChange={(e) => {
+                  const now = new Date();
+                  const currentHour = now.getHours();
+                  const currentMin = now.getMinutes();
+                  const timeVal = currentHour + currentMin / 60;
 
-                <div className="flex flex-col gap-2 max-h-[50vh] overflow-y-auto mb-4 p-1">
-                  {backupOperators.length > 0 ? backupOperators.map((op: any) => {
-                    const opName = op.name || op.nama_operator;
-                    const isSelected = backupOperatorName === opName;
-                    return (
-                      <button
-                        key={op.id}
-                        type="button"
-                        onClick={() => {
-                          setBackupOperatorName(opName);
-                          setValue("operatorBackup", opName);
-                          setValue("jenisLaporan", "Istirahat");
-                          setErrorMsg(null);
-                          setShowBackupModal(false);
-                        }}
-                        className={`text-left px-4 py-3 rounded-xl border transition-all flex items-center justify-between ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-50 text-orange-700 font-bold shadow-sm ring-2 ring-orange-200'
-                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="font-semibold">{opName}</span>
-                        {op.shift && (
-                          <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-bold">
-                            Shift {op.shift}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  }) : (
-                    <p className="text-sm text-slate-500 text-center py-4">Tidak ada operator lain yang terdaftar.</p>
+                  let isAllowed = false;
+                  let shiftName = "";
+                  let allowedRange = "";
+
+                  if (timeVal >= 7.166 && timeVal < 15.166) {
+                    shiftName = "Shift 1";
+                    allowedRange = "10:00 - 13:00";
+                    if (timeVal >= 10.0 && timeVal < 13.0) {
+                      isAllowed = true;
+                    }
+                  } else if (timeVal >= 15.166 && timeVal < 23.166) {
+                    shiftName = "Shift 2";
+                    allowedRange = "18:00 - 21:00";
+                    if (timeVal >= 18.0 && timeVal < 21.0) {
+                      isAllowed = true;
+                    }
+                  } else {
+                    shiftName = "Shift 3";
+                    allowedRange = "02:00 - 05:00";
+                    if (currentHour >= 2 && currentHour < 5) {
+                      isAllowed = true;
+                    }
+                  }
+
+                  if (!isAllowed) {
+                    const timeStr = `${String(currentHour).padStart(2, "0")}:${String(currentMin).padStart(2, "0")}`;
+                    e.persist?.();
+                    setBreakWarningModal({
+                      isOpen: true,
+                      timeStr,
+                      shiftName,
+                      allowedRange,
+                      pendingEvent: e,
+                    });
+                    return;
+                  }
+
+                  register("jenisLaporan").onChange(e);
+                  setShowBackupModal(true);
+                }}
+                className="peer hidden"
+              />
+              <label
+                htmlFor="jenisLaporanIstirahat"
+                className="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 text-center bg-white border-slate-200 hover:border-amber-400 hover:bg-amber-50 text-slate-600 font-black text-xs sm:text-sm uppercase peer-checked:border-amber-500 peer-checked:bg-gradient-to-br peer-checked:from-amber-400 peer-checked:to-amber-500 peer-checked:text-white shadow-sm peer-checked:shadow-md peer-checked:shadow-amber-500/30"
+              >
+                <div className="flex flex-col items-center gap-0.5">
+                  <span>Istirahat</span>
+                  {backupOperatorName && (
+                    <span className="text-[9px] sm:text-[10px] bg-white/20 text-amber-900 px-2 py-0.5 rounded-md mt-0.5 font-bold tracking-wide">
+                      {backupOperatorName}
+                    </span>
                   )}
                 </div>
-                <div className="flex gap-3 mt-2">
-                  <button
-                    type="button"
-                    onClick={handleCloseModal}
-                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-colors cursor-pointer"
-                  >
-                    {backupOperatorName ? "Tutup" : "Batal (Kembali ke Normal)"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Modal Custom Peringatan Jam Istirahat */}
-        {breakWarningModal.isOpen && (
-          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-scaleUp">
-              {/* Banner / Header */}
-              <div className="p-6 bg-gradient-to-br from-amber-500 to-orange-500 text-white text-center relative overflow-hidden flex flex-col items-center justify-center">
-                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-3 shadow-inner">
-                  <AlertTriangle className="w-7 h-7 text-white" />
-                </div>
-                <h3 className="text-base sm:text-lg font-black tracking-tight uppercase">Peringatan Jam Istirahat</h3>
-                <p className="text-xs text-amber-100 font-medium mt-1">
-                  Pencatatan istirahat terdeteksi di luar jam wajar
-                </p>
-              </div>
-
-              {/* Body */}
-              <div className="p-5 sm:p-6 space-y-4">
-                <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl space-y-2.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-500 uppercase tracking-wider">Jam Saat Ini:</span>
-                    <span className="font-black font-mono text-amber-700 text-sm bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-200">
-                      {breakWarningModal.timeStr} WIB
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-500 uppercase tracking-wider">Jam Istirahat Wajar {breakWarningModal.shiftName}:</span>
-                    <span className="font-black text-slate-700 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">
-                      {breakWarningModal.allowedRange}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-600 font-semibold leading-relaxed text-center">
-                  Apakah Anda yakin tetap ingin memilih jenis laporan <strong>Istirahat</strong>?
-                </p>
-
-                {/* Buttons */}
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleCancelBreakWarning}
-                    className="w-full py-3 px-4 rounded-xl border-2 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wide transition-all active:scale-95 cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleConfirmBreakWarning}
-                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs uppercase tracking-wide shadow-md shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
-                  >
-                    Ya, Lanjutkan
-                  </button>
-                </div>
-              </div>
+              </label>
             </div>
           </div>
-        )}
 
-        {/* Modal Peringatan Antrean Event Belum Diklasifikasikan (Simpel & Minimalis) */}
-        {unclassifiedStopsModalCount !== null && unclassifiedStopsModalCount > 0 && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fadeIn">
-            <div className="bg-white rounded-2xl max-w-sm w-full shadow-xl p-5 border border-slate-200 flex flex-col gap-4 text-center">
-              <div className="mx-auto w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <h3 className="font-extrabold text-slate-800 text-sm">
-                  Masih Ada Antrean Kendala
-                </h3>
-                <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                  Terdapat <strong>{unclassifiedStopsModalCount} peristiwa mesin stop</strong> yang belum diklasifikasikan. Mohon tentukan <strong>&quot;Gagal Cacat&quot;</strong> atau <strong>&quot;Klasifikasi&quot;</strong> sebelum menyimpan form.
-                </p>
+          {/* Banner Operator Backup jika status Istirahat */}
+          {watch("jenisLaporan") === "Istirahat" && (
+            <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 animate-fadeIn ${backupOperatorName ? "bg-amber-50/80 border-amber-200" : "bg-rose-50 border-rose-200"}`}>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+                  Operator Backup:
+                </span>
+                <span className={`text-xs font-bold ${backupOperatorName ? "text-amber-950" : "text-rose-600"}`}>
+                  {backupOperatorName ? `👤 ${backupOperatorName}` : "⚠️ Belum Memilih Operator Backup"}
+                </span>
               </div>
               <button
                 type="button"
-                onClick={() => setUnclassifiedStopsModalCount(null)}
-                className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-xs"
+                onClick={() => setShowBackupModal(true)}
+                className={`px-3 py-1.5 font-bold text-xs rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer ${backupOperatorName ? "bg-amber-500 hover:bg-amber-600 text-white" : "bg-rose-600 hover:bg-rose-700 text-white animate-pulse"}`}
               >
-                Oke, Mengerti
+                {backupOperatorName ? "Ganti Backup" : "Pilih Sekarang"}
+              </button>
+            </div>
+          )}
+
+          <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
+            Pilih <strong>Istirahat</strong> jika panel ini adalah hasil kerja saat Anda beristirahat (operator pengganti).
+          </p>
+        </div>
+
+        {/* Kirim Button */}
+        {isMeterMachine ? (
+          <button
+            type="button"
+            disabled
+            className="w-full h-12 rounded-xl bg-slate-200 text-slate-500 font-extrabold text-xs uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2 border border-slate-300"
+          >
+            <Lock className="w-4 h-4 text-slate-500" />
+            <span>Ditolak: Mesin {watchNomorMc} Khusus Input METER</span>
+          </button>
+        ) : (
+          <button
+            data-tour="submit-panel"
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full h-12 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-[0.99] disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-md"
+          >
+            {isSubmitting ? (
+              <>
+                <RefreshCw className="w-5 h-5 animate-spin" /> Menyimpan...
+              </>
+            ) : (
+              <>
+                <Save className="w-5 h-5" />{" "}
+                {isEdit ? "Simpan Perubahan" : "Kirim Laporan Panel"}
+              </>
+            )}
+          </button>
+        )}
+      </form>
+
+      {isTourOpen && currentTourStep && (
+        <div className="fixed inset-0 z-[70]" onClick={closeTour}>
+          <div className="absolute inset-0 bg-slate-950/55" />
+        </div>
+      )}
+
+      {/* Modal Sukses */}
+      {successData && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn"
+          onClick={handleCloseSuccess}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800">
+              {(successData as any).isOfflineSaved
+                ? "Tersimpan Offline"
+                : "Laporan Berhasil Disimpan"}
+            </h4>
+            <p className="text-xs text-slate-500 mt-1 mb-5">
+              {(successData as any)?.isCutSubmit
+                ? (successData as any)?.isOfflineSaved
+                  ? `Data potong kain Potongan ${successData?.potonganKe} antre dikirim otomatis saat sinyal pulih.`
+                  : `Potong kain untuk Potongan ${successData?.potonganKe} berhasil diupdate tanpa membuat baris panel baru.`
+                : (successData as any)?.isOfflineSaved
+                  ? `Data Panel #${successData?.panelNo} antre dikirim otomatis saat sinyal pulih.`
+                  : `Data laporan untuk Panel #${successData?.panelNo} (Potongan ${successData?.potonganKe}) telah terekam.`}
+            </p>
+            {(successData as any).autoAdjustedDowntimeMsg && (
+              <div className="w-full mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-left shadow-inner">
+                <p className="text-[11px] font-bold text-amber-700 leading-snug">
+                  <AlertCircle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
+                  {(successData as any).autoAdjustedDowntimeMsg}
+                </p>
+              </div>
+            )}
+            <button
+              onClick={handleCloseSuccess}
+              className="w-full py-3 bg-[#0070bc] text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
+            >
+              {isEdit ? "Kembali ke Riwayat" : "Input Panel Berikutnya"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Peringatan/Error */}
+      {errorMsg && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setErrorMsg(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute top-0 left-0 right-0 h-1 bg-red-500"></div>
+            <div className="w-14 h-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800">Peringatan!</h4>
+            <p className="text-sm font-semibold text-slate-600 mt-2 mb-6 leading-relaxed">
+              {errorMsg}
+            </p>
+            <button
+              type="button"
+              onClick={() => setErrorMsg(null)}
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl active:scale-95 transition-all text-sm"
+            >
+              Tutup & Perbaiki
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Perubahan Jumlah PCS */}
+      {pcsConfirmModal.isOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-sky-500"></div>
+            <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-500 flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800">
+              {pcsConfirmModal.actionType === "increment"
+                ? "Tambah PCS?"
+                : "Hapus PCS?"}
+            </h4>
+            <p className="text-sm text-slate-600 mt-2 mb-6 leading-relaxed">
+              {pcsConfirmModal.actionType === "increment"
+                ? `Apakah Anda yakin ingin menambah jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs?`
+                : `Apakah Anda yakin ingin mengurangi jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs? Tindakan ini akan menghapus data yang berkaitan dengan PCS di atas nomor tersebut.`}
+            </p>
+            <div className="flex w-full gap-3">
+              <button
+                type="button"
+                onClick={() => setPcsConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl active:scale-95 transition-all text-sm"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pcsConfirmModal.actionType === "increment") {
+                    for (let i = fields.length; i < pcsConfirmModal.targetCount; i++) {
+                      append({
+                        pcsIndex: String(i + 1),
+                        jmlHasilProduksi: "1",
+                      });
+                    }
+                  } else {
+                    for (let i = fields.length - 1; i >= pcsConfirmModal.targetCount; i--) {
+                      remove(i);
+                    }
+                  }
+                  setPcsConfirmModal(prev => ({ ...prev, isOpen: false }));
+                }}
+                className="flex-1 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
+              >
+                Ya, Ubah
               </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <ContinuousHistoryDrawer
-          isOpen={isHistoryDrawerOpen}
-          onClose={() => setIsHistoryDrawerOpen(false)}
-          currentNomorMc={watchNomorMc}
-          currentPotonganKe={watchPotonganKe}
-        />
-      </div>
+      {/* Modal Backup Operator */}
+      {showBackupModal && (() => {
+        const currentOperatorId = watchOperatorId;
+        const currentOperator = operators.find((o: any) => o.id.toString() === currentOperatorId);
+        const currentShift = currentOperator?.shift;
+        const backupOperatorsSeShift = operators.filter((o: any) => o.shift === currentShift && o.id.toString() !== currentOperatorId);
+        const backupOperators = backupOperatorsSeShift.length > 0
+          ? backupOperatorsSeShift
+          : operators.filter((o: any) => o.id.toString() !== currentOperatorId);
+
+        const handleCloseModal = () => {
+          if (!backupOperatorName) {
+            setValue("jenisLaporan", "");
+            setValue("operatorBackup", "");
+          }
+          setShowBackupModal(false);
+        };
+
+        return (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col animate-scaleIn relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-orange-500"></div>
+              <h4 className="text-lg font-bold text-slate-800 mb-1">Pilih Operator Backup</h4>
+              <p className="text-xs text-slate-500 mb-4">
+                Wajib memilih rekan operator yang menjaga mesin saat Anda beristirahat.
+              </p>
+
+              <div className="flex flex-col gap-2 max-h-[50vh] overflow-y-auto mb-4 p-1">
+                {backupOperators.length > 0 ? backupOperators.map((op: any) => {
+                  const opName = op.name || op.nama_operator;
+                  const isSelected = backupOperatorName === opName;
+                  return (
+                    <button
+                      key={op.id}
+                      type="button"
+                      onClick={() => {
+                        setBackupOperatorName(opName);
+                        setValue("operatorBackup", opName);
+                        setValue("jenisLaporan", "Istirahat");
+                        setErrorMsg(null);
+                        setShowBackupModal(false);
+                      }}
+                      className={`text-left px-4 py-3 rounded-xl border transition-all flex items-center justify-between ${isSelected
+                        ? 'border-orange-500 bg-orange-50 text-orange-700 font-bold shadow-sm ring-2 ring-orange-200'
+                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                    >
+                      <span className="font-semibold">{opName}</span>
+                      {op.shift && (
+                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-bold">
+                          Shift {op.shift}
+                        </span>
+                      )}
+                    </button>
+                  );
+                }) : (
+                  <p className="text-sm text-slate-500 text-center py-4">Tidak ada operator lain yang terdaftar.</p>
+                )}
+              </div>
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-colors cursor-pointer"
+                >
+                  {backupOperatorName ? "Tutup" : "Batal (Kembali ke Normal)"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal Custom Peringatan Jam Istirahat */}
+      {breakWarningModal.isOpen && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-scaleUp">
+            {/* Banner / Header */}
+            <div className="p-6 bg-gradient-to-br from-amber-500 to-orange-500 text-white text-center relative overflow-hidden flex flex-col items-center justify-center">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-3 shadow-inner">
+                <AlertTriangle className="w-7 h-7 text-white" />
+              </div>
+              <h3 className="text-base sm:text-lg font-black tracking-tight uppercase">Peringatan Jam Istirahat</h3>
+              <p className="text-xs text-amber-100 font-medium mt-1">
+                Pencatatan istirahat terdeteksi di luar jam wajar
+              </p>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-500 uppercase tracking-wider">Jam Saat Ini:</span>
+                  <span className="font-black font-mono text-amber-700 text-sm bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-200">
+                    {breakWarningModal.timeStr} WIB
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-500 uppercase tracking-wider">Jam Istirahat Wajar {breakWarningModal.shiftName}:</span>
+                  <span className="font-black text-slate-700 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">
+                    {breakWarningModal.allowedRange}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 font-semibold leading-relaxed text-center">
+                Apakah Anda yakin tetap ingin memilih jenis laporan <strong>Istirahat</strong>?
+              </p>
+
+              {/* Buttons */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCancelBreakWarning}
+                  className="w-full py-3 px-4 rounded-xl border-2 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wide transition-all active:scale-95 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmBreakWarning}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs uppercase tracking-wide shadow-md shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                >
+                  Ya, Lanjutkan
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Peringatan Antrean Event Belum Diklasifikasikan (Simpel & Minimalis) */}
+      {unclassifiedStopsModalCount !== null && unclassifiedStopsModalCount > 0 && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-sm w-full shadow-xl p-5 border border-slate-200 flex flex-col gap-4 text-center">
+            <div className="mx-auto w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <h3 className="font-extrabold text-slate-800 text-sm">
+                Masih Ada Antrean Kendala
+              </h3>
+              <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                Terdapat <strong>{unclassifiedStopsModalCount} peristiwa mesin stop</strong> yang belum diklasifikasikan. Mohon tentukan <strong>&quot;Gagal Cacat&quot;</strong> atau <strong>&quot;Klasifikasi&quot;</strong> sebelum menyimpan form.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUnclassifiedStopsModalCount(null)}
+              className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-xs"
+            >
+              Oke, Mengerti
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ContinuousHistoryDrawer
+        isOpen={isHistoryDrawerOpen}
+        onClose={() => setIsHistoryDrawerOpen(false)}
+        currentNomorMc={watchNomorMc}
+        currentPotonganKe={watchPotonganKe}
+      />
     </div>
   );
 }

@@ -371,14 +371,19 @@ export default function MendingHistoryPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {data.map((d: any, idx: number) => {
-                      let gradeA = 0,
-                        gradeB = 0,
+                      let gradeA = d.mending_grade_a ?? 0,
+                        gradeB = d.mending_grade_b ?? 0,
+                        gradeBS = d.mending_grade_bs ?? 0;
+                      if (d.items && d.items.length > 0) {
+                        gradeA = 0;
+                        gradeB = 0;
                         gradeBS = 0;
-                      (d.items || []).forEach((item: any) => {
-                        if (item.hasil_mending === "A") gradeA++;
-                        if (item.hasil_mending === "B") gradeB++;
-                        if (item.hasil_mending === "BS") gradeBS++;
-                      });
+                        d.items.forEach((item: any) => {
+                          if (item.hasil_mending === "A") gradeA++;
+                          if (item.hasil_mending === "B") gradeB++;
+                          if (item.hasil_mending === "BS") gradeBS++;
+                        });
+                      }
 
                       const isMeteran = d.header?.panel_no === "METERAN";
                       const gradeAVal = isMeteran ? (d.mending_grade_a || Number(d.header?.meter_akhir) || 0) : gradeA;
