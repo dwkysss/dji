@@ -206,14 +206,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{ user, isLoggedIn, isLoading, login, logout, switchRole }}>
       {showLoadingScreen ? (
-        <div className="min-h-screen w-full bg-slate-900 flex flex-col items-center justify-center p-4 z-50">
-          <div className="flex flex-col items-center gap-4 animate-fadeIn">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] to-sky-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-              <Loader2 className="w-6 h-6 text-white animate-spin" />
+        <div className="fixed inset-0 min-h-screen w-full flex flex-col items-center justify-center p-6 z-50 bg-white select-none animate-fadeIn">
+          <div className="flex flex-col items-center">
+            {/* Transparent Logo */}
+            <div className="mb-4">
+              <img
+                src="/assets/dji_logo_transparent.png"
+                alt="DJI Logo"
+                className="w-14 h-14 object-contain"
+              />
             </div>
-            <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">
-              Memverifikasi Sesi...
-            </p>
+
+            {/* Minimal Spinner & Text */}
+            <div className="flex items-center gap-2.5">
+              <Loader2 className="w-4 h-4 text-[#0070bc] animate-spin" />
+              <span className="text-xs font-bold tracking-wider uppercase text-slate-500">
+                Memverifikasi Sesi...
+              </span>
+            </div>
           </div>
         </div>
       ) : (

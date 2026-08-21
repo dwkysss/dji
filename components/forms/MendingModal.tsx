@@ -285,52 +285,69 @@ export default function MendingModal({
             </div>
           )}
 
-          {/* Context Info */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 mb-6 shadow-xs">
-            <div className="grid grid-cols-12 gap-2 sm:gap-3 items-center text-xs text-center">
-              <div className="col-span-2 text-center">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
-                  PCS Ke
+          {/* Context Info Banner */}
+          <div
+            className="rounded-2xl p-4 sm:p-5 mb-6 relative overflow-hidden text-white shadow-md border border-white/10"
+            style={{
+              background: "linear-gradient(135deg, #091e42 0%, #0d386b 60%, #0052cc 100%)",
+            }}
+          >
+            {/* Ambient subtle glow */}
+            <div className="absolute -right-8 -bottom-8 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 sm:gap-5 relative z-10">
+              {/* PCS KE */}
+              <div className="sm:border-r border-white/10 pr-2">
+                <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
+                  PCS KE
                 </span>
-                <span className="text-base sm:text-lg font-black text-slate-800 block whitespace-nowrap text-center">
+                <span className="text-2xl sm:text-3xl font-black text-white leading-none tracking-tight">
                   {(() => {
                     const d = headerData?.details?.[0] || detailData?.[0];
                     const idx = d?.pcs_index;
                     const tot = d?.total_pcs || d?.production_headers?.total_pcs || idx;
                     if (!idx) return "-";
-                    return `${idx} / ${tot}`;
+                    return `${idx}/${tot}`;
                   })()}
                 </span>
               </div>
-              <div className="col-span-2 text-center">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
-                  Mesin
+
+              {/* MESIN */}
+              <div className="sm:border-r border-white/10 pr-2">
+                <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
+                  MESIN
                 </span>
-                <span className="text-base sm:text-lg font-black text-slate-800 block text-center">
+                <span className="text-2xl sm:text-3xl font-black text-white leading-none tracking-tight">
                   {headerData?.details?.[0]?.production_headers?.nomor_mc || "-"}
                 </span>
               </div>
-              <div className="col-span-2 text-center">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
-                  Potongan
+
+              {/* POTONGAN */}
+              <div className="sm:border-r border-white/10 pr-2">
+                <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
+                  POTONGAN
                 </span>
-                <span className="text-base sm:text-lg font-black text-slate-800 block text-center">
+                <span className="text-2xl sm:text-3xl font-black text-white leading-none tracking-tight">
                   {headerData?.details?.[0]?.production_headers?.potongan_ke || "-"}
                 </span>
               </div>
-              <div className="col-span-4 text-center">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
-                  Desain
+
+              {/* DESAIN */}
+              <div className="sm:border-r border-white/10 pr-2">
+                <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
+                  DESAIN
                 </span>
-                <span className="text-base sm:text-lg font-black text-slate-800 block whitespace-nowrap text-center">
+                <span className="text-lg sm:text-xl font-black text-[#38bdf8] leading-tight tracking-tight block truncate">
                   {headerData?.details?.[0]?.production_headers?.design_id || "-"}
                 </span>
               </div>
-              <div className="col-span-2 text-center">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5 text-[9px] sm:text-[10px] text-center">
-                  Total Produksi
+
+              {/* TOTAL PRODUKSI */}
+              <div className="pr-2 col-span-2 sm:col-span-1">
+                <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
+                  TOTAL PRODUKSI
                 </span>
-                <span className="text-base sm:text-lg font-black text-emerald-600 block whitespace-nowrap text-center">
+                <span className="text-lg sm:text-xl font-black text-emerald-400 leading-tight tracking-tight block">
                   {(() => {
                     const isMeteran = headerData?.details?.[0]?.production_headers?.panel_no === "METERAN";
                     if (isMeteran) {
@@ -341,10 +358,10 @@ export default function MendingModal({
                           if (m > maxMeter) maxMeter = m;
                         });
                       }
-                      return `${maxMeter} METER`;
+                      return `${maxMeter} M`;
                     } else {
                       const validCount = detailsList.filter((d: any) => !d.is_deleted && d.status_inspeksi !== "Dihapus" && d.status_mending !== "Dihapus" && !(d.keterangan_cacat || "").includes("[DIHAPUS]")).length;
-                      return `${validCount} PANEL`;
+                      return `${validCount} PNL`;
                     }
                   })()}
                 </span>
@@ -483,18 +500,6 @@ export default function MendingModal({
                   </span>
                 </div>
               </div>
-            </div>
-
-            {/* Catatan Tambahan */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                Catatan / Keterangan (Opsional)
-              </label>
-              <textarea
-                {...register("notes")}
-                placeholder="Tambahkan catatan khusus jika ada..."
-                className="w-full h-16 p-3 rounded-xl bg-white border border-slate-200 text-sm focus:ring-2 focus:ring-[#0070bc]/20 focus:border-[#0070bc] outline-none transition-all resize-none"
-              />
             </div>
           </form>
         </div>

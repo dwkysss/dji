@@ -1743,17 +1743,6 @@ export default function QCPage() {
                          </div>
                        ))}
                     </div>
-
-                    <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-slate-650 uppercase">Keterangan Tambahan (Opsional)</label>
-                      <textarea
-                        value={insertPanelKeterangan}
-                        onChange={(e) => setInsertPanelKeterangan(e.target.value)}
-                        rows={2}
-                        className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:bg-white focus:border-[#0070bc] focus:ring-2 focus:ring-[#0070bc]/10 outline-none transition-all resize-none"
-                        placeholder="Tuliskan keterangan tambahan jika ada..."
-                      />
-                    </div>
                   </div>
                 )}
               </div>

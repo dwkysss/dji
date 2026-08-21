@@ -407,39 +407,54 @@ export default function QCInspectionModal({
             </div>
           )}
 
-          {/* Context Info */}
-          <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 mb-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-              <div>
-                <span className="text-slate-400 font-semibold uppercase tracking-wider block mb-1 text-[9px]">
-                  PCS Ke
+          {/* Context Info Banner */}
+          <div
+            className="rounded-2xl p-4 sm:p-5 mb-6 relative overflow-hidden text-white shadow-md border border-white/10"
+            style={{
+              background: "linear-gradient(135deg, #091e42 0%, #0d386b 60%, #0052cc 100%)",
+            }}
+          >
+            {/* Ambient subtle glow */}
+            <div className="absolute -right-8 -bottom-8 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 relative z-10">
+              {/* PCS KE */}
+              <div className="sm:border-r border-white/10 pr-2">
+                <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
+                  PCS KE
                 </span>
-                <span className="font-bold text-slate-800">
+                <span className="text-2xl sm:text-3xl font-black text-white leading-none tracking-tight">
                   {headerData?.details?.[0]?.pcs_index || "-"}
                 </span>
               </div>
-              <div>
-                <span className="text-slate-400 font-semibold uppercase tracking-wider block mb-1 text-[9px]">
-                  Mesin
+
+              {/* MESIN */}
+              <div className="sm:border-r border-white/10 pr-2">
+                <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
+                  MESIN
                 </span>
-                <span className="font-bold text-slate-800">
+                <span className="text-2xl sm:text-3xl font-black text-white leading-none tracking-tight">
                   {headerData?.details?.[0]?.production_headers?.nomor_mc || "-"}
                 </span>
               </div>
-              <div>
-                <span className="text-slate-400 font-semibold uppercase tracking-wider block mb-1 text-[9px]">
-                  Desain
+
+              {/* POTONGAN */}
+              <div className="sm:border-r border-white/10 pr-2">
+                <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
+                  POTONGAN
                 </span>
-                <span className="font-bold text-slate-800">
-                  {headerData?.details?.[0]?.production_headers?.design_id || "-"}
+                <span className="text-2xl sm:text-3xl font-black text-white leading-none tracking-tight">
+                  {headerData?.details?.[0]?.production_headers?.potongan_ke || "-"}
                 </span>
               </div>
-              <div>
-                <span className="text-slate-400 font-semibold uppercase tracking-wider block mb-1 text-[9px]">
-                  Potongan
+
+              {/* DESAIN */}
+              <div className="pr-2">
+                <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
+                  DESAIN
                 </span>
-                <span className="font-bold text-slate-800">
-                  {headerData?.details?.[0]?.production_headers?.potongan_ke || "-"}
+                <span className="text-lg sm:text-xl font-black text-[#38bdf8] leading-tight tracking-tight block truncate">
+                  {headerData?.details?.[0]?.production_headers?.design_id || "-"}
                 </span>
               </div>
             </div>
@@ -724,18 +739,6 @@ export default function QCInspectionModal({
             </div>
 
             {/* Bagian 4: Data Mending dihapus */}
-
-            {/* Catatan Tambahan */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                Catatan Tambahan QC (Opsional)
-              </label>
-              <textarea
-                {...register("notes")}
-                className="w-full h-16 p-3 rounded-xl bg-white border border-slate-200 text-sm focus:ring-2 focus:ring-[#0070bc]/20 focus:border-[#0070bc] outline-none transition-all resize-none"
-                placeholder="Keterangan perbaikan, jenis cacat, dll..."
-              />
-            </div>
           </form>
         </div>
 

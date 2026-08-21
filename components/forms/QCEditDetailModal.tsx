@@ -43,7 +43,6 @@ export default function QCEditDetailModal({
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
   const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
   const [keteranganCacat, setKeteranganCacat] = useState("");
-  const [keteranganQc, setKeteranganQc] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -151,7 +150,6 @@ export default function QCEditDetailModal({
       setSelectedDetails(initialDetailsMap);
       setInputBloks(initialBlokMap);
       setKeteranganCacat(cleanKet);
-      setKeteranganQc(detail.keterangan_qc || "");
       setManualInputDetails({});
     }
   }, [isOpen, detail, currentGrade]);
@@ -176,7 +174,13 @@ export default function QCEditDetailModal({
           delete next[catId];
           return next;
         });
-        const remaining = prev.filter((c) => c !== catId);
+        setManualInputDetails((old) => {
+          const next = { ...old };
+          delete next[catId];
+          return next;
+        });
+        const remaining = prev.filter((id) => id !== catId);
+        // When all defect categories are unchecked and grade is Silang, auto-reset back to Ceklis (1)
         if (remaining.length === 0 && selectedGrade === 3) {
           setSelectedGrade(1);
         }
@@ -266,7 +270,7 @@ export default function QCEditDetailModal({
         kategoriMasalah: selectedCategories.length > 0 ? selectedCategories : undefined,
         detailMasalah: combinedDetailMasalah || undefined,
         keteranganCacat: finalKeteranganCacat || undefined,
-        keteranganQc: keteranganQc || undefined,
+        keteranganQc: detail.keterangan_qc || undefined,
         isBs,
         finalInspectionId: selectedGrade,
         defects: defectObjects,
@@ -598,20 +602,6 @@ export default function QCEditDetailModal({
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Section 3: Catatan Khusus QC (keterangan_qc) */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-black text-slate-700 uppercase tracking-wide">
-              Catatan Khusus QC:
-            </label>
-            <textarea
-              rows={2}
-              placeholder="Tulis catatan QC untuk panel ini (misal: Periksa sambungan benang, noda oli sedikit)..."
-              value={keteranganQc}
-              onChange={(e) => setKeteranganQc(e.target.value)}
-              className="w-full p-3 rounded-2xl border border-slate-200 text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:border-[#0070bc] focus:ring-2 focus:ring-[#0070bc]/10 outline-none transition-all resize-none font-medium"
-            />
           </div>
         </div>
 

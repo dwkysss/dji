@@ -48,8 +48,17 @@ body {
   animation: marquee 28s linear infinite;
 }
 
-.animate-marquee:hover {
-  animation-play-state: paused;
+@keyframes shimmerProgress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.animate-progressShimmer {
+  animation: shimmerProgress 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 /* ── Global Print Styles ── */
