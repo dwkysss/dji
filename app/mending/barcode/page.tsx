@@ -146,7 +146,178 @@ function BarcodeContent() {
   };
 
   const handlePrint = () => {
-    window.print();
+    const node = document.getElementById("print-area");
+    if (!node) return;
+
+    let iframe = document.getElementById("barcode-print-iframe") as HTMLIFrameElement;
+    if (!iframe) {
+      iframe = document.createElement("iframe");
+      iframe.id = "barcode-print-iframe";
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      document.body.appendChild(iframe);
+    }
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    const qrSvg = node.querySelector("svg")?.outerHTML || "";
+    const beratKainText = (selectedBatch?.berat_kain && selectedBatch.berat_kain > 0)
+      ? `${selectedBatch.berat_kain} Kg`
+      : "-";
+    const jumlahText = selectedBatch?.is_meteran
+      ? `${selectedBatch?.jumlah_panel} Meter`
+      : `${selectedBatch?.jumlah_panel} Panel`;
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Label Barcode - MC ${selectedBatch?.nomor_mc || "-"} / POT ${selectedBatch?.potongan_ke || "-"}</title>
+          <style>
+            @page {
+              size: auto;
+              margin: 4mm;
+            }
+            * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              background-color: #ffffff;
+              display: flex;
+              justify-content: center;
+              align-items: flex-start;
+              padding: 8px;
+              color: #0f172a;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .label-card {
+              width: 320px;
+              border: 3.5px solid #0f172a;
+              border-radius: 20px;
+              padding: 18px 16px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 12px;
+              background: #ffffff;
+            }
+            .title {
+              font-size: 22px;
+              font-weight: 900;
+              text-align: center;
+              letter-spacing: -0.5px;
+              color: #0f172a;
+            }
+            .grade-badge {
+              display: inline-block;
+              margin-top: 4px;
+              padding: 3px 14px;
+              border-radius: 9999px;
+              background-color: #0f172a;
+              color: #ffffff;
+              font-size: 12px;
+              font-weight: 900;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+            }
+            .qr-wrapper {
+              background: #ffffff;
+              padding: 6px;
+              border-radius: 12px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .qr-wrapper svg {
+              width: 170px;
+              height: 170px;
+              display: block;
+            }
+            .info-table {
+              width: 100%;
+              border-top: 2px dashed #cbd5e1;
+              padding-top: 12px;
+              display: flex;
+              flex-direction: column;
+              gap: 6px;
+              font-size: 11px;
+              font-weight: 600;
+              color: #334155;
+            }
+            .info-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            .info-row span:last-child {
+              color: #0f172a;
+              font-weight: 800;
+              text-align: right;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="label-card">
+            <div style="text-align: center;">
+              <div class="title">PT DJI</div>
+              <div class="grade-badge">GRADE ${gradeInput}</div>
+            </div>
+            <div class="qr-wrapper">
+              ${qrSvg}
+            </div>
+            <div class="info-table">
+              <div class="info-row">
+                <span>Desain:</span>
+                <span>${selectedBatch?.design_id || "-"}</span>
+              </div>
+              <div class="info-row">
+                <span>No Customer:</span>
+                <span>${selectedBatch?.no_customer || "-"}</span>
+              </div>
+              <div class="info-row">
+                <span>Mesin / Potongan:</span>
+                <span>MC ${selectedBatch?.nomor_mc || "-"} / Pot ${selectedBatch?.potongan_ke || "-"}</span>
+              </div>
+              <div class="info-row">
+                <span>PCS / Roll:</span>
+                <span>PCS ${selectedBatch?.pcs_index || "-"}</span>
+              </div>
+              <div class="info-row">
+                <span>Jumlah:</span>
+                <span>${jumlahText}</span>
+              </div>
+              <div class="info-row">
+                <span>Berat Kain:</span>
+                <span>${beratKainText}</span>
+              </div>
+              <div class="info-row">
+                <span>Tanggal:</span>
+                <span>${selectedBatch?.tgl || "-"}</span>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    }, 250);
   };
 
   const handleDownload = async () => {

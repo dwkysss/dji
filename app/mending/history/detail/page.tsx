@@ -333,7 +333,7 @@ function MendingDetailContent() {
             hasRealDefects = true;
           }
         }
-        const hasIstirahatRaw = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || opr.toUpperCase().includes("ISTIRAHAT");
+        const hasIstirahatRaw = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || opr.toUpperCase().includes("ISTIRAHAT") || !!h.operator_backup;
         const hasIstirahat = hasIstirahatRaw;
         const isIstirahat = hasIstirahat && !hasRealDefects && !item.kategori_masalah && !item.detail_masalah;
         
@@ -404,7 +404,7 @@ function MendingDetailContent() {
 
         lastTgl = tgl;
         lastGrp = grp;
-        lastOpr = hasIstirahat ? "Istirahat" : opr;
+        lastOpr = opr;
 
         const rawPanelNo = item.production_headers?.panel_no || item.displayNo || "-";
         const isBsAwal = String(rawPanelNo).toUpperCase().includes("AWAL");
@@ -1385,8 +1385,8 @@ function MendingDetailContent() {
                       const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
 
                       return (
-                        <tr key={item.id || idx} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : "hover:bg-sky-50/30"} transition-colors group`}>
-                          <td className="px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100">
+                        <tr key={item.id || idx} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : item.hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors group`}>
+                          <td className={`px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 ${isDeleted ? "bg-slate-100" : item.hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
                             {isBsAwal ? (
                               <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                             ) : isBsAkhir ? (
@@ -1410,8 +1410,8 @@ function MendingDetailContent() {
                           <td className="px-1.5 py-1 font-medium text-slate-700 text-center border-r border-slate-100 border-b border-slate-100">
                             {displayGrp}
                           </td>
-                          <td className={`px-2 py-1 font-medium text-slate-700 leading-tight border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? "italic font-bold text-slate-500" : ""}`}>
-                            {item.hasIstirahat ? "Istirahat" : displayOp}
+                          <td className={`px-2 py-1 leading-tight border-r border-slate-100 border-b border-slate-100 ${(!displayOp && item.hasIstirahat) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
+                            {displayOp ? displayOp : (item.hasIstirahat ? "Istirahat" : "")}
                           </td>
                           <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100 border-b border-slate-100">
                             {isDeleted ? (

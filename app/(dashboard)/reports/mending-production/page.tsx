@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   getMendingReportOptions, 
+  getMendingReportSummary,
+  getMendingReportDetailByPotongan,
   getMendingReportData,
   getAllDetailsForPcs,
   getMechanicDowntimesForReport
@@ -73,7 +75,12 @@ export default function MendingProductionReportPage() {
   const [selectedPotonganKey, setSelectedPotonganKey] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const [data, setData] = useState<any[]>([]);
+  // Lightweight summary batches for instant queue rendering
+  const [summaryBatches, setSummaryBatches] = useState<any[]>([]);
+  // Cached map of detailed records per potongan key: { [key]: pcsArray }
+  const [detailDataMap, setDetailDataMap] = useState<Record<string, any[]>>({});
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
   const [mechanicDowntimes, setMechanicDowntimes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -81,6 +88,7 @@ export default function MendingProductionReportPage() {
 
   const checkIsMeter = (pcs: any) => {
     if (!pcs) return false;
+    if (pcs.is_meteran !== undefined) return !!pcs.is_meteran;
     const items = pcs.items || [];
     if (items[0]?.detail?.header?.panel_no === "METERAN") return true;
     if (pcs.allPcsDetails?.[0]?.production_headers?.panel_no === "METERAN") return true;
@@ -88,26 +96,14 @@ export default function MendingProductionReportPage() {
     return false;
   };
 
-  const filteredData = useMemo(() => {
-    return data.filter((pcs) => {
-      if (filters.tanggal) {
-        if (pcs.tanggal_mending !== filters.tanggal) {
-          return false;
-        }
-      }
-      if (filters.jenis_kain && filters.jenis_kain !== "all") {
-        const isMeter = checkIsMeter(pcs);
-        const type = isMeter ? "meteran" : "panel";
-        if (type !== filters.jenis_kain) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [data, filters.tanggal, filters.jenis_kain]);
+  const currentPcsData = useMemo(() => {
+    if (!selectedPotonganKey) return [];
+    return detailDataMap[selectedPotonganKey] || [];
+  }, [detailDataMap, selectedPotonganKey]);
 
   const displayData = useMemo(() => {
-    return filteredData.map((pcs) => {
+    if (!selectedPotonganKey || currentPcsData.length === 0) return [];
+    return currentPcsData.map((pcs) => {
       const items = pcs.items || [];
       const isMeter = checkIsMeter(pcs);
 
@@ -392,15 +388,18 @@ export default function MendingProductionReportPage() {
         // Group rule (Rule 6 & 8): show on row 0 or when operator changes
         let showGrp = isFirstRowForOperator;
 
-        const hasRealDefects = !!det.kategori_masalah && !det.kategori_masalah.toUpperCase().includes("ISTIRAHAT");
+        const hasRealDefects = (det.kategori_masalah && !det.kategori_masalah.toUpperCase().includes("ISTIRAHAT")) || (det.detail_masalah && !det.detail_masalah.toUpperCase().includes("ISTIRAHAT"));
         const hasIstirahatRaw = (det.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
                                 (det.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
-                                opr.toUpperCase().includes("ISTIRAHAT");
-        const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
+                                opr.toUpperCase().includes("ISTIRAHAT") ||
+                                !!det.header?.operator_backup ||
+                                !!det.production_headers?.operator_backup ||
+                                !!item.header?.operator_backup;
+        const hasIstirahat = hasIstirahatRaw;
 
         let backupOpName = "";
         if (hasIstirahatRaw) {
-          let extractedBackupOp = det.header?.operator_backup || "";
+          let extractedBackupOp = det.header?.operator_backup || det.production_headers?.operator_backup || item.header?.operator_backup || "";
           if (!extractedBackupOp && det.keterangan_cacat) {
             const match = det.keterangan_cacat.match(/\(Backup:\s*([^)]+)\)/i);
             if (match && match[1]) extractedBackupOp = match[1].trim();
@@ -458,57 +457,44 @@ export default function MendingProductionReportPage() {
 
       return { ...pcs, displayItems };
     });
-  }, [filteredData]);
+  }, [currentPcsData, selectedPotonganKey]);
+
+  const selectedPcsData = displayData;
 
   const groupedPotongans = useMemo(() => {
     const map = new Map<string, any>();
-    displayData.forEach((pcs: any) => {
-      const key = `${pcs.nomor_mc}_${pcs.design_id}_${pcs.potongan_ke}`;
-      const isMeter = checkIsMeter(pcs);
+    summaryBatches.forEach((batch: any) => {
+      if (filters.tanggal && batch.tanggal_mending !== filters.tanggal) {
+        return;
+      }
+      const isMeter = !!batch.is_meteran;
+      if (filters.jenis_kain && filters.jenis_kain !== "all") {
+        const type = isMeter ? "meteran" : "panel";
+        if (type !== filters.jenis_kain) return;
+      }
+
+      const key = `${batch.nomor_mc}_${batch.design_id}_${batch.potongan_ke}`;
       if (!map.has(key)) {
         map.set(key, {
           key,
-          nomor_mc: pcs.nomor_mc,
-          design_id: pcs.design_id,
-          potongan_ke: pcs.potongan_ke,
-          tanggal_mending: pcs.tanggal_mending,
-          petugas_mending: new Set([pcs.petugas_mending]),
-          pcsList: [pcs],
+          nomor_mc: batch.nomor_mc,
+          design_id: batch.design_id,
+          potongan_ke: batch.potongan_ke,
+          tanggal_mending: batch.tanggal_mending,
+          petugas_mending: new Set([batch.petugas_mending]),
+          pcsList: [batch],
           isMeter,
-          totalA: 0,
-          totalB: 0,
-          totalBS: 0
+          totalA: Number(batch.mending_grade_a || 0),
+          totalB: Number(batch.mending_grade_b || 0),
+          totalBS: Number(batch.mending_grade_bs || 0)
         });
       } else {
         const pot = map.get(key);
-        pot.petugas_mending.add(pcs.petugas_mending);
-        pot.pcsList.push(pcs);
-      }
-      
-      const pot = map.get(key);
-      if (isMeter) {
-        // Meter: totalB = defect titik setelah inspect, totalBS = BS titik, totalA = total meter - totalB
-        let totalMeterSum = 0;
-        pcs.displayItems?.forEach((di: any) => {
-          if (di.isTotalRow && di.totalMeter) {
-            const m = parseFloat(di.totalMeter);
-            if (!isNaN(m)) totalMeterSum += m;
-          }
-        });
-        
-        const inspectBCount = pcs.items?.filter((i: any) => i.hasil_mending === "B").length || 0;
-        const inspectBSCount = pcs.items?.filter((i: any) => i.hasil_mending === "BS").length || 0;
-        
-        pot.totalB += inspectBCount;
-        pot.totalBS += inspectBSCount;
-        pot.totalA += Math.max(0, totalMeterSum - inspectBCount);
-      } else {
-        // Panel: count per hasil_mending grade
-        (pcs.items || []).forEach((item: any) => {
-          if (item.hasil_mending === "A") pot.totalA++;
-          if (item.hasil_mending === "B") pot.totalB++;
-          if (item.hasil_mending === "BS") pot.totalBS++;
-        });
+        if (batch.petugas_mending) pot.petugas_mending.add(batch.petugas_mending);
+        pot.pcsList.push(batch);
+        pot.totalA += Number(batch.mending_grade_a || 0);
+        pot.totalB += Number(batch.mending_grade_b || 0);
+        pot.totalBS += Number(batch.mending_grade_bs || 0);
       }
     });
 
@@ -516,15 +502,7 @@ export default function MendingProductionReportPage() {
       ...p,
       petugas_mending: Array.from(p.petugas_mending).filter(Boolean).join(", ")
     }));
-  }, [displayData]);
-
-  const selectedPcsData = useMemo(() => {
-    if (!selectedPotonganKey) return [];
-    return displayData.filter((pcs: any) => {
-      const key = `${pcs.nomor_mc}_${pcs.design_id}_${pcs.potongan_ke}`;
-      return key === selectedPotonganKey;
-    });
-  }, [displayData, selectedPotonganKey]);
+  }, [summaryBatches, filters.tanggal, filters.jenis_kain]);
 
   useEffect(() => {
     getMendingReportOptions().then(res => {
@@ -558,72 +536,91 @@ export default function MendingProductionReportPage() {
     setSelectedPotonganKey(null);
     
     try {
-      const [res, mechRes] = await Promise.all([
-        getMendingReportData(
-          filters.nomor_mc || undefined, 
-          filters.potongan_ke || undefined
-        ),
-        getMechanicDowntimesForReport(
-          filters.tanggal || undefined,
-          filters.nomor_mc || undefined
-        )
-      ]);
-
-      if (mechRes.success && mechRes.data) {
-        setMechanicDowntimes(mechRes.data);
-      } else {
-        setMechanicDowntimes([]);
-      }
+      const res = await getMendingReportSummary(
+        filters.nomor_mc || undefined, 
+        filters.potongan_ke || undefined,
+        filters.tanggal || undefined
+      );
 
       if (res.success && res.data) {
-        const sortedData = [...res.data].sort((a, b) => {
-          return Number(a.detail.pcs_index) - Number(b.detail.pcs_index);
-        });
-
-        const updatedData = await Promise.all(
-          sortedData.map(async (pcs: any) => {
-            const isMeter = checkIsMeter(pcs);
-            if (!isMeter) {
-              return { ...pcs, allPcsDetails: pcs.items?.map((i: any) => i.detail) || [] };
-            }
-            const headerInfo = pcs.header || {};
-            const nomor_mc = pcs.nomor_mc;
-            const design_id = headerInfo.design_id;
-            const potongan_ke = pcs.potongan_ke;
-            const pcs_index = pcs.detail?.pcs_index || pcs.pcs_index;
-
-            const detailsRes = await getAllDetailsForPcs(
-              nomor_mc,
-              design_id,
-              parseInt(potongan_ke),
-              parseInt(pcs_index)
-            );
-
-            if (detailsRes.success && detailsRes.data) {
-              return { ...pcs, allPcsDetails: detailsRes.data };
-            }
-            return { ...pcs, allPcsDetails: [] };
-          })
-        );
-
-        setData(updatedData);
+        setSummaryBatches(res.data);
       } else {
         setErrorMsg(res.error || "Gagal mengambil data laporan.");
-        setData([]);
+        setSummaryBatches([]);
       }
     } catch (err: any) {
       setErrorMsg("Terjadi kesalahan jaringan.");
-      setData([]);
+      setSummaryBatches([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleExportExcel = () => {
-    const exportSource = selectedPotonganKey ? selectedPcsData : data;
-    const exportDisplaySource = selectedPotonganKey ? selectedPcsData : displayData;
+  const handleSelectPotongan = async (pot: any) => {
+    const key = pot.key;
+    setSelectedPotonganKey(key);
+    
+    if (!detailDataMap[key]) {
+      setIsLoadingDetail(true);
+      try {
+        const [res, mechRes] = await Promise.all([
+          getMendingReportDetailByPotongan(pot.nomor_mc, pot.design_id, parseInt(pot.potongan_ke)),
+          getMechanicDowntimesForReport(pot.tanggal_mending || undefined, pot.nomor_mc || undefined)
+        ]);
 
-    if (exportSource.length === 0) return;
+        if (mechRes.success && mechRes.data) {
+          setMechanicDowntimes(mechRes.data);
+        }
+
+        if (res.success && res.data) {
+          const sortedData = [...res.data].sort((a, b) => {
+            return Number(a.detail?.pcs_index || a.pcs_index || 1) - Number(b.detail?.pcs_index || b.pcs_index || 1);
+          });
+
+          const updatedData = await Promise.all(
+            sortedData.map(async (pcs: any) => {
+              const isMeter = checkIsMeter(pcs);
+              if (!isMeter) {
+                return { ...pcs, allPcsDetails: pcs.items?.map((i: any) => i.detail) || [] };
+              }
+              const headerInfo = pcs.header || {};
+              const nomor_mc = pcs.nomor_mc;
+              const design_id = headerInfo.design_id;
+              const potongan_ke = pcs.potongan_ke;
+              const pcs_index = pcs.detail?.pcs_index || pcs.pcs_index;
+
+              const detailsRes = await getAllDetailsForPcs(
+                nomor_mc,
+                design_id,
+                parseInt(potongan_ke),
+                parseInt(pcs_index)
+              );
+
+              if (detailsRes.success && detailsRes.data) {
+                return { ...pcs, allPcsDetails: detailsRes.data };
+              }
+              return { ...pcs, allPcsDetails: [] };
+            })
+          );
+
+          setDetailDataMap(prev => ({ ...prev, [key]: updatedData }));
+        }
+      } catch (err) {
+        console.error("Error fetching potongan detail:", err);
+      } finally {
+        setIsLoadingDetail(false);
+      }
+    }
+  };
+
+  const handleExportExcel = () => {
+    const exportSource = selectedPcsData;
+    const exportDisplaySource = selectedPcsData;
+
+    if (exportSource.length === 0) {
+      alert("Silakan klik 'Lihat Detail' pada salah satu potongan terlebih dahulu untuk mengunduh laporan Excel.");
+      return;
+    }
     const headerRow = exportSource[0]?.header || {};
     const firstPcs = exportSource[0];
 
@@ -981,7 +978,7 @@ export default function MendingProductionReportPage() {
     xlsx.writeFile(wb, fileName);
   };
 
-  const headerInfo = data.length > 0 ? data[0].header : null;
+  const headerInfo = selectedPcsData.length > 0 ? (selectedPcsData[0]?.header || selectedPcsData[0]?.items?.[0]?.detail?.header) : null;
 
   const getOverallGradeInfo = (totalQty: number, totalCacat: number, isMeter: boolean) => {
     let grade = "-";
@@ -1040,16 +1037,16 @@ export default function MendingProductionReportPage() {
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
             <FileSpreadsheet className="w-6 h-6 text-emerald-600" />
-            Laporan Kualitas Produksi Kain {data.length > 0 && data[0]?.items?.[0]?.detail?.header?.panel_no === "METERAN" ? "All Over" : "Panel"}
+            Laporan Kualitas Produksi Kain {selectedPcsData.length > 0 && selectedPcsData[0]?.items?.[0]?.detail?.header?.panel_no === "METERAN" ? "All Over" : "Panel"}
           </h1>
           <p className="text-sm font-semibold text-slate-500">
             Lihat hasil produksi mending per potongan dengan format bersampingan.
           </p>
         </div>
-        {data.length > 0 && (
+        {selectedPotonganKey !== null && selectedPcsData.length > 0 && (
           <button
             onClick={handleExportExcel}
-            className="h-11 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+            className="h-11 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Download className="w-4 h-4" />
             Export ke Excel
@@ -1135,7 +1132,7 @@ export default function MendingProductionReportPage() {
         </div>
       )}
 
-      {hasSearched && data.length === 0 && !isLoading && (
+      {hasSearched && summaryBatches.length === 0 && !isLoading && (
         <div className="bg-white rounded-2xl p-16 shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center">
           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
             <Package className="w-10 h-10 text-slate-300" />
@@ -1148,7 +1145,7 @@ export default function MendingProductionReportPage() {
       )}
 
       {/* List View: Grouped by Potongan */}
-      {hasSearched && data.length > 0 && selectedPotonganKey === null && (() => {
+      {hasSearched && summaryBatches.length > 0 && selectedPotonganKey === null && (() => {
         const itemsPerPage = 10;
         const totalPages = Math.ceil(groupedPotongans.length / itemsPerPage);
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -1183,7 +1180,7 @@ export default function MendingProductionReportPage() {
                   {paginatedPotongans.map((pot) => (
                     <tr 
                       key={pot.key} 
-                      onClick={() => setSelectedPotonganKey(pot.key)}
+                      onClick={() => handleSelectPotongan(pot)}
                       className="hover:bg-sky-50/30 transition-colors cursor-pointer group"
                     >
                       <td className="px-4 py-3 font-black text-[#0070bc]">{pot.nomor_mc}</td>
@@ -1216,7 +1213,7 @@ export default function MendingProductionReportPage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedPotonganKey(pot.key);
+                            handleSelectPotongan(pot);
                           }}
                           className="px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-[#0070bc] text-[#0070bc] hover:text-white font-extrabold text-[11px] transition-all shadow-sm flex items-center gap-1 mx-auto"
                         >
@@ -1274,8 +1271,17 @@ export default function MendingProductionReportPage() {
         );
       })()}
 
+      {/* Loading Detail State */}
+      {selectedPotonganKey !== null && isLoadingDetail && (
+        <div className="bg-white rounded-2xl p-12 flex flex-col items-center justify-center border border-slate-200 shadow-sm animate-fadeIn">
+          <Loader2 className="w-8 h-8 text-[#0070bc] animate-spin mb-3" />
+          <p className="text-sm font-bold text-slate-700">Memuat Rincian Potongan...</p>
+          <p className="text-xs text-slate-400 font-medium mt-1">Mengambil data per panel dan hasil inspeksi...</p>
+        </div>
+      )}
+
       {/* Detail View: Show side-by-side tables for the selected Potongan */}
-      {selectedPotonganKey !== null && selectedPcsData.length > 0 && headerInfo && (
+      {selectedPotonganKey !== null && !isLoadingDetail && selectedPcsData.length > 0 && headerInfo && (
         <div className="flex flex-col gap-4 animate-fadeIn">
           <div className="flex justify-between items-center">
             <button
@@ -1651,8 +1657,8 @@ export default function MendingProductionReportPage() {
                               const hasError = isMeterRow ? item.hasErrorDetail : (!!det.kategori_masalah || !!det.detail_masalah || isBsRow);
                               
                               return (
-                                <tr key={item.id || itemIndex} className="hover:bg-slate-50 transition-colors">
-                                  <td className="px-2 py-1 font-bold text-slate-800">
+                                <tr key={item.id || itemIndex} className={`${item.hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
+                                  <td className={`px-2 py-1 font-bold text-slate-800 ${item.hasIstirahat ? "bg-amber-100" : ""}`}>
                                     {isMeterRow ? (
                                       item.displayNo || "-"
                                     ) : String(rowNo).toUpperCase().includes("AWAL") ? (
@@ -1665,7 +1671,9 @@ export default function MendingProductionReportPage() {
                                   </td>
                                   <td className="px-2 py-1 text-slate-600 whitespace-nowrap">{tgl}</td>
                                   <td className="px-1 py-1 font-medium text-slate-700 text-center">{grpStr}</td>
-                                  <td className="px-1 py-1 font-medium text-slate-700 leading-tight">{oprStr}</td>
+                                  <td className={`px-1 py-1 leading-tight ${(!item.displayOpr && item.hasIstirahat) || item.displayOpr === "Istirahat" ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
+                                    {oprStr}
+                                  </td>
                                   
                                   <td className="px-2 py-1 text-center font-bold text-sm">
                                     {!isGradable ? "" : (hasError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
@@ -1690,7 +1698,9 @@ export default function MendingProductionReportPage() {
                                     ) : (
                                       <>
                                         {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
-                                        <span className={cacat === "-" ? "text-slate-400" : "text-rose-600"}>{cacat || "-"}</span>
+                                        {item.hasIstirahat && item.backupOpName && (cacat === "-" || cacat === "" || cacat === "ISTIRAHAT") ? null : (
+                                          <span className={cacat === "-" ? "text-slate-400" : "text-rose-600"}>{cacat || "-"}</span>
+                                        )}
                                       </>
                                     )}
                                   </td>

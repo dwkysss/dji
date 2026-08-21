@@ -146,17 +146,13 @@ export default function CompactHeaderCard(props: CompactHeaderCardProps) {
           </div>
         </div>
 
-        {/* Right: Design + Date */}
-        <div className="z-10 flex flex-col items-start sm:items-end gap-2.5">
+        {/* Right: Design */}
+        <div className="z-10 flex flex-col items-start sm:items-end justify-center">
           <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-1.5 text-left sm:text-right min-w-[120px]">
             <span className="text-white/60 text-[9px] uppercase tracking-widest font-bold block leading-tight">DESIGN</span>
             <span className="text-white font-black text-base sm:text-lg tracking-tight leading-tight">
               {props.design || "—"}
             </span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3 py-1">
-            <Calendar className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
-            <span className="text-sky-200 text-xs font-semibold font-mono">{tglProd}</span>
           </div>
         </div>
       </div>

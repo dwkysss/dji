@@ -576,7 +576,6 @@ export async function searchQCHistory(
         .from("qc_inspection_batches")
         .select(`
           id,
-          batch_no,
           tanggal_inspeksi,
           start_inspect,
           finish_inspect,
@@ -592,7 +591,6 @@ export async function searchQCHistory(
           inspeksi_ceklis,
           inspeksi_silang,
           berat_kain,
-          keterangan_inspeksi,
           created_at
         `)
         .order("created_at", { ascending: false })

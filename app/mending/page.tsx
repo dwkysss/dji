@@ -867,10 +867,6 @@ export default function MendingPage() {
         const tgl = h.tgl || "";
         const operatorStr = (grp ? `(${grp}) ` : '') + opr;
 
-        const isIstirahat = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT");
-        const isFinish = item.keterangan_cacat === "FINISH" || item.production_headers?.panel_no === "FINISH";
-        const isStart = item.keterangan_cacat === "START" || item.production_headers?.panel_no === "START";
-
         let extractedBackupOp = h.operator_backup || "";
         if (!extractedBackupOp && item.keterangan_cacat) {
           const match = item.keterangan_cacat.match(/\(Backup:\s*([^)]+)\)/i);
@@ -879,11 +875,16 @@ export default function MendingPage() {
           }
         }
 
+        const isIstirahat = !!extractedBackupOp || (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT");
+        const hasIstirahat = isIstirahat;
+        const isFinish = item.keterangan_cacat === "FINISH" || item.production_headers?.panel_no === "FINISH";
+        const isStart = item.keterangan_cacat === "START" || item.production_headers?.panel_no === "START";
+
         let displayDetail = item.detail_masalah || "";
         let displayKeterangan = item.keterangan_cacat || "";
         let oprStr = opr;
         
-        if (displayKeterangan.includes("ISTIRAHAT")) {
+        if (displayKeterangan.includes("ISTIRAHAT") || !!extractedBackupOp) {
           oprStr = "Istirahat";
           displayKeterangan = displayKeterangan.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
           displayKeterangan = displayKeterangan.replace(/^,\s*|\s*,\s*$/g, "");
@@ -1025,6 +1026,7 @@ export default function MendingPage() {
         return {
           item,
           isIstirahat,
+          hasIstirahat,
           isFinish,
           isStart,
           isGradable,
@@ -1048,7 +1050,7 @@ export default function MendingPage() {
       let lastOpr = "";
 
       processed.forEach((p, i) => {
-        const { item, isIstirahat, isFinish, isStart, isGradable, isDeleted, opr, grp, tgl, operatorStr, oprStr, cacatText } = p;
+        const { item, isIstirahat, hasIstirahat, isFinish, isStart, isGradable, isDeleted, opr, grp, tgl, operatorStr, oprStr, cacatText } = p;
 
         const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || selections[item.id] === "BS";
         if (isGradable && !isBS && !isDeleted) {
@@ -1089,6 +1091,7 @@ export default function MendingPage() {
           isMeter: false,
           isStartRow: false,
           isIstirahat,
+          hasIstirahat,
           isDeleted,
           isFinishReport: isFinish,
           displayNo: item.production_headers?.panel_no || "-",
@@ -1704,58 +1707,77 @@ export default function MendingPage() {
                   min="1"
                   value={insertPanelAt}
                   onChange={(e) => setInsertPanelAt(e.target.value)}
-                  className="w-full h-11 px-4 rounded-xl border-2 border-slate-200 focus:border-[#0070bc] focus:ring-4 focus:ring-[#0070bc]/10 outline-none font-medium text-slate-700 transition-all mb-3"
+                  className="w-full h-11 px-4 rounded-xl border-2 border-slate-200 focus:border-[#0070bc] focus:ring-4 focus:ring-[#0070bc]/10 outline-none font-medium text-slate-700 transition-all"
                   placeholder="Contoh: 3"
                 />
-                
-                <div className="flex items-center gap-3 py-2 px-3 rounded-lg border border-rose-100 bg-rose-50/50">
-                  <input
-                    type="checkbox"
-                    id="insertPanelIsBs"
-                    checked={insertPanelIsBs}
-                    onChange={(e) => {
-                      setInsertPanelIsBs(e.target.checked);
-                      if (e.target.checked) {
-                        setInsertPanelHasDefect(true);
-                      }
-                    }}
-                    className="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500 cursor-pointer"
-                  />
-                  <label
-                    htmlFor="insertPanelIsBs"
-                    className="text-xs font-bold text-rose-700 cursor-pointer select-none"
-                  >
-                    Tandai sebagai Barang Sisa (BS)
-                  </label>
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1 pl-1 font-medium leading-tight">
-                  * Jika dicentang, nomor panel lain tidak akan bergeser, dan panel {insertPanelAt || "?"} akan memiliki 2 baris data (1 Normal & 1 BS).
-                </p>
               </div>
             )}
 
-            {/* Defect toggle switch */}
-            <div className="flex items-center gap-3 py-3 border-t border-slate-100 mt-2">
-              <input
-                type="checkbox"
-                id="insertPanelHasDefect"
-                checked={insertPanelHasDefect}
-                onChange={(e) => {
-                  setInsertPanelHasDefect(e.target.checked);
-                  if (!e.target.checked) {
-                    setSelectedCategories([]);
-                    setSelectedDetails({});
-                    setInputBloks({});
-                    setInsertPanelKeterangan("");
-                  }
-                }}
-                className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
-              />
+            {/* Head-to-Head Checkboxes (BS & Defect Report) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {/* Card 1: Tandai sebagai Barang Sisa (BS) */}
+              {insertPanelMode === "insert" ? (
+                <label
+                  htmlFor="insertPanelIsBs"
+                  className={`p-3 rounded-xl border transition-all flex flex-col justify-between cursor-pointer select-none ${
+                    insertPanelIsBs
+                      ? "border-rose-300 bg-rose-50/70 shadow-xs"
+                      : "border-slate-200 bg-slate-50/60 hover:bg-slate-100/80"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="insertPanelIsBs"
+                      checked={insertPanelIsBs}
+                      onChange={(e) => {
+                        setInsertPanelIsBs(e.target.checked);
+                      }}
+                      className="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500 cursor-pointer shrink-0"
+                    />
+                    <span className="text-xs font-bold text-rose-700">
+                      Barang Sisa (BS)
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 pl-6 leading-tight">
+                    Nomor panel tidak bergeser, panel {insertPanelAt || "?"} jadi 2 baris (Normal & BS).
+                  </p>
+                </label>
+              ) : null}
+
+              {/* Card 2: Laporkan Cacat / Masalah */}
               <label
                 htmlFor="insertPanelHasDefect"
-                className="text-xs font-bold text-slate-700 cursor-pointer select-none"
+                className={`p-3 rounded-xl border transition-all flex flex-col justify-between cursor-pointer select-none ${
+                  insertPanelMode !== "insert" ? "sm:col-span-2" : ""
+                } ${
+                  insertPanelHasDefect
+                    ? "border-purple-300 bg-purple-50/70 shadow-xs"
+                    : "border-slate-200 bg-slate-50/60 hover:bg-slate-100/80"
+                }`}
               >
-                Laporkan temuan masalah / cacat pada panel ini?
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    id="insertPanelHasDefect"
+                    checked={insertPanelHasDefect}
+                    onChange={(e) => {
+                      setInsertPanelHasDefect(e.target.checked);
+                      if (!e.target.checked) {
+                        setSelectedCategories([]);
+                        setSelectedDetails({});
+                        setInputBloks({});
+                      }
+                    }}
+                    className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer shrink-0"
+                  />
+                  <span className="text-xs font-bold text-slate-800">
+                    Laporkan Temuan Cacat?
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1 pl-6 leading-tight">
+                  Pilih kategori masalah (Kode A/B/C/D...) dan nomor blok.
+                </p>
               </label>
             </div>
 

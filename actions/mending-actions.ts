@@ -466,7 +466,6 @@ export async function searchMendingHistory(
         .from("mending_batches")
         .select(`
           id,
-          batch_no,
           tanggal_mending,
           start_mending,
           finish_mending,
@@ -933,6 +932,136 @@ export async function getMendingReportOptions() {
     const designs = Array.from(new Set(mendingData.map((d: any) => d.design_id).filter(Boolean)));
     
     return { success: true, data: { mesins, potongans, designs } };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getMendingReportSummary(nomor_mc?: string, potongan_ke?: string, tanggal?: string) {
+  try {
+    const supabase = await createClient();
+    let query = supabase
+      .from("mending_batches")
+      .select(`
+        id,
+        nomor_mc,
+        design_id,
+        potongan_ke,
+        pcs_index,
+        tanggal_mending,
+        petugas_mending,
+        mending_grade_a,
+        mending_grade_b,
+        mending_grade_bs,
+        total_panel,
+        keterangan_mending,
+        created_at
+      `)
+      .order("tanggal_mending", { ascending: false })
+      .order("potongan_ke", { ascending: false })
+      .order("pcs_index", { ascending: true })
+      .limit(1000);
+
+    if (nomor_mc && nomor_mc.trim() !== "") {
+      query = query.eq("nomor_mc", nomor_mc.trim());
+    }
+    if (potongan_ke && potongan_ke.trim() !== "") {
+      const pNum = parseInt(potongan_ke.trim().replace(/\D/g, ""), 10);
+      if (!isNaN(pNum)) {
+        query = query.eq("potongan_ke", pNum);
+      }
+    }
+    if (tanggal && tanggal.trim() !== "") {
+      query = query.eq("tanggal_mending", tanggal.trim());
+    }
+
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+
+    return { success: true, data: data || [] };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getMendingReportDetailByPotongan(nomor_mc: string, design_id: string, potongan_ke: number) {
+  try {
+    const supabase = await createClient();
+
+    // 1. Fetch full mending batches with items and details for only this specific cut
+    const { data, error } = await supabase
+      .from("mending_batches")
+      .select(`
+        *,
+        items:mending_items!inner (
+          id, hasil_mending,
+          detail:production_details!inner (
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, indikator_stop, is_deleted,
+            header:production_headers!inner (
+              id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, meter_awal, meter_akhir,
+              operators(nama_operator), groups(nama_grup)
+            ),
+            qc_items:qc_inspection_items (
+              batch:qc_inspection_batches (berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi)
+            )
+          )
+        )
+      `)
+      .eq("nomor_mc", nomor_mc)
+      .eq("design_id", design_id)
+      .eq("potongan_ke", potongan_ke);
+
+    if (error) return { success: false, error: error.message };
+
+    // 2. Fallback query from qc_inspection_batches for this cut
+    const { data: allQcBatches } = await supabase
+      .from("qc_inspection_batches")
+      .select("id, nomor_mc, potongan_ke, pcs_index, berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi")
+      .eq("nomor_mc", nomor_mc)
+      .eq("potongan_ke", potongan_ke);
+
+    const formattedData = (data || []).map((batch: any) => {
+      const firstItem = batch.items && batch.items.length > 0 ? batch.items[0] : null;
+      const header = firstItem?.detail?.header || {};
+
+      const formattedItems = (batch.items || []).map((item: any) => ({
+        id: item.id,
+        hasil_mending: item.hasil_mending,
+        detail: item.detail || {},
+        header: item.detail?.header || {},
+        qc_batch: item.detail?.qc_items?.[0]?.batch || {}
+      }));
+
+      let resolvedQcBatch: any = {};
+      for (const fi of formattedItems) {
+        const qb = fi.qc_batch;
+        if (qb && (qb.berat_kain !== undefined || qb.petugas_inspeksi || qb.tanggal_inspeksi || qb.start_inspect)) {
+          resolvedQcBatch = qb;
+          break;
+        }
+      }
+
+      if ((!resolvedQcBatch.petugas_inspeksi && !resolvedQcBatch.start_inspect && !resolvedQcBatch.berat_kain) && allQcBatches) {
+        const match = allQcBatches.find((qb: any) => 
+          String(qb.nomor_mc) === String(batch.nomor_mc) &&
+          Number(qb.potongan_ke) === Number(batch.potongan_ke) &&
+          Number(qb.pcs_index || 1) === Number(batch.pcs_index || 1)
+        );
+        if (match) {
+          resolvedQcBatch = match;
+        }
+      }
+
+      return {
+        ...batch,
+        header,
+        detail: { pcs_index: batch.pcs_index },
+        items: formattedItems,
+        qc_batch: resolvedQcBatch
+      };
+    });
+
+    return { success: true, data: formattedData };
   } catch (err: any) {
     return { success: false, error: err.message };
   }

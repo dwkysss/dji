@@ -361,7 +361,7 @@ export default function MendingModal({
                       return `${maxMeter} M`;
                     } else {
                       const validCount = detailsList.filter((d: any) => !d.is_deleted && d.status_inspeksi !== "Dihapus" && d.status_mending !== "Dihapus" && !(d.keterangan_cacat || "").includes("[DIHAPUS]")).length;
-                      return `${validCount} PNL`;
+                      return `${validCount} Panel`;
                     }
                   })()}
                 </span>
