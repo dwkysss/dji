@@ -1,19 +1,21 @@
 "use client";
 
 import React from "react";
-import { Eye, Trash2, CheckCircle, X } from "lucide-react";
+import { Eye, Trash2, CheckCircle, X, Edit3 } from "lucide-react";
 import { PROBLEM_DETAILS } from "../page";
 
 export default function PanelQCTable({
   detailsToDisplay,
   handleSelectGrade,
   handleOpenDetail,
+  handleOpenEditQC,
   selections,
   setDetailToDelete
 }: {
   detailsToDisplay: any[];
   handleSelectGrade: (id: string, grade: number) => void;
   handleOpenDetail: (headerId: string) => void;
+  handleOpenEditQC?: (detail: any) => void;
   selections: Record<string, number>;
   setDetailToDelete: (val: any) => void;
 }) {
@@ -496,11 +498,19 @@ export default function PanelQCTable({
                     ) : (
                       !extractedBackupOp && <span className="text-slate-400">-</span>
                     )}
+                    {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                      <div className="text-sky-700 font-semibold text-[10px] mt-0.5">QC: {item.keterangan_qc}</div>
+                    )}
                   </>
                 ) : (
-                  <div className={cacat && cacat !== "-" ? "text-rose-600" : "text-slate-400"}>
-                    {cacat || "-"}
-                  </div>
+                  <>
+                    <div className={cacat && cacat !== "-" ? "text-rose-600" : "text-slate-400"}>
+                      {cacat || "-"}
+                    </div>
+                    {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                      <div className="text-sky-700 font-semibold text-[10px] mt-0.5">QC: {item.keterangan_qc}</div>
+                    )}
+                  </>
                 )}
               </td>
               
@@ -509,13 +519,24 @@ export default function PanelQCTable({
                   {isDeleted ? (
                     <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
                   ) : (
-                    <button
-                      onClick={() => setDetailToDelete({ id: item.id, panelNo: cleanPanelNo, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
-                      className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-sm"
-                      title="Hapus Rincian"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <>
+                      {handleOpenEditQC && (
+                        <button
+                          onClick={() => handleOpenEditQC(item)}
+                          className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-[#0070bc] hover:border-sky-300 hover:bg-sky-50 transition-all shadow-xs cursor-pointer"
+                          title="Tambah / Ubah Keterangan & Cacat QC"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setDetailToDelete({ id: item.id, panelNo: cleanPanelNo, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
+                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all shadow-xs cursor-pointer"
+                        title="Hapus Rincian"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
                   )}
                 </div>
               </td>

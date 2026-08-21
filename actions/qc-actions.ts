@@ -1432,4 +1432,156 @@ export async function getQCHistoryDetailById(batchId: string) {
   }
 }
 
+function expandBlockNumbers(blokInput?: string | null): string[] {
+  if (!blokInput || typeof blokInput !== "string") return [];
+  const parts = blokInput.split(",").map(p => p.trim()).filter(Boolean);
+  const blocks: string[] = [];
+
+  for (const part of parts) {
+    const rangeMatch = part.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1], 10);
+      const end = parseInt(rangeMatch[2], 10);
+      if (!isNaN(start) && !isNaN(end) && start <= end && end - start <= 100) {
+        for (let b = start; b <= end; b++) {
+          blocks.push(String(b));
+        }
+        continue;
+      }
+    }
+    const numMatch = part.match(/\d+/);
+    if (numMatch) {
+      blocks.push(numMatch[0]);
+    } else if (part) {
+      blocks.push(part);
+    }
+  }
+
+  return Array.from(new Set(blocks));
+}
+
+export async function updateQCDetailDefectsAndNotes(params: {
+  detailId: string;
+  kategoriMasalah?: string[];
+  detailMasalah?: string;
+  keteranganCacat?: string;
+  keteranganQc?: string;
+  isBs?: boolean;
+  finalInspectionId?: number;
+  defects?: { kategori: string; detail?: string; blok?: string; meter?: number }[];
+}) {
+  try {
+    const supabase = await createAdminClient();
+
+    // 1. Fetch current detail
+    const { data: currentDetail, error: fetchErr } = await supabase
+      .from("production_details")
+      .select("*, production_headers(*)")
+      .eq("id", params.detailId)
+      .single();
+
+    if (fetchErr || !currentDetail) {
+      return { success: false, error: "Data detail tidak ditemukan: " + (fetchErr?.message || "") };
+    }
+
+    const hasDefects = (params.kategoriMasalah && params.kategoriMasalah.length > 0) || (params.detailMasalah && params.detailMasalah.trim() !== "");
+    const isBs = !!params.isBs || params.finalInspectionId === 4;
+    const isCurrentlyPending = currentDetail.final_inspection_id === null;
+
+    let statusInspeksi = currentDetail.status_inspeksi;
+    if (!isCurrentlyPending && params.finalInspectionId !== undefined) {
+      if (params.finalInspectionId === 1 || params.finalInspectionId === 2) statusInspeksi = "Ceklis";
+      else if (params.finalInspectionId === 3) statusInspeksi = "Silang";
+      else if (params.finalInspectionId === 4) statusInspeksi = "BS";
+      else if (params.finalInspectionId === 0) statusInspeksi = "Dihapus";
+    } else if (isCurrentlyPending) {
+      if (isBs) statusInspeksi = "BS";
+      else statusInspeksi = null;
+    }
+
+    const kategoriStr = params.kategoriMasalah && params.kategoriMasalah.length > 0
+      ? params.kategoriMasalah.join(", ")
+      : (isBs ? "X" : null);
+
+    let ketCacat = params.keteranganCacat ? params.keteranganCacat.trim() : "";
+    if (hasDefects || ketCacat) {
+      if (!ketCacat.includes("[TAMBAHAN QC]")) {
+        ketCacat = ketCacat ? `${ketCacat} [TAMBAHAN QC]` : "[TAMBAHAN QC]";
+      }
+    } else {
+      ketCacat = "";
+    }
+
+    // 2. Update production_details
+    const updatePayload: any = {
+      kategori_masalah: kategoriStr,
+      detail_masalah: params.detailMasalah || null,
+      keterangan_cacat: ketCacat || null,
+      keterangan_qc: params.keteranganQc ? params.keteranganQc.trim() : null,
+      jml_hasil_produksi: isBs ? 0 : 1,
+      status_inspeksi: statusInspeksi,
+    };
+
+    if (!isCurrentlyPending && params.finalInspectionId !== undefined) {
+      updatePayload.final_inspection_id = params.finalInspectionId;
+    }
+
+    const { error: updateErr } = await supabase
+      .from("production_details")
+      .update(updatePayload)
+      .eq("id", params.detailId);
+
+    if (updateErr) {
+      return { success: false, error: "Gagal memperbarui detail: " + updateErr.message };
+    }
+
+    // 3. Update production_defects
+    await supabase
+      .from("production_defects")
+      .delete()
+      .eq("production_detail_id", params.detailId);
+
+    if (params.defects && params.defects.length > 0) {
+      const defectRows: any[] = [];
+      params.defects.forEach((d) => {
+        const expandedBloks = expandBlockNumbers(d.blok);
+        if (expandedBloks.length > 0) {
+          expandedBloks.forEach((b) => {
+            defectRows.push({
+              production_detail_id: params.detailId,
+              kategori: d.kategori,
+              detail: d.detail || null,
+              meter: d.meter || null,
+              blok: b,
+            });
+          });
+        } else {
+          defectRows.push({
+            production_detail_id: params.detailId,
+            kategori: d.kategori,
+            detail: d.detail || null,
+            meter: d.meter || null,
+            blok: d.blok || null,
+          });
+        }
+      });
+
+      if (defectRows.length > 0) {
+        const { error: defectInsertErr } = await supabase
+          .from("production_defects")
+          .insert(defectRows);
+
+        if (defectInsertErr) {
+          console.error("Warning: Gagal menyimpan data production_defects:", defectInsertErr);
+        }
+      }
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+
 

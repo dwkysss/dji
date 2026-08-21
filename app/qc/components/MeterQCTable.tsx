@@ -1,17 +1,19 @@
 "use client";
 
 import React from "react";
-import { Trash2, CheckCircle, X } from "lucide-react";
+import { Trash2, CheckCircle, X, Edit3 } from "lucide-react";
 import { PROBLEM_DETAILS } from "../page";
 
 export default function MeterQCTable({
   detailsToDisplay,
   handleSelectGrade,
+  handleOpenEditQC,
   selections,
   setDetailToDelete
 }: {
   detailsToDisplay: any[];
   handleSelectGrade: (id: string, grade: number) => void;
+  handleOpenEditQC?: (detail: any) => void;
   selections: Record<string, number>;
   setDetailToDelete: (val: any) => void;
 }) {
@@ -507,15 +509,26 @@ export default function MeterQCTable({
                     </div>
                   )}
                 </td>
-                <td className="px-1 py-1.5 text-center w-10">
+                <td className="px-1 py-1.5 text-center w-14">
                   {item.isGradable && item.id && (
-                    <button
-                      onClick={() => setDetailToDelete({ id: item.id, name: `${item.hasTambahanQC ? 'Tambahan QC' : (item.kategori_masalah || 'Masalah')} - ${item.detail_masalah || 'Tidak ada detail'}` })}
-                      className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-sm mx-auto flex items-center justify-center"
-                      title="Hapus Rincian"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      {handleOpenEditQC && (
+                        <button
+                          onClick={() => handleOpenEditQC(item)}
+                          className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-[#0070bc] hover:border-sky-300 hover:bg-sky-50 transition-all shadow-xs cursor-pointer"
+                          title="Tambah / Ubah Keterangan & Cacat QC"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setDetailToDelete({ id: item.id, name: `${item.hasTambahanQC ? 'Tambahan QC' : (item.kategori_masalah || 'Masalah')} - ${item.detail_masalah || 'Tidak ada detail'}` })}
+                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-xs cursor-pointer"
+                        title="Hapus Rincian"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>

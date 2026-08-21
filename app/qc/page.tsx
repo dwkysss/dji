@@ -25,6 +25,7 @@ import {
   Trash2,
 } from "lucide-react";
 import QCInspectionModal from "@/components/forms/QCInspectionModal";
+import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
@@ -238,6 +239,13 @@ export default function QCPage() {
 
   const [problemCategories, setProblemCategories] = useState(DEFAULT_PROBLEM_CATEGORIES);
   const [problemDetailsMap, setProblemDetailsMap] = useState<Record<string, string[]>>(DEFAULT_PROBLEM_DETAILS);
+  const [selectedDetailForEdit, setSelectedDetailForEdit] = useState<any | null>(null);
+  const [isEditDetailModalOpen, setIsEditDetailModalOpen] = useState(false);
+
+  const handleOpenEditQC = (detail: any) => {
+    setSelectedDetailForEdit(detail);
+    setIsEditDetailModalOpen(true);
+  };
 
   useEffect(() => {
     // Parallelize metadata fetching on page load
@@ -1186,9 +1194,9 @@ export default function QCPage() {
                 </h5>
               </div>
               {isMeteranBatch ? (
-                <MeterQCTable detailsToDisplay={detailsToDisplay} handleSelectGrade={handleSelectGrade} selections={selections} setDetailToDelete={setDetailToDelete} />
+                <MeterQCTable detailsToDisplay={detailsToDisplay} handleSelectGrade={handleSelectGrade} handleOpenEditQC={handleOpenEditQC} selections={selections} setDetailToDelete={setDetailToDelete} />
               ) : (
-                <PanelQCTable detailsToDisplay={detailsToDisplay} handleSelectGrade={handleSelectGrade} handleOpenDetail={handleOpenDetail} selections={selections} setDetailToDelete={setDetailToDelete} />
+                <PanelQCTable detailsToDisplay={detailsToDisplay} handleSelectGrade={handleSelectGrade} handleOpenDetail={handleOpenDetail} handleOpenEditQC={handleOpenEditQC} selections={selections} setDetailToDelete={setDetailToDelete} />
               )}
               
               <div data-tour="qc-inspection-submit" className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end">
@@ -1255,6 +1263,32 @@ export default function QCPage() {
               setFullActiveQcDetails([]);
               setSelections({});
               handleSearch(searchTanggal, searchMesin, searchPotongan);
+            }}
+          />
+        )}
+
+        {isEditDetailModalOpen && selectedDetailForEdit && (
+          <QCEditDetailModal
+            isOpen={isEditDetailModalOpen}
+            onClose={() => {
+              setIsEditDetailModalOpen(false);
+              setSelectedDetailForEdit(null);
+            }}
+            detail={selectedDetailForEdit}
+            problemCategories={problemCategories}
+            problemDetailsMap={problemDetailsMap}
+            currentGrade={selections[selectedDetailForEdit.id]}
+            onSuccess={async (detailId, newGrade) => {
+              if (newGrade !== undefined) {
+                setSelections((prev) => ({ ...prev, [detailId]: newGrade }));
+              }
+              if (activeQcPcs) {
+                const refreshRes = await getPendingQCDetailsByBatch(activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke);
+                if (refreshRes.success && refreshRes.data) {
+                  const filteredByPcs = refreshRes.data.filter((d: any) => String(d.pcs_index) === activeQcPcs.pcs_index);
+                  setFullActiveQcDetails(filteredByPcs);
+                }
+              }
             }}
           />
         )}
