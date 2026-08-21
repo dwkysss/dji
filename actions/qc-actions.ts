@@ -1236,10 +1236,13 @@ export async function insertMissingPanel(params: {
     // 6. Create new header (copy metadata from sourceHeader) if needed
     if (needsNewHeader) {
       const newHeaderId = genId();
+      const resolvedTgl = (sourceHeader as any).tgl || tanggalJam.split(" ")[0];
+      const resolvedTanggalJam = (sourceHeader as any).tanggal_jam || (resolvedTgl ? `${resolvedTgl} ${tanggalJam.split(" ")[1] || "12:00:00"}` : tanggalJam);
+
       const newHeaderPayload: any = {
         id: newHeaderId,
-        tgl: (sourceHeader as any).tgl || tanggalJam.split(" ")[0],
-        tanggal_jam: tanggalJam,
+        tgl: resolvedTgl,
+        tanggal_jam: resolvedTanggalJam,
         nomor_mc: (sourceHeader as any).nomor_mc,
         design_id: (sourceHeader as any).design_id,
         potongan_ke: (sourceHeader as any).potongan_ke,

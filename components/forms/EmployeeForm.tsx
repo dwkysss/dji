@@ -474,7 +474,9 @@ export default function EmployeeForm({
   };
 
   const handleCancelBreakWarning = () => {
-    setValue("jenisLaporan", "Normal");
+    setValue("jenisLaporan", "");
+    setBackupOperatorName("");
+    setValue("operatorBackup", "");
     setBreakWarningModal({ isOpen: false, timeStr: "", shiftName: "", allowedRange: "", pendingEvent: null });
   };
 
@@ -961,12 +963,18 @@ export default function EmployeeForm({
       data.isPanelGagal = true;
     }
 
-    if (data.jenisLaporan === "Istirahat" && backupOperatorName) {
+    if (data.jenisLaporan === "Istirahat") {
+      if (!backupOperatorName) {
+        setIsSubmitting(false);
+        setErrorMsg("Wajib memilih Operator Backup yang menjaga mesin sebelum menyimpan laporan istirahat.");
+        setShowBackupModal(true);
+        return;
+      }
       data.jenisLaporan = `Istirahat (Backup: ${backupOperatorName})`;
+      data.operatorBackup = backupOperatorName;
+    } else {
+      data.operatorBackup = undefined;
     }
-
-    // Add backup operator name to payload if exists
-    data.operatorBackup = backupOperatorName || undefined;
 
     // Ambil nama operator asli
     data.pic = getOperatorName(data.operatorId) || "";
@@ -1684,9 +1692,16 @@ export default function EmployeeForm({
           )}
 
           <div className="mt-4 bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-3">
-            <label className="text-xs font-bold text-slate-700 uppercase">
-              Jenis Laporan / Info Istirahat
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 uppercase">
+                Jenis Laporan / Info Istirahat
+              </label>
+              {watch("jenisLaporan") === "Istirahat" && backupOperatorName && (
+                <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300">
+                  Mode Istirahat Aktif
+                </span>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               {/* Normal */}
@@ -1699,6 +1714,7 @@ export default function EmployeeForm({
                   onChange={(e) => {
                     register("jenisLaporan").onChange(e);
                     setBackupOperatorName("");
+                    setValue("operatorBackup", "");
                   }}
                   className="peer hidden"
                 />
@@ -1780,6 +1796,27 @@ export default function EmployeeForm({
                 </label>
               </div>
             </div>
+
+            {/* Banner Operator Backup jika status Istirahat */}
+            {watch("jenisLaporan") === "Istirahat" && (
+              <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 animate-fadeIn ${backupOperatorName ? "bg-amber-50/80 border-amber-200" : "bg-rose-50 border-rose-200"}`}>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+                    Operator Backup:
+                  </span>
+                  <span className={`text-xs font-bold ${backupOperatorName ? "text-amber-950" : "text-rose-600"}`}>
+                    {backupOperatorName ? `👤 ${backupOperatorName}` : "⚠️ Belum Memilih Operator Backup"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBackupModal(true)}
+                  className={`px-3 py-1.5 font-bold text-xs rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer ${backupOperatorName ? "bg-amber-500 hover:bg-amber-600 text-white" : "bg-rose-600 hover:bg-rose-700 text-white animate-pulse"}`}
+                >
+                  {backupOperatorName ? "Ganti Backup" : "Pilih Sekarang"}
+                </button>
+              </div>
+            )}
 
             <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
               Pilih <strong>Istirahat</strong> jika panel ini adalah hasil kerja saat Anda beristirahat (operator pengganti).
@@ -1954,39 +1991,68 @@ export default function EmployeeForm({
           const currentOperatorId = watchOperatorId;
           const currentOperator = operators.find((o: any) => o.id.toString() === currentOperatorId);
           const currentShift = currentOperator?.shift;
-          const backupOperators = operators.filter((o: any) => o.shift === currentShift && o.id.toString() !== currentOperatorId);
+          const backupOperatorsSeShift = operators.filter((o: any) => o.shift === currentShift && o.id.toString() !== currentOperatorId);
+          const backupOperators = backupOperatorsSeShift.length > 0
+            ? backupOperatorsSeShift
+            : operators.filter((o: any) => o.id.toString() !== currentOperatorId);
+
+          const handleCloseModal = () => {
+            if (!backupOperatorName) {
+              setValue("jenisLaporan", "");
+              setValue("operatorBackup", "");
+            }
+            setShowBackupModal(false);
+          };
 
           return (
             <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
               <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col animate-scaleIn relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-orange-500"></div>
-                <h4 className="text-lg font-bold text-slate-800 mb-2">Pilih Backup</h4>
-                <p className="text-xs text-slate-500 mb-4">Siapa yang menjaga mesin ini (Backup) saat Anda beristirahat?</p>
+                <h4 className="text-lg font-bold text-slate-800 mb-1">Pilih Operator Backup</h4>
+                <p className="text-xs text-slate-500 mb-4">
+                  Wajib memilih rekan operator yang menjaga mesin saat Anda beristirahat.
+                </p>
 
                 <div className="flex flex-col gap-2 max-h-[50vh] overflow-y-auto mb-4 p-1">
-                  {backupOperators.length > 0 ? backupOperators.map((op: any) => (
-                    <button
-                      key={op.id}
-                      type="button"
-                      onClick={() => {
-                        setBackupOperatorName(op.name || op.nama_operator);
-                        setShowBackupModal(false);
-                      }}
-                      className={`text-left px-4 py-3 rounded-xl border transition-all ${backupOperatorName === (op.name || op.nama_operator) ? 'border-orange-500 bg-orange-50 text-orange-700 font-bold shadow-sm' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-                    >
-                      {op.name || op.nama_operator}
-                    </button>
-                  )) : (
-                    <p className="text-sm text-slate-500 text-center py-4">Tidak ada operator se-shift yang terdaftar.</p>
+                  {backupOperators.length > 0 ? backupOperators.map((op: any) => {
+                    const opName = op.name || op.nama_operator;
+                    const isSelected = backupOperatorName === opName;
+                    return (
+                      <button
+                        key={op.id}
+                        type="button"
+                        onClick={() => {
+                          setBackupOperatorName(opName);
+                          setValue("operatorBackup", opName);
+                          setValue("jenisLaporan", "Istirahat");
+                          setErrorMsg(null);
+                          setShowBackupModal(false);
+                        }}
+                        className={`text-left px-4 py-3 rounded-xl border transition-all flex items-center justify-between ${
+                          isSelected
+                            ? 'border-orange-500 bg-orange-50 text-orange-700 font-bold shadow-sm ring-2 ring-orange-200'
+                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="font-semibold">{opName}</span>
+                        {op.shift && (
+                          <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-bold">
+                            Shift {op.shift}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  }) : (
+                    <p className="text-sm text-slate-500 text-center py-4">Tidak ada operator lain yang terdaftar.</p>
                   )}
                 </div>
                 <div className="flex gap-3 mt-2">
                   <button
                     type="button"
-                    onClick={() => setShowBackupModal(false)}
-                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-colors"
+                    onClick={handleCloseModal}
+                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-colors cursor-pointer"
                   >
-                    Batal / Nanti
+                    {backupOperatorName ? "Tutup" : "Batal (Kembali ke Normal)"}
                   </button>
                 </div>
               </div>

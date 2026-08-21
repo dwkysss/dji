@@ -1221,8 +1221,15 @@ export default function ContinuousForm({
     data.designName = getDesignName(data.designId);
     data.created_by_name = user?.fullName || null;
 
-    if (backupOperator) {
+    if (data.jenisLaporan === "Mulai Istirahat") {
+      if (!backupOperator) {
+        setIsSubmitting(false);
+        setErrorMsg("Wajib memilih Operator Backup yang menjaga mesin saat Mulai Istirahat.");
+        return;
+      }
       data.backupOperator = backupOperator;
+    } else {
+      data.backupOperator = undefined;
     }
 
     const isIstirahatReport = data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat";
