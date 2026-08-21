@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Printer, X } from "lucide-react";
+import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 interface PrintableProductionReportProps {
   detailData: any;
@@ -111,7 +112,8 @@ const buildCacatText = (item: any): string => {
     }
   }
 
-  return lines.length > 0 ? lines.join("\n").replace(/\bbenang\b/gi, "B.") : "-";
+  const numberedLines = formatDefectLinesWithNumbering(lines);
+  return numberedLines.length > 0 ? numberedLines.join("\n").replace(/\bbenang\b/gi, "B.") : "-";
 };
 
 const formatDurationNice = (totalSec: number | string) => {

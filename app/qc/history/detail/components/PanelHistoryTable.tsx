@@ -3,6 +3,7 @@
 import React from "react";
 import { CheckCircle, X, CheckCircle2, XCircle } from "lucide-react";
 import { PROBLEM_DETAILS } from "../../../page";
+import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 export default function PanelHistoryTable({
   detailsToDisplay,
@@ -409,6 +410,7 @@ export default function PanelHistoryTable({
               }
             }
             }
+            masalahLines = formatDefectLinesWithNumbering(masalahLines);
             const hasDefect = masalahLines.length > 0;
             if (masalahLines.length === 0) masalahLines.push("-");
 

@@ -49,6 +49,7 @@ import {
 import { REGISTERED_MACHINES } from "@/app/qc/page";
 import MeterMendingTable from "./components/MeterMendingTable";
 import PanelMendingTable from "./components/PanelMendingTable";
+import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = {
   A: ["L1/L2/L3 Benang timbul putus", "Benang lolos", "Bolong corak", "Benang narik/Kendor", "Benang Nyilang", "Perbaikan/Beset benang Dasar", "Benang Kejepit/Jebol/Kusut", "Jalur benang"],
@@ -1006,6 +1007,7 @@ export default function MendingPage() {
             }
           }
         }
+        cacatLines = formatDefectLinesWithNumbering(cacatLines);
 
         const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
         const isGradable = !isFinish && !isStart && !isDeleted;
@@ -1335,6 +1337,7 @@ export default function MendingPage() {
         }
       }
 
+      cacatLines = formatDefectLinesWithNumbering(cacatLines);
       const combinedCacat = cacatLines.join("\n");
       const hasErrorDetail = !!item.kategori_masalah || !!item.detail_masalah;
 

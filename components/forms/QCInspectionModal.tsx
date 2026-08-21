@@ -157,7 +157,7 @@ export default function QCInspectionModal({
           d.production_defects.forEach((def: any) => {
             const k = (def.kategori || "").toUpperCase();
             const det = (def.detail || "").toUpperCase();
-            if (!k.includes("ISTIRAHAT") && !det.includes("ISTIRAHAT")) {
+            if (!k.includes("ISTIRAHAT") && !det.includes("ISTIRAHAT") && !det.includes("GAGAL CACAT") && k !== "G") {
               hasRealDefects = true;
             }
           });
@@ -171,11 +171,21 @@ export default function QCInspectionModal({
         if (katStr === "G" && !d.hasTambahanQC && (!d.production_defects || d.production_defects.length === 0)) return false;
 
         if (!hasRealDefects) {
-          if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT")) {
+          if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT") && !katStr.includes("GAGAL CACAT")) {
             hasRealDefects = true;
           }
-          if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH")) {
-            if (d.kategori_masalah || (d.production_defects && d.production_defects.length > 0) || d.hasTambahanQC) {
+          if (
+            detStr &&
+            !detStr.includes("ISTIRAHAT") &&
+            !detStr.includes("START") &&
+            !detStr.includes("FINISH") &&
+            !detStr.includes("GAGAL CACAT")
+          ) {
+            if (
+              (d.kategori_masalah && katStr !== "G" && !katStr.includes("GAGAL CACAT")) ||
+              (d.production_defects && d.production_defects.length > 0) ||
+              d.hasTambahanQC
+            ) {
               hasRealDefects = true;
             }
           }

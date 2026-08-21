@@ -1583,5 +1583,135 @@ export async function updateQCDetailDefectsAndNotes(params: {
   }
 }
 
+export async function swapOrMoveQCDefects(params: {
+  sourceDetailId: string;
+  targetDetailId: string;
+  mode: "move" | "swap";
+}) {
+  try {
+    const supabase = await createAdminClient();
+
+    // 1. Fetch both source and target details
+    const { data: sourceDetail, error: sourceErr } = await supabase
+      .from("production_details")
+      .select("*, production_headers(*)")
+      .eq("id", params.sourceDetailId)
+      .single();
+
+    if (sourceErr || !sourceDetail) {
+      return { success: false, error: "Data panel asal tidak ditemukan: " + (sourceErr?.message || "") };
+    }
+
+    const { data: targetDetail, error: targetErr } = await supabase
+      .from("production_details")
+      .select("*, production_headers(*)")
+      .eq("id", params.targetDetailId)
+      .single();
+
+    if (targetErr || !targetDetail) {
+      return { success: false, error: "Data panel tujuan tidak ditemukan: " + (targetErr?.message || "") };
+    }
+
+    // 2. Fetch existing production_defects for both
+    const { data: sourceDefects } = await supabase
+      .from("production_defects")
+      .select("*")
+      .eq("production_detail_id", params.sourceDetailId);
+
+    const { data: targetDefects } = await supabase
+      .from("production_defects")
+      .select("*")
+      .eq("production_detail_id", params.targetDetailId);
+
+    if (params.mode === "swap") {
+      // SWAP MODE
+      // Update source with target's defect data
+      await supabase.from("production_details").update({
+        kategori_masalah: targetDetail.kategori_masalah,
+        detail_masalah: targetDetail.detail_masalah,
+        keterangan_cacat: targetDetail.keterangan_cacat,
+        keterangan_qc: targetDetail.keterangan_qc,
+        jml_hasil_produksi: targetDetail.jml_hasil_produksi,
+        status_inspeksi: targetDetail.status_inspeksi,
+      }).eq("id", params.sourceDetailId);
+
+      // Update target with source's defect data
+      await supabase.from("production_details").update({
+        kategori_masalah: sourceDetail.kategori_masalah,
+        detail_masalah: sourceDetail.detail_masalah,
+        keterangan_cacat: sourceDetail.keterangan_cacat,
+        keterangan_qc: sourceDetail.keterangan_qc,
+        jml_hasil_produksi: sourceDetail.jml_hasil_produksi,
+        status_inspeksi: sourceDetail.status_inspeksi,
+      }).eq("id", params.targetDetailId);
+
+      // Reassign production_defects
+      await supabase.from("production_defects").delete().in("production_detail_id", [params.sourceDetailId, params.targetDetailId]);
+
+      const newSourceDefectRows = (targetDefects || []).map((d: any) => ({
+        production_detail_id: params.sourceDetailId,
+        kategori: d.kategori,
+        detail: d.detail,
+        meter: d.meter,
+        blok: d.blok,
+      }));
+
+      const newTargetDefectRows = (sourceDefects || []).map((d: any) => ({
+        production_detail_id: params.targetDetailId,
+        kategori: d.kategori,
+        detail: d.detail,
+        meter: d.meter,
+        blok: d.blok,
+      }));
+
+      const allDefectRows = [...newSourceDefectRows, ...newTargetDefectRows];
+      if (allDefectRows.length > 0) {
+        await supabase.from("production_defects").insert(allDefectRows);
+      }
+    } else {
+      // MOVE MODE (Pindahkan semua cacat dari source ke target, source jadi bersih)
+      // Update target with source's defect data
+      await supabase.from("production_details").update({
+        kategori_masalah: sourceDetail.kategori_masalah,
+        detail_masalah: sourceDetail.detail_masalah,
+        keterangan_cacat: sourceDetail.keterangan_cacat,
+        keterangan_qc: sourceDetail.keterangan_qc,
+        jml_hasil_produksi: sourceDetail.jml_hasil_produksi,
+        status_inspeksi: sourceDetail.status_inspeksi,
+      }).eq("id", params.targetDetailId);
+
+      // Clean up source
+      await supabase.from("production_details").update({
+        kategori_masalah: null,
+        detail_masalah: null,
+        keterangan_cacat: null,
+        keterangan_qc: null,
+        jml_hasil_produksi: 1,
+        status_inspeksi: null,
+      }).eq("id", params.sourceDetailId);
+
+      // Reassign production_defects
+      await supabase.from("production_defects").delete().in("production_detail_id", [params.sourceDetailId, params.targetDetailId]);
+
+      const newTargetDefectRows = (sourceDefects || []).map((d: any) => ({
+        production_detail_id: params.targetDetailId,
+        kategori: d.kategori,
+        detail: d.detail,
+        meter: d.meter,
+        blok: d.blok,
+      }));
+
+      if (newTargetDefectRows.length > 0) {
+        await supabase.from("production_defects").insert(newTargetDefectRows);
+      }
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+
 
 

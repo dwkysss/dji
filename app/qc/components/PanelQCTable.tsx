@@ -4,6 +4,8 @@ import React from "react";
 import { Eye, Trash2, CheckCircle, X, Edit3 } from "lucide-react";
 import { PROBLEM_DETAILS } from "../page";
 
+import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
+
 export default function PanelQCTable({
   detailsToDisplay,
   handleSelectGrade,
@@ -439,6 +441,7 @@ export default function PanelQCTable({
                 }
               }
             }
+            cacatLines = formatDefectLinesWithNumbering(cacatLines);
             let cacat = cacatLines.join("\n");
 
             let extractedBackupOp = item.production_headers?.operator_backup || "";
@@ -452,7 +455,36 @@ export default function PanelQCTable({
             const cleanPanelNo = rawPanelNo.replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
             const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
             const isBsPanel = isBsAwal || isBsAkhir || (String(rawPanelNo).includes("(BS)")) || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
-            const hasError = item.indikator_stop || !!item.kategori_masalah || !!item.detail_masalah || isBsPanel || (item.production_defects && item.production_defects.length > 0);
+
+            let hasRealError = false;
+            if (isBsPanel) {
+              hasRealError = true;
+            } else if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
+              hasRealError = item.production_defects.some((d: any) => {
+                const k = (d.kategori || "").toUpperCase().trim();
+                const det = (d.detail || "").toUpperCase().trim();
+                if (k.includes("ISTIRAHAT") || det.includes("ISTIRAHAT")) return false;
+                if (det.includes("GAGAL CACAT") || k === "G") return false;
+                return true;
+              });
+            } else {
+              const katStr = (item.kategori_masalah || "").toUpperCase().trim();
+              const detStr = (item.detail_masalah || "").toUpperCase().trim();
+              if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT") && !katStr.includes("GAGAL CACAT")) {
+                hasRealError = true;
+              }
+              if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH") && !detStr.includes("GAGAL CACAT")) {
+                hasRealError = true;
+              }
+            }
+            if (hasTambahanQC) hasRealError = true;
+
+            const hasError = hasRealError;
+            const isGagalCacatOnly = (
+              (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
+              (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT") ||
+              (item.kategori_masalah || "").toUpperCase() === "G"
+            ) && !hasRealError;
 
             return (
             <tr key={item.id} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : hasIstirahat ? "bg-amber-50/30" : (item.jml_hasil_produksi === 0 ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
@@ -487,14 +519,14 @@ export default function PanelQCTable({
                 {isDeleted ? <span className="text-slate-400 font-bold">-</span> : hasError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
               </td>
               
-              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isDeleted ? 'text-slate-400 italic' : isIstirahatOnly ? 'text-slate-500' : 'text-rose-600'}`}>
+              <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isDeleted ? 'text-slate-400 italic' : (isIstirahatOnly || isGagalCacatOnly) ? 'text-slate-500' : 'text-rose-600'}`}>
                 {isDeleted ? (
                   <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
                 ) : hasIstirahat ? (
                   <>
                     {extractedBackupOp && <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>}
                     {cacat ? (
-                      <div className={isIstirahatOnly ? "text-slate-500" : "text-rose-600"}>{cacat}</div>
+                      <div className={(isIstirahatOnly || isGagalCacatOnly) ? "text-slate-500" : "text-rose-600"}>{cacat}</div>
                     ) : (
                       !extractedBackupOp && <span className="text-slate-400">-</span>
                     )}
@@ -504,7 +536,7 @@ export default function PanelQCTable({
                   </>
                 ) : (
                   <>
-                    <div className={cacat && cacat !== "-" ? "text-rose-600" : "text-slate-400"}>
+                    <div className={cacat && cacat !== "-" ? (isGagalCacatOnly ? "text-slate-500 font-medium" : "text-rose-600") : "text-slate-400"}>
                       {cacat || "-"}
                     </div>
                     {item.keterangan_qc && item.keterangan_qc !== "-" && (

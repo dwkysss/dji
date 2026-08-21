@@ -9,9 +9,11 @@ import {
   Edit3,
   CheckCircle2,
   XCircle,
-  Plus,
+  ArrowRightLeft,
+  ArrowRight,
+  RotateCcw,
 } from "lucide-react";
-import { updateQCDetailDefectsAndNotes } from "@/actions/qc-actions";
+import { updateQCDetailDefectsAndNotes, swapOrMoveQCDefects } from "@/actions/qc-actions";
 import { createProblemDetail } from "@/actions/problem-detail-actions";
 
 interface QCEditDetailModalProps {
@@ -20,6 +22,7 @@ interface QCEditDetailModalProps {
   detail: any;
   problemCategories: { id: string; name: string }[];
   problemDetailsMap: Record<string, string[]>;
+  allBatchDetails?: any[];
   currentGrade?: number;
   onSuccess: (detailId: string, newGrade: number) => void;
 }
@@ -30,6 +33,7 @@ export default function QCEditDetailModal({
   detail,
   problemCategories,
   problemDetailsMap,
+  allBatchDetails = [],
   currentGrade,
   onSuccess,
 }: QCEditDetailModalProps) {
@@ -43,6 +47,11 @@ export default function QCEditDetailModal({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Move / Swap State
+  const [targetMoveDetailId, setTargetMoveDetailId] = useState<string>("");
+  const [isMoving, setIsMoving] = useState(false);
+  const [isMoveSectionOpen, setIsMoveSectionOpen] = useState(false);
+
   const header = detail?.production_headers || {};
   const rawPanelNo = String(header.panel_no || detail?.displayNo || "-");
   const isMeteran = rawPanelNo === "METERAN";
@@ -50,12 +59,29 @@ export default function QCEditDetailModal({
     ? `Meteran / Roll (${detail?.meter_kain || "-"}m)`
     : `Panel ${rawPanelNo.replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}`;
 
+  // Filter other panels for move/swap
+  const otherPanels = React.useMemo(() => {
+    return allBatchDetails.filter((d: any) => d.id !== detail?.id && !d.is_deleted && d.status_inspeksi !== "Dihapus");
+  }, [allBatchDetails, detail]);
+
   useEffect(() => {
     if (isOpen && detail) {
       setErrorMsg(null);
+      setIsMoveSectionOpen(false);
+      
+      // Select first available target panel if any
+      if (otherPanels.length > 0) {
+        setTargetMoveDetailId(otherPanels[0].id);
+      } else {
+        setTargetMoveDetailId("");
+      }
       
       // Determine initial grade
-      const initialGrade = currentGrade || detail.final_inspection_id || (detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS" ? 4 : (detail.kategori_masalah || detail.detail_masalah ? 3 : 1));
+      const hasRealCacat = (detail.kategori_masalah && detail.kategori_masalah !== "G" && !String(detail.kategori_masalah).includes("GAGAL CACAT")) || 
+                           (detail.detail_masalah && !String(detail.detail_masalah).includes("GAGAL CACAT") && !String(detail.detail_masalah).includes("ISTIRAHAT")) || 
+                           (detail.production_defects && detail.production_defects.some((pd: any) => !pd.detail?.toUpperCase().includes("GAGAL CACAT") && pd.kategori !== "G" && !pd.kategori?.toUpperCase().includes("ISTIRAHAT")));
+      
+      const initialGrade = currentGrade || detail.final_inspection_id || (detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS" ? 4 : (hasRealCacat ? 3 : 1));
       setSelectedGrade(initialGrade);
 
       // Parse existing categories
@@ -259,6 +285,36 @@ export default function QCEditDetailModal({
     }
   };
 
+  const handleMoveOrSwap = async (mode: "move" | "swap") => {
+    if (!detail?.id || !targetMoveDetailId) {
+      setErrorMsg("Pilih panel tujuan terlebih dahulu.");
+      return;
+    }
+
+    setIsMoving(true);
+    setErrorMsg(null);
+
+    try {
+      const res = await swapOrMoveQCDefects({
+        sourceDetailId: detail.id,
+        targetDetailId: targetMoveDetailId,
+        mode,
+      });
+
+      if (res.success) {
+        // Source is now clean (Grade 1), target is updated
+        onSuccess(detail.id, 1);
+        onClose();
+      } else {
+        setErrorMsg(res.error || "Gagal memproses pemindahan/tukar cacat.");
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Terjadi kesalahan sistem.");
+    } finally {
+      setIsMoving(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -294,6 +350,82 @@ export default function QCEditDetailModal({
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 font-bold flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* Section: Pindahkan / Tukar Cacat (Swapping / Moving) */}
+          {otherPanels.length > 0 && (
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ArrowRightLeft className="w-4 h-4 text-amber-700" />
+                  <span className="text-xs font-black text-amber-900 uppercase tracking-wide">
+                    Pindahkan / Tukar Cacat ke Panel Lain
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMoveSectionOpen(!isMoveSectionOpen)}
+                  className="text-[11px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                >
+                  {isMoveSectionOpen ? "Tutup Fitur Pindah" : "Buka Fitur Pindah"}
+                </button>
+              </div>
+
+              {isMoveSectionOpen && (
+                <div className="flex flex-col gap-3 pt-2 border-t border-amber-200/60 animate-fadeIn">
+                  <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
+                    Gunakan opsi ini jika data cacat pada <strong>{displayTitle}</strong> salah input oleh operator dan sebenarnya berada di panel lain.
+                  </p>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-amber-900 uppercase">
+                      Pilih Panel Tujuan:
+                    </label>
+                    <select
+                      value={targetMoveDetailId}
+                      onChange={(e) => setTargetMoveDetailId(e.target.value)}
+                      className="h-10 px-3 rounded-xl bg-white border border-amber-300 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      {otherPanels.map((p: any) => {
+                        const pHdr = p.production_headers || {};
+                        const pNo = String(pHdr.panel_no || p.displayNo || "").replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
+                        const pName = pNo === "METERAN" ? `Meteran (${p.meter_kain || "-"}m)` : `Panel ${pNo}`;
+                        const currentKet = p.detail_masalah || p.keterangan_cacat ? `[Cacat: ${p.detail_masalah || p.keterangan_cacat}]` : "[Bersih / ✓]";
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {pName} — {currentKet}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                    <button
+                      type="button"
+                      disabled={isMoving || isSaving || !targetMoveDetailId}
+                      onClick={() => handleMoveOrSwap("move")}
+                      className="h-10 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      title="Pindahkan semua cacat ke panel target dan buat panel ini bersih"
+                    >
+                      {isMoving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                      <span>Pindahkan Cacat Saja</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isMoving || isSaving || !targetMoveDetailId}
+                      onClick={() => handleMoveOrSwap("swap")}
+                      className="h-10 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      title="Tukar seluruh data cacat antara panel ini dan panel target"
+                    >
+                      {isMoving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
+                      <span>Tukar Data (Swap)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -488,7 +620,7 @@ export default function QCEditDetailModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={isSaving}
+            disabled={isSaving || isMoving}
             className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
           >
             Batal
@@ -496,7 +628,7 @@ export default function QCEditDetailModal({
           <button
             type="button"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || isMoving}
             className="px-6 py-2.5 rounded-xl bg-[#0070bc] hover:bg-[#005a96] active:scale-95 text-white font-bold text-xs transition-all shadow-md shadow-[#0070bc]/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isSaving ? (

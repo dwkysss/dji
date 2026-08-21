@@ -3,6 +3,7 @@
 import React from "react";
 import { Trash2, CheckCircle, X, Edit3 } from "lucide-react";
 import { PROBLEM_DETAILS } from "../page";
+import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 export default function MeterQCTable({
   detailsToDisplay,
@@ -266,6 +267,7 @@ export default function MeterQCTable({
         }
       }
 
+      cacatLines = formatDefectLinesWithNumbering(cacatLines);
       const combinedCacat = cacatLines.join("\n");
       const hasErrorDetail = cacatLines.length > 0 || !!item.kategori_masalah || !!item.detail_masalah;
 

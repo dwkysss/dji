@@ -18,6 +18,7 @@ import {
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import { PROBLEM_DETAILS } from "../../../qc/page";
 import { getAllDetailsForPcs, getMendingBatchById } from "@/actions/mending-actions";
+import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 const cleanMeterVal = (val: any) => {
   if (val === null || val === undefined) return "";
@@ -642,7 +643,7 @@ function MendingDetailContent() {
           cacatLines = cacatLines.map(line => line + " [TAMBAHAN QC]");
         }
       }
-
+      cacatLines = formatDefectLinesWithNumbering(cacatLines);
       const combinedCacat = cacatLines.join("\n");
       const hasErrorDetail = !!item.kategori_masalah || !!item.detail_masalah;
 
@@ -1367,6 +1368,7 @@ function MendingDetailContent() {
                         if (detail.keterangan_qc && detail.keterangan_qc !== "-") {
                           masalahLines.push(`QC: ${detail.keterangan_qc}`);
                         }
+                        masalahLines = formatDefectLinesWithNumbering(masalahLines);
                       }
                       if (masalahLines.length === 0) masalahLines.push("-");
 

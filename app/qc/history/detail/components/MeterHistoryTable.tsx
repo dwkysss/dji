@@ -3,6 +3,7 @@
 import React from "react";
 import { CheckCircle2, XCircle, CheckCircle, X } from "lucide-react";
 import { PROBLEM_DETAILS } from "../../../page";
+import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 export default function MeterHistoryTable({
   detailsToDisplay,
@@ -222,6 +223,7 @@ export default function MeterHistoryTable({
         }
       }
 
+      cacatLines = formatDefectLinesWithNumbering(cacatLines);
       const combinedCacat = cacatLines.join("\n");
       const hasErrorDetail = !!item.kategori_masalah || !!item.detail_masalah;
 

@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Edit, CheckCircle2, XCircle } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/app/qc/page";
+import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 const formatWibTime = (dateVal?: string): string => {
   if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
@@ -496,6 +497,7 @@ export default function PanelHistoryTable({
             }
           }
           
+          masalahLines = formatDefectLinesWithNumbering(masalahLines);
           const hasDefect = masalahLines.length > 0 && masalahLines[0] !== "-";
           if (masalahLines.length === 0) masalahLines.push("-");
 

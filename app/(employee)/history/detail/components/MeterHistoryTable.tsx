@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Edit, CheckCircle2, XCircle } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/app/qc/page";
+import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 const formatWibTime = (dateVal?: string): string => {
   if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
@@ -440,9 +441,11 @@ export default function MeterHistoryTable({
         }
       }
 
-      const cleanedCacatLines = cacatLines
-        .map((line: string) => line.replace(/\s*\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim())
-        .filter(Boolean);
+      const cleanedCacatLines = formatDefectLinesWithNumbering(
+        cacatLines
+          .map((line: string) => line.replace(/\s*\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim())
+          .filter(Boolean)
+      );
 
       let cacatText = isStartRow 
         ? "START" 
