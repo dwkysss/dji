@@ -238,9 +238,12 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     addLog("INFO", "Timer Mesin 2 di-reset ke 0", "M2");
   }, [addLog]);
 
+  const reconnectAttemptsRef = useRef<number>(0);
+
   // Disconnect WebSocket
   const disconnect = useCallback(() => {
     isManualDisconnectRef.current = true;
+    reconnectAttemptsRef.current = 0;
     if (autoReconnectTimerRef.current) {
       clearTimeout(autoReconnectTimerRef.current);
       autoReconnectTimerRef.current = null;
@@ -282,13 +285,13 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
 
       const url = `ws://${host}:81`;
       setWsUrl(url);
-      addLog("INFO", `Mencoba terhubung ke WebSocket ESP32: ${url}...`, "SYSTEM");
 
       try {
         const ws = new WebSocket(url);
         socketRef.current = ws;
 
         ws.onopen = () => {
+          reconnectAttemptsRef.current = 0;
           setConnectionStatus("terhubung");
           addLog("CONNECTED", `Terhubung ke ESP32 Wi-Fi WebSocket (${host}:81)`, "SYSTEM");
         };
@@ -320,9 +323,8 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           }
         };
 
-        ws.onerror = (err) => {
-          console.warn("WebSocket error:", err);
-          addLog("ERROR", `Kesalahan koneksi WebSocket ke ${url}`, "SYSTEM");
+        ws.onerror = () => {
+          // Silent error in background to avoid spamming React state
         };
 
         ws.onclose = () => {
@@ -330,19 +332,18 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           socketRef.current = null;
 
           if (!isManualDisconnectRef.current) {
-            addLog("DISCONNECTED", "Koneksi terputus. Menjadwalkan reconnect otomatis dalam 4 detik...", "SYSTEM");
-            // Auto Reconnect every 4 seconds as per requirement
+            reconnectAttemptsRef.current += 1;
+            // Exponential backoff: 5s, 10s, 15s... max 30s to save tablet CPU/Battery
+            const delay = Math.min(30000, 5000 + Math.min(reconnectAttemptsRef.current * 3000, 25000));
             autoReconnectTimerRef.current = setTimeout(() => {
               if (!isManualDisconnectRef.current) {
-                addLog("INFO", "Mencoba terhubung kembali (Auto-Reconnect 4s)...", "SYSTEM");
                 connect(host);
               }
-            }, 4000);
+            }, delay);
           }
         };
       } catch (err: any) {
         setConnectionStatus("terputus");
-        addLog("ERROR", `Gagal menginisialisasi WebSocket: ${err?.message || err}`, "SYSTEM");
       }
     },
     [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop]
@@ -380,35 +381,60 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
 
   const effectiveConnectionStatus = isSimulationMode ? "terhubung" : connectionStatus;
 
+  const contextValue = React.useMemo(() => ({
+    targetHost,
+    connectionStatus: effectiveConnectionStatus,
+    wsUrl,
+    isSimulationMode,
+    toggleSimulationMode,
+    statusM1,
+    isTimerM1Running,
+    elapsedM1,
+    statusM2,
+    isTimerM2Running,
+    elapsedM2,
+    logs,
+    setTargetHost,
+    connect,
+    disconnect,
+    clearLogs,
+    addLog,
+    triggerM1Start,
+    triggerM1Stop,
+    triggerM2Start,
+    triggerM2Stop,
+    resetTimerM1,
+    resetTimerM2,
+    registerSignalListener,
+  }), [
+    targetHost,
+    effectiveConnectionStatus,
+    wsUrl,
+    isSimulationMode,
+    toggleSimulationMode,
+    statusM1,
+    isTimerM1Running,
+    elapsedM1,
+    statusM2,
+    isTimerM2Running,
+    elapsedM2,
+    logs,
+    setTargetHost,
+    connect,
+    disconnect,
+    clearLogs,
+    addLog,
+    triggerM1Start,
+    triggerM1Stop,
+    triggerM2Start,
+    triggerM2Stop,
+    resetTimerM1,
+    resetTimerM2,
+    registerSignalListener,
+  ]);
+
   return (
-    <WifiContext.Provider
-      value={{
-        targetHost,
-        connectionStatus: effectiveConnectionStatus,
-        wsUrl,
-        isSimulationMode,
-        toggleSimulationMode,
-        statusM1,
-        isTimerM1Running,
-        elapsedM1,
-        statusM2,
-        isTimerM2Running,
-        elapsedM2,
-        logs,
-        setTargetHost,
-        connect,
-        disconnect,
-        clearLogs,
-        addLog,
-        triggerM1Start,
-        triggerM1Stop,
-        triggerM2Start,
-        triggerM2Stop,
-        resetTimerM1,
-        resetTimerM2,
-        registerSignalListener,
-      }}
-    >
+    <WifiContext.Provider value={contextValue}>
       {children}
     </WifiContext.Provider>
   );

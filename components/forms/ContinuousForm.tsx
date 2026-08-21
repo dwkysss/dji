@@ -846,9 +846,9 @@ export default function ContinuousForm({
   const selectedGroup = groups.find((g) => g.id.toString() === watchGroupId);
   const activeShiftName = selectedGroup ? selectedGroup.name : "A";
 
-  const activeOperators = operators.filter(
-    (op: any) => op.shift === activeShiftName || !op.shift,
-  );
+  const activeOperators = React.useMemo(() => {
+    return operators.filter((op: any) => op.shift === activeShiftName || !op.shift);
+  }, [operators, activeShiftName]);
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -1350,11 +1350,21 @@ export default function ContinuousForm({
         return;
       }
 
-      let result;
+      let result: any;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Network timeout: koneksi database lambat")), 15000)
+      );
+
       if (isEdit && initialData?.id) {
-        result = await updateContinuousReport(initialData.id, data);
+        result = await Promise.race([
+          updateContinuousReport(initialData.id, data),
+          timeoutPromise
+        ]);
       } else {
-        result = await submitContinuousReport(data);
+        result = await Promise.race([
+          submitContinuousReport(data),
+          timeoutPromise
+        ]);
       }
 
       if (result.success) {

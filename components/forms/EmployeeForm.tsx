@@ -719,9 +719,9 @@ export default function EmployeeForm({
   const selectedGroup = groups.find((g) => g.id.toString() === watchGroupId);
   const activeShiftName = selectedGroup ? selectedGroup.name : "A";
 
-  const activeOperators = operators.filter(
-    (op: any) => op.shift === activeShiftName || !op.shift,
-  );
+  const activeOperators = React.useMemo(() => {
+    return operators.filter((op: any) => op.shift === activeShiftName || !op.shift);
+  }, [operators, activeShiftName]);
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -1062,11 +1062,21 @@ export default function EmployeeForm({
         return;
       }
 
-      let result;
+      let result: any;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Network timeout: koneksi database lambat")), 15000)
+      );
+
       if (isEdit && initialData?.id) {
-        result = await updateProductionReport(initialData.id, submitData);
+        result = await Promise.race([
+          updateProductionReport(initialData.id, submitData),
+          timeoutPromise
+        ]);
       } else {
-        result = await createProductionReport(submitData);
+        result = await Promise.race([
+          createProductionReport(submitData),
+          timeoutPromise
+        ]);
       }
 
       if (result.success) {

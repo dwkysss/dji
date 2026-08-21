@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft,
   ClipboardCheck,
@@ -13,7 +14,8 @@ import {
   Loader2,
   AlertTriangle,
   Clock,
-  CheckCircle
+  CheckCircle,
+  QrCode
 } from "lucide-react";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import { PROBLEM_DETAILS } from "../../../qc/page";
@@ -818,7 +820,7 @@ function MendingDetailContent() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/mending/history")}
-            className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center transition-colors shadow-sm"
+            className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -836,6 +838,14 @@ function MendingDetailContent() {
             </div>
           </div>
         </div>
+
+        <Link
+          href={`/mending/barcode?mc=${encodeURIComponent(header.nomor_mc || "")}&potongan=${encodeURIComponent(header.potongan_ke || "")}&design=${encodeURIComponent(header.design_id || "")}`}
+          className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer shrink-0 self-stretch sm:self-auto justify-center"
+        >
+          <QrCode className="w-4 h-4" />
+          <span>Cetak Barcode</span>
+        </Link>
       </div>
 
       {/* Header Info like Production Detail */}

@@ -114,12 +114,6 @@ export default function Sidebar() {
           roles: ["admin", "inspeksi", "mending"],
         },
         {
-          name: "Cetak Barcode",
-          href: "/qc/barcode",
-          icon: QrCode,
-          roles: ["admin"],
-        },
-        {
           name: "Surat Jalan",
           href: "/qc/surat-jalan",
           icon: ClipboardList,
@@ -141,6 +135,12 @@ export default function Sidebar() {
           name: "Riwayat Mending",
           href: "/mending/history",
           icon: History,
+          roles: ["admin", "mending", "inspeksi"],
+        },
+        {
+          name: "Cetak Barcode",
+          href: "/mending/barcode",
+          icon: QrCode,
           roles: ["admin", "mending", "inspeksi"],
         },
       ],

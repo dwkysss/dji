@@ -414,9 +414,12 @@ export default function DowntimeTracker({
   const pcsData = watch("pcsData") || [];
   // Derive the actual PCS keys from pcsData.pcsIndex (not sequential index)
   // e.g. if editing PCS 2, pcsData = [{pcsIndex:"2"}] → pcsKeys = ["2"]
-  const pcsKeys: string[] = pcsData.length > 0
-    ? pcsData.map((p: any) => p.pcsIndex ? p.pcsIndex.toString() : "1")
-    : ["1"];
+  const pcsKeys: string[] = React.useMemo(() => {
+    return pcsData.length > 0
+      ? pcsData.map((p: any) => p.pcsIndex ? p.pcsIndex.toString() : "1")
+      : ["1"];
+  }, [pcsData]);
+  const pcsKeysJoined = pcsKeys.join(",");
   const pcsCount = pcsKeys.length;
 
   const hasMissingMeter = Boolean(
@@ -458,19 +461,9 @@ export default function DowntimeTracker({
     return () => clearInterval(interval);
   }, [isTimerRunning, timerStartRef]);
 
-  useEffect(() => {
-    if (onRegisterTimerControls) {
-      onRegisterTimerControls({
-        isTimerRunning,
-        onStartTimer: handleStartTimer,
-        onStopTimer: handleStopTimer,
-      });
-    }
-  }, [isTimerRunning, onRegisterTimerControls]);
-
   const [showCancelTimerConfirmModal, setShowCancelTimerConfirmModal] = useState(false);
 
-  const handleStartTimer = (source?: any) => {
+  const handleStartTimer = React.useCallback((source?: any) => {
     const now = Date.now();
     if (activeTimerStartRef.current !== null) {
       const elapsedSec = (now - activeTimerStartRef.current) / 1000;
@@ -481,10 +474,7 @@ export default function DowntimeTracker({
       // Jika > 24 jam, buang timer lama dan timpa dengan timer baru 'now'
     }
 
-    if (showModal) {
-      handleCloseModal();
-    }
-
+    setShowModal(false);
     activeTimerStartRef.current = now;
     setIsTimerRunning(true);
     setTimerStartRef(now);
@@ -497,7 +487,7 @@ export default function DowntimeTracker({
     timerSourceRef.current = normalizedSource;
     setCurrentTimerSource(normalizedSource);
     localStorage.setItem("dji_active_timer_source", normalizedSource);
-  };
+  }, []);
 
   const handleCancelTimer = () => {
     setShowCancelTimerConfirmModal(true);
@@ -514,6 +504,88 @@ export default function DowntimeTracker({
     localStorage.removeItem("dji_active_timer_source");
     setShowCancelTimerConfirmModal(false);
   };
+
+  const onRegisterRef = useRef(onRegisterTimerControls);
+  useEffect(() => {
+    onRegisterRef.current = onRegisterTimerControls;
+  });
+
+  const handleStopTimer = React.useCallback((source?: any) => {
+    const savedStartStr = localStorage.getItem("dji_active_downtime_start");
+    const startTimestamp = activeTimerStartRef.current || (savedStartStr ? parseInt(savedStartStr) : null);
+
+    if (startTimestamp === null) {
+      return;
+    }
+
+    const savedSource = localStorage.getItem("dji_active_timer_source");
+    const srcStr = typeof source === "string" ? source : (source?.source || savedSource || timerSourceRef.current || "Manual");
+    const isEsp32 = srcStr.includes("ESP32") || srcStr.includes("mDNS") || srcStr.includes("WebSocket") || srcStr.includes("Wi-Fi");
+    const finalSource = isEsp32 ? "ESP32_WiFi" : "Manual";
+    setCurrentTimerSource(finalSource);
+
+    activeTimerStartRef.current = null;
+    localStorage.removeItem("dji_active_downtime_start");
+    localStorage.removeItem("dji_active_timer_source");
+
+    setIsTimerRunning(false);
+    setTimerStartRef(null);
+    setLiveTimerSeconds(0);
+    accumulatedSecRef.current = 0;
+
+    setIsUnblockingBlock(false);
+    setDikerjakanOleh("Operator");
+    setNamaPenanganan("");
+
+    const rawDuration = Math.max(0, Math.floor((Date.now() - startTimestamp) / 1000));
+    // Batasi durasi maksimum 24 jam (86.400 detik) agar perbaikan lama sah tetap tercatat utuh 100%
+    const MAX_ALLOWED_SEC = 24 * 3600;
+    const finalDuration = rawDuration > MAX_ALLOWED_SEC ? MAX_ALLOWED_SEC : (rawDuration < 1 ? 1 : rawDuration);
+
+    const startTimeStr = new Date(startTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const newUnclassifiedEvent: any = {
+      id: Date.now().toString(),
+      durasiDetik: finalDuration,
+      pcsKe: "Semua",
+      dikerjakanOleh: currentOperatorName || "Operator",
+      problems: [],
+      triggerSource: finalSource,
+      stopStartTime: startTimeStr,
+      isResolved: false,
+    };
+
+    const currentList = watch("downtimeEvents") || fields || [];
+    const newIndex = currentList.length;
+    const updatedList = [...currentList, newUnclassifiedEvent];
+    append(newUnclassifiedEvent);
+    updateFormDowntimeEvents(updatedList);
+
+    const pendingItems = updatedList.filter(
+      (evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0))
+    );
+
+    if (isEsp32) {
+      if (pendingItems.length === 1) {
+        // Jika baru 1 event antrean dari ESP32, langsung buka modal klasifikasi
+        handleOpenClassifyModal(newIndex, newUnclassifiedEvent);
+      } else {
+        // Jika ada lebih dari 1 event antrean beruntun, tutup modal dan alihkan semua ke antrean
+        setShowModal(false);
+      }
+    } else {
+      handleOpenClassifyModal(newIndex, newUnclassifiedEvent);
+    }
+  }, [currentOperatorName, fields, watch, append]);
+
+  useEffect(() => {
+    if (onRegisterRef.current) {
+      onRegisterRef.current({
+        isTimerRunning,
+        onStartTimer: handleStartTimer,
+        onStopTimer: handleStopTimer,
+      });
+    }
+  }, [isTimerRunning, handleStartTimer, handleStopTimer]);
 
   // Pre-fill meter input when the modal opens and defaultMeter is provided
   useEffect(() => {
@@ -536,7 +608,7 @@ export default function DowntimeTracker({
         return merged;
       });
     }
-  }, [showModal, defaultMeter, pcsKeys.join(",")]);
+  }, [showModal, defaultMeter, pcsKeysJoined]);
 
   const handleOpenModal = () => {
     setEditingIndex(null);
@@ -718,72 +790,6 @@ export default function DowntimeTracker({
     setShowModal(true);
   };
 
-  const handleStopTimer = (source?: any) => {
-    const savedStartStr = localStorage.getItem("dji_active_downtime_start");
-    const startTimestamp = activeTimerStartRef.current || (savedStartStr ? parseInt(savedStartStr) : null);
-
-    if (startTimestamp === null) {
-      return;
-    }
-
-    const savedSource = localStorage.getItem("dji_active_timer_source");
-    const srcStr = typeof source === "string" ? source : (source?.source || savedSource || timerSourceRef.current || "Manual");
-    const isEsp32 = srcStr.includes("ESP32") || srcStr.includes("mDNS") || srcStr.includes("WebSocket") || srcStr.includes("Wi-Fi");
-    const finalSource = isEsp32 ? "ESP32_WiFi" : "Manual";
-    setCurrentTimerSource(finalSource);
-
-    activeTimerStartRef.current = null;
-    localStorage.removeItem("dji_active_downtime_start");
-    localStorage.removeItem("dji_active_timer_source");
-
-    setIsTimerRunning(false);
-    setTimerStartRef(null);
-    setLiveTimerSeconds(0);
-    accumulatedSecRef.current = 0;
-
-    setIsUnblockingBlock(false);
-    setDikerjakanOleh("Operator");
-    setNamaPenanganan("");
-
-    const rawDuration = Math.max(0, Math.floor((Date.now() - startTimestamp) / 1000));
-    // Batasi durasi maksimum 24 jam (86.400 detik) agar perbaikan lama sah tetap tercatat utuh 100%
-    const MAX_ALLOWED_SEC = 24 * 3600;
-    const finalDuration = rawDuration > MAX_ALLOWED_SEC ? MAX_ALLOWED_SEC : (rawDuration < 1 ? 1 : rawDuration);
-
-    const startTimeStr = new Date(startTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const newUnclassifiedEvent: any = {
-      id: Date.now().toString(),
-      durasiDetik: finalDuration,
-      pcsKe: "Semua",
-      dikerjakanOleh: currentOperatorName || "Operator",
-      problems: [],
-      triggerSource: finalSource,
-      stopStartTime: startTimeStr,
-      isResolved: false,
-    };
-
-    const currentList = watch("downtimeEvents") || fields || [];
-    const newIndex = currentList.length;
-    const updatedList = [...currentList, newUnclassifiedEvent];
-    append(newUnclassifiedEvent);
-    updateFormDowntimeEvents(updatedList);
-
-    const pendingItems = updatedList.filter(
-      (evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0))
-    );
-
-    if (isEsp32) {
-      if (pendingItems.length === 1) {
-        // Jika baru 1 event antrean dari ESP32, langsung buka modal klasifikasi
-        handleOpenClassifyModal(newIndex, newUnclassifiedEvent);
-      } else {
-        // Jika ada lebih dari 1 event antrean beruntun, tutup modal dan alihkan semua ke antrean
-        handleCloseModal();
-      }
-    } else {
-      handleOpenClassifyModal(newIndex, newUnclassifiedEvent);
-    }
-  };
 
   const handleSaveNonDefectStop = () => {
     const pcsKeStr = dikerjakanOleh === "Operator"

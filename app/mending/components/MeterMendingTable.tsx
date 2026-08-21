@@ -1,11 +1,12 @@
 import React from "react";
-import { CheckCircle, Eye, Trash2 } from "lucide-react";
+import { CheckCircle, Eye, Trash2, Edit3 } from "lucide-react";
 
 interface MeterMendingTableProps {
   displayItems: any[];
   selections: Record<string, string>;
   onSelectGrade: (id: string, grade: string) => void;
   onOpenDetail: (headerId: string) => void;
+  onOpenEditDetail?: (detail: any) => void;
   onDeleteDetail: (val: any) => void;
 }
 
@@ -14,6 +15,7 @@ export default function MeterMendingTable({
   selections,
   onSelectGrade,
   onOpenDetail,
+  onOpenEditDetail,
   onDeleteDetail,
 }: MeterMendingTableProps) {
   return (
@@ -127,6 +129,9 @@ export default function MeterMendingTable({
                       <div className="text-rose-600">{item.cacatDisplay}</div>
                     )}
                     {item.hasIstirahat && (!item.cacatDisplay || item.cacatDisplay === "-" || item.cacatDisplay === "ISTIRAHAT") && !item.backupOpName && "-"}
+                    {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                      <div className="text-sky-700 font-semibold text-[10px] mt-0.5">QC: {item.keterangan_qc}</div>
+                    )}
                   </>
                 )}
               </td>
@@ -135,9 +140,18 @@ export default function MeterMendingTable({
                   <span className="text-[10px] text-slate-400 font-semibold italic text-center block">Dihapus</span>
                 ) : item.isGradable ? (
                   <div className="flex items-center justify-center gap-1">
+                    {onOpenEditDetail && (
+                      <button
+                        onClick={() => onOpenEditDetail(item)}
+                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all shadow-xs cursor-pointer"
+                        title="Tambah / Ubah Keterangan & Cacat"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => onDeleteDetail({ id: item.id, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
-                      className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-sm"
+                      className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all shadow-sm cursor-pointer"
                       title="Hapus Rincian"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

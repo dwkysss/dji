@@ -28,6 +28,7 @@ import {
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import MendingModal from "@/components/forms/MendingModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
+import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import HeaderSummaryCard from "@/components/forms/HeaderSummaryCard";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
@@ -294,6 +295,14 @@ export default function MendingPage() {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailData, setDetailData] = useState<any | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
+
+  const [selectedDetailForEdit, setSelectedDetailForEdit] = useState<any | null>(null);
+  const [isEditDetailModalOpen, setIsEditDetailModalOpen] = useState(false);
+
+  const handleOpenEditDetail = (detail: any) => {
+    setSelectedDetailForEdit(detail);
+    setIsEditDetailModalOpen(true);
+  };
 
   // Tambah Panel Modal State
   const [insertPanelMode, setInsertPanelMode] = useState<"insert" | "append" | null>(null);
@@ -2039,6 +2048,7 @@ export default function MendingPage() {
                     selections={selections}
                     onSelectGrade={handleSelectGrade}
                     onOpenDetail={handleOpenDetail}
+                    onOpenEditDetail={handleOpenEditDetail}
                     onDeleteDetail={setDetailToDelete}
                   />
                 ) : (
@@ -2047,6 +2057,7 @@ export default function MendingPage() {
                     selections={selections}
                     onSelectGrade={handleSelectGrade}
                     onOpenDetail={handleOpenDetail}
+                    onOpenEditDetail={handleOpenEditDetail}
                     onDeleteDetail={setDetailToDelete}
                     totalGradable={totalGradable}
                     totalA={totalA}
@@ -2116,6 +2127,35 @@ export default function MendingPage() {
               }
               setActiveMendingPcs(null);
               handleSearch(searchTanggal);
+            }}
+          />
+        )}
+
+        {isEditDetailModalOpen && selectedDetailForEdit && (
+          <QCEditDetailModal
+            isOpen={isEditDetailModalOpen}
+            onClose={() => {
+              setIsEditDetailModalOpen(false);
+              setSelectedDetailForEdit(null);
+            }}
+            detail={selectedDetailForEdit}
+            problemCategories={problemCategories}
+            problemDetailsMap={problemDetailsMap}
+            allBatchDetails={detailsToDisplay}
+            currentGrade={selections[selectedDetailForEdit.id] === "BS" ? 4 : (selections[selectedDetailForEdit.id] === "B" ? 3 : 1)}
+            onSuccess={async (detailId, newGrade) => {
+              if (newGrade !== undefined) {
+                const mendingGradeStr = newGrade === 4 ? "BS" : (newGrade === 3 ? "B" : "A");
+                setSelections((prev) => ({ ...prev, [detailId]: mendingGradeStr }));
+              }
+              if (activeMendingPcs) {
+                await refreshActiveMendingDetails(
+                  activeMendingPcs.nomor_mc,
+                  activeMendingPcs.design_id,
+                  activeMendingPcs.potongan_ke,
+                  activeMendingPcs.pcs_index
+                );
+              }
             }}
           />
         )}

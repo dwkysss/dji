@@ -1,11 +1,12 @@
 import React from "react";
-import { CheckCircle, Eye, Trash2 } from "lucide-react";
+import { CheckCircle, Eye, Trash2, Edit3 } from "lucide-react";
 
 interface PanelMendingTableProps {
   displayItems: any[];
   selections: Record<string, string>;
   onSelectGrade: (id: string, grade: string) => void;
   onOpenDetail: (headerId: string) => void;
+  onOpenEditDetail?: (detail: any) => void;
   onDeleteDetail: (val: any) => void;
   totalGradable: number;
   totalA: number;
@@ -18,6 +19,7 @@ export default function PanelMendingTable({
   selections,
   onSelectGrade,
   onOpenDetail,
+  onOpenEditDetail,
   onDeleteDetail,
   totalGradable,
   totalA,
@@ -34,7 +36,7 @@ export default function PanelMendingTable({
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-24 text-center border-r border-slate-100" rowSpan={2}>Operator</th>
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-14 text-center border-r border-slate-100" rowSpan={2}>KET ✓/X</th>
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 min-w-[160px] w-full text-center border-r border-slate-100" rowSpan={2}>KETERANGAN CACAT</th>
-          <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100" rowSpan={2}>AKSI</th>
+          <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-16 text-center border-r border-slate-100" rowSpan={2}>AKSI</th>
           <th className="px-1 py-1 border-b border-slate-200 font-extrabold text-slate-600 text-center border-r border-slate-100" colSpan={3}>MENDING</th>
         </tr>
         <tr className="bg-slate-50">
@@ -120,11 +122,19 @@ export default function PanelMendingTable({
                     ) : (
                       !item.backupOpName && <span className="text-slate-400">-</span>
                     )}
+                    {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                      <div className="text-sky-700 font-semibold text-[10px] mt-0.5">QC: {item.keterangan_qc}</div>
+                    )}
                   </>
                 ) : (
-                  <div className={item.cacatDisplay && item.cacatDisplay !== "-" ? "text-rose-600" : "text-slate-400"}>
-                    {item.cacatDisplay || "-"}
-                  </div>
+                  <>
+                    <div className={item.cacatDisplay && item.cacatDisplay !== "-" ? "text-rose-600" : "text-slate-400"}>
+                      {item.cacatDisplay || "-"}
+                    </div>
+                    {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                      <div className="text-sky-700 font-semibold text-[10px] mt-0.5">QC: {item.keterangan_qc}</div>
+                    )}
+                  </>
                 )}
               </td>
               <td className="px-2 py-1 border-r border-slate-100 border-b border-slate-100">
@@ -132,9 +142,18 @@ export default function PanelMendingTable({
                   <span className="text-[10px] text-slate-400 font-semibold italic text-center block">Dihapus</span>
                 ) : item.isGradable ? (
                   <div className="flex items-center justify-center gap-1">
+                    {onOpenEditDetail && (
+                      <button
+                        onClick={() => onOpenEditDetail(item)}
+                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all shadow-xs cursor-pointer"
+                        title="Tambah / Ubah Keterangan & Cacat"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => onDeleteDetail({ id: item.id, panelNo: cleanPanelNo, name: `${item.kategori_masalah || 'Masalah'} - ${item.detail_masalah || 'Tidak ada detail'}` })}
-                      className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-sm cursor-pointer"
+                      className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all shadow-sm cursor-pointer"
                       title="Hapus Rincian"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
