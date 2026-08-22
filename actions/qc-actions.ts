@@ -1878,31 +1878,30 @@ export async function bulkUpdateQCDetails(params: BulkQCDetailParams) {
         if (params.detailMasalah) {
           const newDets = String(params.detailMasalah).split(/[,|]/).map((s: string) => s.trim()).filter(Boolean);
           newDets.forEach((d) => {
-            if (!mergedDetails.includes(d)) mergedDetails.push(d);
+            const tagged = d.includes("[QC]") ? d : `[QC] ${d}`;
+            if (!mergedDetails.includes(tagged)) mergedDetails.push(tagged);
           });
         }
 
         // Merge keterangan cacat
         if (params.keteranganCacat) {
-          const newKet = params.keteranganCacat.trim();
+          const newKet = params.keteranganCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
           if (newKet && !mergedKetCacat.includes(newKet)) {
             mergedKetCacat = mergedKetCacat ? `${mergedKetCacat}, ${newKet}` : newKet;
           }
         }
-        if (!mergedKetCacat.includes("[TAMBAHAN QC]")) {
-          mergedKetCacat = mergedKetCacat ? `${mergedKetCacat} [TAMBAHAN QC]` : "[TAMBAHAN QC]";
-        }
 
-        // Prepare new defect rows to insert for this detail
+        // Prepare new defect rows to insert for this detail with [QC] tag
         if (params.defects && params.defects.length > 0) {
           params.defects.forEach((d) => {
+            const rawDetail = d.detail ? (d.detail.includes("[QC]") ? d.detail : `[QC] ${d.detail}`) : "[QC]";
             const expandedBloks = expandBlockNumbers(d.blok);
             if (expandedBloks.length > 0) {
               expandedBloks.forEach((b) => {
                 newDefectRowsToInsert.push({
                   production_detail_id: detail.id,
                   kategori: d.kategori,
-                  detail: d.detail || null,
+                  detail: rawDetail,
                   meter: d.meter || null,
                   blok: b,
                 });
@@ -1911,7 +1910,7 @@ export async function bulkUpdateQCDetails(params: BulkQCDetailParams) {
               newDefectRowsToInsert.push({
                 production_detail_id: detail.id,
                 kategori: d.kategori,
-                detail: d.detail || null,
+                detail: rawDetail,
                 meter: d.meter || null,
                 blok: d.blok || null,
               });

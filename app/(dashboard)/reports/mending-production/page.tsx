@@ -1463,19 +1463,19 @@ export default function MendingProductionReportPage() {
                       </div>
 
                       {/* Items Table */}
-                      <table className="w-full text-left text-[11px] border-collapse flex-1">
+                      <table className="w-full text-left text-xs border-collapse flex-1">
                         <thead>
-                          <tr className="bg-slate-100 border-b border-slate-200">
-                            <th className="px-2 py-2 font-extrabold text-slate-600 w-10 border-r border-slate-200">NO</th>
-                            <th className="px-2 py-2 font-extrabold text-slate-600 w-20 border-r border-slate-200">TGL</th>
-                            <th className="px-1.5 py-2 font-extrabold text-slate-600 text-center w-12 border-r border-slate-200">Group</th>
-                            <th className="px-2 py-2 font-extrabold text-slate-600 w-24 border-r border-slate-200">Operator</th>
-                            <th className="px-2 py-2 font-extrabold text-slate-600 text-center w-16 border-r border-slate-200">✓/X</th>
-                            {isMeter && <th className="px-2 py-2 font-extrabold text-slate-600 w-16 border-r border-slate-200 text-center">Meter</th>}
-                            <th className="px-2 py-2 font-extrabold text-slate-600 border-r border-slate-200">KETERANGAN CACAT</th>
-                            <th className="px-1 py-2 font-extrabold text-slate-600 text-center w-8 border-r border-slate-200">A</th>
-                            <th className="px-1 py-2 font-extrabold text-slate-600 text-center w-8 border-r border-slate-200">B</th>
-                            <th className="px-1 py-2 font-extrabold text-slate-600 text-center w-8">BS</th>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="sticky left-0 z-10 bg-slate-50 px-2 py-2 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">NO</th>
+                            <th className="px-2 py-2 font-extrabold text-slate-600 w-20 text-center whitespace-nowrap border-r border-slate-100">TGL</th>
+                            <th className="px-1.5 py-2 font-extrabold text-slate-600 text-center w-12 border-r border-slate-100">Group</th>
+                            <th className="px-2 py-2 font-extrabold text-slate-600 w-24 text-center border-r border-slate-100">Operator</th>
+                            <th className="px-2 py-2 font-extrabold text-slate-600 text-center w-14 border-r border-slate-100">✓/X</th>
+                            {isMeter && <th className="px-2 py-2 font-extrabold text-slate-600 w-16 border-r border-slate-100 text-center">Meter</th>}
+                            <th className="px-2 py-2 font-extrabold text-slate-600 border-r border-slate-100 min-w-[160px]">KETERANGAN CACAT</th>
+                            <th className="px-1 py-2 font-extrabold text-emerald-600 text-center w-10 border-r border-slate-100">A</th>
+                            <th className="px-1 py-2 font-extrabold text-amber-600 text-center w-10 border-r border-slate-100">B</th>
+                            <th className="px-1 py-2 font-extrabold text-rose-600 text-center w-10">BS</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -1484,26 +1484,26 @@ export default function MendingProductionReportPage() {
                               if (item.isSummaryRow) {
                                 return (
                                   <tr key={item.id || itemIndex} className="bg-slate-100/70 border-t border-b border-slate-200 font-bold text-slate-700">
-                                    <td colSpan={4} className="px-3 py-2 text-right border-r border-slate-200">
+                                    <td colSpan={4} className="px-3 py-2 text-right border-r border-slate-100 font-extrabold">
                                       Total Produksi {item.operatorName}:
                                     </td>
-                                    <td className="px-2 py-2 text-center font-black border-r border-slate-200 whitespace-nowrap">
+                                    <td className="px-2 py-2 text-center font-black border-r border-slate-100 whitespace-nowrap">
                                       {item.totalCount} {unit}
                                     </td>
-                                    <td colSpan={4}></td>
+                                    <td colSpan={isMeter ? 5 : 4} className="bg-slate-100/70"></td>
                                   </tr>
                                 );
                               }
                               if (item.isTotalRow) {
                                 return (
                                   <tr key={item.id || itemIndex} className="bg-slate-100/70 border-t border-b border-slate-200 font-bold text-slate-700">
-                                    <td colSpan={isMeter ? 5 : 4} className="px-3 py-2 text-right border-r border-slate-200">
+                                    <td colSpan={isMeter ? 5 : 4} className="px-3 py-2 text-right border-r border-slate-100 font-extrabold">
                                       {item.totalLabel}
                                     </td>
-                                    <td className="px-2 py-2 text-center font-black border-r border-slate-200 whitespace-nowrap">
+                                    <td className="px-2 py-2 text-center font-black border-r border-slate-100 whitespace-nowrap">
                                       {item.totalMeter}
                                     </td>
-                                    <td colSpan={4}></td>
+                                    <td colSpan={4} className="bg-slate-100/70"></td>
                                   </tr>
                                 );
                               }
@@ -1525,6 +1525,43 @@ export default function MendingProductionReportPage() {
                                 const pNoStr = String(srcDet?.header?.panel_no || srcDet?.panel_no || "").trim().toUpperCase();
                                 if (pNoStr.includes("AWAL")) return ["Sisa Awal Potongan"];
                                 if (pNoStr.includes("AKHIR")) return ["Sisa Akhir Potongan"];
+
+                                // 1. Prioritize production_defects if available
+                                if (srcDet?.production_defects && Array.isArray(srcDet.production_defects) && srcDet.production_defects.length > 0) {
+                                  const groupedMap = new Map<string, Set<string>>();
+                                  const orderList: string[] = [];
+
+                                  srcDet.production_defects.forEach((d: any) => {
+                                    if ((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT")) return;
+                                    const k = d.kategori || "";
+                                    const detStr = d.detail || "";
+                                    const key = k && detStr ? `${k} - ${detStr}` : (k || detStr);
+                                    if (!key) return;
+
+                                    if (!groupedMap.has(key)) {
+                                      groupedMap.set(key, new Set<string>());
+                                      orderList.push(key);
+                                    }
+
+                                    if (d.blok) {
+                                      const cleanB = String(d.blok).replace(/blok\s*/gi, "").trim();
+                                      if (cleanB) {
+                                        cleanB.split(",").forEach((bStr: string) => {
+                                          const trimmed = bStr.trim();
+                                          if (trimmed) groupedMap.get(key)!.add(trimmed);
+                                        });
+                                      }
+                                    }
+                                  });
+
+                                  return orderList.map((key) => {
+                                    const blocks = Array.from(groupedMap.get(key) || []);
+                                    if (blocks.length > 0) {
+                                      return `${key} (Blok ${blocks.join(", ")})`;
+                                    }
+                                    return key;
+                                  });
+                                }
 
                                 const lines: string[] = [];
                                 const katsRaw = srcDet?.kategori_masalah;
@@ -1604,7 +1641,6 @@ export default function MendingProductionReportPage() {
                                 }
 
                                 let ketCacat = srcDet?.keterangan_cacat || "";
-                                const hasTambahanQC = ketCacat.includes("[TAMBAHAN QC]");
                                 ketCacat = ketCacat.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
                                 ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
                                 ketCacat = ketCacat.replace(/\(Backup:\s*[^)]+\)/gi, "").trim();
@@ -1631,11 +1667,6 @@ export default function MendingProductionReportPage() {
                                   }
                                 }
 
-                                if (hasTambahanQC) {
-                                  if (lines.length === 0) lines.push("[TAMBAHAN QC]");
-                                  else for (let i = 0; i < lines.length; i++) lines[i] += " [TAMBAHAN QC]";
-                                }
-
                                 return lines.filter(l => l && !l.toUpperCase().includes("ISTIRAHAT"));
                               };
 
@@ -1651,14 +1682,51 @@ export default function MendingProductionReportPage() {
                                 cacatLines = buildCacatLines(det);
                               }
 
-                              let cacat = cacatLines.join("\n") || "-";
                               const isGradable = isMeterRow ? item.isGradable : true;
                               const isBsRow = String(rowNo).toUpperCase().includes("AWAL") || String(rowNo).toUpperCase().includes("AKHIR") || String(rowNo).toUpperCase().includes("BS") || det.jml_hasil_produksi === 0 || det.status_inspeksi === "BS";
-                              const hasError = isMeterRow ? item.hasErrorDetail : (!!det.kategori_masalah || !!det.detail_masalah || isBsRow);
                               
+                              const isPanelInsertedByQc = !!det.is_inserted_qc || !!det.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(rowNo || "").includes("QC"));
+                              const hasTambahanQC = !!det.detail_masalah?.includes("[QC]") || (det.production_defects && det.production_defects.some((d: any) => d.detail?.includes("[QC]")));
+                              const hasTambahanMnd = !!det.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
+                              const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!det.keterangan_qc && det.keterangan_qc !== "-");
+
+                              const hasRealError = isMeterRow ? item.hasErrorDetail : (
+                                isBsRow || hasTambahanQC || (det.production_defects && det.production_defects.some((d: any) => {
+                                  const k = (d.kategori || "").toUpperCase().trim();
+                                  const dt = (d.detail || "").toUpperCase().trim();
+                                  if (k.includes("ISTIRAHAT") || dt.includes("ISTIRAHAT") || dt.includes("GAGAL CACAT") || k === "G") return false;
+                                  return true;
+                                })) || (!!det.kategori_masalah && det.kategori_masalah !== "G" && !det.kategori_masalah.includes("ISTIRAHAT"))
+                              );
+
+                              const rowBgClass = isRowQcModified
+                                ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+                                : item.hasIstirahat
+                                ? "bg-amber-50/30 hover:bg-amber-50/50"
+                                : "hover:bg-slate-50";
+
+                              const stickyCellBgClass = isRowQcModified
+                                ? "bg-sky-100/70"
+                                : item.hasIstirahat
+                                ? "bg-amber-100"
+                                : "bg-white";
+
+                              const parsedCacatItems = cacatLines
+                                .map((line: string) => {
+                                  const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]");
+                                  const clean = line
+                                    .replace(/\[QC\]/gi, "")
+                                    .replace(/\[TAMBAHAN QC\]/gi, "")
+                                    .replace(/\[TAMBAHAN MENDING\]/gi, "")
+                                    .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                                    .trim();
+                                  return { isLineQc, text: clean };
+                                })
+                                .filter((c: any) => c.text.length > 0 && c.text !== "-");
+
                               return (
-                                <tr key={item.id || itemIndex} className={`${item.hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
-                                  <td className={`px-2 py-1 font-bold text-slate-800 ${item.hasIstirahat ? "bg-amber-100" : ""}`}>
+                                <tr key={item.id || itemIndex} className={`${rowBgClass} transition-colors`}>
+                                  <td className={`sticky left-0 z-10 px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${stickyCellBgClass}`}>
                                     {isMeterRow ? (
                                       item.displayNo || "-"
                                     ) : String(rowNo).toUpperCase().includes("AWAL") ? (
@@ -1666,52 +1734,77 @@ export default function MendingProductionReportPage() {
                                     ) : String(rowNo).toUpperCase().includes("AKHIR") ? (
                                       <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
                                     ) : (
-                                      rowNo || "-"
+                                      <div className="flex flex-col items-center justify-center">
+                                        <span>{String(rowNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
+                                        {isBsRow ? (
+                                          <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                                        ) : isPanelInsertedByQc || hasTambahanQC ? (
+                                          <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                                        ) : hasTambahanMnd ? (
+                                          <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
+                                        ) : null}
+                                      </div>
                                     )}
                                   </td>
-                                  <td className="px-2 py-1 text-slate-600 whitespace-nowrap">{tgl}</td>
-                                  <td className="px-1 py-1 font-medium text-slate-700 text-center">{grpStr}</td>
-                                  <td className={`px-1 py-1 leading-tight ${(!item.displayOpr && item.hasIstirahat) || item.displayOpr === "Istirahat" ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
+                                  <td className="px-2 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100 border-b border-slate-100">{tgl}</td>
+                                  <td className="px-1.5 py-1 font-medium text-slate-700 text-center border-r border-slate-100 border-b border-slate-100">{grpStr}</td>
+                                  <td className={`px-2 py-1 leading-tight border-r border-slate-100 border-b border-slate-100 ${(!item.displayOpr && item.hasIstirahat) || item.displayOpr === "Istirahat" ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
                                     {oprStr}
                                   </td>
                                   
-                                  <td className="px-2 py-1 text-center font-bold text-sm">
-                                    {!isGradable ? "" : (hasError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
+                                  <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100 border-b border-slate-100">
+                                    {!isGradable ? "" : (hasRealError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
                                   </td>
 
                                   {isMeter && (
-                                    <td className="px-2 py-1 font-mono text-slate-700 whitespace-nowrap text-[11px] text-center border-r border-slate-100">
+                                    <td className="px-2 py-1 font-mono text-slate-700 whitespace-nowrap text-[11px] text-center border-r border-slate-100 border-b border-slate-100">
                                       {isMeterRow ? (item.meterDisplay !== "-" ? item.meterDisplay : "") : ""}
                                     </td>
                                   )}
                                   
-                                  <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-wrap leading-tight min-w-[160px]">
-                                    {isMeterRow ? (
-                                      <>
-                                        {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
-                                        <span className={
-                                          cacat === "START" || cacat === "FINISH" || cacat === "ISTIRAHAT"
-                                            ? "text-slate-400 font-semibold italic"
-                                            : "text-rose-600"
-                                        }>{cacat || "-"}</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
-                                        {item.hasIstirahat && item.backupOpName && (cacat === "-" || cacat === "" || cacat === "ISTIRAHAT") ? null : (
-                                          <span className={cacat === "-" ? "text-slate-400" : "text-rose-600"}>{cacat || "-"}</span>
-                                        )}
-                                      </>
+                                  <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-wrap leading-tight min-w-[160px] border-r border-slate-100 border-b border-slate-100">
+                                    {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
+                                    {(() => {
+                                      if (parsedCacatItems.length === 0) {
+                                        if (item.backupOpName && item.hasIstirahat) return null;
+                                        return <span className="text-slate-400">-</span>;
+                                      }
+                                      return (
+                                        <div className="flex flex-col gap-0.5">
+                                          {parsedCacatItems.map((cItem: any, lIdx: number) => {
+                                            const numPrefix = parsedCacatItems.length > 1 ? `${lIdx + 1}. ` : "";
+                                            return (
+                                              <div
+                                                key={lIdx}
+                                                className={
+                                                  cItem.isLineQc
+                                                    ? "text-[#0070bc] font-semibold"
+                                                    : cItem.text === "START" || cItem.text === "FINISH" || cItem.text === "ISTIRAHAT"
+                                                    ? "text-slate-400 font-semibold italic"
+                                                    : "text-rose-600 font-medium"
+                                                }
+                                              >
+                                                {numPrefix}{cItem.text}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    })()}
+                                    {det.keterangan_qc && det.keterangan_qc !== "-" && (
+                                      <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                                        <span className="text-sky-600 font-black">QC:</span> {det.keterangan_qc}
+                                      </div>
                                     )}
                                   </td>
 
-                                  <td className="px-1 py-1 text-center">
+                                  <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100">
                                     {isGradable && grade === "A" && <div className="mx-auto w-4 h-4 rounded bg-emerald-100 text-emerald-700 font-black flex items-center justify-center text-[10px]">A</div>}
                                   </td>
-                                  <td className="px-1 py-1 text-center">
+                                  <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100">
                                     {isGradable && grade === "B" && <div className="mx-auto w-4 h-4 rounded bg-amber-100 text-amber-700 font-black flex items-center justify-center text-[10px]">B</div>}
                                   </td>
-                                  <td className="px-1 py-1 text-center">
+                                  <td className="px-1 py-1 text-center border-b border-slate-100">
                                     {isGradable && grade === "BS" && <div className="mx-auto w-4 h-4 rounded bg-rose-100 text-rose-700 font-black flex items-center justify-center text-[10px]">BS</div>}
                                   </td>
                                 </tr>

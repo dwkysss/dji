@@ -1383,10 +1383,30 @@ function MendingDetailContent() {
                       if (masalahLines.length === 0) masalahLines.push("-");
 
                       const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+                      const isPanelInsertedByQc = !!detail.is_inserted_qc || !!detail.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!itemHeader?.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(itemHeader.panel_no || "").includes("QC"));
+                      const hasTambahanQC = !!detail.detail_masalah?.includes("[QC]") || (detail.production_defects && detail.production_defects.some((d: any) => d.detail?.includes("[QC]")));
+                      const hasTambahanMnd = !!detail.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!itemHeader?.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
+                      const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!detail.keterangan_qc && detail.keterangan_qc !== "-");
+
+                      const rowBgClass = isDeleted
+                        ? "bg-slate-100/60 opacity-80"
+                        : isRowQcModified
+                        ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+                        : item.hasIstirahat
+                        ? "bg-amber-50/30 hover:bg-amber-50/50"
+                        : "hover:bg-slate-50";
+
+                      const stickyCellBgClass = isDeleted
+                        ? "bg-slate-100"
+                        : isRowQcModified
+                        ? "bg-sky-100/70"
+                        : item.hasIstirahat
+                        ? "bg-amber-100"
+                        : "bg-white";
 
                       return (
-                        <tr key={item.id || idx} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : item.hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors group`}>
-                          <td className={`px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 ${isDeleted ? "bg-slate-100" : item.hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
+                        <tr key={item.id || idx} className={`${rowBgClass} transition-colors group`}>
+                          <td className={`px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 ${stickyCellBgClass}`}>
                             {isBsAwal ? (
                               <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                             ) : isBsAkhir ? (
@@ -1400,6 +1420,10 @@ function MendingDetailContent() {
                                   </span>
                                 ) : (String(itemHeader.panel_no).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS") ? (
                                   <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                                ) : isPanelInsertedByQc || hasTambahanQC ? (
+                                  <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                                ) : hasTambahanMnd ? (
+                                  <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                                 ) : null}
                               </div>
                             )}
@@ -1422,14 +1446,9 @@ function MendingDetailContent() {
                               <span className="text-slate-300">-</span>
                             )}
                           </td>
-                          <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100 ${
-                            isDeleted ? "text-rose-600 font-semibold" :
-                            item.hasIstirahat || (masalahLines.length === 1 && (masalahLines[0] === "ISTIRAHAT" || masalahLines[0] === "FINISH" || masalahLines[0] === "-"))
-                              ? "text-slate-500"
-                              : "text-rose-600"
-                          }`}>
+                          <td className="px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100">
                             {isDeleted ? (
-                              <span>[Panel Dihapus]</span>
+                              <span className="text-rose-600 font-semibold">[Panel Dihapus]</span>
                             ) : (
                               <div className="flex flex-col gap-0.5">
                                 {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
@@ -1437,11 +1456,39 @@ function MendingDetailContent() {
                                   if (item.hasIstirahat && line === "ISTIRAHAT") return null;
                                   if (item.hasIstirahat && item.backupOpName && line === "-") return null;
                                   if (item.hasIstirahat && !item.backupOpName && masalahLines.length === 1 && line === "-") {
-                                      return <span key={i} title={line}>-</span>;
+                                      return <span key={i} title={line} className="text-slate-400">-</span>;
                                   }
+                                  const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]");
+                                  const clean = line
+                                    .replace(/\[QC\]/gi, "")
+                                    .replace(/\[TAMBAHAN QC\]/gi, "")
+                                    .replace(/\[TAMBAHAN MENDING\]/gi, "")
+                                    .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                                    .trim();
+
+                                  if (line.startsWith("QC: ")) {
+                                    return (
+                                      <div key={i} className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                                        <span className="text-sky-600 font-black">QC:</span> {line.replace(/^QC:\s*/, "")}
+                                      </div>
+                                    );
+                                  }
+
                                   return (
-                                    <span key={i} title={line} className={item.hasIstirahat && line !== "-" ? "text-rose-600" : ""}>
-                                      {line}
+                                    <span
+                                      key={i}
+                                      title={line}
+                                      className={
+                                        isLineQc
+                                          ? "text-[#0070bc] font-semibold"
+                                          : item.hasIstirahat && line !== "-"
+                                          ? "text-rose-600 font-medium"
+                                          : line !== "-"
+                                          ? "text-rose-600 font-medium"
+                                          : "text-slate-400"
+                                      }
+                                    >
+                                      {clean}
                                     </span>
                                   );
                                 })}

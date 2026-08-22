@@ -896,7 +896,7 @@ export default function MendingPage() {
         const isSisa = isBsAwal || isBsAkhir;
 
         let ketCacat = displayKeterangan;
-        const hasTambahanQC = ketCacat.includes("[TAMBAHAN QC]");
+        const hasRawTambahanQCTag = ketCacat.includes("[TAMBAHAN QC]");
         ketCacat = ketCacat.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
         ketCacat = ketCacat.replace(/\(?Backup:\s*[^)]+\)?/gi, "").trim();
         ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
@@ -1011,15 +1011,10 @@ export default function MendingPage() {
           }
         }
 
-        if (hasTambahanQC) {
-          if (cacatLines.length === 0) {
-            cacatLines.push("[TAMBAHAN QC]");
-          } else {
-            for (let i = 0; i < cacatLines.length; i++) {
-              cacatLines[i] = cacatLines[i] + " [TAMBAHAN QC]";
-            }
-          }
-        }
+        const isPanelInsertedByQc = !!item.is_inserted_qc || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(item.production_headers?.panel_no || "").includes("QC"));
+        const hasTambahanQC = !!item.detail_masalah?.includes("[QC]") || (item.production_defects && item.production_defects.some((d: any) => d.detail?.includes("[QC]")));
+        const hasTambahanMnd = !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
+
         cacatLines = formatDefectLinesWithNumbering(cacatLines);
 
         const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
@@ -1041,6 +1036,9 @@ export default function MendingPage() {
           oprStr,
           cacatText,
           backupOpName: extractedBackupOp,
+          isPanelInsertedByQc,
+          hasTambahanQC,
+          hasTambahanMnd,
         };
       });
 
@@ -1053,7 +1051,7 @@ export default function MendingPage() {
       let lastOpr = "";
 
       processed.forEach((p, i) => {
-        const { item, isIstirahat, hasIstirahat, isFinish, isStart, isGradable, isDeleted, opr, grp, tgl, operatorStr, oprStr, cacatText } = p;
+        const { item, isIstirahat, hasIstirahat, isFinish, isStart, isGradable, isDeleted, opr, grp, tgl, operatorStr, oprStr, cacatText, isPanelInsertedByQc, hasTambahanQC, hasTambahanMnd } = p;
 
         const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || selections[item.id] === "BS";
         if (isGradable && !isBS && !isDeleted) {
@@ -1115,7 +1113,7 @@ export default function MendingPage() {
             hasRealDefects = true;
           }
         }
-        if ((item.keterangan_cacat || "").includes("[TAMBAHAN QC]")) hasRealDefects = true;
+        if (hasTambahanQC) hasRealDefects = true;
 
         const isGagalCacatOnly = (
           (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
@@ -1146,7 +1144,10 @@ export default function MendingPage() {
           oprStr,
           grpStr: grp,
           tglStr: tgl,
-          hasErrorDetail: !!item.kategori_masalah || !!item.detail_masalah
+          hasErrorDetail: !!item.kategori_masalah || !!item.detail_masalah,
+          isPanelInsertedByQc,
+          hasTambahanQC,
+          hasTambahanMnd,
         });
 
         let nextOprStr = null;

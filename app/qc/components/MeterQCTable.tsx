@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Trash2, CheckCircle, X, Edit3 } from "lucide-react";
+import { Trash2, CheckCircle, X, Edit3, Plus } from "lucide-react";
 import { PROBLEM_DETAILS } from "../page";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
@@ -9,6 +9,7 @@ export default function MeterQCTable({
   detailsToDisplay,
   handleSelectGrade,
   handleOpenEditQC,
+  handleOpenAddQC,
   selections,
   setDetailToDelete,
   selectedIds = [],
@@ -18,6 +19,7 @@ export default function MeterQCTable({
   detailsToDisplay: any[];
   handleSelectGrade: (id: string, grade: number) => void;
   handleOpenEditQC?: (detail: any) => void;
+  handleOpenAddQC?: (detail: any) => void;
   selections: Record<string, number>;
   setDetailToDelete: (val: any) => void;
   selectedIds?: string[];
@@ -611,10 +613,21 @@ export default function MeterQCTable({
                 <td className="px-1 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100">
                   {!item.isGradable ? "" : (item.hasRealDefects || item.hasTambahanQC ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
                 </td>
-                <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${defectTextColor}`}>
-                  {item.backupOpName && item.hasIstirahat && <div className="font-bold text-slate-700">{item.backupOpName}</div>}
-                  {!item.hasIstirahat && (item.cacatDisplay || "-")}
-                  {item.hasIstirahat && !item.backupOpName && "-"}
+                <td className="px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100">
+                  {item.backupOpName && item.hasIstirahat && <div className="font-bold text-slate-700 mb-0.5">{item.backupOpName}</div>}
+                  {item.cacatDisplay && item.cacatDisplay !== "-" ? (
+                    <div className={
+                      item.cacatDisplay.includes("[QC]") || item.hasTambahanQC
+                        ? "text-sky-600 font-semibold"
+                        : (!item.isGradable || item.isGagalCacatOnly)
+                        ? "text-slate-500"
+                        : "text-rose-600 font-medium"
+                    }>
+                      {item.cacatDisplay.replace(/\[QC\]/gi, "").trim()}
+                    </div>
+                  ) : (
+                    !item.backupOpName && <span className="text-slate-400">-</span>
+                  )}
                   {item.keterangan_qc && item.keterangan_qc !== "-" && (
                     <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
                       <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
@@ -651,22 +664,27 @@ export default function MeterQCTable({
                 <td className="px-1 py-1.5 text-center w-14">
                   {item.isGradable && item.id && (
                     <div className="flex items-center justify-center gap-1">
+                      {handleOpenAddQC && (
+                        <button
+                          onClick={() => handleOpenAddQC(item)}
+                          className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-xs cursor-pointer"
+                          title="Tambah Temuan / Catatan QC"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {handleOpenEditQC && (
                         <button
                           onClick={() => handleOpenEditQC(item)}
-                          className={`p-1.5 rounded-md border transition-all shadow-xs cursor-pointer ${
-                            selectedIds.length > 1 && selectedIds.includes(item.id)
-                              ? "bg-sky-50 border-sky-300 text-[#0070bc]"
-                              : "bg-white border-slate-200 text-slate-500 hover:text-[#0070bc] hover:border-sky-300 hover:bg-sky-50"
-                          }`}
-                          title={selectedIds.length > 1 ? `Beri Keterangan & Cacat ke ${selectedIds.length} Titik Meter Terpilih Bersama` : "Tambah / Ubah Keterangan & Cacat QC"}
+                          className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-xs cursor-pointer"
+                          title="Koreksi Data Bawaan"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                       )}
                       <button
                         onClick={() => setDetailToDelete({ id: item.id, name: `${item.hasTambahanQC ? 'Tambahan QC' : (item.kategori_masalah || 'Masalah')} - ${item.detail_masalah || 'Tidak ada detail'}` })}
-                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition-all shadow-xs cursor-pointer"
+                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all shadow-xs cursor-pointer"
                         title="Hapus Rincian"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

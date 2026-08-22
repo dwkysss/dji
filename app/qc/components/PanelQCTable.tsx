@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Eye, Trash2, CheckCircle, X, Edit3 } from "lucide-react";
+import { Eye, Trash2, CheckCircle, X, Edit3, Plus } from "lucide-react";
 import { PROBLEM_DETAILS } from "../page";
 
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
@@ -11,6 +11,7 @@ export default function PanelQCTable({
   handleSelectGrade,
   handleOpenDetail,
   handleOpenEditQC,
+  handleOpenAddQC,
   selections,
   setDetailToDelete,
   selectedIds = [],
@@ -21,6 +22,7 @@ export default function PanelQCTable({
   handleSelectGrade: (id: string, grade: number) => void;
   handleOpenDetail: (headerId: string) => void;
   handleOpenEditQC?: (detail: any) => void;
+  handleOpenAddQC?: (detail: any) => void;
   selections: Record<string, number>;
   setDetailToDelete: (val: any) => void;
   selectedIds?: string[];
@@ -464,11 +466,11 @@ export default function PanelQCTable({
                 extractedBackupOp = match[1].trim();
               }
             }
-
             const cleanPanelNo = String(rawPanelNo).replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
             const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
             const isBsPanel = isBsAwal || isBsAkhir || (String(rawPanelNo).includes("(BS)")) || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
-            const hasTambahanQC = !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN QC]") || (item.production_defects && item.production_defects.some((d: any) => d.detail?.includes("[TAMBAHAN QC]")));
+            const isPanelInsertedByQc = !!item.is_inserted_qc || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(item.production_headers?.panel_no || "").includes("QC"));
+            const hasTambahanQC = !!item.detail_masalah?.includes("[QC]") || (item.production_defects && item.production_defects.some((d: any) => d.detail?.includes("[QC]")));
             const hasTambahanMnd = !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
 
             let hasRealError = false;
@@ -502,17 +504,7 @@ export default function PanelQCTable({
             ) && !hasRealError;
 
             const isSelected = selectedIds.includes(item.id);
-            const isRowQcModified = hasTambahanQC || hasTambahanMnd || (!!item.keterangan_qc && item.keterangan_qc !== "-");
-
-            const isTambahanQcDefect = hasTambahanQC || hasTambahanMnd || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]");
-
-            const defectTextColor = isDeleted
-              ? "text-slate-400 italic"
-              : isTambahanQcDefect
-              ? "text-sky-600 font-semibold"
-              : (isIstirahatOnly || isGagalCacatOnly)
-              ? "text-slate-500"
-              : "text-rose-600";
+            const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!item.keterangan_qc && item.keterangan_qc !== "-");
 
             const rowBgClass = isSelected
               ? "bg-sky-100/90"
@@ -567,8 +559,10 @@ export default function PanelQCTable({
                         </span>
                       ) : (String(rawPanelNo).includes("(BS)") || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS") ? (
                         <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                      ) : isPanelInsertedByQc ? (
+                        <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
                       ) : hasTambahanQC ? (
-                        <span className="text-[8px] font-black bg-sky-100 text-sky-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                        <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
                       ) : hasTambahanMnd ? (
                         <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                       ) : null}
@@ -587,35 +581,74 @@ export default function PanelQCTable({
                 <td className="px-1 py-1 text-center font-bold text-sm border-r border-slate-100">
                   {isDeleted ? <span className="text-slate-400 font-bold">-</span> : hasError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
                 </td>
-                <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${defectTextColor}`}>
-                  {isDeleted ? (
-                    <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
-                  ) : hasIstirahat ? (
-                    <>
-                      {extractedBackupOp && <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>}
-                      {cacat ? (
-                        <div className={defectTextColor}>{cacat}</div>
-                      ) : (
-                        !extractedBackupOp && <span className="text-slate-400">-</span>
-                      )}
-                      {item.keterangan_qc && item.keterangan_qc !== "-" && (
-                        <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
-                          <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
+                <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100">
+                  {(() => {
+                    const parsedCacatItems = cacatLines
+                      .map((line) => {
+                        const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]");
+                        const cleanText = line
+                          .replace(/\[QC\]/gi, "")
+                          .replace(/\[TAMBAHAN QC\]/gi, "")
+                          .replace(/\[TAMBAHAN MENDING\]/gi, "")
+                          .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                          .trim();
+                        return {
+                          isLineQc,
+                          text: cleanText,
+                        };
+                      })
+                      .filter((cItem) => cItem.text.length > 0 && cItem.text !== "-");
+
+                    const renderItems = () => {
+                      if (parsedCacatItems.length === 0) {
+                        return <span className="text-slate-400">-</span>;
+                      }
+                      return (
+                        <div className="flex flex-col gap-0.5">
+                          {parsedCacatItems.map((cItem, idx) => {
+                            const numPrefix = parsedCacatItems.length > 1 ? `${idx + 1}. ` : "";
+                            return (
+                              <div
+                                key={idx}
+                                className={
+                                  cItem.isLineQc
+                                    ? "text-sky-600 font-semibold"
+                                    : (isIstirahatOnly || isGagalCacatOnly)
+                                    ? "text-slate-500 font-medium"
+                                    : "text-rose-600 font-medium"
+                                }
+                              >
+                                {numPrefix}{cItem.text}
+                              </div>
+                            );
+                          })}
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className={cacat && cacat !== "-" ? defectTextColor : "text-slate-400"}>
-                        {cacat || "-"}
-                      </div>
-                      {item.keterangan_qc && item.keterangan_qc !== "-" && (
-                        <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
-                          <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
-                        </div>
-                      )}
-                    </>
-                  )}
+                      );
+                    };
+
+                    return isDeleted ? (
+                      <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
+                    ) : hasIstirahat ? (
+                      <>
+                        {extractedBackupOp && <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>}
+                        {renderItems()}
+                        {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                          <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                            <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {renderItems()}
+                        {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                          <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                            <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </td>
                 <td className="px-1 py-1 border-r border-slate-100">
                   <div className="flex items-center justify-center gap-1">
@@ -623,15 +656,20 @@ export default function PanelQCTable({
                       <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
                     ) : (
                       <>
+                        {handleOpenAddQC && (
+                          <button
+                            onClick={() => handleOpenAddQC(item)}
+                            className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-xs cursor-pointer"
+                            title="Tambah Temuan / Catatan QC"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {handleOpenEditQC && (
                           <button
                             onClick={() => handleOpenEditQC(item)}
-                            className={`p-1.5 rounded-md border transition-all shadow-xs cursor-pointer ${
-                              selectedIds.length > 1 && selectedIds.includes(item.id)
-                                ? "bg-sky-50 border-sky-300 text-[#0070bc]"
-                                : "bg-white border-slate-200 text-slate-500 hover:text-[#0070bc] hover:border-sky-300 hover:bg-sky-50"
-                            }`}
-                            title={selectedIds.length > 1 ? `Beri Keterangan & Cacat ke ${selectedIds.length} Panel Terpilih Bersama` : "Tambah / Ubah Keterangan & Cacat QC"}
+                            className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-xs cursor-pointer"
+                            title="Koreksi Data Bawaan"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>

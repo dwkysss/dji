@@ -33,6 +33,7 @@ import {
   SlidersHorizontal,
   Bell,
   FlaskConical,
+  Tag,
 } from "lucide-react";
 
 const MACHINE_INPUT_TYPES: Record<string, string> = {
@@ -173,6 +174,12 @@ export default function Sidebar() {
           href: "/qc/surat-jalan",
           icon: ClipboardList,
           roles: ["admin"],
+        },
+        {
+          name: "Master Cacat QC",
+          href: "/qc-defects",
+          icon: Tag,
+          roles: ["admin", "manager", "inspeksi", "mending"],
         },
       ],
     },

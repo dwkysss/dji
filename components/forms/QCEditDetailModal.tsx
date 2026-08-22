@@ -7,23 +7,22 @@ import {
   AlertTriangle,
   Loader2,
   Edit3,
-  CheckCircle2,
-  XCircle,
+  Plus,
   ArrowRightLeft,
   ArrowRight,
-  RotateCcw,
 } from "lucide-react";
-import { updateQCDetailDefectsAndNotes, swapOrMoveQCDefects } from "@/actions/qc-actions";
-import { createProblemDetail } from "@/actions/problem-detail-actions";
+import { updateQCDetailDefectsAndNotes, swapOrMoveQCDefects, bulkUpdateQCDetails } from "@/actions/qc-actions";
+import { getQCDefects, QCDefectItem } from "@/actions/qc-defect-actions";
 
 interface QCEditDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   detail: any;
-  problemCategories: { id: string; name: string }[];
-  problemDetailsMap: Record<string, string[]>;
+  problemCategories?: { id: string; name: string }[];
+  problemDetailsMap?: Record<string, string[]>;
   allBatchDetails?: any[];
   currentGrade?: number;
+  mode?: "add_qc" | "edit";
   onSuccess: (detailId: string, newGrade: number, updatedData?: any) => void;
 }
 
@@ -31,18 +30,14 @@ export default function QCEditDetailModal({
   isOpen,
   onClose,
   detail,
-  problemCategories,
-  problemDetailsMap,
   allBatchDetails = [],
   currentGrade,
+  mode = "edit",
   onSuccess,
 }: QCEditDetailModalProps) {
-  const [selectedGrade, setSelectedGrade] = useState<number>(currentGrade || 1);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedDetails, setSelectedDetails] = useState<Record<string, string[]>>({});
-  const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
-  const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
-  const [keteranganCacat, setKeteranganCacat] = useState("");
+  const [selectedQCDefects, setSelectedQCDefects] = useState<string[]>([]);
+  const [masterQCDefects, setMasterQCDefects] = useState<QCDefectItem[]>([]);
+  const [manualQCDefectText, setManualQCDefectText] = useState("");
   const [keteranganQc, setKeteranganQc] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -65,6 +60,16 @@ export default function QCEditDetailModal({
   }, [allBatchDetails, detail]);
 
   useEffect(() => {
+    if (isOpen) {
+      getQCDefects().then((res) => {
+        if (res.success && res.data) {
+          setMasterQCDefects(res.data);
+        }
+      });
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     if (isOpen && detail) {
       setErrorMsg(null);
       setIsMoveSectionOpen(false);
@@ -75,139 +80,63 @@ export default function QCEditDetailModal({
       } else {
         setTargetMoveDetailId("");
       }
-      
-      // Determine initial grade
-      const katUpper = String(detail.kategori_masalah || "").toUpperCase();
-      const detUpper = String(detail.detail_masalah || "").toUpperCase();
-      const hasRealCacat = (detail.kategori_masalah && katUpper !== "G" && !katUpper.includes("GAGAL CACAT") && !katUpper.includes("ISTIRAHAT")) || 
-                           (detail.detail_masalah && !detUpper.includes("GAGAL CACAT") && !detUpper.includes("ISTIRAHAT") && !detUpper.includes("START") && !detUpper.includes("FINISH")) || 
-                           (detail.production_defects && detail.production_defects.some((pd: any) => !pd.detail?.toUpperCase().includes("GAGAL CACAT") && pd.kategori !== "G" && !pd.kategori?.toUpperCase().includes("ISTIRAHAT")));
-      
-      const initialGrade = currentGrade || detail.final_inspection_id || (detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS" ? 4 : (hasRealCacat ? 3 : 1));
-      setSelectedGrade(initialGrade);
 
-      // Parse existing categories
-      let initialCats: string[] = [];
-      if (detail.kategori_masalah) {
-        if (Array.isArray(detail.kategori_masalah)) {
-          initialCats = detail.kategori_masalah;
-        } else {
-          initialCats = String(detail.kategori_masalah).split(",").map((s) => s.trim()).filter(Boolean);
-        }
+      if (mode === "add_qc") {
+        // Mode Tambah QC: Mulai dalam keadaan bersih/kosong
+        setSelectedQCDefects([]);
+        setManualQCDefectText("");
+        setKeteranganQc(detail.keterangan_qc || "");
+        return;
       }
-
-      // Parse existing details
-      const initialDetailsMap: Record<string, string[]> = {};
-      const initialBlokMap: Record<string, string> = {};
-
+      
+      // Mode Edit / Koreksi: Isi dengan data cacat bawaan yang sudah ada
+      const existingDefects: string[] = [];
       if (detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0) {
         detail.production_defects.forEach((d: any) => {
-          if (!d.kategori) return;
-          if (!initialCats.includes(d.kategori)) initialCats.push(d.kategori);
-          
           if (d.detail) {
-            if (!initialDetailsMap[d.kategori]) initialDetailsMap[d.kategori] = [];
-            if (!initialDetailsMap[d.kategori].includes(d.detail)) {
-              initialDetailsMap[d.kategori].push(d.detail);
-            }
-          }
-          if (d.blok) {
-            const cleanB = String(d.blok).replace(/blok\s*/gi, "").trim();
-            if (cleanB) {
-              if (initialBlokMap[d.kategori]) {
-                const existing = initialBlokMap[d.kategori].split(",").map((s) => s.trim());
-                if (!existing.includes(cleanB)) {
-                  initialBlokMap[d.kategori] = `${initialBlokMap[d.kategori]}, ${cleanB}`;
-                }
-              } else {
-                initialBlokMap[d.kategori] = cleanB;
-              }
+            const cleanD = String(d.detail).replace(/^\[QC\]\s*/i, "").trim();
+            if (cleanD && !existingDefects.includes(cleanD) && !cleanD.toUpperCase().includes("GAGAL CACAT")) {
+              existingDefects.push(cleanD);
             }
           }
         });
-      } else if (detail.detail_masalah) {
-        // Fallback parse legacy detail_masalah
-        const parts = String(detail.detail_masalah).split(" | ");
-        initialCats.forEach((cat, idx) => {
-          const detStr = parts[idx] || (initialCats.length === 1 ? detail.detail_masalah : "");
-          if (detStr) {
-            initialDetailsMap[cat] = detStr.split(", ").map((s: string) => s.trim()).filter(Boolean);
+      }
+      if (existingDefects.length === 0 && detail.detail_masalah) {
+        const parts = String(detail.detail_masalah).split(/[,|]/);
+        parts.forEach((p) => {
+          const cleanP = p.replace(/^\[QC\]\s*/i, "").trim();
+          if (cleanP && !existingDefects.includes(cleanP) && !cleanP.toUpperCase().includes("GAGAL CACAT")) {
+            existingDefects.push(cleanP);
           }
         });
       }
 
-      // Parse existing block notes from keterangan_cacat
-      let cleanKet = String(detail.keterangan_cacat || "");
-      cleanKet = cleanKet.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
-      cleanKet = cleanKet.replace(/\[TAMBAHAN QC\]/gi, "").trim();
-      cleanKet = cleanKet.replace(/^,\s*|\s*,\s*$/g, "");
-
-      if (cleanKet && Object.keys(initialBlokMap).length === 0 && initialCats.length > 0) {
-        const blokMatch = cleanKet.match(/blok\s*([^,\)]+)/i);
-        if (blokMatch && blokMatch[1]) {
-          initialBlokMap[initialCats[0]] = blokMatch[1].trim();
-        }
-      }
-
-      setSelectedCategories(initialCats);
-      setSelectedDetails(initialDetailsMap);
-      setInputBloks(initialBlokMap);
-      setKeteranganCacat(cleanKet);
+      setSelectedQCDefects(existingDefects);
+      setManualQCDefectText("");
       setKeteranganQc(detail.keterangan_qc || "");
-      setManualInputDetails({});
     }
-  }, [isOpen, detail, currentGrade]);
+  }, [isOpen, detail, currentGrade, mode]);
 
-  const handleToggleCategory = (catId: string) => {
-    setSelectedCategories((prev) => {
-      const isChecking = !prev.includes(catId);
-      if (isChecking) {
-        // When defect category is added, auto-change grade to Silang (3) if it's currently Ceklis (1)
-        if (selectedGrade === 1) {
-          setSelectedGrade(3);
-        }
-        return [...prev, catId];
+  const handleToggleQCDefect = (defectName: string) => {
+    setSelectedQCDefects((prev) => {
+      if (prev.includes(defectName)) {
+        return prev.filter((d) => d !== defectName);
       } else {
-        setSelectedDetails((old) => {
-          const next = { ...old };
-          delete next[catId];
-          return next;
-        });
-        setInputBloks((old) => {
-          const next = { ...old };
-          delete next[catId];
-          return next;
-        });
-        setManualInputDetails((old) => {
-          const next = { ...old };
-          delete next[catId];
-          return next;
-        });
-        const remaining = prev.filter((id) => id !== catId);
-        // When all defect categories are unchecked and grade is Silang, auto-reset back to Ceklis (1)
-        if (remaining.length === 0 && selectedGrade === 3) {
-          setSelectedGrade(1);
-        }
-        return remaining;
+        return [...prev, defectName];
       }
     });
   };
 
-  const handleToggleDetail = (catId: string, detailName: string) => {
-    setSelectedDetails((prev) => {
-      const currentList = prev[catId] || [];
-      if (currentList.includes(detailName)) {
-        return {
-          ...prev,
-          [catId]: currentList.filter((d) => d !== detailName),
-        };
-      } else {
-        return {
-          ...prev,
-          [catId]: [...currentList, detailName],
-        };
+  const handleAddManualQCDefect = () => {
+    const text = manualQCDefectText.trim();
+    if (!text) return;
+    setSelectedQCDefects((prev) => {
+      if (!prev.includes(text)) {
+        return [...prev, text];
       }
+      return prev;
     });
+    setManualQCDefectText("");
   };
 
   const handleSave = async () => {
@@ -216,76 +145,53 @@ export default function QCEditDetailModal({
     setErrorMsg(null);
 
     try {
-      // 1. Build combined detail_masalah
-      const defectObjects: { kategori: string; detail?: string; blok?: string; meter?: number }[] = [];
-      const detailMasalahList: string[] = [];
+      const defectObjects = selectedQCDefects.map((name) => ({
+        kategori: "A",
+        detail: name,
+        blok: undefined,
+        meter: undefined,
+      }));
 
-      selectedCategories.forEach((catId) => {
-        let details = [...(selectedDetails[catId] || [])];
-        const manual = (manualInputDetails[catId] || "").trim();
-        if (manual && !details.includes(manual)) {
-          details.push(manual);
-          try {
-            createProblemDetail({ kategori: catId, nama_detail: manual });
-          } catch (e) {}
-        }
+      const finalGrade = selectedQCDefects.length > 0 ? 3 : 1;
 
-        const block = (inputBloks[catId] || "").trim();
+      if (mode === "add_qc") {
+        const res = await bulkUpdateQCDetails({
+          detailIds: [detail.id],
+          kategoriMasalah: selectedQCDefects.length > 0 ? ["A"] : undefined,
+          detailMasalah: selectedQCDefects.join(", ") || undefined,
+          keteranganCacat: undefined,
+          keteranganQc: keteranganQc.trim() || undefined,
+          isBs: false,
+          finalInspectionId: 3,
+          defects: defectObjects,
+        });
 
-        if (details.length > 0) {
-          detailMasalahList.push(details.join(", "));
-          details.forEach((d) => {
-            defectObjects.push({
-              kategori: catId,
-              detail: d,
-              blok: block || undefined,
-            });
-          });
+        if (res.success) {
+          onSuccess(detail.id, 3, res.updatedData);
+          onClose();
         } else {
-          defectObjects.push({
-            kategori: catId,
-            detail: undefined,
-            blok: block || undefined,
-          });
+          setErrorMsg(res.error || "Gagal menambahkan temuan QC.");
         }
-      });
-
-      const combinedDetailMasalah = detailMasalahList.join(" | ");
-
-      // 2. Build block and custom notes for keterangan_cacat
-      const blockParts = selectedCategories
-        .map((catId) => {
-          const b = inputBloks[catId]?.trim();
-          return b ? `Blok ${b}` : "";
-        })
-        .filter(Boolean);
-
-      let finalKeteranganCacat = blockParts.join(", ");
-      if (keteranganCacat.trim() && !finalKeteranganCacat.includes(keteranganCacat.trim())) {
-        finalKeteranganCacat = finalKeteranganCacat
-          ? `${finalKeteranganCacat}, ${keteranganCacat.trim()}`
-          : keteranganCacat.trim();
+        return;
       }
 
-      const isBs = selectedGrade === 4;
-
+      // Mode Edit / Koreksi
       const res = await updateQCDetailDefectsAndNotes({
         detailId: detail.id,
-        kategoriMasalah: selectedCategories.length > 0 ? selectedCategories : undefined,
-        detailMasalah: combinedDetailMasalah || undefined,
-        keteranganCacat: finalKeteranganCacat || undefined,
+        kategoriMasalah: selectedQCDefects.length > 0 ? ["A"] : undefined,
+        detailMasalah: selectedQCDefects.join(", ") || undefined,
+        keteranganCacat: undefined,
         keteranganQc: keteranganQc.trim() || undefined,
-        isBs,
-        finalInspectionId: selectedGrade,
+        isBs: false,
+        finalInspectionId: finalGrade,
         defects: defectObjects,
       });
 
       if (res.success) {
-        onSuccess(detail.id, selectedGrade, {
+        onSuccess(detail.id, finalGrade, {
           keterangan_qc: keteranganQc.trim(),
-          keterangan_cacat: finalKeteranganCacat,
-          detail_masalah: combinedDetailMasalah,
-          kategori_masalah: selectedCategories.join(", "),
+          detail_masalah: selectedQCDefects.join(", "),
+          kategori_masalah: selectedQCDefects.length > 0 ? "A" : "",
           production_defects: defectObjects,
         });
         onClose();
@@ -316,7 +222,6 @@ export default function QCEditDetailModal({
       });
 
       if (res.success) {
-        // Source is now clean (Grade 1), target is updated
         onSuccess(detail.id, 1);
         onClose();
       } else {
@@ -335,18 +240,30 @@ export default function QCEditDetailModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-scaleUp">
         {/* Modal Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-sky-100 text-[#0070bc] flex items-center justify-center shrink-0">
-              <Edit3 className="w-5 h-5" />
+        <div className="p-5 border-b border-slate-100 flex items-start justify-between shrink-0 bg-white">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-500/20 to-sky-100 text-[#0070bc] flex items-center justify-center shrink-0 shadow-2xs">
+              {mode === "add_qc" ? <Plus className="w-5 h-5 stroke-[2.5]" /> : <Edit3 className="w-5 h-5 stroke-[2.5]" />}
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">
-                Tambah / Ubah Keterangan QC
+              <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                {mode === "add_qc" ? "Tambah Temuan QC" : "Koreksi Temuan Cacat Panel"}
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                <span className="font-bold text-slate-700">{displayTitle}</span> • Mesin {header.nomor_mc || "-"} • Potongan {header.potongan_ke || "-"}
-              </p>
+              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                <span className="px-2.5 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-[#0070bc] font-extrabold text-[11px] shadow-2xs">
+                  {displayTitle}
+                </span>
+                {header.nomor_mc && (
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200/80 text-slate-700 font-bold text-[11px]">
+                    Mesin {header.nomor_mc}
+                  </span>
+                )}
+                {header.potongan_ke && (
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200/80 text-slate-700 font-bold text-[11px]">
+                    Potongan {header.potongan_ke}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <button
@@ -367,8 +284,8 @@ export default function QCEditDetailModal({
             </div>
           )}
 
-          {/* Section: Pindahkan / Tukar Cacat (Swapping / Moving) */}
-          {otherPanels.length > 0 && (
+          {/* Section: Pindahkan / Tukar Cacat (Swapping / Moving) - Khusus Mode Koreksi */}
+          {mode === "edit" && otherPanels.length > 0 && (
             <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -443,191 +360,101 @@ export default function QCEditDetailModal({
             </div>
           )}
 
-          {/* Section 1: Pilihan Grade / Status Inspeksi */}
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-black text-slate-700 uppercase tracking-wide">
-              Status Inspeksi QC:
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {/* Ceklis (✓) */}
-              <button
-                type="button"
-                onClick={() => setSelectedGrade(1)}
-                className={`py-3 px-3 rounded-2xl border-2 font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  selectedGrade === 1
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm ring-2 ring-emerald-200"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Ceklis (✓)</span>
-              </button>
-
-              {/* Silang (X) */}
-              <button
-                type="button"
-                onClick={() => setSelectedGrade(3)}
-                className={`py-3 px-3 rounded-2xl border-2 font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  selectedGrade === 3
-                    ? "border-rose-500 bg-rose-50 text-rose-700 shadow-sm ring-2 ring-rose-200"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                <XCircle className="w-4 h-4 text-rose-600" />
-                <span>Silang (X)</span>
-              </button>
-
-              {/* BS (Reject) */}
-              <button
-                type="button"
-                onClick={() => setSelectedGrade(4)}
-                className={`py-3 px-3 rounded-2xl border-2 font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  selectedGrade === 4
-                    ? "border-red-600 bg-red-600 text-white shadow-sm ring-2 ring-red-300"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                <span className="font-black text-sm">BS (Reject)</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Section 2: Kategori & Detail Masalah */}
-          <div className="flex flex-col gap-2">
+          {/* Section: PILIH DETAIL MASALAH (Grid 2 Kolom) */}
+          <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                Temuan Cacat / Masalah:
+              <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                PILIH DETAIL MASALAH
               </label>
-              {selectedCategories.length > 0 && (
-                <span className="text-[10px] font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">
-                  {selectedCategories.length} Kategori Terpilih
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-2 border border-slate-200 rounded-2xl p-3 bg-slate-50/50">
-              <p className="text-[11px] text-slate-500 mb-1">
-                Pilih kategori cacat yang ditemukan pada panel ini:
-              </p>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {problemCategories.map((c) => {
-                  const isChecked = selectedCategories.includes(c.id);
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => handleToggleCategory(c.id)}
-                      className={`p-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-between text-left cursor-pointer ${
-                        isChecked
-                          ? "border-rose-500 bg-rose-50 text-rose-700 shadow-sm"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className="truncate">{c.name}</span>
-                      {isChecked && <CheckCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 ml-1" />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Rincian Detail & Blok untuk Kategori Terpilih */}
-              {selectedCategories.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-slate-200 flex flex-col gap-3">
-                  {selectedCategories.map((catId) => {
-                    const catObj = problemCategories.find((c) => c.id === catId);
-                    const detailsList = problemDetailsMap[catId] || [];
-                    const currentSelectedDetails = selectedDetails[catId] || [];
-
-                    return (
-                      <div key={catId} className="p-3 bg-white rounded-xl border border-rose-200 flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-rose-800">
-                            {catObj?.name || `Kategori ${catId}`}
-                          </span>
-                        </div>
-
-                        {/* List Detail Masalah */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto custom-scrollbar p-1">
-                          {detailsList.map((det) => {
-                            const isDetChecked = currentSelectedDetails.includes(det);
-                            return (
-                              <label
-                                key={det}
-                                className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-medium flex items-center gap-2 cursor-pointer transition-all ${
-                                  isDetChecked
-                                    ? "border-rose-400 bg-rose-50 text-rose-900 font-bold"
-                                    : "border-slate-100 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isDetChecked}
-                                  onChange={() => handleToggleDetail(catId, det)}
-                                  className="w-3.5 h-3.5 rounded text-rose-600 focus:ring-rose-500"
-                                />
-                                <span className="truncate">{det}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-
-                        {/* Input Manual Tambahan Detail */}
-                        <div className="flex gap-2 items-center mt-1">
-                          <input
-                            type="text"
-                            placeholder="Detail masalah lain (manual)..."
-                            value={manualInputDetails[catId] || ""}
-                            onChange={(e) =>
-                              setManualInputDetails((prev) => ({
-                                ...prev,
-                                [catId]: e.target.value,
-                              }))
-                            }
-                            className="flex-1 h-8 px-3 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:border-rose-400 focus:ring-1 focus:ring-rose-200 outline-none"
-                          />
-                        </div>
-
-                        {/* Input Blok Cacat */}
-                        <div className="flex items-center gap-2 mt-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">
-                            Nomor Blok:
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Contoh: 2 atau 15, 25"
-                            value={inputBloks[catId] || ""}
-                            onChange={(e) =>
-                              setInputBloks((prev) => ({
-                                ...prev,
-                                [catId]: e.target.value,
-                              }))
-                            }
-                            className="flex-1 h-8 px-3 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:border-rose-400 focus:ring-1 focus:ring-rose-200 outline-none font-medium"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+              {selectedQCDefects.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold px-2.5 py-0.5 bg-rose-100 text-rose-700 rounded-full">
+                    {selectedQCDefects.length} Terpilih
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQCDefects([])}
+                    className="text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                  >
+                    Reset
+                  </button>
                 </div>
               )}
             </div>
 
+            {/* 2-Column Grid Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {masterQCDefects.map((d) => {
+                const isSelected = selectedQCDefects.includes(d.nama_cacat);
+                return (
+                  <button
+                    key={d.id || d.nama_cacat}
+                    type="button"
+                    onClick={() => handleToggleQCDefect(d.nama_cacat)}
+                    className={`min-h-[48px] px-4 py-3 rounded-2xl border text-center font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-center cursor-pointer active:scale-98 ${
+                      isSelected
+                        ? "border-rose-500 bg-rose-50/80 text-rose-900 shadow-xs ring-2 ring-rose-500/20"
+                        : "border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span>{d.nama_cacat}</span>
+                  </button>
+                );
+              })}
+
+              {/* Any custom added defects */}
+              {selectedQCDefects
+                .filter((name) => !masterQCDefects.some((d) => d.nama_cacat.toLowerCase() === name.toLowerCase()))
+                .map((customName) => (
+                  <button
+                    key={customName}
+                    type="button"
+                    onClick={() => handleToggleQCDefect(customName)}
+                    className="min-h-[48px] px-4 py-3 rounded-2xl border border-rose-500 bg-rose-50/80 text-rose-900 shadow-xs ring-2 ring-rose-500/20 text-center font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                    title="Klik untuk menghapus"
+                  >
+                    <span>{customName}</span>
+                    <X className="w-3.5 h-3.5 text-rose-600 ml-1 shrink-0" />
+                  </button>
+                ))}
+            </div>
+
+            {/* Input Manual Cacat */}
+            <div className="flex gap-2 mt-1">
+              <input
+                type="text"
+                placeholder="Cacat kain lainnya (manual)..."
+                value={manualQCDefectText}
+                onChange={(e) => setManualQCDefectText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddManualQCDefect();
+                  }
+                }}
+                className="flex-1 h-10 px-3.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+              />
+              <button
+                type="button"
+                onClick={handleAddManualQCDefect}
+                className="h-10 px-4 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all cursor-pointer shrink-0"
+              >
+                + Tambah
+              </button>
+            </div>
+
             {/* Catatan / Keterangan Khusus QC */}
-            <div className="space-y-1.5 pt-4 border-t border-slate-100">
+            <div className="space-y-1.5 pt-3 border-t border-slate-100">
               <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                 <Edit3 className="w-3.5 h-3.5 text-sky-600" />
                 Catatan / Keterangan Khusus QC (Opsional):
               </label>
-              <p className="text-[11px] text-slate-500">
-                Catatan ini akan tampil dengan warna biru di tabel sebagai instruksi / memo untuk bagian Mending & Produksi.
-              </p>
-              <input
-                type="text"
+              <textarea
+                rows={2}
                 value={keteranganQc}
                 onChange={(e) => setKeteranganQc(e.target.value)}
-                placeholder="Contoh: Toleransi grade B, serat halus / Perlu obras ulang..."
-                className="w-full h-10 px-3.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all placeholder:text-slate-400 font-medium"
+                placeholder="Contoh: Toleransi grade B, serat halus / Perlu obras ulang di mending..."
+                className="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all placeholder:text-slate-400 font-medium resize-none shadow-2xs"
               />
             </div>
           </div>
@@ -657,7 +484,11 @@ export default function QCEditDetailModal({
             ) : (
               <>
                 <CheckCircle className="w-4 h-4" />
-                <span>Simpan Perubahan</span>
+                <span>
+                  {selectedQCDefects.length > 0
+                    ? `Simpan (${selectedQCDefects.length} Cacat Terpilih)`
+                    : "Simpan Temuan QC"}
+                </span>
               </>
             )}
           </button>

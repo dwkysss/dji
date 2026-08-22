@@ -428,6 +428,10 @@ export default function PanelHistoryTable({
             const isDeleted = !!detail.is_deleted || detail.status_inspeksi === "Dihapus" || (detail.keterangan_cacat || "").includes("[DIHAPUS]");
             const isBsRow = isBsAwal || isBsAkhir || String(rawPanelNo).includes("(BS)") || String(item.displayNo).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS" || detail.final_inspection_id === 4 || item.final_inspection_id === 4 || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
 
+            const isPanelInsertedByQc = !!detail.is_inserted_qc || !!detail.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!itemHeader?.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(rawPanelNo || "").includes("QC"));
+            const hasTambahanQC = !!detail.detail_masalah?.includes("[QC]") || (detail.production_defects && detail.production_defects.some((d: any) => d.detail?.includes("[QC]")));
+            const hasTambahanMnd = !!detail.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!itemHeader?.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
+
             let hasRealError = false;
             if (isBsRow) {
               hasRealError = true;
@@ -449,9 +453,7 @@ export default function PanelHistoryTable({
                 hasRealError = true;
               }
             }
-            if ((detail.keterangan_cacat || "").includes("[TAMBAHAN QC]")) {
-              hasRealError = true;
-            }
+            if (hasTambahanQC) hasRealError = true;
 
             const isGagalCacatOnly = (
               (detail.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
@@ -460,9 +462,31 @@ export default function PanelHistoryTable({
               (detail.production_defects && detail.production_defects.some((d: any) => (d.detail || "").toUpperCase().includes("GAGAL CACAT") || (d.kategori || "").toUpperCase() === "G"))
             ) && !hasRealError;
 
+            const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!detail.keterangan_qc && detail.keterangan_qc !== "-");
+
+            const rowBgClass = isDeleted
+              ? "bg-slate-100/60 opacity-80"
+              : isRowQcModified
+              ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+              : hasIstirahat
+              ? "bg-amber-50/30 hover:bg-amber-50/50"
+              : isBsRow
+              ? "bg-rose-50/30 hover:bg-rose-50/50"
+              : "hover:bg-slate-50";
+
+            const stickyCellBgClass = isDeleted
+              ? "bg-slate-100"
+              : isRowQcModified
+              ? "bg-sky-100/70"
+              : hasIstirahat
+              ? "bg-amber-100"
+              : isBsRow
+              ? "bg-rose-50/50"
+              : "bg-white";
+
             return (
-              <tr key={item.id || idx} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : hasIstirahat ? "bg-amber-50/30" : (isBsRow ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
-                <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${isDeleted ? "bg-slate-100" : hasIstirahat ? "bg-amber-100" : (isBsRow ? "bg-rose-50/50" : "bg-white")}`}>
+              <tr key={item.id || idx} className={`${rowBgClass} transition-colors`}>
+                <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${stickyCellBgClass}`}>
                   {isBsAwal ? (
                     <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                   ) : isBsAkhir ? (
@@ -476,6 +500,10 @@ export default function PanelHistoryTable({
                         </span>
                       ) : isBsRow ? (
                         <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                      ) : isPanelInsertedByQc || hasTambahanQC ? (
+                        <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                      ) : hasTambahanMnd ? (
+                        <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                       ) : null}
                     </div>
                   )}
@@ -489,38 +517,81 @@ export default function PanelHistoryTable({
                 <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(!item.showOpr && hasIstirahat) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
                   {item.showOpr ? (item.oprBase || displayGrp || "-") : (hasIstirahat ? "Istirahat" : "")}
                 </td>
-                 <td className="px-1 py-1 text-center border-r border-slate-100">
+                 <td className="px-1 py-1 text-center border-r border-slate-100 font-bold text-sm">
                    {isDeleted ? (
                      <span className="text-slate-400 font-bold">-</span>
-                   ) : isIstirahatOnly ? (
-                     <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
                    ) : hasRealError ? (
-                     <XCircle className="w-4 h-4 text-rose-500 inline-block" />
+                     <span className="text-rose-600">X</span>
                    ) : (
-                     <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
+                     <span className="text-emerald-600">✓</span>
                    )}
                  </td>
-                 <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isDeleted ? 'text-slate-400 italic' : hasIstirahat ? 'text-slate-500' : (hasDefect ? (isGagalCacatOnly ? 'text-slate-500' : 'text-rose-600') : 'text-slate-700')}`}>
-                   {isDeleted ? (
-                     <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
-                   ) : hasIstirahat ? (
-                     <>
-                       {extractedBackupOp ? (
-                         <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>
-                       ) : null}
-                       {!isIstirahatOnly && masalahLines.length > 0 && masalahLines[0] !== '-' ? (
-                         <div className={isGagalCacatOnly ? "text-slate-500" : "text-rose-600"}>{masalahLines.join("\n")}</div>
-                       ) : (
-                         !extractedBackupOp && <span className="text-slate-400">-</span>
-                       )}
-                     </>
-                   ) : (
-                     masalahLines.length > 0 ? (
-                       <span className={isGagalCacatOnly ? "text-slate-500" : ""}>
-                         {masalahLines.join("\n")}
-                       </span>
-                     ) : "-"
-                   )}
+                 <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100">
+                   {(() => {
+                     const parsedCacatItems = masalahLines
+                       .filter((l) => l && l !== "-")
+                       .map((line) => {
+                         const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]");
+                         const clean = line
+                           .replace(/\[QC\]/gi, "")
+                           .replace(/\[TAMBAHAN QC\]/gi, "")
+                           .replace(/\[TAMBAHAN MENDING\]/gi, "")
+                           .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                           .trim();
+                         return { isLineQc, text: clean };
+                       })
+                       .filter((c) => c.text.length > 0 && c.text !== "-");
+
+                     const renderCacatLines = () => {
+                       if (parsedCacatItems.length === 0) {
+                         return <span className="text-slate-400">-</span>;
+                       }
+                       return (
+                         <div className="flex flex-col gap-0.5">
+                           {parsedCacatItems.map((cItem: any, lIdx: number) => {
+                             const numPrefix = parsedCacatItems.length > 1 ? `${lIdx + 1}. ` : "";
+                             return (
+                               <div
+                                 key={lIdx}
+                                 className={
+                                   cItem.isLineQc
+                                     ? "text-[#0070bc] font-semibold"
+                                     : isGagalCacatOnly
+                                     ? "text-slate-500 font-medium"
+                                     : "text-rose-600 font-medium"
+                                 }
+                               >
+                                 {numPrefix}{cItem.text}
+                               </div>
+                             );
+                           })}
+                         </div>
+                       );
+                     };
+
+                     return isDeleted ? (
+                       <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
+                     ) : hasIstirahat ? (
+                       <>
+                         {extractedBackupOp && <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>}
+                         {renderCacatLines()}
+                         {detail.keterangan_qc && detail.keterangan_qc !== "-" && (
+                           <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                             <span className="text-sky-600 font-black">QC:</span> {detail.keterangan_qc}
+                           </div>
+                         )}
+                       </>
+                     ) : (
+                       <>
+                         {renderCacatLines()}
+                         {detail.keterangan_qc && detail.keterangan_qc !== "-" && (
+                           <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                             <span className="text-sky-600 font-black">QC:</span> {detail.keterangan_qc}
+                           </div>
+                         )}
+                       </>
+                     );
+                   })()}
                  </td>
 
                 <td className="px-1 py-1 text-center border-r border-slate-100">

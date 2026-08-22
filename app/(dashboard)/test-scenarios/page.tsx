@@ -1022,7 +1022,7 @@ function MendingReportScenarioCard({ panels, selections, isMeter }: { panels: an
                         <div className="flex flex-col items-center justify-center">
                           <span>{item.displayNo || "-"}</span>
                           {hasTambahanQC ? (
-                            <span className="text-[8px] font-black bg-sky-100 text-sky-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                            <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
                           ) : hasTambahanMnd ? (
                             <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                           ) : null}
@@ -1055,22 +1055,51 @@ function MendingReportScenarioCard({ panels, selections, isMeter }: { panels: an
                     <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100">
                       {(() => {
                         const isTambahanQc = !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || item.hasTambahanQC;
-                        const defectTextColor = item.isDeleted
-                          ? "text-slate-400 italic"
-                          : isTambahanQc
-                          ? "text-sky-600 font-semibold"
-                          : (item.isIstirahatOnly || item.isGagalCacatOnly)
-                          ? "text-slate-500 font-medium"
-                          : "text-rose-600";
+                        const lines = (item.cacatDisplay || "").split("\n").filter(Boolean);
+
+                        const parsedCacatItems = lines
+                          .map((l: string) => {
+                            const isLineQc = l.includes("[QC]") || l.includes("[TAMBAHAN QC]") || isTambahanQc;
+                            const clean = l
+                              .replace(/\[QC\]/gi, "")
+                              .replace(/\[TAMBAHAN QC\]/gi, "")
+                              .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                              .trim();
+                            return { isLineQc, text: clean };
+                          })
+                          .filter((cItem: any) => cItem.text.length > 0 && cItem.text !== "-");
+
+                        const renderCacatLines = () => {
+                          if (parsedCacatItems.length === 0) {
+                            return <span className="text-slate-400">-</span>;
+                          }
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              {parsedCacatItems.map((cItem: any, lIdx: number) => {
+                                const numPrefix = parsedCacatItems.length > 1 ? `${lIdx + 1}. ` : "";
+                                return (
+                                  <div
+                                    key={lIdx}
+                                    className={
+                                      cItem.isLineQc
+                                        ? "text-sky-600 font-semibold"
+                                        : (item.isIstirahatOnly || item.isGagalCacatOnly)
+                                        ? "text-slate-500 font-medium"
+                                        : "text-rose-600 font-medium"
+                                    }
+                                  >
+                                    {numPrefix}{cItem.text}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        };
 
                         return (item.isIstirahat || item.hasIstirahat) ? (
                           <>
                             {item.backupOpName && <div className="font-bold text-slate-700 mb-0.5">{item.backupOpName}</div>}
-                            {item.cacatDisplay && item.cacatDisplay !== "-" ? (
-                              <div className={defectTextColor}>{item.cacatDisplay}</div>
-                            ) : (
-                              !item.backupOpName && <span className="text-slate-400">-</span>
-                            )}
+                            {renderCacatLines()}
                             {item.keterangan_qc && item.keterangan_qc !== "-" && (
                               <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
                                 <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
@@ -1079,9 +1108,7 @@ function MendingReportScenarioCard({ panels, selections, isMeter }: { panels: an
                           </>
                         ) : (
                           <>
-                            <div className={item.cacatDisplay && item.cacatDisplay !== "-" ? defectTextColor : "text-slate-400"}>
-                              {item.cacatDisplay || "-"}
-                            </div>
+                            {renderCacatLines()}
                             {item.keterangan_qc && item.keterangan_qc !== "-" && (
                               <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
                                 <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}

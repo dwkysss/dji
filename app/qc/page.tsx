@@ -242,15 +242,24 @@ export default function QCPage() {
   const [problemDetailsMap, setProblemDetailsMap] = useState<Record<string, string[]>>(DEFAULT_PROBLEM_DETAILS);
   const [selectedDetailForEdit, setSelectedDetailForEdit] = useState<any | null>(null);
   const [isEditDetailModalOpen, setIsEditDetailModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"add_qc" | "edit">("add_qc");
 
-  const handleOpenEditQC = (detail: any) => {
-    if (selectedDetailIds.length > 1) {
-      if (!selectedDetailIds.includes(detail.id)) {
-        setSelectedDetailIds((prev) => [...prev, detail.id]);
-      }
+  const handleOpenAddQC = (detail: any) => {
+    if (selectedDetailIds.length > 1 && selectedDetailIds.includes(detail.id)) {
       setIsBulkEditOpen(true);
     } else {
       setSelectedDetailForEdit(detail);
+      setModalMode("add_qc");
+      setIsEditDetailModalOpen(true);
+    }
+  };
+
+  const handleOpenEditQC = (detail: any) => {
+    if (selectedDetailIds.length > 1 && selectedDetailIds.includes(detail.id)) {
+      setIsBulkEditOpen(true);
+    } else {
+      setSelectedDetailForEdit(detail);
+      setModalMode("edit");
       setIsEditDetailModalOpen(true);
     }
   };
@@ -1255,6 +1264,7 @@ export default function QCPage() {
                   detailsToDisplay={detailsToDisplay}
                   handleSelectGrade={handleSelectGrade}
                   handleOpenEditQC={handleOpenEditQC}
+                  handleOpenAddQC={handleOpenAddQC}
                   selections={selections}
                   setDetailToDelete={setDetailToDelete}
                   selectedIds={selectedDetailIds}
@@ -1267,6 +1277,7 @@ export default function QCPage() {
                   handleSelectGrade={handleSelectGrade}
                   handleOpenDetail={handleOpenDetail}
                   handleOpenEditQC={handleOpenEditQC}
+                  handleOpenAddQC={handleOpenAddQC}
                   selections={selections}
                   setDetailToDelete={setDetailToDelete}
                   selectedIds={selectedDetailIds}
@@ -1425,6 +1436,7 @@ export default function QCPage() {
             problemDetailsMap={problemDetailsMap}
             allBatchDetails={detailsToDisplay}
             currentGrade={selections[selectedDetailForEdit.id]}
+            mode={modalMode}
             onSuccess={async (detailId, newGrade, updatedData) => {
               if (newGrade !== undefined) {
                 setSelections((prev) => ({ ...prev, [detailId]: newGrade }));
