@@ -39,9 +39,7 @@ export default function PanelHistoryTable({
       const grp = h.groups?.nama_grup || "";
       const tgl = h.tgl || "";
       const operatorStr = (grp ? `(${grp}) ` : '') + opr;
-
-      const isGagalCacat = (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") || (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT");
-      const hasIstirahat = !isGagalCacat && (
+      const hasIstirahat = (
         !!h.operator_backup ||
         (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
@@ -49,10 +47,13 @@ export default function PanelHistoryTable({
         (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
         (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
       );
-      const isIstirahatOnly = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
+      const hasRealDetail = (!!item.detail_masalah && !item.detail_masalah.toUpperCase().includes("ISTIRAHAT")) ||
+        (!!item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT") && item.kategori_masalah !== "G") ||
+        (item.production_defects && item.production_defects.length > 0);
+      const isIstirahatOnly = hasIstirahat && !hasRealDetail;
       const isFinish = item.keterangan_cacat === "FINISH" || item.production_headers?.panel_no === "FINISH";
       const isStart = item.keterangan_cacat === "START" || item.production_headers?.panel_no === "START";
-      const isGradable = !isIstirahatOnly && !isFinish && !isStart;
+      const isGradable = !isFinish && !isStart;
 
       return {
         item,
@@ -377,8 +378,9 @@ export default function PanelHistoryTable({
 
               let ketCacat = detail.keterangan_cacat || "";
               ketCacat = ketCacat.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
+              ketCacat = ketCacat.replace(/\(?Backup:\s*[^)]+\)?/gi, "").trim();
               ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
-              ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
+              ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "").trim();
               if (ketCacat) {
                 if (masalahLines.length > 0) {
                   const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -426,6 +428,38 @@ export default function PanelHistoryTable({
             const isDeleted = !!detail.is_deleted || detail.status_inspeksi === "Dihapus" || (detail.keterangan_cacat || "").includes("[DIHAPUS]");
             const isBsRow = isBsAwal || isBsAkhir || String(rawPanelNo).includes("(BS)") || String(item.displayNo).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS" || detail.final_inspection_id === 4 || item.final_inspection_id === 4 || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
 
+            let hasRealError = false;
+            if (isBsRow) {
+              hasRealError = true;
+            } else if (detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0) {
+              hasRealError = detail.production_defects.some((d: any) => {
+                const k = (d.kategori || "").toUpperCase().trim();
+                const det = (d.detail || "").toUpperCase().trim();
+                if (k.includes("ISTIRAHAT") || det.includes("ISTIRAHAT")) return false;
+                if (det.includes("GAGAL CACAT") || k === "G") return false;
+                return true;
+              });
+            } else {
+              const katStr = (detail.kategori_masalah || "").toUpperCase().trim();
+              const detStr = (detail.detail_masalah || "").toUpperCase().trim();
+              if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT") && !katStr.includes("GAGAL CACAT")) {
+                hasRealError = true;
+              }
+              if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH") && !detStr.includes("GAGAL CACAT")) {
+                hasRealError = true;
+              }
+            }
+            if ((detail.keterangan_cacat || "").includes("[TAMBAHAN QC]")) {
+              hasRealError = true;
+            }
+
+            const isGagalCacatOnly = (
+              (detail.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
+              (detail.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT") ||
+              (detail.kategori_masalah || "").toUpperCase() === "G" ||
+              (detail.production_defects && detail.production_defects.some((d: any) => (d.detail || "").toUpperCase().includes("GAGAL CACAT") || (d.kategori || "").toUpperCase() === "G"))
+            ) && !hasRealError;
+
             return (
               <tr key={item.id || idx} className={`${isDeleted ? "bg-slate-100/60 opacity-80" : hasIstirahat ? "bg-amber-50/30" : (isBsRow ? "bg-rose-50/30" : "hover:bg-slate-50")} transition-colors`}>
                 <td className={`sticky left-0 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${isDeleted ? "bg-slate-100" : hasIstirahat ? "bg-amber-100" : (isBsRow ? "bg-rose-50/50" : "bg-white")}`}>
@@ -460,15 +494,13 @@ export default function PanelHistoryTable({
                      <span className="text-slate-400 font-bold">-</span>
                    ) : isIstirahatOnly ? (
                      <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
+                   ) : hasRealError ? (
+                     <XCircle className="w-4 h-4 text-rose-500 inline-block" />
                    ) : (
-                     detail.kategori_masalah || detail.detail_masalah || isBsRow || detail.indikator_stop ? (
-                       <XCircle className="w-4 h-4 text-rose-500 inline-block" />
-                     ) : (
-                       <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
-                     )
+                     <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
                    )}
                  </td>
-                 <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isDeleted ? 'text-slate-400 italic' : hasIstirahat ? 'text-slate-500' : (masalahLines.length > 0 && masalahLines[0] !== '-' ? 'text-rose-600' : 'text-slate-700')}`}>
+                 <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100 ${isDeleted ? 'text-slate-400 italic' : hasIstirahat ? 'text-slate-500' : (hasDefect ? (isGagalCacatOnly ? 'text-slate-500' : 'text-rose-600') : 'text-slate-700')}`}>
                    {isDeleted ? (
                      <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
                    ) : hasIstirahat ? (
@@ -477,13 +509,17 @@ export default function PanelHistoryTable({
                          <div className="font-bold text-slate-700 mb-0.5">{extractedBackupOp}</div>
                        ) : null}
                        {!isIstirahatOnly && masalahLines.length > 0 && masalahLines[0] !== '-' ? (
-                         <div className="text-rose-600">{masalahLines.join("\n")}</div>
+                         <div className={isGagalCacatOnly ? "text-slate-500" : "text-rose-600"}>{masalahLines.join("\n")}</div>
                        ) : (
                          !extractedBackupOp && <span className="text-slate-400">-</span>
                        )}
                      </>
                    ) : (
-                     masalahLines.length > 0 ? masalahLines.join("\n") : "-"
+                     masalahLines.length > 0 ? (
+                       <span className={isGagalCacatOnly ? "text-slate-500" : ""}>
+                         {masalahLines.join("\n")}
+                       </span>
+                     ) : "-"
                    )}
                  </td>
 

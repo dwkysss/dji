@@ -105,7 +105,7 @@ export default function PanelMendingTable({
               <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100 border-b border-slate-100">
                 {isDeleted ? (
                   <span className="text-slate-400 font-bold">-</span>
-                ) : (item.indikator_stop || !!item.kategori_masalah || !!item.detail_masalah || item.jml_hasil_produksi === 0 || String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR") || String(item.displayNo).includes("(BS)")) ? (
+                ) : item.hasRealDefects ? (
                   <span className="text-rose-600">X</span>
                 ) : (
                   <span className="text-emerald-600">✓</span>
@@ -118,7 +118,7 @@ export default function PanelMendingTable({
                   <>
                     {item.backupOpName && <div className="font-bold text-slate-700 mb-0.5">{item.backupOpName}</div>}
                     {item.cacatDisplay && item.cacatDisplay !== "-" ? (
-                      <div className="text-rose-600">{item.cacatDisplay}</div>
+                      <div className={item.isGagalCacatOnly ? "text-slate-500 font-medium" : "text-rose-600"}>{item.cacatDisplay}</div>
                     ) : (
                       !item.backupOpName && <span className="text-slate-400">-</span>
                     )}
@@ -128,7 +128,7 @@ export default function PanelMendingTable({
                   </>
                 ) : (
                   <>
-                    <div className={item.cacatDisplay && item.cacatDisplay !== "-" ? "text-rose-600" : "text-slate-400"}>
+                    <div className={item.cacatDisplay && item.cacatDisplay !== "-" ? (item.isGagalCacatOnly ? "text-slate-500 font-medium" : "text-rose-600") : "text-slate-400"}>
                       {item.cacatDisplay || "-"}
                     </div>
                     {item.keterangan_qc && item.keterangan_qc !== "-" && (

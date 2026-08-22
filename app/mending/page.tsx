@@ -898,8 +898,9 @@ export default function MendingPage() {
         let ketCacat = displayKeterangan;
         const hasTambahanQC = ketCacat.includes("[TAMBAHAN QC]");
         ketCacat = ketCacat.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
+        ketCacat = ketCacat.replace(/\(?Backup:\s*[^)]+\)?/gi, "").trim();
         ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
-        ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
+        ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "").trim();
 
         let cacatLines: string[] = [];
         const katsRaw = item.kategori_masalah;
@@ -1003,7 +1004,9 @@ export default function MendingPage() {
               }
             } else {
               const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-              cacatLines.push(`(Blok ${cleanB})`);
+              if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+                cacatLines.push(`(Blok ${cleanB})`);
+              }
             }
           }
         }
@@ -1086,6 +1089,41 @@ export default function MendingPage() {
         lastGrp = grp;
         lastOpr = opr;
 
+        let hasRealDefects = false;
+        const isBsPanel = String(item.production_headers?.panel_no || "").toUpperCase().includes("AWAL") || 
+                          String(item.production_headers?.panel_no || "").toUpperCase().includes("AKHIR") || 
+                          String(item.production_headers?.panel_no || "").includes("(BS)") || 
+                          item.jml_hasil_produksi === 0 || 
+                          item.status_inspeksi === "BS";
+        if (isBsPanel) {
+          hasRealDefects = true;
+        } else if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
+          hasRealDefects = item.production_defects.some((d: any) => {
+            const k = (d.kategori || "").toUpperCase().trim();
+            const det = (d.detail || "").toUpperCase().trim();
+            if (k.includes("ISTIRAHAT") || det.includes("ISTIRAHAT")) return false;
+            if (det.includes("GAGAL CACAT") || k === "G") return false;
+            return true;
+          });
+        } else {
+          const katStr = (item.kategori_masalah || "").toUpperCase().trim();
+          const detStr = (item.detail_masalah || "").toUpperCase().trim();
+          if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT") && !katStr.includes("GAGAL CACAT")) {
+            hasRealDefects = true;
+          }
+          if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH") && !detStr.includes("GAGAL CACAT")) {
+            hasRealDefects = true;
+          }
+        }
+        if ((item.keterangan_cacat || "").includes("[TAMBAHAN QC]")) hasRealDefects = true;
+
+        const isGagalCacatOnly = (
+          (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
+          (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT") ||
+          (item.kategori_masalah || "").toUpperCase() === "G" ||
+          (item.production_defects && item.production_defects.some((d: any) => (d.detail || "").toUpperCase().includes("GAGAL CACAT") || (d.kategori || "").toUpperCase() === "G"))
+        ) && !hasRealDefects;
+
         items.push({
           ...item,
           isMeter: false,
@@ -1099,6 +1137,8 @@ export default function MendingPage() {
           cacatDisplay: cacatText,
           backupOpName: p.backupOpName,
           isGradable: isGradable && !isDeleted,
+          hasRealDefects,
+          isGagalCacatOnly,
           showTgl,
           showGrp,
           showOpr,

@@ -774,12 +774,8 @@ export default function QCPage() {
           } else if (d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS" || isSisa) {
             newSelections[d.id] = 4;
           } else {
-            const isDefect = checkIsDefectRow(d);
-            if (isDefect) {
-              newSelections[d.id] = 3;
-            } else {
-              newSelections[d.id] = 1;
-            }
+            // Default ketika masuk ke inspeksi adalah semua ceklis (✓), termasuk jika ada cacat
+            newSelections[d.id] = 1;
           }
         });
         return newSelections;
@@ -1289,9 +1285,17 @@ export default function QCPage() {
             problemDetailsMap={problemDetailsMap}
             allBatchDetails={detailsToDisplay}
             currentGrade={selections[selectedDetailForEdit.id]}
-            onSuccess={async (detailId, newGrade) => {
+            onSuccess={async (detailId, newGrade, updatedData) => {
               if (newGrade !== undefined) {
                 setSelections((prev) => ({ ...prev, [detailId]: newGrade }));
+              }
+              if (updatedData) {
+                setFullActiveQcDetails((prev) =>
+                  prev.map((d: any) => (d.id === detailId ? { ...d, ...updatedData } : d))
+                );
+                setAllDetails((prev) =>
+                  prev.map((d: any) => (d.id === detailId ? { ...d, ...updatedData } : d))
+                );
               }
               if (activeQcPcs) {
                 const refreshRes = await getPendingQCDetailsByBatch(activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke);

@@ -203,7 +203,10 @@ export default function MendingDetailModal({
               </h4>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-sm h-full p-4">
                 <p className="text-sm text-slate-700 italic">
-                  {d.keterangan_mending || "Tidak ada catatan."}
+                  {(d.keterangan_mending || "")
+                    .replace(/\[ELAPSED:\d+\]/gi, "")
+                    .replace(/\[PAUSE:\d+\]/gi, "")
+                    .trim() || "Tidak ada catatan."}
                 </p>
               </div>
             </div>

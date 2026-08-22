@@ -352,7 +352,7 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
 
     const { data: details, error: detailsError } = await supabase
       .from("production_details")
-      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id, is_deleted, status_inspeksi, status_mending, production_defects(*)")
+      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, keterangan_qc, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id, is_deleted, status_inspeksi, status_mending, production_defects(*)")
       .in("header_id", headerIds)
       .is("final_inspection_id", null);
 
@@ -426,7 +426,7 @@ export async function getAllPendingQCDetails(
 
     const { data: details, error: detailsError } = await supabase
       .from("production_details")
-      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id")
+      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, keterangan_qc, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id")
       .in("header_id", headerIds)
       .is("final_inspection_id", null);
 

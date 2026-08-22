@@ -24,7 +24,7 @@ interface QCEditDetailModalProps {
   problemDetailsMap: Record<string, string[]>;
   allBatchDetails?: any[];
   currentGrade?: number;
-  onSuccess: (detailId: string, newGrade: number) => void;
+  onSuccess: (detailId: string, newGrade: number, updatedData?: any) => void;
 }
 
 export default function QCEditDetailModal({
@@ -43,6 +43,7 @@ export default function QCEditDetailModal({
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
   const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
   const [keteranganCacat, setKeteranganCacat] = useState("");
+  const [keteranganQc, setKeteranganQc] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -76,8 +77,10 @@ export default function QCEditDetailModal({
       }
       
       // Determine initial grade
-      const hasRealCacat = (detail.kategori_masalah && detail.kategori_masalah !== "G" && !String(detail.kategori_masalah).includes("GAGAL CACAT")) || 
-                           (detail.detail_masalah && !String(detail.detail_masalah).includes("GAGAL CACAT") && !String(detail.detail_masalah).includes("ISTIRAHAT")) || 
+      const katUpper = String(detail.kategori_masalah || "").toUpperCase();
+      const detUpper = String(detail.detail_masalah || "").toUpperCase();
+      const hasRealCacat = (detail.kategori_masalah && katUpper !== "G" && !katUpper.includes("GAGAL CACAT") && !katUpper.includes("ISTIRAHAT")) || 
+                           (detail.detail_masalah && !detUpper.includes("GAGAL CACAT") && !detUpper.includes("ISTIRAHAT") && !detUpper.includes("START") && !detUpper.includes("FINISH")) || 
                            (detail.production_defects && detail.production_defects.some((pd: any) => !pd.detail?.toUpperCase().includes("GAGAL CACAT") && pd.kategori !== "G" && !pd.kategori?.toUpperCase().includes("ISTIRAHAT")));
       
       const initialGrade = currentGrade || detail.final_inspection_id || (detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS" ? 4 : (hasRealCacat ? 3 : 1));
@@ -150,6 +153,7 @@ export default function QCEditDetailModal({
       setSelectedDetails(initialDetailsMap);
       setInputBloks(initialBlokMap);
       setKeteranganCacat(cleanKet);
+      setKeteranganQc(detail.keterangan_qc || "");
       setManualInputDetails({});
     }
   }, [isOpen, detail, currentGrade]);
@@ -270,14 +274,20 @@ export default function QCEditDetailModal({
         kategoriMasalah: selectedCategories.length > 0 ? selectedCategories : undefined,
         detailMasalah: combinedDetailMasalah || undefined,
         keteranganCacat: finalKeteranganCacat || undefined,
-        keteranganQc: detail.keterangan_qc || undefined,
+        keteranganQc: keteranganQc.trim() || undefined,
         isBs,
         finalInspectionId: selectedGrade,
         defects: defectObjects,
       });
 
       if (res.success) {
-        onSuccess(detail.id, selectedGrade);
+        onSuccess(detail.id, selectedGrade, {
+          keterangan_qc: keteranganQc.trim(),
+          keterangan_cacat: finalKeteranganCacat,
+          detail_masalah: combinedDetailMasalah,
+          kategori_masalah: selectedCategories.join(", "),
+          production_defects: defectObjects,
+        });
         onClose();
       } else {
         setErrorMsg(res.error || "Gagal menyimpan perubahan.");
@@ -601,6 +611,24 @@ export default function QCEditDetailModal({
                   })}
                 </div>
               )}
+            </div>
+
+            {/* Catatan / Keterangan Khusus QC */}
+            <div className="space-y-1.5 pt-4 border-t border-slate-100">
+              <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Edit3 className="w-3.5 h-3.5 text-sky-600" />
+                Catatan / Keterangan Khusus QC (Opsional):
+              </label>
+              <p className="text-[11px] text-slate-500">
+                Catatan ini akan tampil dengan warna biru di tabel sebagai instruksi / memo untuk bagian Mending & Produksi.
+              </p>
+              <input
+                type="text"
+                value={keteranganQc}
+                onChange={(e) => setKeteranganQc(e.target.value)}
+                placeholder="Contoh: Toleransi grade B, serat halus / Perlu obras ulang..."
+                className="w-full h-10 px-3.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all placeholder:text-slate-400 font-medium"
+              />
             </div>
           </div>
         </div>

@@ -84,8 +84,12 @@ export default function MeterQCTable({
 
       if (item.production_defects && Array.isArray(item.production_defects)) {
         item.production_defects.forEach((d: any) => {
-          if ((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT")) {
+          const k = (d.kategori || "").toUpperCase();
+          const det = (d.detail || "").toUpperCase();
+          if (k.includes("ISTIRAHAT") || det.includes("ISTIRAHAT")) {
             hasIstirahatFromDefects = true;
+          } else if (k === "G" || det.includes("GAGAL CACAT")) {
+            // Gagal Cacat is not a real defect
           } else {
             hasRealDefects = true;
           }
@@ -93,10 +97,10 @@ export default function MeterQCTable({
       }
 
       if (!item.production_defects || item.production_defects.length === 0) {
-        const cleanDetailNoIstirahat = (item.detail_masalah || "").replace(/istirahat/gi, "").replace(/G\s*-\s*/gi, "").trim();
+        const cleanDetailNoIstirahat = (item.detail_masalah || "").replace(/istirahat/gi, "").replace(/gagal cacat/gi, "").replace(/G\s*-\s*/gi, "").trim();
         if (cleanDetailNoIstirahat.length > 0) {
           hasRealDefects = true;
-        } else if (item.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT")) {
+        } else if (item.kategori_masalah && katStr !== "G" && !katStr.includes("ISTIRAHAT") && !katStr.includes("GAGAL CACAT")) {
           hasRealDefects = true;
         }
       }
@@ -356,6 +360,13 @@ export default function MeterQCTable({
       }
 
       if (!isPlaceholder) {
+        const isGagalCacatOnly = (
+          (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
+          (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT") ||
+          (item.kategori_masalah || "").toUpperCase() === "G" ||
+          (item.production_defects && item.production_defects.some((d: any) => (d.detail || "").toUpperCase().includes("GAGAL CACAT") || (d.kategori || "").toUpperCase() === "G"))
+        ) && !hasRealDefects;
+
         items.push({
           ...item,
           isMeter: true,
@@ -372,6 +383,8 @@ export default function MeterQCTable({
           backupOpName: extractedBackupOp,
           isGradable: isGradable,
           hasTambahanQC: hasTambahanQC,
+          hasRealDefects: hasRealDefects,
+          isGagalCacatOnly: isGagalCacatOnly,
           showTgl,
           showGrp,
           showOpr,
@@ -387,7 +400,7 @@ export default function MeterQCTable({
           grandTotalLastMeter = meterVal;
         }
 
-        const isDefectRow = !isIstirahatOnly && (hasRealDefects || hasTambahanQC || !!item.kategori_masalah || !!item.indikator_stop);
+        const isDefectRow = !isIstirahatOnly && (hasRealDefects || hasTambahanQC);
         if (isDefectRow) {
           currentOpCacatCount += 1;
           grandTotalCacatCount += 1;
@@ -433,28 +446,80 @@ export default function MeterQCTable({
   }, [detailsToDisplay]);
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left border-collapse">
-        <thead>
-          <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider">
-            <th className="sticky left-0 z-20 bg-slate-100 px-0.5 py-2 w-6 text-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">No</th>
-            <th className="px-1 py-2 w-14 border-r border-slate-200">Tgl</th>
-            <th className="px-0.5 py-2 w-8 text-center border-r border-slate-200">Group</th>
-            <th className="px-1 py-2 w-16 border-r border-slate-200">Operator</th>
-            <th className="px-1 py-2 text-center w-12 border-r border-slate-200">Meter</th>
-            <th className="px-0.5 py-2 text-center w-8 border-r border-slate-200">KET <br /> ✓/X</th>
-            <th className="px-1 py-2 min-w-[150px] w-full border-r border-slate-200">Keterangan Cacat</th>
-            <th className="px-1 py-2 text-center w-20 border-r border-slate-200">Inspeksi</th>
-            <th className="px-1 py-2 text-center w-10">Aksi</th>
+    <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-xs">
+      <table className="w-full text-left border-collapse">
+        <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+          <tr>
+            <th className="sticky left-0 z-20 bg-slate-50 px-1 py-2 w-7 text-center border-r border-slate-200">NO</th>
+            <th className="px-2 py-2 w-24 border-r border-slate-100">TGL</th>
+            <th className="px-1 py-2 text-center w-12 border-r border-slate-100">GROUP</th>
+            <th className="px-2 py-2 w-28 border-r border-slate-100">OPERATOR</th>
+            <th className="px-1 py-2 text-center w-14 border-r border-slate-100">METER</th>
+            <th className="px-1 py-2 text-center w-14 border-r border-slate-100">KET</th>
+            <th className="px-3 py-2 border-r border-slate-100 min-w-[200px]">KETERANGAN CACAT</th>
+            <th className="px-1 py-2 text-center w-24 border-r border-slate-100">INSPEKSI</th>
+            <th className="px-1 py-2 text-center w-14">AKSI</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100 text-[10px] text-slate-700">
-          {displayItems.map((item, index) => {
+        <tbody className="divide-y divide-slate-100 text-xs text-slate-700 bg-white">
+          {displayItems.map((item: any) => {
             if (item.isTotalRow) {
               return (
-                <tr key={item.id} className="bg-slate-100 border-t-2 border-b-2 border-slate-300">
-                  <td colSpan={10} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-center text-xs font-semibold text-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
-                    {item.totalLabel} <span className="font-extrabold text-slate-800 ml-1">{item.totalMeter}</span>
+                <tr key={item.id} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
+                  <td colSpan={5} className="px-3 py-2 text-right whitespace-nowrap">
+                    {item.totalLabel}
+                  </td>
+                  <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap">
+                    {item.totalMeter}
+                  </td>
+                  <td colSpan={3} className="bg-slate-100"></td>
+                </tr>
+              );
+            }
+
+            if (item.isGrandTotalRow) {
+              return (
+                <tr key={item.id} className="bg-slate-200/80 border-t-2 border-b-2 border-slate-300 font-bold text-slate-800">
+                  <td colSpan={5} className="px-3 py-2 text-right whitespace-nowrap uppercase tracking-wider text-[11px]">
+                    {item.totalLabel}
+                  </td>
+                  <td className="px-1 py-2 text-center text-slate-900 font-black whitespace-nowrap">
+                    {item.totalMeter}
+                  </td>
+                  <td colSpan={3} className="bg-slate-200/80"></td>
+                </tr>
+              );
+            }
+
+            if (item.isStartRow) {
+              return (
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="sticky left-0 z-10 bg-white px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                    {item.displayNo}
+                  </td>
+                  <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100">
+                    {item.tglStr}
+                  </td>
+                  <td className="px-1 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100">
+                    {item.grpStr}
+                  </td>
+                  <td className="px-2 py-1.5 font-medium text-slate-700 leading-tight text-xs w-28 border-r border-slate-100">
+                    {item.oprStr}
+                  </td>
+                  <td className="px-1 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100">
+                    {item.meterDisplay}
+                  </td>
+                  <td className="px-1 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100">
+                    {/* Empty KET for START */}
+                  </td>
+                  <td className="px-3 py-1.5 text-[11px] font-bold text-slate-400 whitespace-pre leading-tight border-r border-slate-100">
+                    START
+                  </td>
+                  <td className="px-1 py-1.5 text-center w-24 border-r border-slate-100">
+                    {/* Empty INSPEKSI for START */}
+                  </td>
+                  <td className="px-1 py-1.5 text-center w-14">
+                    {/* Empty AKSI for START */}
                   </td>
                 </tr>
               );
@@ -477,9 +542,9 @@ export default function MeterQCTable({
                   {item.meterDisplay}
                 </td>
                 <td className="px-1 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100">
-                  {!item.isGradable ? "" : (item.indikator_stop || item.kategori_masalah || item.hasTambahanQC ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
+                  {!item.isGradable ? "" : (item.hasRealDefects || item.hasTambahanQC ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
                 </td>
-                <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${item.hasIstirahat ? 'text-slate-500' : ((!item.isGradable || (!item.hasErrorDetail && !item.hasTambahanQC)) ? 'text-slate-700' : 'text-rose-600')}`}>
+                <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${item.hasIstirahat ? 'text-slate-500' : ((!item.isGradable || (!item.hasErrorDetail && !item.hasTambahanQC) || item.isGagalCacatOnly) ? 'text-slate-500' : 'text-rose-600')}`}>
                   {item.backupOpName && item.hasIstirahat && <div className="font-bold text-slate-700">{item.backupOpName}</div>}
                   {!item.hasIstirahat && (item.cacatDisplay || "-")}
                   {item.hasIstirahat && !item.backupOpName && "-"}

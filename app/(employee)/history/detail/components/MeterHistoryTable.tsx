@@ -97,8 +97,7 @@ export default function MeterHistoryTable({
           hasRealDefects = true;
         }
       }
-      const isGagalCacat = (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") || (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT");
-      const hasIstirahatRaw = !isGagalCacat && (
+      const hasIstirahatRaw = (
         (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
@@ -641,10 +640,40 @@ export default function MeterHistoryTable({
             );
           }
 
-          const hasMeterDefect = item.cacatDisplay && item.cacatDisplay !== "-" && item.cacatDisplay !== "START" && item.cacatDisplay !== "FINISH" && item.cacatDisplay !== "ISTIRAHAT";
+          let hasRealError = false;
+          if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
+            hasRealError = item.production_defects.some((d: any) => {
+              const k = (d.kategori || "").toUpperCase().trim();
+              const det = (d.detail || "").toUpperCase().trim();
+              if (k.includes("ISTIRAHAT") || det.includes("ISTIRAHAT")) return false;
+              if (det.includes("GAGAL CACAT") || k === "G") return false;
+              return true;
+            });
+          } else {
+            const katStr = (item.kategori_masalah || "").toUpperCase().trim();
+            const detStr = (item.detail_masalah || "").toUpperCase().trim();
+            if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT") && !katStr.includes("GAGAL CACAT")) {
+              hasRealError = true;
+            }
+            if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH") && !detStr.includes("GAGAL CACAT")) {
+              hasRealError = true;
+            }
+          }
+          if ((item.keterangan_cacat || "").includes("[TAMBAHAN QC]")) {
+            hasRealError = true;
+          }
+
+          const isGagalCacatOnly = (
+            (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
+            (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT") ||
+            (item.kategori_masalah || "").toUpperCase() === "G" ||
+            (item.production_defects && item.production_defects.some((d: any) => (d.detail || "").toUpperCase().includes("GAGAL CACAT") || (d.kategori || "").toUpperCase() === "G"))
+          ) && !hasRealError;
+
+          const hasMeterDefect = hasRealError;
           const meterCacatColor = item.hasIstirahat || item.cacatDisplay === "ISTIRAHAT" || item.cacatDisplay === "FINISH"
             ? "text-slate-600 font-semibold italic"
-            : (hasMeterDefect ? "text-rose-600" : "text-slate-400");
+            : (isGagalCacatOnly ? "text-slate-500 font-medium" : (hasMeterDefect ? "text-rose-600" : "text-slate-400"));
 
           return (
             <tr key={item.id || index} className={`${item.hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
@@ -672,7 +701,7 @@ export default function MeterHistoryTable({
                    if (item.hasIstirahat || item.cacatDisplay === "ISTIRAHAT" || item.cacatDisplay === "FINISH") {
                      return null;
                    }
-                   if (hasMeterDefect) {
+                   if (hasRealError) {
                      return <XCircle className="w-4 h-4 text-rose-500 inline-block" />;
                    }
                    return <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />;

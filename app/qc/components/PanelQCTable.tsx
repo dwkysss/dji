@@ -257,6 +257,7 @@ export default function PanelQCTable({
             
             if (hasIstirahat) {
               displayKeterangan = displayKeterangan.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
+              displayKeterangan = displayKeterangan.replace(/\(?Backup:\s*[^)]+\)?/gi, "").trim();
               displayKeterangan = displayKeterangan.replace(/^,\s*|\s*,\s*$/g, "");
             }
 
@@ -306,11 +307,12 @@ export default function PanelQCTable({
 
               if (cacatLines.length === 0 || cacatLines.every((l) => !l.includes("(Blok"))) {
                 let ketCacat = displayKeterangan.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
+                ketCacat = ketCacat.replace(/\(?Backup:\s*[^)]+\)?/gi, "").trim();
                 ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
-                ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
+                ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "").trim();
                 if (ketCacat) {
                   const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-                  if (cleanB) {
+                  if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
                     if (cacatLines.length === 0) {
                       cacatLines.push(`(Blok ${cleanB})`);
                     } else {
@@ -351,32 +353,18 @@ export default function PanelQCTable({
               };
               
               if (kats.length > 0) {
-                if (displayDetail.includes(" | ")) {
-                  const catDetails = displayDetail.split(" | ");
-                  for (let i = 0; i < Math.max(kats.length, catDetails.length); i++) {
-                    const k = kats[i] || "Unknown";
-                    const d = catDetails[i] || "";
-                    pushDetailsForCat(k, d);
-                  }
-                } else if (displayDetail) {
+                if (displayDetail) {
                   if (kats.length === 1) {
                     pushDetailsForCat(kats[0], displayDetail);
                   } else {
-                    const dets = displayDetail.split(", ");
-                    if (kats.length === dets.length) {
-                      for (let i = 0; i < kats.length; i++) {
-                        pushDetailsForCat(kats[i], dets[i]);
-                      }
+                    const parts = displayDetail.split(",").map((s: string) => s.trim()).filter(Boolean);
+                    if (parts.length === kats.length) {
+                      kats.forEach((k: string, idx: number) => {
+                        pushDetailsForCat(k, parts[idx]);
+                      });
                     } else {
-                      dets.forEach((det: string) => {
-                        let foundKat = "Unknown";
-                        for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
-                          if ((detList as string[]).some((d: string) => det.toLowerCase().includes(d.toLowerCase()))) {
-                            foundKat = kat;
-                            break;
-                          }
-                        }
-                        cacatLines.push(`${foundKat !== "Unknown" ? foundKat + " - " : ""}${det}`);
+                      kats.forEach((k: string) => {
+                        pushDetailsForCat(k, displayDetail);
                       });
                     }
                   }
@@ -389,19 +377,22 @@ export default function PanelQCTable({
 
               let ketCacat = item.keterangan_cacat || "";
               ketCacat = ketCacat.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
+              ketCacat = ketCacat.replace(/\(?Backup:\s*[^)]+\)?/gi, "").trim();
               ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
-              ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
+              ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "").trim();
               if (ketCacat) {
                 if (cacatLines.length > 0) {
                   const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
                   if (cacatLines.length === 1 && parts.length > 1) {
                     const cleanAllBlocks = parts
                       .map((p: string) => p.replace(/blok\s*/gi, "").trim())
-                      .filter(Boolean)
+                      .filter((b: string) => b && !b.toLowerCase().includes("backup") && !b.toLowerCase().includes("istirahat"))
                       .join(", ");
-                    cacatLines = cacatLines.map((line) =>
-                      line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanAllBlocks})`
-                    );
+                    if (cleanAllBlocks) {
+                      cacatLines = cacatLines.map((line) =>
+                        line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanAllBlocks})`
+                      );
+                    }
                   } else {
                     cacatLines = cacatLines.map((line, i) => {
                       if (line.match(/\(Blok/i)) return line;
@@ -416,17 +407,23 @@ export default function PanelQCTable({
 
                       if (parts[partIndex] && parts[partIndex] !== "") {
                         const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                        return line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanB})`;
+                        if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat")) {
+                          return line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanB})`;
+                        }
                       } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
                         const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                        return line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanB})`;
+                        if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat")) {
+                          return line.match(/\(Blok/i) ? line : `${line} (Blok ${cleanB})`;
+                        }
                       }
                       return line;
                     });
                   }
                 } else {
                   const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-                  cacatLines.push(`(Blok ${cleanB})`);
+                  if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+                    cacatLines.push(`(Blok ${cleanB})`);
+                  }
                 }
               }
             }

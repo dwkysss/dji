@@ -284,7 +284,29 @@ function buildPanelRows(panels: any[], shiftName: string) {
       const oprStr = panel.operators?.nama_operator || panel.pic || "-";
 
       const isIstirahat = (detail.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (detail.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT");
-      const hasDefect = !isIstirahat && (!!detail.kategori_masalah || !!detail.detail_masalah || (detail.production_defects && detail.production_defects.length > 0));
+      let hasRealDefect = false;
+      if (detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0) {
+        hasRealDefect = detail.production_defects.some((d: any) => {
+          const k = (d.kategori || "").toUpperCase().trim();
+          const det = (d.detail || "").toUpperCase().trim();
+          if (k.includes("ISTIRAHAT") || det.includes("ISTIRAHAT")) return false;
+          if (det.includes("GAGAL CACAT") || k === "G") return false;
+          return true;
+        });
+      } else {
+        const katStr = (detail.kategori_masalah || "").toUpperCase().trim();
+        const detStr = (detail.detail_masalah || "").toUpperCase().trim();
+        if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT") && !katStr.includes("GAGAL CACAT")) {
+          hasRealDefect = true;
+        }
+        if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH") && !detStr.includes("GAGAL CACAT")) {
+          hasRealDefect = true;
+        }
+      }
+      if ((detail.keterangan_cacat || "").includes("[TAMBAHAN QC]")) {
+        hasRealDefect = true;
+      }
+      const hasDefect = !isIstirahat && hasRealDefect;
       const isGagal = String(panel.panel_no || "").toUpperCase().includes("GAGAL") || String(panel.panel_no || "").toUpperCase().includes("BS");
 
       const showTgl = di === 0 ? (tglStr !== lastTgl || oprStr !== lastOpr) : false;
@@ -339,8 +361,7 @@ function buildMeterRows(panels: any[], shiftName: string) {
   });
 
   const filtered = details.filter((item: any) => {
-    const isGagalCacat = (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") || (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT");
-    const hasIstirahatRaw = !isGagalCacat && (
+    const hasIstirahatRaw = (
       (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
       (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
       (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
@@ -348,8 +369,13 @@ function buildMeterRows(panels: any[], shiftName: string) {
       (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
     );
     let hasRealDefects = false;
-    (item.production_defects || []).forEach((d: any) => { if (!((d.kategori || "").toUpperCase().includes("ISTIRAHAT"))) hasRealDefects = true; });
-    if (!item.production_defects?.length && item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT")) hasRealDefects = true;
+    (item.production_defects || []).forEach((d: any) => {
+      const k = (d.kategori || "").toUpperCase();
+      const det = (d.detail || "").toUpperCase();
+      if (!k.includes("ISTIRAHAT") && !det.includes("ISTIRAHAT") && !det.includes("GAGAL CACAT") && k !== "G") hasRealDefects = true;
+    });
+    if (!item.production_defects?.length && item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT") && !item.kategori_masalah.toUpperCase().includes("GAGAL CACAT") && item.kategori_masalah.toUpperCase() !== "G") hasRealDefects = true;
+    if (!item.production_defects?.length && item.detail_masalah && !item.detail_masalah.toUpperCase().includes("ISTIRAHAT") && !item.detail_masalah.toUpperCase().includes("GAGAL CACAT") && !item.detail_masalah.toUpperCase().includes("START") && !item.detail_masalah.toUpperCase().includes("FINISH")) hasRealDefects = true;
     const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
     const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
     if (isIstirahat) { const h = item.production_headers || {}; return h.meter_kain || h.meter_akhir || h.meter_awal; }
@@ -375,7 +401,7 @@ function buildMeterRows(panels: any[], shiftName: string) {
     const oprStr = `${grp ? `(${grp}) ` : ""}${opr}`;
 
     const isGagalCacat = (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") || (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT");
-    const hasIstirahatRaw = !isGagalCacat && (
+    const hasIstirahatRaw = (
       (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
       (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
       (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
@@ -383,8 +409,13 @@ function buildMeterRows(panels: any[], shiftName: string) {
       (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
     );
     let hasRealDefects = false;
-    (item.production_defects || []).forEach((d: any) => { if (!((d.kategori || "").toUpperCase().includes("ISTIRAHAT"))) hasRealDefects = true; });
-    if (!item.production_defects?.length && item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT")) hasRealDefects = true;
+    (item.production_defects || []).forEach((d: any) => {
+      const k = (d.kategori || "").toUpperCase();
+      const det = (d.detail || "").toUpperCase();
+      if (!k.includes("ISTIRAHAT") && !det.includes("ISTIRAHAT") && !det.includes("GAGAL CACAT") && k !== "G") hasRealDefects = true;
+    });
+    if (!item.production_defects?.length && item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT") && !item.kategori_masalah.toUpperCase().includes("GAGAL CACAT") && item.kategori_masalah.toUpperCase() !== "G") hasRealDefects = true;
+    if (!item.production_defects?.length && item.detail_masalah && !item.detail_masalah.toUpperCase().includes("ISTIRAHAT") && !item.detail_masalah.toUpperCase().includes("GAGAL CACAT") && !item.detail_masalah.toUpperCase().includes("START") && !item.detail_masalah.toUpperCase().includes("FINISH")) hasRealDefects = true;
     const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
     const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
 

@@ -181,6 +181,44 @@ export default function LaporanPotongKainPage() {
     return overallGrade;
   };
 
+const formatKeteranganMending = (rawKet?: string | null): string => {
+  if (!rawKet) return "-";
+  
+  let elapsedSec = 0;
+  const mElapsed = rawKet.match(/\[ELAPSED:(\d+)\]/i);
+  if (mElapsed && mElapsed[1]) {
+    elapsedSec = parseInt(mElapsed[1], 10);
+  }
+  
+  const cleanNotes = rawKet
+    .replace(/\[ELAPSED:\d+\]/gi, "")
+    .replace(/\[PAUSE:\d+\]/gi, "")
+    .trim();
+  
+  let durationStr = "";
+  if (elapsedSec > 0) {
+    const mins = Math.floor(elapsedSec / 60);
+    const secs = elapsedSec % 60;
+    if (mins > 0 && secs > 0) {
+      durationStr = `${mins}m ${secs}s`;
+    } else if (mins > 0) {
+      durationStr = `${mins}m`;
+    } else {
+      durationStr = `${secs}s`;
+    }
+  }
+  
+  if (cleanNotes && durationStr) {
+    return `${cleanNotes} (Durasi: ${durationStr})`;
+  } else if (cleanNotes) {
+    return cleanNotes;
+  } else if (durationStr) {
+    return `Durasi: ${durationStr}`;
+  }
+  
+  return "-";
+};
+
   const processedData = useMemo(() => {
     return data.map(batch => {
       const header = batch.header || {};
@@ -241,7 +279,7 @@ export default function LaporanPotongKainPage() {
       
       const tglMending = batch.tanggal_mending || "";
       const customer = header.no_customer || "";
-      const ket = batch.keterangan_mending || "";
+      const ket = formatKeteranganMending(batch.keterangan_mending);
 
       return {
         tanggalBeres,

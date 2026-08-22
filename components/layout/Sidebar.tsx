@@ -32,6 +32,7 @@ import {
   ListFilter,
   SlidersHorizontal,
   Bell,
+  FlaskConical,
 } from "lucide-react";
 
 const MACHINE_INPUT_TYPES: Record<string, string> = {
@@ -256,6 +257,12 @@ export default function Sidebar() {
           href: "/announcements",
           icon: Megaphone,
           roles: ["admin", "manager"],
+        },
+        {
+          name: "Uji Skenario Tampilan",
+          href: "/test-scenarios",
+          icon: FlaskConical,
+          roles: ["admin", "manager", "operator", "inspeksi", "mending"],
         },
       ],
     },
