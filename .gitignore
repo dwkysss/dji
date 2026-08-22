@@ -42,6 +42,7 @@ next-env.d.ts
 
 # scratch & temp files
 /scratch/
+/scripts/
 /supabase/.temp/
 db_out.json
 *.log

@@ -342,7 +342,7 @@ export default function DashboardPage() {
 
   // Date Filtering State
   const [dateRangeMode, setDateRangeMode] = useState<
-    "ALL" | "TODAY" | "7DAYS" | "CUSTOM"
+    "TODAY" | "7DAYS" | "30DAYS" | "CUSTOM"
   >("7DAYS");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -426,43 +426,47 @@ export default function DashboardPage() {
   const dateFilteredTransactions = useMemo(() => {
     let result = transactions;
 
-    if (dateRangeMode !== "ALL") {
-      const now = new Date();
-      const todayStr = now.toLocaleDateString("en-CA");
+    const now = new Date();
+    const todayStr = now.toLocaleDateString("en-CA");
 
-      result = result.filter((item) => {
-        const itemDate = new Date(item.tanggal);
-        if (isNaN(itemDate.getTime())) return true;
+    result = result.filter((item) => {
+      const itemDate = new Date(item.tanggal);
+      if (isNaN(itemDate.getTime())) return true;
 
-        if (dateRangeMode === "TODAY") {
-          return itemDate.toLocaleDateString("en-CA") === todayStr;
+      if (dateRangeMode === "TODAY") {
+        return itemDate.toLocaleDateString("en-CA") === todayStr;
+      }
+
+      if (dateRangeMode === "7DAYS") {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(now.getDate() - 7);
+        return itemDate >= sevenDaysAgo && itemDate <= now;
+      }
+
+      if (dateRangeMode === "30DAYS") {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(now.getDate() - 30);
+        return itemDate >= thirtyDaysAgo && itemDate <= now;
+      }
+
+      if (dateRangeMode === "CUSTOM") {
+        if (!startDate && !endDate) return true;
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+
+        if (start && end) {
+          end.setHours(23, 59, 59, 999);
+          return itemDate >= start && itemDate <= end;
+        } else if (start) {
+          return itemDate >= start;
+        } else if (end) {
+          end.setHours(23, 59, 59, 999);
+          return itemDate <= end;
         }
+      }
 
-        if (dateRangeMode === "7DAYS") {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(now.getDate() - 7);
-          return itemDate >= sevenDaysAgo && itemDate <= now;
-        }
-
-        if (dateRangeMode === "CUSTOM") {
-          if (!startDate && !endDate) return true;
-          const start = startDate ? new Date(startDate) : null;
-          const end = endDate ? new Date(endDate) : null;
-
-          if (start && end) {
-            end.setHours(23, 59, 59, 999);
-            return itemDate >= start && itemDate <= end;
-          } else if (start) {
-            return itemDate >= start;
-          } else if (end) {
-            end.setHours(23, 59, 59, 999);
-            return itemDate <= end;
-          }
-        }
-
-        return true;
-      });
-    }
+      return true;
+    });
 
     if (activeEmployeeName) {
       // Check if the comma-separated string contains the active employee name (case-insensitive)
@@ -836,7 +840,7 @@ export default function DashboardPage() {
   const handleResetFilters = () => {
     setActiveFilter("ALL");
     setChartGradeFilter("ALL");
-    setDateRangeMode("ALL");
+    setDateRangeMode("7DAYS");
     setStartDate("");
     setEndDate("");
     setMetricMode("PCS");
@@ -1026,16 +1030,6 @@ export default function DashboardPage() {
             </span>
             <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150">
               <button
-                onClick={() => setDateRangeMode("ALL")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  dateRangeMode === "ALL"
-                    ? "bg-white text-slate-800 shadow-xs border border-slate-150"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Semua Waktu
-              </button>
-              <button
                 onClick={() => setDateRangeMode("TODAY")}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   dateRangeMode === "TODAY"
@@ -1053,7 +1047,17 @@ export default function DashboardPage() {
                     : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                7 Hari Terakhir
+                7 Hari
+              </button>
+              <button
+                onClick={() => setDateRangeMode("30DAYS")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  dateRangeMode === "30DAYS"
+                    ? "bg-white text-slate-800 shadow-xs border border-slate-150"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                30 Hari
               </button>
               <button
                 onClick={() => setDateRangeMode("CUSTOM")}

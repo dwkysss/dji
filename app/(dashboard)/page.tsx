@@ -374,8 +374,8 @@ export default function DashboardPage() {
 
   // Date Filtering State
   const [dateRangeMode, setDateRangeMode] = useState<
-    "ALL" | "TODAY" | "7DAYS" | "CUSTOM"
-  >("ALL");
+    "TODAY" | "7DAYS" | "30DAYS" | "CUSTOM"
+  >("7DAYS");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
@@ -470,43 +470,47 @@ export default function DashboardPage() {
   const dateFilteredTransactions = useMemo(() => {
     let result = transactions;
 
-    if (dateRangeMode !== "ALL") {
-      const now = new Date();
-      const todayStr = now.toLocaleDateString("en-CA");
+    const now = new Date();
+    const todayStr = now.toLocaleDateString("en-CA");
 
-      result = result.filter((item) => {
-        const itemDate = new Date(item.tanggal);
-        if (isNaN(itemDate.getTime())) return true;
+    result = result.filter((item) => {
+      const itemDate = new Date(item.tanggal);
+      if (isNaN(itemDate.getTime())) return true;
 
-        if (dateRangeMode === "TODAY") {
-          return itemDate.toLocaleDateString("en-CA") === todayStr;
+      if (dateRangeMode === "TODAY") {
+        return itemDate.toLocaleDateString("en-CA") === todayStr;
+      }
+
+      if (dateRangeMode === "7DAYS") {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(now.getDate() - 7);
+        return itemDate >= sevenDaysAgo && itemDate <= now;
+      }
+
+      if (dateRangeMode === "30DAYS") {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(now.getDate() - 30);
+        return itemDate >= thirtyDaysAgo && itemDate <= now;
+      }
+
+      if (dateRangeMode === "CUSTOM") {
+        if (!startDate && !endDate) return true;
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+
+        if (start && end) {
+          end.setHours(23, 59, 59, 999);
+          return itemDate >= start && itemDate <= end;
+        } else if (start) {
+          return itemDate >= start;
+        } else if (end) {
+          end.setHours(23, 59, 59, 999);
+          return itemDate <= end;
         }
+      }
 
-        if (dateRangeMode === "7DAYS") {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(now.getDate() - 7);
-          return itemDate >= sevenDaysAgo && itemDate <= now;
-        }
-
-        if (dateRangeMode === "CUSTOM") {
-          if (!startDate && !endDate) return true;
-          const start = startDate ? new Date(startDate) : null;
-          const end = endDate ? new Date(endDate) : null;
-
-          if (start && end) {
-            end.setHours(23, 59, 59, 999);
-            return itemDate >= start && itemDate <= end;
-          } else if (start) {
-            return itemDate >= start;
-          } else if (end) {
-            end.setHours(23, 59, 59, 999);
-            return itemDate <= end;
-          }
-        }
-
-        return true;
-      });
-    }
+      return true;
+    });
 
     if (selectedOperators.length > 0) {
       result = result.filter((item) =>
@@ -721,19 +725,7 @@ export default function DashboardPage() {
     let result = transactions;
     const now = new Date();
 
-    if (dateRangeMode === "ALL") {
-      // Previous half of the 30-day window (days 16 to 30)
-      const fifteenDaysAgo = new Date();
-      fifteenDaysAgo.setDate(now.getDate() - 15);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(now.getDate() - 30);
-
-      result = result.filter((item) => {
-        const itemDate = new Date(item.tanggal);
-        if (isNaN(itemDate.getTime())) return false;
-        return itemDate >= thirtyDaysAgo && itemDate < fifteenDaysAgo;
-      });
-    } else if (dateRangeMode === "TODAY") {
+    if (dateRangeMode === "TODAY") {
       const yesterday = new Date();
       yesterday.setDate(now.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split("T")[0];
@@ -748,6 +740,17 @@ export default function DashboardPage() {
         const itemDate = new Date(item.tanggal);
         if (isNaN(itemDate.getTime())) return false;
         return itemDate >= fourteenDaysAgo && itemDate < sevenDaysAgo;
+      });
+    } else if (dateRangeMode === "30DAYS") {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(now.getDate() - 30);
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(now.getDate() - 60);
+
+      result = result.filter((item) => {
+        const itemDate = new Date(item.tanggal);
+        if (isNaN(itemDate.getTime())) return false;
+        return itemDate >= sixtyDaysAgo && itemDate < thirtyDaysAgo;
       });
     } else if (dateRangeMode === "CUSTOM") {
       if (!startDate && !endDate) return [];
@@ -783,40 +786,10 @@ export default function DashboardPage() {
     return result;
   }, [transactions, dateRangeMode, startDate, endDate, selectedOperators, selectedMachines]);
 
-  // Current half transactions (last 15 days) to perform clean deltas when filtering by "ALL"
+  // Current transactions to perform clean deltas
   const currentHalfFilteredTransactions = useMemo(() => {
-    if (dateRangeMode !== "ALL") return dateFilteredTransactions;
-
-    const now = new Date();
-    const fifteenDaysAgo = new Date();
-    fifteenDaysAgo.setDate(now.getDate() - 15);
-
-    let result = transactions.filter((item) => {
-      const itemDate = new Date(item.tanggal);
-      if (isNaN(itemDate.getTime())) return false;
-      return itemDate >= fifteenDaysAgo && itemDate <= now;
-    });
-
-    if (selectedOperators.length > 0) {
-      result = result.filter((item) =>
-        selectedOperators.includes(item.nama_operator),
-      );
-    }
-
-    if (selectedMachines.length > 0) {
-      result = result.filter((item) =>
-        selectedMachines.includes(item.mesin_id),
-      );
-    }
-
-    return result;
-  }, [
-    transactions,
-    dateFilteredTransactions,
-    dateRangeMode,
-    selectedOperators,
-    selectedMachines,
-  ]);
+    return dateFilteredTransactions;
+  }, [dateFilteredTransactions]);
 
   // Main KPI calculations
   const stats = useMemo(() => {
@@ -1467,36 +1440,39 @@ export default function DashboardPage() {
     // Note: We use dateFilteredTransactions without selectedOperators filter for attendance
     // to correctly calculate overall attendance.
     let dateScoped = transactions;
-    if (dateRangeMode !== "ALL") {
-      const now = new Date();
-      const todayStr = now.toLocaleDateString("en-CA");
+    const now = new Date();
+    const todayStr = now.toLocaleDateString("en-CA");
 
-      dateScoped = dateScoped.filter((item) => {
-        const itemDate = new Date(item.tanggal);
-        if (isNaN(itemDate.getTime())) return true;
-        if (dateRangeMode === "TODAY")
-          return itemDate.toLocaleDateString("en-CA") === todayStr;
-        if (dateRangeMode === "7DAYS") {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(now.getDate() - 7);
-          return itemDate >= sevenDaysAgo && itemDate <= now;
+    dateScoped = dateScoped.filter((item) => {
+      const itemDate = new Date(item.tanggal);
+      if (isNaN(itemDate.getTime())) return true;
+      if (dateRangeMode === "TODAY")
+        return itemDate.toLocaleDateString("en-CA") === todayStr;
+      if (dateRangeMode === "7DAYS") {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(now.getDate() - 7);
+        return itemDate >= sevenDaysAgo && itemDate <= now;
+      }
+      if (dateRangeMode === "30DAYS") {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(now.getDate() - 30);
+        return itemDate >= thirtyDaysAgo && itemDate <= now;
+      }
+      if (dateRangeMode === "CUSTOM") {
+        if (!startDate && !endDate) return true;
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+        if (start && end) {
+          end.setHours(23, 59, 59, 999);
+          return itemDate >= start && itemDate <= end;
+        } else if (start) return itemDate >= start;
+        else if (end) {
+          end.setHours(23, 59, 59, 999);
+          return itemDate <= end;
         }
-        if (dateRangeMode === "CUSTOM") {
-          if (!startDate && !endDate) return true;
-          const start = startDate ? new Date(startDate) : null;
-          const end = endDate ? new Date(endDate) : null;
-          if (start && end) {
-            end.setHours(23, 59, 59, 999);
-            return itemDate >= start && itemDate <= end;
-          } else if (start) return itemDate >= start;
-          else if (end) {
-            end.setHours(23, 59, 59, 999);
-            return itemDate <= end;
-          }
-        }
-        return true;
-      });
-    }
+      }
+      return true;
+    });
 
     const hadirOperators = new Set(dateScoped.map((t) => t.nama_operator));
     const countHadir = hadirOperators.size;
@@ -1729,11 +1705,13 @@ export default function DashboardPage() {
   const handleResetFilters = () => {
     setActiveFilter("ALL");
     setChartGradeFilter("ALL");
-    setDateRangeMode("ALL");
+    setDateRangeMode("7DAYS");
     setStartDate("");
     setEndDate("");
     setSelectedOperators([]);
+    setSelectedMachines([]);
     setIsOperatorDropdownOpen(false);
+    setIsMachineDropdownOpen(false);
     setMetricMode("PCS");
   };
 
@@ -2018,15 +1996,6 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150">
               <button
-                onClick={() => setDateRangeMode("ALL")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "ALL"
-                  ? "bg-white text-slate-800 shadow-xs border border-slate-150"
-                  : "text-slate-500 hover:text-slate-800"
-                  }`}
-              >
-                Semua
-              </button>
-              <button
                 onClick={() => setDateRangeMode("TODAY")}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "TODAY"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
@@ -2043,6 +2012,15 @@ export default function DashboardPage() {
                   }`}
               >
                 7 Hari
+              </button>
+              <button
+                onClick={() => setDateRangeMode("30DAYS")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "30DAYS"
+                  ? "bg-white text-slate-800 shadow-xs border border-slate-150"
+                  : "text-slate-500 hover:text-slate-800"
+                  }`}
+              >
+                30 Hari
               </button>
               <button
                 onClick={() => setDateRangeMode("CUSTOM")}
