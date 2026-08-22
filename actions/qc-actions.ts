@@ -353,17 +353,40 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
     const { data: details, error: detailsError } = await supabase
       .from("production_details")
       .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, keterangan_qc, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id, is_deleted, status_inspeksi, status_mending, production_defects(*)")
-      .in("header_id", headerIds)
-      .is("final_inspection_id", null);
+      .in("header_id", headerIds);
 
     if (detailsError) return { success: false, error: detailsError.message };
 
-    const detailsWithHeader = (details || []).map((d: any) => {
+    const detailIds = (details || []).map((d: any) => d.id);
+    const submittedIds = new Set<string>();
+    if (detailIds.length > 0) {
+      const { data: submittedItems } = await supabase
+        .from("qc_inspection_items")
+        .select("production_detail_id")
+        .in("production_detail_id", detailIds);
+      if (submittedItems && submittedItems.length > 0) {
+        submittedItems.forEach((it: any) => submittedIds.add(it.production_detail_id));
+      }
+    }
+
+    // Filter out details that have actually been submitted in qc_inspection_items
+    const pendingDetails = (details || []).filter((d: any) => !submittedIds.has(d.id));
+
+    // Auto-heal any details that had final_inspection_id set prematurely during draft edit
+    const falselyCompleted = pendingDetails.filter((d: any) => d.final_inspection_id !== null);
+    if (falselyCompleted.length > 0) {
+      const falselyIds = falselyCompleted.map((d: any) => d.id);
+      await supabase
+        .from("production_details")
+        .update({ final_inspection_id: null })
+        .in("id", falselyIds);
+    }
+
+    const detailsWithHeader = pendingDetails.map((d: any) => {
       const h = headers.find((h: any) => h.id === d.header_id);
-      return { ...d, production_headers: h };
+      return { ...d, final_inspection_id: null, production_headers: h };
     });
 
-    // Tampilkan semua baris agar PCS yang tidak punya cacat tetap muncul di antrean QC
     const filteredDetails = detailsWithHeader;
 
     return { success: true, data: filteredDetails };
@@ -427,12 +450,25 @@ export async function getAllPendingQCDetails(
     const { data: details, error: detailsError } = await supabase
       .from("production_details")
       .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, keterangan_qc, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id")
-      .in("header_id", headerIds)
-      .is("final_inspection_id", null);
+      .in("header_id", headerIds);
 
     if (detailsError) return { success: false, error: detailsError.message };
 
-    const detailsWithHeader = (details || []).map((d: any) => {
+    const detailIds = (details || []).map((d: any) => d.id);
+    const submittedIds = new Set<string>();
+    if (detailIds.length > 0) {
+      const { data: submittedItems } = await supabase
+        .from("qc_inspection_items")
+        .select("production_detail_id")
+        .in("production_detail_id", detailIds);
+      if (submittedItems && submittedItems.length > 0) {
+        submittedItems.forEach((it: any) => submittedIds.add(it.production_detail_id));
+      }
+    }
+
+    const pendingDetails = (details || []).filter((d: any) => !submittedIds.has(d.id));
+
+    const detailsWithHeader = pendingDetails.map((d: any) => {
       const h = headers.find((h: any) => h.id === d.header_id);
       return { ...d, production_headers: h };
     });
@@ -1778,6 +1814,151 @@ export async function swapOrMoveQCDefects(params: {
     }
 
     return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export interface BulkQCDetailParams {
+  detailIds: string[];
+  kategoriMasalah?: string[];
+  detailMasalah?: string;
+  keteranganCacat?: string;
+  keteranganQc?: string;
+  finalInspectionId?: number;
+  defects?: { kategori: string; detail?: string; blok?: string; meter?: string }[];
+  isBs?: boolean;
+}
+
+export async function bulkUpdateQCDetails(params: BulkQCDetailParams) {
+  try {
+    const supabase = await createClient();
+    if (!params.detailIds || params.detailIds.length === 0) {
+      return { success: false, error: "Tidak ada panel yang dipilih." };
+    }
+
+    const isBs = !!params.isBs || params.finalInspectionId === 4;
+    const hasNewDefects = (params.defects && params.defects.length > 0) || (params.kategoriMasalah && params.kategoriMasalah.length > 0);
+
+    // 1. Fetch current data of all target details to preserve existing operator defects
+    const { data: currentDetails, error: fetchErr } = await supabase
+      .from("production_details")
+      .select("id, kategori_masalah, detail_masalah, keterangan_cacat, keterangan_qc, jml_hasil_produksi, production_defects(*)")
+      .in("id", params.detailIds);
+
+    if (fetchErr || !currentDetails) {
+      return { success: false, error: "Gagal mengambil data panel: " + (fetchErr?.message || "") };
+    }
+
+    const newDefectRowsToInsert: any[] = [];
+
+    // Process each detail individually to preserve / merge with existing data
+    for (const detail of currentDetails) {
+      const existingCats = detail.kategori_masalah
+        ? (Array.isArray(detail.kategori_masalah) ? detail.kategori_masalah : String(detail.kategori_masalah).split(",").map((s: string) => s.trim()).filter(Boolean))
+        : [];
+
+      const existingDetails = detail.detail_masalah
+        ? String(detail.detail_masalah).split(/[,|]/).map((s: string) => s.trim()).filter(Boolean)
+        : [];
+
+      let mergedCats = [...existingCats];
+      let mergedDetails = [...existingDetails];
+      let mergedKetCacat = detail.keterangan_cacat || "";
+
+      if (hasNewDefects) {
+        // Merge categories
+        if (params.kategoriMasalah) {
+          params.kategoriMasalah.forEach((cat) => {
+            if (!mergedCats.includes(cat)) mergedCats.push(cat);
+          });
+        }
+
+        // Merge details
+        if (params.detailMasalah) {
+          const newDets = String(params.detailMasalah).split(/[,|]/).map((s: string) => s.trim()).filter(Boolean);
+          newDets.forEach((d) => {
+            if (!mergedDetails.includes(d)) mergedDetails.push(d);
+          });
+        }
+
+        // Merge keterangan cacat
+        if (params.keteranganCacat) {
+          const newKet = params.keteranganCacat.trim();
+          if (newKet && !mergedKetCacat.includes(newKet)) {
+            mergedKetCacat = mergedKetCacat ? `${mergedKetCacat}, ${newKet}` : newKet;
+          }
+        }
+        if (!mergedKetCacat.includes("[TAMBAHAN QC]")) {
+          mergedKetCacat = mergedKetCacat ? `${mergedKetCacat} [TAMBAHAN QC]` : "[TAMBAHAN QC]";
+        }
+
+        // Prepare new defect rows to insert for this detail
+        if (params.defects && params.defects.length > 0) {
+          params.defects.forEach((d) => {
+            const expandedBloks = expandBlockNumbers(d.blok);
+            if (expandedBloks.length > 0) {
+              expandedBloks.forEach((b) => {
+                newDefectRowsToInsert.push({
+                  production_detail_id: detail.id,
+                  kategori: d.kategori,
+                  detail: d.detail || null,
+                  meter: d.meter || null,
+                  blok: b,
+                });
+              });
+            } else {
+              newDefectRowsToInsert.push({
+                production_detail_id: detail.id,
+                kategori: d.kategori,
+                detail: d.detail || null,
+                meter: d.meter || null,
+                blok: d.blok || null,
+              });
+            }
+          });
+        }
+      }
+
+      // Update keterangan_qc
+      let nextKetQc = detail.keterangan_qc;
+      if (params.keteranganQc !== undefined) {
+        nextKetQc = params.keteranganQc ? params.keteranganQc.trim() : null;
+      }
+
+      const updatePayload: any = {
+        keterangan_qc: nextKetQc,
+      };
+
+      if (hasNewDefects) {
+        updatePayload.kategori_masalah = mergedCats.length > 0 ? mergedCats.join(", ") : (isBs ? "X" : null);
+        updatePayload.detail_masalah = mergedDetails.length > 0 ? mergedDetails.join(", ") : null;
+        updatePayload.keterangan_cacat = mergedKetCacat || null;
+      }
+
+      if (isBs) {
+        updatePayload.jml_hasil_produksi = 0;
+      }
+
+      await supabase
+        .from("production_details")
+        .update(updatePayload)
+        .eq("id", detail.id);
+    }
+
+    // Insert any new defects without wiping existing ones
+    if (newDefectRowsToInsert.length > 0) {
+      await supabase
+        .from("production_defects")
+        .insert(newDefectRowsToInsert);
+    }
+
+    return {
+      success: true,
+      updatedData: {
+        defects: params.defects || []
+      }
+    };
   } catch (err: any) {
     return { success: false, error: err.message };
   }

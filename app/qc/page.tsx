@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import QCInspectionModal from "@/components/forms/QCInspectionModal";
 import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
+import QCBulkEditModal from "@/components/forms/QCBulkEditModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
@@ -243,8 +244,15 @@ export default function QCPage() {
   const [isEditDetailModalOpen, setIsEditDetailModalOpen] = useState(false);
 
   const handleOpenEditQC = (detail: any) => {
-    setSelectedDetailForEdit(detail);
-    setIsEditDetailModalOpen(true);
+    if (selectedDetailIds.length > 1) {
+      if (!selectedDetailIds.includes(detail.id)) {
+        setSelectedDetailIds((prev) => [...prev, detail.id]);
+      }
+      setIsBulkEditOpen(true);
+    } else {
+      setSelectedDetailForEdit(detail);
+      setIsEditDetailModalOpen(true);
+    }
   };
 
   useEffect(() => {
@@ -367,6 +375,10 @@ export default function QCPage() {
   // Map of detailId -> finalInspectionId (1, 2, or 3)
   const [selections, setSelections] = useState<Record<string, number>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Bulk Selection & Edit States
+  const [selectedDetailIds, setSelectedDetailIds] = useState<string[]>([]);
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
 
   // Detail Modal State
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -787,6 +799,45 @@ export default function QCPage() {
     setSelections((prev) => ({ ...prev, [detailId]: grade }));
   };
 
+  const handleToggleSelectDetail = (id: string) => {
+    setSelectedDetailIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllDetails = (selectAll: boolean) => {
+    if (!selectAll) {
+      setSelectedDetailIds([]);
+    } else {
+      const allIds = detailsToDisplay
+        .filter((d) => !d.is_deleted && d.status_inspeksi !== "Dihapus")
+        .map((d) => d.id);
+      setSelectedDetailIds(allIds);
+    }
+  };
+
+  const handleBulkSetGrade = (grade: number) => {
+    setSelections((prev) => {
+      const next = { ...prev };
+      selectedDetailIds.forEach((id) => {
+        next[id] = grade;
+      });
+      return next;
+    });
+  };
+
+  const handleBulkSuccess = async (_updatedData: any, _targetIds: string[]) => {
+    setSelectedDetailIds([]);
+
+    if (activeQcPcs) {
+      const refreshRes = await getPendingQCDetailsByBatch(activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke);
+      if (refreshRes.success && refreshRes.data) {
+        const filteredByPcs = refreshRes.data.filter((d: any) => String(d.pcs_index) === activeQcPcs.pcs_index);
+        setFullActiveQcDetails(filteredByPcs);
+      }
+    }
+  };
+
   const isAllSelected =
     detailsToDisplay.length > 0 &&
     detailsToDisplay.every((d) => {
@@ -1200,9 +1251,98 @@ export default function QCPage() {
                 </h5>
               </div>
               {isMeteranBatch ? (
-                <MeterQCTable detailsToDisplay={detailsToDisplay} handleSelectGrade={handleSelectGrade} handleOpenEditQC={handleOpenEditQC} selections={selections} setDetailToDelete={setDetailToDelete} />
+                <MeterQCTable
+                  detailsToDisplay={detailsToDisplay}
+                  handleSelectGrade={handleSelectGrade}
+                  handleOpenEditQC={handleOpenEditQC}
+                  selections={selections}
+                  setDetailToDelete={setDetailToDelete}
+                  selectedIds={selectedDetailIds}
+                  onToggleSelect={handleToggleSelectDetail}
+                  onSelectAll={handleSelectAllDetails}
+                />
               ) : (
-                <PanelQCTable detailsToDisplay={detailsToDisplay} handleSelectGrade={handleSelectGrade} handleOpenDetail={handleOpenDetail} handleOpenEditQC={handleOpenEditQC} selections={selections} setDetailToDelete={setDetailToDelete} />
+                <PanelQCTable
+                  detailsToDisplay={detailsToDisplay}
+                  handleSelectGrade={handleSelectGrade}
+                  handleOpenDetail={handleOpenDetail}
+                  handleOpenEditQC={handleOpenEditQC}
+                  selections={selections}
+                  setDetailToDelete={setDetailToDelete}
+                  selectedIds={selectedDetailIds}
+                  onToggleSelect={handleToggleSelectDetail}
+                  onSelectAll={handleSelectAllDetails}
+                />
+              )}
+
+              {/* Floating / Sticky Bulk Action Bar */}
+              {selectedDetailIds.length > 0 && (
+                <div className="sticky bottom-4 z-40 mx-4 my-2 p-3.5 bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/80 text-white flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-bottom-5 duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center font-black text-sm">
+                      {selectedDetailIds.length}
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-white">
+                        {selectedDetailIds.length} {isMeteranBatch ? "Titik Meter" : "Panel"} Dipilih
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Beri keterangan cacat atau ubah status inspeksi secara massal
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkEditOpen(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white rounded-xl font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      Beri Keterangan & Cacat Bersama
+                    </button>
+
+                    <div className="h-6 w-px bg-slate-700 mx-1 hidden sm:block"></div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkSetGrade(1)}
+                      className="px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Set Grade Pass untuk semua yang terpilih"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      ✓ Ceklis Semua
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkSetGrade(3)}
+                      className="px-3 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Set Grade Silang untuk semua yang terpilih"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      ✗ Silang Semua
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkSetGrade(4)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-600 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Set Grade BS untuk semua yang terpilih"
+                    >
+                      BS Semua
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDetailIds([])}
+                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                      title="Batal Pilih"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               )}
               
               <div data-tour="qc-inspection-submit" className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end">
@@ -1305,6 +1445,16 @@ export default function QCPage() {
                 }
               }
             }}
+          />
+        )}
+
+        {/* Bulk Edit Modal */}
+        {isBulkEditOpen && (
+          <QCBulkEditModal
+            isOpen={isBulkEditOpen}
+            onClose={() => setIsBulkEditOpen(false)}
+            selectedDetails={detailsToDisplay.filter((d) => selectedDetailIds.includes(d.id))}
+            onSuccess={handleBulkSuccess}
           />
         )}
         

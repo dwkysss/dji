@@ -328,6 +328,53 @@ const mockScenarioDeletedAndBs = [
   },
 ];
 
+// 9. Skenario 9: Tambah Panel & Catatan Khusus QC (Highlight Biru Satu Baris)
+const mockScenarioTambahanQc = [
+  {
+    ...createHeader("h-tqc-1", { panel_no: "1", tanggal_jam: "2026-08-21T08:00:00Z" }),
+    production_details: [{ id: "d-tqc-1", pcs_index: 1, jml_hasil_produksi: 1 }],
+  },
+  {
+    ...createHeader("h-tqc-2", { panel_no: "2", tanggal_jam: "2026-08-21T08:10:00Z" }),
+    production_details: [{ 
+      id: "d-tqc-2", 
+      pcs_index: 1, 
+      jml_hasil_produksi: 1, 
+      production_defects: [{ kategori: "N", detail: "Ngegaris", blok: "12" }] 
+    }],
+  },
+  {
+    ...createHeader("h-tqc-3", { panel_no: "3", tanggal_jam: "2026-08-21T08:20:00Z" }),
+    production_details: [{ 
+      id: "d-tqc-3", 
+      pcs_index: 1, 
+      jml_hasil_produksi: 1, 
+      keterangan_cacat: "[TAMBAHAN QC]",
+      keterangan_qc: "Panel susulan setelah cek fisik ulang",
+      production_defects: [{ kategori: "K", detail: "L1 Putus [TAMBAHAN QC]", blok: "30" }]
+    }],
+  },
+  {
+    ...createHeader("h-tqc-4", { panel_no: "4", tanggal_jam: "2026-08-21T08:30:00Z" }),
+    production_details: [{ 
+      id: "d-tqc-4", 
+      pcs_index: 1, 
+      jml_hasil_produksi: 1, 
+      keterangan_qc: "Toleransi grade B, serat agak tipis",
+    }],
+  },
+  {
+    ...createHeader("h-tqc-5", { panel_no: "5", tanggal_jam: "2026-08-21T08:40:00Z" }),
+    production_details: [{ 
+      id: "d-tqc-5", 
+      pcs_index: 1, 
+      jml_hasil_produksi: 1, 
+      keterangan_cacat: "[TAMBAHAN MENDING]",
+      production_defects: [{ kategori: "M", detail: "Mending susulan", blok: "08" }]
+    }],
+  },
+];
+
 // Skenario Meteran (Roll Input Type)
 const mockScenarioMeter = [
   {
@@ -948,15 +995,38 @@ function MendingReportScenarioCard({ panels, selections, isMeter }: { panels: an
                 const grade = selections[item.id] || (item.hasRealDefects ? "B" : "A");
                 const isDeleted = item.isDeleted;
 
+                const hasTambahanQC = !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || item.hasTambahanQC;
+                const hasTambahanMnd = !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || item.hasTambahanMnd;
+                const isRowQcModified = hasTambahanQC || hasTambahanMnd || (!!item.keterangan_qc && item.keterangan_qc !== "-");
+
                 return (
-                  <tr key={item.id || idx} className={`${item.hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50/80"} transition-colors`}>
-                    <td className={`px-2 py-1 font-bold text-slate-800 border-r border-slate-100 ${item.hasIstirahat ? "bg-amber-100/50" : ""}`}>
+                  <tr key={item.id || idx} className={`${
+                    isRowQcModified
+                      ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+                      : item.hasIstirahat
+                      ? "bg-amber-50/30 hover:bg-amber-50/50"
+                      : "hover:bg-slate-50/80"
+                  } transition-colors`}>
+                    <td className={`px-2 py-1 font-bold text-slate-800 border-r border-slate-100 ${
+                      isRowQcModified
+                        ? "bg-sky-100/70"
+                        : item.hasIstirahat
+                        ? "bg-amber-100/50"
+                        : ""
+                    }`}>
                       {String(item.displayNo).toUpperCase().includes("AWAL") ? (
                         <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                       ) : String(item.displayNo).toUpperCase().includes("AKHIR") ? (
                         <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
                       ) : (
-                        item.displayNo || "-"
+                        <div className="flex flex-col items-center justify-center">
+                          <span>{item.displayNo || "-"}</span>
+                          {hasTambahanQC ? (
+                            <span className="text-[8px] font-black bg-sky-100 text-sky-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                          ) : hasTambahanMnd ? (
+                            <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
+                          ) : null}
+                        </div>
                       )}
                     </td>
                     <td className="px-2 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100">
@@ -983,28 +1053,43 @@ function MendingReportScenarioCard({ panels, selections, isMeter }: { panels: an
                       </td>
                     )}
                     <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100">
-                      {(item.isIstirahat || item.hasIstirahat) ? (
-                        <>
-                          {item.backupOpName && <div className="font-bold text-slate-700 mb-0.5">{item.backupOpName}</div>}
-                          {item.cacatDisplay && item.cacatDisplay !== "-" ? (
-                            <div className={item.isGagalCacatOnly ? "text-slate-500 font-medium" : "text-rose-600"}>{item.cacatDisplay}</div>
-                          ) : (
-                            !item.backupOpName && <span className="text-slate-400">-</span>
-                          )}
-                          {item.keterangan_qc && item.keterangan_qc !== "-" && (
-                            <div className="text-sky-700 font-semibold text-[10px] mt-0.5">QC: {item.keterangan_qc}</div>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <div className={item.cacatDisplay && item.cacatDisplay !== "-" ? (item.isGagalCacatOnly ? "text-slate-500 font-medium" : "text-rose-600") : "text-slate-400"}>
-                            {item.cacatDisplay || "-"}
-                          </div>
-                          {item.keterangan_qc && item.keterangan_qc !== "-" && (
-                            <div className="text-sky-700 font-semibold text-[10px] mt-0.5">QC: {item.keterangan_qc}</div>
-                          )}
-                        </>
-                      )}
+                      {(() => {
+                        const isTambahanQc = !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || item.hasTambahanQC;
+                        const defectTextColor = item.isDeleted
+                          ? "text-slate-400 italic"
+                          : isTambahanQc
+                          ? "text-sky-600 font-semibold"
+                          : (item.isIstirahatOnly || item.isGagalCacatOnly)
+                          ? "text-slate-500 font-medium"
+                          : "text-rose-600";
+
+                        return (item.isIstirahat || item.hasIstirahat) ? (
+                          <>
+                            {item.backupOpName && <div className="font-bold text-slate-700 mb-0.5">{item.backupOpName}</div>}
+                            {item.cacatDisplay && item.cacatDisplay !== "-" ? (
+                              <div className={defectTextColor}>{item.cacatDisplay}</div>
+                            ) : (
+                              !item.backupOpName && <span className="text-slate-400">-</span>
+                            )}
+                            {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                              <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                                <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <div className={item.cacatDisplay && item.cacatDisplay !== "-" ? defectTextColor : "text-slate-400"}>
+                              {item.cacatDisplay || "-"}
+                            </div>
+                            {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                              <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                                <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </td>
                     <td className="px-1 py-1 text-center border-r border-slate-100">
                       {grade === "A" && <div className="mx-auto w-4 h-4 rounded bg-emerald-100 text-emerald-700 font-black flex items-center justify-center text-[10px]">A</div>}
@@ -1210,6 +1295,18 @@ export default function TestScenariosPlayground() {
         "Panel BS individual ditandai badge 'BS' dan otomatis bernilai Inspeksi BS",
       ],
       data: mockScenarioDeletedAndBs,
+    },
+    {
+      id: "tambahan-qc",
+      title: "9. Tambah Panel & Catatan Khusus QC (Highlight Biru Satu Baris)",
+      description: "Penambahan panel baru oleh QC (+ QC / + MND) dan penambahan keterangan/catatan khusus QC.",
+      expected: [
+        "Seluruh baris data yang ditambah/diubah oleh QC memiliki background biru (bg-sky-50)",
+        "Panel susulan QC berlabel badge '+ QC' atau '+ MND'",
+        "Catatan khusus QC ditampilkan dalam badge biru di bawah rincian cacat",
+        "Teks cacat atau keterangan QC berwarna biru (bukan merah cacat produksi)",
+      ],
+      data: mockScenarioTambahanQc,
     },
   ];
 

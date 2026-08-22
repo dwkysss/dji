@@ -10,13 +10,19 @@ export default function MeterQCTable({
   handleSelectGrade,
   handleOpenEditQC,
   selections,
-  setDetailToDelete
+  setDetailToDelete,
+  selectedIds = [],
+  onToggleSelect,
+  onSelectAll,
 }: {
   detailsToDisplay: any[];
   handleSelectGrade: (id: string, grade: number) => void;
   handleOpenEditQC?: (detail: any) => void;
   selections: Record<string, number>;
   setDetailToDelete: (val: any) => void;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string) => void;
+  onSelectAll?: (selectAll: boolean) => void;
 }) {
   const displayItems = React.useMemo(() => {
     const items: any[] = [];
@@ -445,12 +451,33 @@ export default function MeterQCTable({
     return items;
   }, [detailsToDisplay]);
 
+  const allSelectableIds = React.useMemo(() => {
+    return displayItems
+      .filter((it: any) => !it.isTotalRow && !it.isGrandTotalRow && !it.isStartRow && it.isGradable && it.id)
+      .map((it: any) => it.id);
+  }, [displayItems]);
+
+  const isAllSelected = allSelectableIds.length > 0 && allSelectableIds.every((id) => selectedIds.includes(id));
+  const isSomeSelected = allSelectableIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
+
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-xs">
       <table className="w-full text-left border-collapse">
         <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
           <tr>
-            <th className="sticky left-0 z-20 bg-slate-50 px-1 py-2 w-7 text-center border-r border-slate-200">NO</th>
+            <th className="sticky left-0 z-20 bg-slate-50 px-1 py-2 w-7 text-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={(input) => {
+                  if (input) input.indeterminate = isSomeSelected;
+                }}
+                onChange={(e) => onSelectAll && onSelectAll(e.target.checked)}
+                className="w-3.5 h-3.5 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
+                title="Pilih Semua Titik Meter"
+              />
+            </th>
+            <th className="sticky left-7 z-20 bg-slate-50 px-1 py-2 w-7 text-center border-r border-slate-200">NO</th>
             <th className="px-2 py-2 w-24 border-r border-slate-100">TGL</th>
             <th className="px-1 py-2 text-center w-12 border-r border-slate-100">GROUP</th>
             <th className="px-2 py-2 w-28 border-r border-slate-100">OPERATOR</th>
@@ -466,7 +493,7 @@ export default function MeterQCTable({
             if (item.isTotalRow) {
               return (
                 <tr key={item.id} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
-                  <td colSpan={5} className="px-3 py-2 text-right whitespace-nowrap">
+                  <td colSpan={6} className="px-3 py-2 text-right whitespace-nowrap font-bold">
                     {item.totalLabel}
                   </td>
                   <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap">
@@ -480,7 +507,7 @@ export default function MeterQCTable({
             if (item.isGrandTotalRow) {
               return (
                 <tr key={item.id} className="bg-slate-200/80 border-t-2 border-b-2 border-slate-300 font-bold text-slate-800">
-                  <td colSpan={5} className="px-3 py-2 text-right whitespace-nowrap uppercase tracking-wider text-[11px]">
+                  <td colSpan={6} className="px-3 py-2 text-right whitespace-nowrap uppercase tracking-wider text-[11px] font-black">
                     {item.totalLabel}
                   </td>
                   <td className="px-1 py-2 text-center text-slate-900 font-black whitespace-nowrap">
@@ -494,7 +521,10 @@ export default function MeterQCTable({
             if (item.isStartRow) {
               return (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="sticky left-0 z-10 bg-white px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                  <td className="sticky left-0 z-10 bg-white px-1 py-1.5 text-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                    -
+                  </td>
+                  <td className="sticky left-7 z-10 bg-white px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                     {item.displayNo}
                   </td>
                   <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100">
@@ -524,10 +554,47 @@ export default function MeterQCTable({
                 </tr>
               );
             }
+
+            const isSelected = selectedIds.includes(item.id);
+            const isRowQcModified = item.hasTambahanQC || (!!item.keterangan_qc && item.keterangan_qc !== "-");
+            const isTambahanQcDefect = item.hasTambahanQC || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]");
+
+            const defectTextColor = item.hasIstirahat
+              ? "text-slate-500"
+              : isTambahanQcDefect
+              ? "text-sky-600 font-semibold"
+              : (!item.isGradable || (!item.hasErrorDetail && !item.hasTambahanQC) || item.isGagalCacatOnly)
+              ? "text-slate-500"
+              : "text-rose-600";
+
             return (
-              <tr key={item.id} className={`${item.hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
-                <td className={`sticky left-0 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${item.hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
+              <tr
+                key={item.id}
+                className={`${
+                  isSelected
+                    ? "bg-sky-100/90"
+                    : isRowQcModified
+                    ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+                    : item.hasIstirahat
+                    ? "bg-amber-50/30 hover:bg-amber-50/50"
+                    : "hover:bg-slate-50"
+                } transition-colors`}
+              >
+                <td className={`sticky left-0 z-10 px-1 py-1 text-center border-r border-slate-100 ${isSelected ? "bg-sky-100" : isRowQcModified ? "bg-sky-100/70" : item.hasIstirahat ? "bg-amber-50/40" : "bg-white"}`}>
+                  {item.isGradable && item.id && (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggleSelect && onToggleSelect(item.id)}
+                      className="w-3.5 h-3.5 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
+                    />
+                  )}
+                </td>
+                <td className={`sticky left-7 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${isSelected ? "bg-sky-100" : isRowQcModified ? "bg-sky-100/70" : item.hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
                   {item.displayNo}
+                  {item.hasTambahanQC && (
+                    <span className="block text-[8px] font-black bg-sky-100 text-sky-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                  )}
                 </td>
                 <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100">
                   {item.showTgl ? item.tglStr : ""}
@@ -544,10 +611,15 @@ export default function MeterQCTable({
                 <td className="px-1 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100">
                   {!item.isGradable ? "" : (item.hasRealDefects || item.hasTambahanQC ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
                 </td>
-                <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${item.hasIstirahat ? 'text-slate-500' : ((!item.isGradable || (!item.hasErrorDetail && !item.hasTambahanQC) || item.isGagalCacatOnly) ? 'text-slate-500' : 'text-rose-600')}`}>
+                <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 ${defectTextColor}`}>
                   {item.backupOpName && item.hasIstirahat && <div className="font-bold text-slate-700">{item.backupOpName}</div>}
                   {!item.hasIstirahat && (item.cacatDisplay || "-")}
                   {item.hasIstirahat && !item.backupOpName && "-"}
+                  {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                    <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                      <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
+                    </div>
+                  )}
                 </td>
                 <td className="px-1 py-1.5 text-center w-24 border-r border-slate-100">
                   {item.isGradable && (
@@ -582,8 +654,12 @@ export default function MeterQCTable({
                       {handleOpenEditQC && (
                         <button
                           onClick={() => handleOpenEditQC(item)}
-                          className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-[#0070bc] hover:border-sky-300 hover:bg-sky-50 transition-all shadow-xs cursor-pointer"
-                          title="Tambah / Ubah Keterangan & Cacat QC"
+                          className={`p-1.5 rounded-md border transition-all shadow-xs cursor-pointer ${
+                            selectedIds.length > 1 && selectedIds.includes(item.id)
+                              ? "bg-sky-50 border-sky-300 text-[#0070bc]"
+                              : "bg-white border-slate-200 text-slate-500 hover:text-[#0070bc] hover:border-sky-300 hover:bg-sky-50"
+                          }`}
+                          title={selectedIds.length > 1 ? `Beri Keterangan & Cacat ke ${selectedIds.length} Titik Meter Terpilih Bersama` : "Tambah / Ubah Keterangan & Cacat QC"}
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
