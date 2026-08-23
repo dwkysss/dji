@@ -381,7 +381,8 @@ export default function PanelHistoryTable({
               ketCacat = ketCacat.replace(/\(?Backup:\s*[^)]+\)?/gi, "").trim();
               ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
               ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "").trim();
-              if (ketCacat) {
+              const hasDefectsArray = detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0;
+              if (ketCacat && !hasDefectsArray) {
                 if (masalahLines.length > 0) {
                   const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
                   if (masalahLines.length === 1 && parts.length > 1) {
@@ -395,9 +396,10 @@ export default function PanelHistoryTable({
                   } else {
                     masalahLines = masalahLines.map((line, i) => {
                       if (line.match(/\(Blok/i)) return line;
+                      if (line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]")) return line;
                       const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
                       const matchingPart = parts.find((p: string) => lineKat && p.toLowerCase().includes(lineKat.toLowerCase()));
-                      const blockPart = matchingPart || parts[i] || parts[0];
+                      const blockPart = matchingPart || (i < parts.length ? parts[i] : null);
                       if (blockPart) {
                         const cleanB = blockPart.replace(/blok\s*/gi, "").trim();
                         return cleanB ? `${line} (Blok ${cleanB})` : line;
@@ -500,10 +502,8 @@ export default function PanelHistoryTable({
                         </span>
                       ) : isBsRow ? (
                         <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                      ) : isPanelInsertedByQc || hasTambahanQC ? (
+                      ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
                         <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
-                      ) : hasTambahanMnd ? (
-                        <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                       ) : null}
                     </div>
                   )}
@@ -531,7 +531,7 @@ export default function PanelHistoryTable({
                      const parsedCacatItems = masalahLines
                        .filter((l) => l && l !== "-")
                        .map((line) => {
-                         const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]");
+                         const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
                          const clean = line
                            .replace(/\[QC\]/gi, "")
                            .replace(/\[TAMBAHAN QC\]/gi, "")

@@ -26,3 +26,36 @@ export function formatDefectLinesWithNumbering(lines: string[]): string[] {
     return `${numPrefix}${clean}`;
   });
 }
+
+/**
+ * Calculate defect meter length for meter fabric.
+ * If range (e.g. "410 - 420" or "(Titik: 410 - 420)"), returns Math.abs(akhir - awal).
+ * If single point, returns 1.
+ */
+export function getDefectMeterLength(item: any): number {
+  if (!item) return 1;
+
+  // 1. Check detail_masalah for (Titik: awal - akhir)
+  if (item.detail_masalah) {
+    const match = String(item.detail_masalah).match(/\(Titik:\s*([0-9.]+)\s*-\s*([0-9.]+)\)/i);
+    if (match && match[1] && match[2]) {
+      const awal = parseFloat(match[1]);
+      const akhir = parseFloat(match[2]);
+      if (!isNaN(awal) && !isNaN(akhir) && akhir > awal) {
+        return akhir - awal;
+      }
+    }
+  }
+
+  // 2. Check meter_kain or meterDisplay for "awal - akhir"
+  const meterStr = String(item.meter_kain || item.meterDisplay || "");
+  if (meterStr.includes("-")) {
+    const cleanStr = meterStr.replace(/PCS\s*\d+\s*:\s*/gi, "").replace(/[a-zA-Z\s]+$/g, "").trim();
+    const parts = cleanStr.split("-").map(p => parseFloat(p.trim()));
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[1] > parts[0]) {
+      return parts[1] - parts[0];
+    }
+  }
+
+  return 1;
+}

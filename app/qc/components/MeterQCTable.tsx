@@ -3,7 +3,7 @@
 import React from "react";
 import { Trash2, CheckCircle, X, Edit3, Plus } from "lucide-react";
 import { PROBLEM_DETAILS } from "../page";
-import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
+import { formatDefectLinesWithNumbering, getDefectMeterLength } from "@/lib/defect-format-utils";
 
 export default function MeterQCTable({
   detailsToDisplay,
@@ -234,7 +234,13 @@ export default function MeterQCTable({
       ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
       ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
 
-      if (ketCacat) {
+      if (ketCacat.toUpperCase() === "START" || ketCacat.toUpperCase() === "FINISH") {
+        ketCacat = "";
+      }
+
+      const hasDefectsArray = item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0;
+
+      if (ketCacat && !hasDefectsArray) {
         if (cacatLines.length > 0) {
           const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
           if (cacatLines.length === 1 && parts.length > 1) {
@@ -248,6 +254,7 @@ export default function MeterQCTable({
           } else {
             cacatLines = cacatLines.map((line, i) => {
               if (line.match(/\(Blok/i)) return line;
+              if (line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]")) return line;
               const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
               let partIndex = i;
               const katsRaw2 = item.kategori_masalah;
@@ -255,19 +262,18 @@ export default function MeterQCTable({
               if (lineKat && kats2.includes(lineKat)) {
                 partIndex = kats2.indexOf(lineKat);
               }
-              if (parts[partIndex] && parts[partIndex] !== "") {
+              if (partIndex < parts.length && parts[partIndex] && parts[partIndex] !== "") {
                 const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                return `${line} (Blok ${cleanB})`;
-              } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                return `${line} (Blok ${cleanB})`;
+                return cleanB ? `${line} (Blok ${cleanB})` : line;
               }
               return line;
             });
           }
         } else {
           const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-          cacatLines.push(`(Blok ${cleanB})`);
+          if (cleanB && !cleanB.toUpperCase().includes("START") && !cleanB.toUpperCase().includes("FINISH") && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+            cacatLines.push(`(Blok ${cleanB})`);
+          }
         }
       }
 
@@ -284,14 +290,22 @@ export default function MeterQCTable({
       const hasErrorDetail = cacatLines.length > 0 || !!item.kategori_masalah || !!item.detail_masalah;
 
       let meterDisplay = "-";
-      if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
-        meterDisplay = cleanMeterVal(item.meter_kain);
-      } else if (defectMeterStr) {
-        meterDisplay = cleanMeterVal(defectMeterStr);
-      } else if (item.detail_masalah) {
+      if (item.detail_masalah) {
         const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
-        if (meterMatch && meterMatch[1]) {
+        if (meterMatch && meterMatch[1] && meterMatch[1].includes("-")) {
           meterDisplay = cleanMeterVal(meterMatch[1]);
+        }
+      }
+      if (meterDisplay === "-") {
+        if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+          meterDisplay = cleanMeterVal(item.meter_kain);
+        } else if (defectMeterStr) {
+          meterDisplay = cleanMeterVal(defectMeterStr);
+        } else if (item.detail_masalah) {
+          const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+          if (meterMatch && meterMatch[1]) {
+            meterDisplay = cleanMeterVal(meterMatch[1]);
+          }
         }
       }
 
@@ -342,7 +356,8 @@ export default function MeterQCTable({
       const showGrp = !isSameAsPrev;
       const showOpr = !isSameAsPrev;
 
-      const isGradable = !isIstirahatOnly && (!isFinishReport || hasErrorDetail || hasTambahanQC);
+      const isStartMarker = ((item.keterangan_cacat || "").toUpperCase() === "START" || (item.production_headers?.panel_no || "").toUpperCase() === "START" || (item.meter_kain === "0" && !hasRealDefects && (item.keterangan_cacat === "START" || !item.keterangan_cacat))) && !hasRealDefects;
+      const isGradable = !isIstirahatOnly && !isStartMarker && (!isFinishReport || hasErrorDetail || hasTambahanQC);
       const cacatForMeter = combinedCacat
         .split("\n")
         .map((line: string) => line.replace(/\s*\(Titik:\s*[^)]+\)/gi, "").trim())
@@ -358,7 +373,7 @@ export default function MeterQCTable({
         .join("\n");
       const cacatText = isIstirahatOnly ? "-" : (isFinishReport && !hasErrorDetail ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
 
-      const isPlaceholder = meterDisplay === "-" && !hasErrorDetail && !isIstirahatOnly && !isFinishReport;
+      const isPlaceholder = (meterDisplay === "-" && !hasErrorDetail && !isIstirahatOnly && !isFinishReport) || isStartMarker;
       let extractedBackupOp = h.operator_backup || "";
       if (!extractedBackupOp && item.keterangan_cacat) {
         const match = item.keterangan_cacat.match(/\(Backup:\s*([^)]+)\)/i);
@@ -410,8 +425,9 @@ export default function MeterQCTable({
 
         const isDefectRow = !isIstirahatOnly && (hasRealDefects || hasTambahanQC);
         if (isDefectRow) {
-          currentOpCacatCount += 1;
-          grandTotalCacatCount += 1;
+          const defectLength = getDefectMeterLength(item);
+          currentOpCacatCount += defectLength;
+          grandTotalCacatCount += defectLength;
         }
       }
     });
@@ -558,16 +574,22 @@ export default function MeterQCTable({
             }
 
             const isSelected = selectedIds.includes(item.id);
-            const isRowQcModified = item.hasTambahanQC || (!!item.keterangan_qc && item.keterangan_qc !== "-");
-            const isTambahanQcDefect = item.hasTambahanQC || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]");
+            const isRowQcModified = item.hasTambahanQC || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || (!!item.keterangan_qc && item.keterangan_qc !== "-");
 
-            const defectTextColor = item.hasIstirahat
-              ? "text-slate-500"
-              : isTambahanQcDefect
-              ? "text-sky-600 font-semibold"
-              : (!item.isGradable || (!item.hasErrorDetail && !item.hasTambahanQC) || item.isGagalCacatOnly)
-              ? "text-slate-500"
-              : "text-rose-600";
+            const cacatRawLines = (item.cacatDisplay && item.cacatDisplay !== "-")
+              ? item.cacatDisplay.split("\n").map((l: string) => l.trim()).filter(Boolean)
+              : [];
+
+            const parsedCacatItems = cacatRawLines.map((line: string) => {
+              const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]") || item.hasTambahanQC;
+              const cleanText = line
+                .replace(/\[QC\]/gi, "")
+                .replace(/\[TAMBAHAN QC\]/gi, "")
+                .replace(/\[TAMBAHAN MENDING\]/gi, "")
+                .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                .trim();
+              return { isLineQc, text: cleanText };
+            }).filter((c: any) => c.text.length > 0 && c.text !== "-");
 
             return (
               <tr
@@ -594,8 +616,8 @@ export default function MeterQCTable({
                 </td>
                 <td className={`sticky left-7 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${isSelected ? "bg-sky-100" : isRowQcModified ? "bg-sky-100/70" : item.hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
                   {item.displayNo}
-                  {item.hasTambahanQC && (
-                    <span className="block text-[8px] font-black bg-sky-100 text-sky-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                  {isRowQcModified && (
+                    <span className="block text-[8px] font-black bg-sky-100 text-[#0070bc] px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
                   )}
                 </td>
                 <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100">
@@ -611,26 +633,36 @@ export default function MeterQCTable({
                   {item.meterDisplay}
                 </td>
                 <td className="px-1 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100">
-                  {!item.isGradable ? "" : (item.hasRealDefects || item.hasTambahanQC ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
+                  {!item.isGradable ? "" : (item.hasRealDefects || isRowQcModified ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
                 </td>
                 <td className="px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100">
                   {item.backupOpName && item.hasIstirahat && <div className="font-bold text-slate-700 mb-0.5">{item.backupOpName}</div>}
-                  {item.cacatDisplay && item.cacatDisplay !== "-" ? (
-                    <div className={
-                      item.cacatDisplay.includes("[QC]") || item.hasTambahanQC
-                        ? "text-sky-600 font-semibold"
-                        : (!item.isGradable || item.isGagalCacatOnly)
-                        ? "text-slate-500"
-                        : "text-rose-600 font-medium"
-                    }>
-                      {item.cacatDisplay.replace(/\[QC\]/gi, "").trim()}
+                  {parsedCacatItems.length > 0 ? (
+                    <div className="flex flex-col gap-0.5">
+                      {parsedCacatItems.map((cItem: any, idx: number) => {
+                        const numPrefix = parsedCacatItems.length > 1 ? `${idx + 1}. ` : "";
+                        return (
+                          <div
+                            key={idx}
+                            className={
+                              cItem.isLineQc
+                                ? "text-[#0070bc] font-semibold"
+                                : (!item.isGradable || item.isGagalCacatOnly)
+                                ? "text-slate-500 font-medium"
+                                : "text-rose-600 font-medium"
+                            }
+                          >
+                            {numPrefix}{cItem.text}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     !item.backupOpName && <span className="text-slate-400">-</span>
                   )}
                   {item.keterangan_qc && item.keterangan_qc !== "-" && (
-                    <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
-                      <span className="text-sky-600 font-black">QC:</span> {item.keterangan_qc}
+                    <div className="text-[#0070bc] bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                      <span className="text-[#0070bc] font-black">QC:</span> {item.keterangan_qc}
                     </div>
                   )}
                 </td>

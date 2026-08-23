@@ -217,12 +217,20 @@ export default function MendingProductionReportPage() {
           const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
 
           let meterDisplay = "-";
-          if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
-            meterDisplay = cleanMeterVal(item.meter_kain);
-          } else if (item.detail_masalah) {
+          if (item.detail_masalah) {
             const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
-            if (meterMatch && meterMatch[1]) {
+            if (meterMatch && meterMatch[1] && meterMatch[1].includes("-")) {
               meterDisplay = cleanMeterVal(meterMatch[1]);
+            }
+          }
+          if (meterDisplay === "-") {
+            if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+              meterDisplay = cleanMeterVal(item.meter_kain);
+            } else if (item.detail_masalah) {
+              const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+              if (meterMatch && meterMatch[1]) {
+                meterDisplay = cleanMeterVal(meterMatch[1]);
+              }
             }
           }
           
@@ -802,11 +810,15 @@ export default function MendingProductionReportPage() {
             ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
             ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
 
-            if (ketCacat) {
+            const hasDefectsArray = item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0;
+
+            if (ketCacat && !hasDefectsArray) {
               if (cacatLines.length > 0) {
-                const parts = ketCacat.split(",").map((s: string) => s.trim());
+                const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
                 
                 cacatLines = cacatLines.map((line, i) => {
+                  if (line.match(/\(Blok/i)) return line;
+                  if (line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]")) return line;
                   const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
                   let partIndex = i;
                   
@@ -814,18 +826,17 @@ export default function MendingProductionReportPage() {
                      partIndex = kats.indexOf(lineKat);
                   }
                   
-                  if (parts[partIndex] && parts[partIndex] !== "") {
+                  if (partIndex < parts.length && parts[partIndex] && parts[partIndex] !== "") {
                     const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                    return `${line} (Blok ${cleanB})`;
-                  } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                     const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                     return `${line} (Blok ${cleanB})`;
+                    return cleanB ? `${line} (Blok ${cleanB})` : line;
                   }
                   return line;
                 });
               } else {
                 const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-                cacatLines.push(`(Blok ${cleanB})`);
+                if (cleanB && !cleanB.toUpperCase().includes("START") && !cleanB.toUpperCase().includes("FINISH") && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+                  cacatLines.push(`(Blok ${cleanB})`);
+                }
               }
             }
 
@@ -1645,25 +1656,26 @@ export default function MendingProductionReportPage() {
                                 ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
                                 ketCacat = ketCacat.replace(/\(Backup:\s*[^)]+\)/gi, "").trim();
                                 ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
+                                const hasDefectsArray = srcDet?.production_defects && Array.isArray(srcDet.production_defects) && srcDet.production_defects.length > 0;
 
-                                if (ketCacat) {
+                                if (ketCacat && !hasDefectsArray) {
                                   if (lines.length > 0) {
-                                    const parts = ketCacat.split(",").map((s: string) => s.trim());
+                                    const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
                                     for (let i = 0; i < lines.length; i++) {
+                                      if (lines[i].match(/\(Blok/i) || lines[i].includes("[QC]") || lines[i].includes("[TAMBAHAN QC]") || lines[i].includes("[TAMBAHAN MENDING]")) continue;
                                       const lineKat = lines[i].includes(" - ") ? lines[i].split(" - ")[0].trim() : "";
                                       let partIndex = i;
                                       if (lineKat && kats.includes(lineKat)) partIndex = kats.indexOf(lineKat);
-                                      if (parts[partIndex] && parts[partIndex] !== "") {
+                                      if (partIndex < parts.length && parts[partIndex] && parts[partIndex] !== "") {
                                         const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                                        if (cleanB) lines[i] = `${lines[i]} (Blok ${cleanB})`;
-                                      } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                                        const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
                                         if (cleanB) lines[i] = `${lines[i]} (Blok ${cleanB})`;
                                       }
                                     }
                                   } else {
                                     const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-                                    if (cleanB) lines.push(`(Blok ${cleanB})`);
+                                    if (cleanB && !cleanB.toUpperCase().includes("START") && !cleanB.toUpperCase().includes("FINISH") && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+                                      lines.push(`(Blok ${cleanB})`);
+                                    }
                                   }
                                 }
 
@@ -1713,7 +1725,7 @@ export default function MendingProductionReportPage() {
 
                               const parsedCacatItems = cacatLines
                                 .map((line: string) => {
-                                  const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]");
+                                  const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
                                   const clean = line
                                     .replace(/\[QC\]/gi, "")
                                     .replace(/\[TAMBAHAN QC\]/gi, "")
@@ -1728,7 +1740,12 @@ export default function MendingProductionReportPage() {
                                 <tr key={item.id || itemIndex} className={`${rowBgClass} transition-colors`}>
                                   <td className={`sticky left-0 z-10 px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${stickyCellBgClass}`}>
                                     {isMeterRow ? (
-                                      item.displayNo || "-"
+                                      <div className="flex flex-col items-center justify-center">
+                                        <span>{item.displayNo || "-"}</span>
+                                        {(isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || isRowQcModified) ? (
+                                          <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                                        ) : null}
+                                      </div>
                                     ) : String(rowNo).toUpperCase().includes("AWAL") ? (
                                       <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                                     ) : String(rowNo).toUpperCase().includes("AKHIR") ? (
@@ -1738,10 +1755,8 @@ export default function MendingProductionReportPage() {
                                         <span>{String(rowNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
                                         {isBsRow ? (
                                           <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                                        ) : isPanelInsertedByQc || hasTambahanQC ? (
+                                        ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
                                           <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
-                                        ) : hasTambahanMnd ? (
-                                          <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                                         ) : null}
                                       </div>
                                     )}

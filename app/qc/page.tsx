@@ -23,6 +23,8 @@ import {
   Timer,
   RotateCcw,
   Trash2,
+  MapPin,
+  SlidersHorizontal,
 } from "lucide-react";
 import QCInspectionModal from "@/components/forms/QCInspectionModal";
 import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
@@ -245,23 +247,15 @@ export default function QCPage() {
   const [modalMode, setModalMode] = useState<"add_qc" | "edit">("add_qc");
 
   const handleOpenAddQC = (detail: any) => {
-    if (selectedDetailIds.length > 1 && selectedDetailIds.includes(detail.id)) {
-      setIsBulkEditOpen(true);
-    } else {
-      setSelectedDetailForEdit(detail);
-      setModalMode("add_qc");
-      setIsEditDetailModalOpen(true);
-    }
+    setSelectedDetailForEdit(detail);
+    setModalMode("add_qc");
+    setIsEditDetailModalOpen(true);
   };
 
   const handleOpenEditQC = (detail: any) => {
-    if (selectedDetailIds.length > 1 && selectedDetailIds.includes(detail.id)) {
-      setIsBulkEditOpen(true);
-    } else {
-      setSelectedDetailForEdit(detail);
-      setModalMode("edit");
-      setIsEditDetailModalOpen(true);
-    }
+    setSelectedDetailForEdit(detail);
+    setModalMode("edit");
+    setIsEditDetailModalOpen(true);
   };
 
   useEffect(() => {
@@ -434,7 +428,10 @@ export default function QCPage() {
 
   // Add Defect Modal State (METERAN only)
   const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
+  const [defectInputMode, setDefectInputMode] = useState<"single" | "range">("single");
   const [defectMeterKain, setDefectMeterKain] = useState("");
+  const [defectMeterAwal, setDefectMeterAwal] = useState("");
+  const [defectMeterAkhir, setDefectMeterAkhir] = useState("");
   const [defectKategori, setDefectKategori] = useState<string[]>([]);
   const [defectDetailMap, setDefectDetailMap] = useState<Record<string, string[]>>({});
   const [defectKeterangan, setDefectKeterangan] = useState("");
@@ -871,33 +868,95 @@ export default function QCPage() {
   };
 
   const handleSubmitDefect = async () => {
-    if (!defectMeterKain) { setDefectError("Posisi Meter Kain wajib diisi."); return; }
-    if (parseFloat(defectMeterKain) < 0) { setDefectError("Posisi Meter Kain tidak boleh bernilai negatif."); return; }
+    let targetMeter = defectMeterKain;
+    let titikRangeStr = "";
+
+    if (defectInputMode === "range") {
+      const awal = parseFloat(defectMeterAwal);
+      const akhir = parseFloat(defectMeterAkhir);
+      if (isNaN(awal) || awal < 0) {
+        setDefectError("Meter Awal harus diisi angka yang valid (>= 0).");
+        return;
+      }
+      if (isNaN(akhir) || akhir < 0) {
+        setDefectError("Meter Akhir harus diisi angka yang valid (>= 0).");
+        return;
+      }
+      if (akhir <= awal) {
+        setDefectError("Meter Akhir harus lebih besar dari Meter Awal.");
+        return;
+      }
+      targetMeter = String(awal);
+      titikRangeStr = `(Titik: ${defectMeterAwal} - ${defectMeterAkhir})`;
+    } else {
+      if (!defectMeterKain) { setDefectError("Posisi Meter Kain wajib diisi."); return; }
+      if (parseFloat(defectMeterKain) < 0) { setDefectError("Posisi Meter Kain tidak boleh bernilai negatif."); return; }
+      targetMeter = defectMeterKain;
+    }
+
     if (defectKategori.length === 0) { setDefectError("Pilih minimal 1 Kategori Masalah."); return; }
     const missingDetails = defectKategori.some((cat) => !defectDetailMap[cat] || defectDetailMap[cat].length === 0);
     if (missingDetails) { setDefectError("Wajib memilih Detail Masalah untuk setiap Kategori yang dicentang."); return; }
+    
+    const meteranHeaderId = detailsToDisplay.length > 0 ? (detailsToDisplay[0]?.header_id || detailsToDisplay[0]?.production_headers?.id) : null;
     if (!meteranHeaderId) { setDefectError("Tidak ditemukan header ID untuk batch ini."); return; }
 
-    const m = parseFloat(defectMeterKain);
+    const m = parseFloat(targetMeter);
     let targetHeaderId = meteranHeaderId;
     if (!isNaN(m) && detailsToDisplay.length > 0) {
-      // Cari titik data yang nilai meter kainnya <= m (inputan meter)
-      const validPoints = detailsToDisplay.filter((d: any) => {
-        const itemMeter = getActualMeter(d, d.production_headers);
-        return itemMeter !== null && itemMeter <= m;
+      const headersMap = new Map<string, {
+        headerId: string;
+        meterAwal: number | null;
+        meterAkhir: number | null;
+        tanggalJam: string;
+      }>();
+
+      detailsToDisplay.forEach((d: any) => {
+        const h = d.production_headers;
+        const hId = d.header_id || h?.id;
+        if (hId && !headersMap.has(hId)) {
+          const mAwal = h?.meter_awal !== undefined && h?.meter_awal !== null && String(h.meter_awal).trim() !== ""
+            ? parseFloat(cleanMeterVal(h.meter_awal))
+            : null;
+          const mAkhir = h?.meter_akhir !== undefined && h?.meter_akhir !== null && String(h.meter_akhir).trim() !== ""
+            ? parseFloat(cleanMeterVal(h.meter_akhir))
+            : null;
+          headersMap.set(hId, {
+            headerId: hId,
+            meterAwal: !isNaN(mAwal as number) ? mAwal : null,
+            meterAkhir: !isNaN(mAkhir as number) ? mAkhir : null,
+            tanggalJam: String(h?.tanggal_jam || ""),
+          });
+        }
       });
 
-      if (validPoints.length > 0) {
-        // Ambil titik data dengan meter terdekat di bawah/sama dengan inputan meter
-        const closestPoint = validPoints[validPoints.length - 1];
-        if (closestPoint?.header_id || closestPoint?.production_headers?.id) {
-          targetHeaderId = closestPoint.header_id || closestPoint.production_headers.id;
-        }
-      } else {
-        // Jika m lebih kecil dari semua titik meter, ambil header dari titik data pertama
-        const firstPoint = detailsToDisplay[0];
-        if (firstPoint?.header_id || firstPoint?.production_headers?.id) {
-          targetHeaderId = firstPoint.header_id || firstPoint.production_headers.id;
+      const headerList = Array.from(headersMap.values()).sort((a, b) => {
+        if (a.meterAwal !== null && b.meterAwal !== null) return a.meterAwal - b.meterAwal;
+        return a.tanggalJam.localeCompare(b.tanggalJam);
+      });
+
+      if (headerList.length > 0) {
+        // 1. Exact range match: meterAwal <= m <= meterAkhir
+        const exactMatch = headerList.find(h => {
+          if (h.meterAwal !== null && h.meterAkhir !== null) {
+            return m >= h.meterAwal && m <= h.meterAkhir;
+          }
+          if (h.meterAwal !== null) return m >= h.meterAwal;
+          if (h.meterAkhir !== null) return m <= h.meterAkhir;
+          return false;
+        });
+
+        if (exactMatch) {
+          targetHeaderId = exactMatch.headerId;
+        } else {
+          // 2. Earliest header ending at or after m
+          const afterMatch = headerList.find(h => h.meterAkhir !== null && h.meterAkhir >= m);
+          if (afterMatch) {
+            targetHeaderId = afterMatch.headerId;
+          } else {
+            // 3. Last header if m exceeds all
+            targetHeaderId = headerList[headerList.length - 1].headerId;
+          }
         }
       }
     }
@@ -919,19 +978,23 @@ export default function QCPage() {
           combinedDetailsList.push(details.join(", "));
         }
       });
-      const combinedDetails = combinedDetailsList.join(" | ");
+      let combinedDetails = combinedDetailsList.join(" | ");
+      if (titikRangeStr) {
+        combinedDetails = combinedDetails ? `${combinedDetails} ${titikRangeStr}` : titikRangeStr;
+      }
 
       const res = await addQCDefectDetail({
         headerId: targetHeaderId,
-        meterKain: defectMeterKain,
+        meterKain: targetMeter,
         kategoriMasalah: defectKategori,
         detailMasalah: combinedDetails || undefined,
         keteranganCacat: defectKeterangan || undefined,
         pcsIndex: activeQcPcs ? parseInt(activeQcPcs.pcs_index) : undefined,
+        finalInspectionId: 3,
       });
       if (res.success && activeQcPcs) {
         setIsDefectModalOpen(false);
-        setDefectMeterKain(""); setDefectKategori([]); setDefectDetailMap({}); setDefectKeterangan(""); setQcDefectManualInput({});
+        setDefectMeterKain(""); setDefectMeterAwal(""); setDefectMeterAkhir(""); setDefectKategori([]); setDefectDetailMap({}); setDefectKeterangan(""); setQcDefectManualInput({});
         
         // Refresh active table data
         const refreshRes = await getPendingQCDetailsByBatch(activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke);
@@ -1208,6 +1271,27 @@ export default function QCPage() {
 
 
 
+        {String(activeQcPcs?.nomor_mc || "").trim().toUpperCase().startsWith("T") && (
+          <div className="mb-4 bg-sky-50 border border-sky-200 rounded-2xl p-4 flex items-center justify-between gap-4 text-sky-900 shadow-sm animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-sky-600 text-white font-black text-base flex items-center justify-center shadow-md shadow-sky-600/20 shrink-0">
+                T
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-sky-950 flex items-center gap-2">
+                  Mesin Tricote ({activeQcPcs?.nomor_mc})
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-200 text-sky-800 tracking-wider">
+                    INSPEKSI & MENDING BERSAMAAN
+                  </span>
+                </h4>
+                <p className="text-xs text-sky-700 mt-0.5">
+                  Setelah selesai submit inspeksi QC, data Mending otomatis terisi dan langsung masuk ke Laporan Produksi dengan hasil Grade Keseluruhan.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="mb-6">
           <CompactHeaderCard {...compactProps} />
         </div>
@@ -1437,18 +1521,19 @@ export default function QCPage() {
             allBatchDetails={detailsToDisplay}
             currentGrade={selections[selectedDetailForEdit.id]}
             mode={modalMode}
-            onSuccess={async (detailId, newGrade, updatedData) => {
+            selectedDetailIds={selectedDetailIds}
+            onSuccess={async (detailIdOrIds, newGrade, updatedData) => {
+              const targetIds = Array.isArray(detailIdOrIds) ? detailIdOrIds : [detailIdOrIds];
               if (newGrade !== undefined) {
-                setSelections((prev) => ({ ...prev, [detailId]: newGrade }));
+                setSelections((prev) => {
+                  const next = { ...prev };
+                  targetIds.forEach((id) => {
+                    next[id] = newGrade;
+                  });
+                  return next;
+                });
               }
-              if (updatedData) {
-                setFullActiveQcDetails((prev) =>
-                  prev.map((d: any) => (d.id === detailId ? { ...d, ...updatedData } : d))
-                );
-                setAllDetails((prev) =>
-                  prev.map((d: any) => (d.id === detailId ? { ...d, ...updatedData } : d))
-                );
-              }
+              setSelectedDetailIds([]);
               if (activeQcPcs) {
                 const refreshRes = await getPendingQCDetailsByBatch(activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke);
                 if (refreshRes.success && refreshRes.data) {
@@ -1493,29 +1578,120 @@ export default function QCPage() {
                     <AlertTriangle className="w-4 h-4 shrink-0" /> {defectError}
                   </div>
                 )}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-600 uppercase">Posisi Meter Kain <span className="text-rose-500">*</span></label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={defectMeterKain}
-                    onKeyDown={(e) => {
-                      if (e.key === "-" || e.key === "e") e.preventDefault();
+                {/* Mode Selector */}
+                <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDefectInputMode("single");
+                      setDefectError(null);
                     }}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setDefectMeterKain(val);
-                      if (val !== "" && (isNaN(parseFloat(val)) || parseFloat(val) < 0)) {
-                        setDefectError("Posisi Meter Kain tidak boleh bernilai kurang dari 0.");
-                      } else if (defectError === "Posisi Meter Kain tidak boleh bernilai kurang dari 0.") {
-                        setDefectError(null);
-                      }
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      defectInputMode === "single"
+                        ? "bg-white text-slate-800 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                    Titik Tunggal (1 Meter)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDefectInputMode("range");
+                      setDefectError(null);
                     }}
-                    className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all"
-                    placeholder="Contoh: 75"
-                  />
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      defectInputMode === "range"
+                        ? "bg-white text-rose-600 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-rose-500" />
+                    Rentang Panjang (Meter Awal - Akhir)
+                  </button>
                 </div>
+
+                {defectInputMode === "single" ? (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600 uppercase">Posisi Meter Kain <span className="text-rose-500">*</span></label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={defectMeterKain}
+                      onKeyDown={(e) => {
+                        if (e.key === "-" || e.key === "e") e.preventDefault();
+                      }}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDefectMeterKain(val);
+                        if (val !== "" && (isNaN(parseFloat(val)) || parseFloat(val) < 0)) {
+                          setDefectError("Posisi Meter Kain tidak boleh bernilai kurang dari 0.");
+                        } else if (defectError === "Posisi Meter Kain tidak boleh bernilai kurang dari 0.") {
+                          setDefectError(null);
+                        }
+                      }}
+                      className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all"
+                      placeholder="Contoh: 75"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-rose-900 uppercase flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-rose-500" />
+                        Rentang Meter Kerusakan <span className="text-rose-500">*</span>
+                      </label>
+                      {defectMeterAwal && defectMeterAkhir && !isNaN(parseFloat(defectMeterAwal)) && !isNaN(parseFloat(defectMeterAkhir)) && parseFloat(defectMeterAkhir) > parseFloat(defectMeterAwal) && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-200 text-rose-800 text-[11px] font-black tracking-wide">
+                          Panjang: {parseFloat(defectMeterAkhir) - parseFloat(defectMeterAwal)} Meter
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-500 block mb-1">Meter Awal (m)</span>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={defectMeterAwal}
+                          onKeyDown={(e) => {
+                            if (e.key === "-" || e.key === "e") e.preventDefault();
+                          }}
+                          onChange={(e) => {
+                            setDefectMeterAwal(e.target.value);
+                            setDefectError(null);
+                          }}
+                          className="h-11 px-3.5 rounded-xl bg-white border border-rose-200 text-sm font-bold text-slate-800 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all w-full"
+                          placeholder="Contoh: 20"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-500 block mb-1">Meter Akhir (m)</span>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={defectMeterAkhir}
+                          onKeyDown={(e) => {
+                            if (e.key === "-" || e.key === "e") e.preventDefault();
+                          }}
+                          onChange={(e) => {
+                            setDefectMeterAkhir(e.target.value);
+                            setDefectError(null);
+                          }}
+                          className="h-11 px-3.5 rounded-xl bg-white border border-rose-200 text-sm font-bold text-slate-800 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all w-full"
+                          placeholder="Contoh: 45"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-rose-700/80">
+                      Temuan akan otomatis dicatat sebagai cacat bersambung dari meter awal hingga meter akhir.
+                    </p>
+                  </div>
+                )}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-rose-600 uppercase">Kategori Masalah <span className="text-rose-500">*</span> (Pilih 1 atau lebih)</label>
                   <div className="flex flex-col gap-2 mt-1">
@@ -1644,7 +1820,16 @@ export default function QCPage() {
               </div>
               <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 shrink-0">
                 <button onClick={() => { setIsDefectModalOpen(false); setDefectError(null); }} className="h-11 px-5 rounded-xl bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all">Batal</button>
-                <button disabled={isSubmittingDefect || !defectMeterKain || isNaN(parseFloat(defectMeterKain)) || parseFloat(defectMeterKain) < 0} onClick={handleSubmitDefect} className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-rose-600/20">
+                <button
+                  disabled={
+                    isSubmittingDefect ||
+                    (defectInputMode === "single"
+                      ? !defectMeterKain || isNaN(parseFloat(defectMeterKain)) || parseFloat(defectMeterKain) < 0
+                      : !defectMeterAwal || !defectMeterAkhir || isNaN(parseFloat(defectMeterAwal)) || isNaN(parseFloat(defectMeterAkhir)) || parseFloat(defectMeterAkhir) <= parseFloat(defectMeterAwal))
+                  }
+                  onClick={handleSubmitDefect}
+                  className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer"
+                >
                   {isSubmittingDefect ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Simpan Temuan
                 </button>
               </div>

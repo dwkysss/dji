@@ -24,6 +24,8 @@ import {
   Play,
   Timer,
   RotateCcw,
+  MapPin,
+  SlidersHorizontal,
 } from "lucide-react";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import MendingModal from "@/components/forms/MendingModal";
@@ -50,7 +52,7 @@ import {
 import { REGISTERED_MACHINES } from "@/app/qc/page";
 import MeterMendingTable from "./components/MeterMendingTable";
 import PanelMendingTable from "./components/PanelMendingTable";
-import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
+import { formatDefectLinesWithNumbering, getDefectMeterLength } from "@/lib/defect-format-utils";
 
 const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = {
   A: ["L1/L2/L3 Benang timbul putus", "Benang lolos", "Bolong corak", "Benang narik/Kendor", "Benang Nyilang", "Perbaikan/Beset benang Dasar", "Benang Kejepit/Jebol/Kusut", "Jalur benang"],
@@ -322,7 +324,10 @@ export default function MendingPage() {
 
   // Add Defect Modal State (METERAN only)
   const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
+  const [defectInputMode, setDefectInputMode] = useState<"single" | "range">("single");
   const [defectMeterKain, setDefectMeterKain] = useState("");
+  const [defectMeterAwal, setDefectMeterAwal] = useState("");
+  const [defectMeterAkhir, setDefectMeterAkhir] = useState("");
   const [defectKategori, setDefectKategori] = useState<string[]>([]);
   const [defectDetailMap, setDefectDetailMap] = useState<Record<string, string[]>>({});
   const [defectKeterangan, setDefectKeterangan] = useState("");
@@ -361,35 +366,95 @@ export default function MendingPage() {
   };
 
   const handleSubmitDefect = async () => {
-    if (!defectMeterKain) { setDefectError("Posisi Meter Kain wajib diisi."); return; }
-    if (parseFloat(defectMeterKain) < 0) { setDefectError("Posisi Meter Kain tidak boleh bernilai negatif."); return; }
+    let targetMeter = defectMeterKain;
+    let titikRangeStr = "";
+
+    if (defectInputMode === "range") {
+      const awal = parseFloat(defectMeterAwal);
+      const akhir = parseFloat(defectMeterAkhir);
+      if (isNaN(awal) || awal < 0) {
+        setDefectError("Meter Awal harus diisi angka yang valid (>= 0).");
+        return;
+      }
+      if (isNaN(akhir) || akhir < 0) {
+        setDefectError("Meter Akhir harus diisi angka yang valid (>= 0).");
+        return;
+      }
+      if (akhir <= awal) {
+        setDefectError("Meter Akhir harus lebih besar dari Meter Awal.");
+        return;
+      }
+      targetMeter = String(awal);
+      titikRangeStr = `(Titik: ${defectMeterAwal} - ${defectMeterAkhir})`;
+    } else {
+      if (!defectMeterKain) { setDefectError("Posisi Meter Kain wajib diisi."); return; }
+      if (parseFloat(defectMeterKain) < 0) { setDefectError("Posisi Meter Kain tidak boleh bernilai negatif."); return; }
+      targetMeter = defectMeterKain;
+    }
+
     if (defectKategori.length === 0) { setDefectError("Pilih minimal 1 Kategori Masalah."); return; }
     const missingDetails = defectKategori.some((cat) => !defectDetailMap[cat] || defectDetailMap[cat].length === 0);
     if (missingDetails) { setDefectError("Wajib memilih Detail Masalah untuk setiap Kategori yang dicentang."); return; }
     
-    const meteranHeaderId = detailsToDisplay.length > 0 ? detailsToDisplay[0]?.header_id : null;
+    const meteranHeaderId = detailsToDisplay.length > 0 ? (detailsToDisplay[0]?.header_id || detailsToDisplay[0]?.production_headers?.id) : null;
     if (!meteranHeaderId) { setDefectError("Tidak ditemukan header ID untuk batch ini."); return; }
 
-    const m = parseFloat(defectMeterKain);
+    const m = parseFloat(targetMeter);
     let targetHeaderId = meteranHeaderId;
     if (!isNaN(m) && detailsToDisplay.length > 0) {
-      // Cari titik data yang nilai meter kainnya <= m (inputan meter)
-      const validPoints = detailsToDisplay.filter((d: any) => {
-        const itemMeter = getActualMeter(d, d.production_headers);
-        return itemMeter !== null && itemMeter <= m;
+      const headersMap = new Map<string, {
+        headerId: string;
+        meterAwal: number | null;
+        meterAkhir: number | null;
+        tanggalJam: string;
+      }>();
+
+      detailsToDisplay.forEach((d: any) => {
+        const h = d.production_headers;
+        const hId = d.header_id || h?.id;
+        if (hId && !headersMap.has(hId)) {
+          const mAwal = h?.meter_awal !== undefined && h?.meter_awal !== null && String(h.meter_awal).trim() !== ""
+            ? parseFloat(cleanMeterVal(h.meter_awal))
+            : null;
+          const mAkhir = h?.meter_akhir !== undefined && h?.meter_akhir !== null && String(h.meter_akhir).trim() !== ""
+            ? parseFloat(cleanMeterVal(h.meter_akhir))
+            : null;
+          headersMap.set(hId, {
+            headerId: hId,
+            meterAwal: !isNaN(mAwal as number) ? mAwal : null,
+            meterAkhir: !isNaN(mAkhir as number) ? mAkhir : null,
+            tanggalJam: String(h?.tanggal_jam || ""),
+          });
+        }
       });
 
-      if (validPoints.length > 0) {
-        // Ambil titik data dengan meter terdekat di bawah/sama dengan inputan meter
-        const closestPoint = validPoints[validPoints.length - 1];
-        if (closestPoint?.header_id || closestPoint?.production_headers?.id) {
-          targetHeaderId = closestPoint.header_id || closestPoint.production_headers.id;
-        }
-      } else {
-        // Jika m lebih kecil dari semua titik meter, ambil header dari titik data pertama
-        const firstPoint = detailsToDisplay[0];
-        if (firstPoint?.header_id || firstPoint?.production_headers?.id) {
-          targetHeaderId = firstPoint.header_id || firstPoint.production_headers.id;
+      const headerList = Array.from(headersMap.values()).sort((a, b) => {
+        if (a.meterAwal !== null && b.meterAwal !== null) return a.meterAwal - b.meterAwal;
+        return a.tanggalJam.localeCompare(b.tanggalJam);
+      });
+
+      if (headerList.length > 0) {
+        // 1. Exact range match: meterAwal <= m <= meterAkhir
+        const exactMatch = headerList.find(h => {
+          if (h.meterAwal !== null && h.meterAkhir !== null) {
+            return m >= h.meterAwal && m <= h.meterAkhir;
+          }
+          if (h.meterAwal !== null) return m >= h.meterAwal;
+          if (h.meterAkhir !== null) return m <= h.meterAkhir;
+          return false;
+        });
+
+        if (exactMatch) {
+          targetHeaderId = exactMatch.headerId;
+        } else {
+          // 2. Earliest header ending at or after m
+          const afterMatch = headerList.find(h => h.meterAkhir !== null && h.meterAkhir >= m);
+          if (afterMatch) {
+            targetHeaderId = afterMatch.headerId;
+          } else {
+            // 3. Last header if m exceeds all
+            targetHeaderId = headerList[headerList.length - 1].headerId;
+          }
         }
       }
     }
@@ -411,11 +476,14 @@ export default function MendingPage() {
           combinedDetailsList.push(details.join(", "));
         }
       });
-      const combinedDetails = combinedDetailsList.join(" | ");
+      let combinedDetails = combinedDetailsList.join(" | ");
+      if (titikRangeStr) {
+        combinedDetails = combinedDetails ? `${combinedDetails} ${titikRangeStr}` : titikRangeStr;
+      }
 
       const res = await addQCDefectDetail({
         headerId: targetHeaderId,
-        meterKain: defectMeterKain,
+        meterKain: targetMeter,
         kategoriMasalah: defectKategori,
         detailMasalah: combinedDetails || undefined,
         keteranganCacat: defectKeterangan || undefined,
@@ -425,7 +493,7 @@ export default function MendingPage() {
 
       if (res.success && activeMendingPcs) {
         setIsDefectModalOpen(false);
-        setDefectMeterKain(""); setDefectKategori([]); setDefectDetailMap({}); setDefectKeterangan(""); setQcDefectManualInput({});
+        setDefectMeterKain(""); setDefectMeterAwal(""); setDefectMeterAkhir(""); setDefectKategori([]); setDefectDetailMap({}); setDefectKeterangan(""); setQcDefectManualInput({});
         await refreshActiveMendingDetails(activeMendingPcs.nomor_mc, activeMendingPcs.design_id, activeMendingPcs.potongan_ke, activeMendingPcs.pcs_index);
       } else {
         setDefectError(res.error || "Gagal menyimpan temuan cacat.");
@@ -971,7 +1039,9 @@ export default function MendingPage() {
             cacatLines.push(displayDetail);
           }
 
-          if (ketCacat) {
+          const hasDefectsArray = item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0;
+
+          if (ketCacat && !hasDefectsArray) {
             if (cacatLines.length > 0) {
               const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
               if (cacatLines.length === 1 && parts.length > 1) {
@@ -985,6 +1055,7 @@ export default function MendingPage() {
               } else {
                 cacatLines = cacatLines.map((line, i) => {
                   if (line.match(/\(Blok/i)) return line;
+                  if (line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]")) return line;
                   const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
                   let partIndex = i;
                   const katsRaw2 = item.kategori_masalah;
@@ -992,12 +1063,9 @@ export default function MendingPage() {
                   if (lineKat && kats2.includes(lineKat)) {
                     partIndex = kats2.indexOf(lineKat);
                   }
-                  if (parts[partIndex] && parts[partIndex] !== "") {
+                  if (partIndex < parts.length && parts[partIndex] && parts[partIndex] !== "") {
                     const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                    return `${line} (Blok ${cleanB})`;
-                  } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                    const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                    return `${line} (Blok ${cleanB})`;
+                    return cleanB ? `${line} (Blok ${cleanB})` : line;
                   }
                   return line;
                 });
@@ -1345,7 +1413,13 @@ export default function MendingPage() {
       ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
       ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
 
-      if (ketCacat) {
+      if (ketCacat.toUpperCase() === "START" || ketCacat.toUpperCase() === "FINISH") {
+        ketCacat = "";
+      }
+
+      const hasDefectsArray = item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0;
+
+      if (ketCacat && !hasDefectsArray) {
         if (cacatLines.length > 0) {
           const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
           if (cacatLines.length === 1 && parts.length > 1) {
@@ -1359,6 +1433,7 @@ export default function MendingPage() {
           } else {
             cacatLines = cacatLines.map((line, i) => {
               if (line.match(/\(Blok/i)) return line;
+              if (line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]")) return line;
               const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
               let partIndex = i;
               const katsRaw2 = item.kategori_masalah;
@@ -1366,19 +1441,18 @@ export default function MendingPage() {
               if (lineKat && kats2.includes(lineKat)) {
                 partIndex = kats2.indexOf(lineKat);
               }
-              if (parts[partIndex] && parts[partIndex] !== "") {
+              if (partIndex < parts.length && parts[partIndex] && parts[partIndex] !== "") {
                 const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                return `${line} (Blok ${cleanB})`;
-              } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                return `${line} (Blok ${cleanB})`;
+                return cleanB ? `${line} (Blok ${cleanB})` : line;
               }
               return line;
             });
           }
         } else {
           const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-          cacatLines.push(`(Blok ${cleanB})`);
+          if (cleanB && !cleanB.toUpperCase().includes("START") && !cleanB.toUpperCase().includes("FINISH") && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+            cacatLines.push(`(Blok ${cleanB})`);
+          }
         }
       }
 
@@ -1395,12 +1469,20 @@ export default function MendingPage() {
       const hasErrorDetail = !!item.kategori_masalah || !!item.detail_masalah;
 
       let meterDisplay = "-";
-      if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
-        meterDisplay = cleanMeterVal(item.meter_kain);
-      } else if (item.detail_masalah) {
+      if (item.detail_masalah) {
         const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
-        if (meterMatch && meterMatch[1]) {
+        if (meterMatch && meterMatch[1] && meterMatch[1].includes("-")) {
           meterDisplay = cleanMeterVal(meterMatch[1]);
+        }
+      }
+      if (meterDisplay === "-") {
+        if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+          meterDisplay = cleanMeterVal(item.meter_kain);
+        } else if (item.detail_masalah) {
+          const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+          if (meterMatch && meterMatch[1]) {
+            meterDisplay = cleanMeterVal(meterMatch[1]);
+          }
         }
       }
       
@@ -1451,7 +1533,8 @@ export default function MendingPage() {
       const showGrp = !isSameAsPrev;
       const showOpr = !isSameAsPrev;
 
-      const isGradable = !isIstirahat && (!isFinishReport || hasErrorDetail);
+      const isStartMarker = ((item.keterangan_cacat || "").toUpperCase() === "START" || (item.production_headers?.panel_no || "").toUpperCase() === "START" || (item.meter_kain === "0" && !hasRealDefects && (item.keterangan_cacat === "START" || !item.keterangan_cacat))) && !hasRealDefects;
+      const isGradable = !isIstirahat && !isStartMarker && (!isFinishReport || hasErrorDetail);
       const cacatForMeter = combinedCacat
         .split("\n")
         .map((line: string) => line.replace(/\s*\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim())
@@ -1479,7 +1562,7 @@ export default function MendingPage() {
 
       const cacatText = hasIstirahat && !hasErrorDetail ? "ISTIRAHAT" : (isFinishReport && !hasErrorDetail ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
 
-      const isPlaceholder = meterDisplay === "-" && !hasErrorDetail && !isIstirahat && !isFinishReport;
+      const isPlaceholder = (meterDisplay === "-" && !hasErrorDetail && !isIstirahat && !isFinishReport) || isStartMarker;
       if (!isPlaceholder) {
         items.push({
           ...item,
@@ -1513,8 +1596,9 @@ export default function MendingPage() {
 
         const isDefectRow = !isIstirahat && (hasRealDefects || hasTambahanQC || !!item.kategori_masalah);
         if (isDefectRow) {
-          currentOpCacatCount += 1;
-          grandTotalCacatCount += 1;
+          const defectLength = getDefectMeterLength(item);
+          currentOpCacatCount += defectLength;
+          grandTotalCacatCount += defectLength;
         }
       }
     });
@@ -2195,10 +2279,17 @@ export default function MendingPage() {
             problemDetailsMap={problemDetailsMap}
             allBatchDetails={detailsToDisplay}
             currentGrade={selections[selectedDetailForEdit.id] === "BS" ? 4 : (selections[selectedDetailForEdit.id] === "B" ? 3 : 1)}
-            onSuccess={async (detailId, newGrade) => {
+            onSuccess={async (detailIdOrIds, newGrade) => {
+              const targetIds = Array.isArray(detailIdOrIds) ? detailIdOrIds : [detailIdOrIds];
               if (newGrade !== undefined) {
                 const mendingGradeStr = newGrade === 4 ? "BS" : (newGrade === 3 ? "B" : "A");
-                setSelections((prev) => ({ ...prev, [detailId]: mendingGradeStr }));
+                setSelections((prev) => {
+                  const next = { ...prev };
+                  targetIds.forEach((id) => {
+                    next[id] = mendingGradeStr;
+                  });
+                  return next;
+                });
               }
               if (activeMendingPcs) {
                 await refreshActiveMendingDetails(
@@ -2240,29 +2331,120 @@ export default function MendingPage() {
                     <AlertTriangle className="w-4 h-4 shrink-0" /> {defectError}
                   </div>
                 )}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-600 uppercase">Posisi Meter Kain <span className="text-rose-500">*</span></label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={defectMeterKain}
-                    onKeyDown={(e) => {
-                      if (e.key === "-" || e.key === "e") e.preventDefault();
+                {/* Mode Selector */}
+                <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDefectInputMode("single");
+                      setDefectError(null);
                     }}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setDefectMeterKain(val);
-                      if (val !== "" && (isNaN(parseFloat(val)) || parseFloat(val) < 0)) {
-                        setDefectError("Posisi Meter Kain tidak boleh bernilai kurang dari 0.");
-                      } else if (defectError === "Posisi Meter Kain tidak boleh bernilai kurang dari 0.") {
-                        setDefectError(null);
-                      }
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      defectInputMode === "single"
+                        ? "bg-white text-slate-800 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                    Titik Tunggal (1 Meter)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDefectInputMode("range");
+                      setDefectError(null);
                     }}
-                    className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all"
-                    placeholder="Contoh: 75"
-                  />
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      defectInputMode === "range"
+                        ? "bg-white text-rose-600 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-rose-500" />
+                    Rentang Panjang (Meter Awal - Akhir)
+                  </button>
                 </div>
+
+                {defectInputMode === "single" ? (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600 uppercase">Posisi Meter Kain <span className="text-rose-500">*</span></label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={defectMeterKain}
+                      onKeyDown={(e) => {
+                        if (e.key === "-" || e.key === "e") e.preventDefault();
+                      }}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDefectMeterKain(val);
+                        if (val !== "" && (isNaN(parseFloat(val)) || parseFloat(val) < 0)) {
+                          setDefectError("Posisi Meter Kain tidak boleh bernilai kurang dari 0.");
+                        } else if (defectError === "Posisi Meter Kain tidak boleh bernilai kurang dari 0.") {
+                          setDefectError(null);
+                        }
+                      }}
+                      className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all"
+                      placeholder="Contoh: 75"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-rose-900 uppercase flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-rose-500" />
+                        Rentang Meter Kerusakan <span className="text-rose-500">*</span>
+                      </label>
+                      {defectMeterAwal && defectMeterAkhir && !isNaN(parseFloat(defectMeterAwal)) && !isNaN(parseFloat(defectMeterAkhir)) && parseFloat(defectMeterAkhir) > parseFloat(defectMeterAwal) && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-200 text-rose-800 text-[11px] font-black tracking-wide">
+                          Panjang: {parseFloat(defectMeterAkhir) - parseFloat(defectMeterAwal)} Meter
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-500 block mb-1">Meter Awal (m)</span>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={defectMeterAwal}
+                          onKeyDown={(e) => {
+                            if (e.key === "-" || e.key === "e") e.preventDefault();
+                          }}
+                          onChange={(e) => {
+                            setDefectMeterAwal(e.target.value);
+                            setDefectError(null);
+                          }}
+                          className="h-11 px-3.5 rounded-xl bg-white border border-rose-200 text-sm font-bold text-slate-800 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all w-full"
+                          placeholder="Contoh: 20"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-500 block mb-1">Meter Akhir (m)</span>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={defectMeterAkhir}
+                          onKeyDown={(e) => {
+                            if (e.key === "-" || e.key === "e") e.preventDefault();
+                          }}
+                          onChange={(e) => {
+                            setDefectMeterAkhir(e.target.value);
+                            setDefectError(null);
+                          }}
+                          className="h-11 px-3.5 rounded-xl bg-white border border-rose-200 text-sm font-bold text-slate-800 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all w-full"
+                          placeholder="Contoh: 45"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-rose-700/80">
+                      Temuan akan otomatis dicatat sebagai cacat bersambung dari meter awal hingga meter akhir.
+                    </p>
+                  </div>
+                )}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-rose-600 uppercase">Kategori Masalah <span className="text-rose-500">*</span> (Pilih 1 atau lebih)</label>
                   <div className="flex flex-col gap-2 mt-1">
@@ -2391,7 +2573,16 @@ export default function MendingPage() {
               </div>
               <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 shrink-0">
                 <button onClick={() => { setIsDefectModalOpen(false); setDefectError(null); }} className="h-11 px-5 rounded-xl bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all">Batal</button>
-                <button disabled={isSubmittingDefect || !defectMeterKain || isNaN(parseFloat(defectMeterKain)) || parseFloat(defectMeterKain) < 0} onClick={handleSubmitDefect} className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-rose-600/20">
+                <button
+                  disabled={
+                    isSubmittingDefect ||
+                    (defectInputMode === "single"
+                      ? !defectMeterKain || isNaN(parseFloat(defectMeterKain)) || parseFloat(defectMeterKain) < 0
+                      : !defectMeterAwal || !defectMeterAkhir || isNaN(parseFloat(defectMeterAwal)) || isNaN(parseFloat(defectMeterAkhir)) || parseFloat(defectMeterAkhir) <= parseFloat(defectMeterAwal))
+                  }
+                  onClick={handleSubmitDefect}
+                  className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer"
+                >
                   {isSubmittingDefect ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Simpan Temuan
                 </button>
               </div>

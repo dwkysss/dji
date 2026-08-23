@@ -110,10 +110,8 @@ export default function PanelMendingTable({
                       </span>
                     ) : (String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) ? (
                       <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                    ) : isPanelInsertedByQc || hasTambahanQC ? (
+                    ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
                       <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
-                    ) : hasTambahanMnd ? (
-                      <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                     ) : null}
                   </div>
                 )}
@@ -141,7 +139,7 @@ export default function PanelMendingTable({
                   const lines = (item.cacatDisplay || "").split("\n").filter(Boolean);
                   const parsedCacatItems = lines
                     .map((l: string) => {
-                      const isLineQc = l.includes("[QC]") || l.includes("[TAMBAHAN QC]");
+                      const isLineQc = l.includes("[QC]") || l.includes("[TAMBAHAN QC]") || l.includes("[TAMBAHAN MENDING]");
                       const clean = l
                         .replace(/\[QC\]/gi, "")
                         .replace(/\[TAMBAHAN QC\]/gi, "")

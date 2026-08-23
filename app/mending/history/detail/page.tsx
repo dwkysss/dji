@@ -614,27 +614,34 @@ function MendingDetailContent() {
       ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
       ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
 
-      if (ketCacat) {
+      if (ketCacat.toUpperCase() === "START" || ketCacat.toUpperCase() === "FINISH") {
+        ketCacat = "";
+      }
+
+      const hasDefectsArray = item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0;
+
+      if (ketCacat && !hasDefectsArray) {
         if (cacatLines.length > 0) {
-          const parts = ketCacat.split(",").map((s: string) => s.trim());
+          const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
           cacatLines = cacatLines.map((line, i) => {
+            if (line.match(/\(Blok/i)) return line;
+            if (line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]")) return line;
             const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
             let partIndex = i;
             if (lineKat && kats.includes(lineKat)) {
               partIndex = kats.indexOf(lineKat);
             }
-            if (parts[partIndex] && parts[partIndex] !== "") {
+            if (partIndex < parts.length && parts[partIndex] && parts[partIndex] !== "") {
               const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-              return `${line} (Blok ${cleanB})`;
-            } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-              const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-              return `${line} (Blok ${cleanB})`;
+              return cleanB ? `${line} (Blok ${cleanB})` : line;
             }
             return line;
           });
         } else {
           const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-          cacatLines.push(`(Blok ${cleanB})`);
+          if (cleanB && !cleanB.toUpperCase().includes("START") && !cleanB.toUpperCase().includes("FINISH") && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+            cacatLines.push(`(Blok ${cleanB})`);
+          }
         }
       }
 
@@ -650,12 +657,20 @@ function MendingDetailContent() {
       const hasErrorDetail = !!item.kategori_masalah || !!item.detail_masalah;
 
       let meterDisplay = "-";
-      if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
-        meterDisplay = cleanMeterVal(item.meter_kain);
-      } else if (item.detail_masalah) {
+      if (item.detail_masalah) {
         const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
-        if (meterMatch && meterMatch[1]) {
+        if (meterMatch && meterMatch[1] && meterMatch[1].includes("-")) {
           meterDisplay = cleanMeterVal(meterMatch[1]);
+        }
+      }
+      if (meterDisplay === "-") {
+        if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+          meterDisplay = cleanMeterVal(item.meter_kain);
+        } else if (item.detail_masalah) {
+          const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+          if (meterMatch && meterMatch[1]) {
+            meterDisplay = cleanMeterVal(meterMatch[1]);
+          }
         }
       }
       
@@ -1052,21 +1067,39 @@ function MendingDetailContent() {
                         );
                       }
 
+                      const isRowQcModified = item.hasTambahanQC || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || (!!item.keterangan_qc && item.keterangan_qc !== "-");
+                      const rowBgClass = isRowQcModified
+                        ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+                        : (item.isIstirahat || item.hasIstirahat)
+                        ? "bg-amber-50/30 hover:bg-amber-50/50"
+                        : "hover:bg-slate-50";
+
+                      const cacatRawLines = (item.cacatDisplay && item.cacatDisplay !== "-")
+                        ? item.cacatDisplay.split("\n").map((l: string) => l.trim()).filter(Boolean)
+                        : [];
+
+                      const parsedCacatItems = cacatRawLines.map((line: string) => {
+                        const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]") || item.hasTambahanQC;
+                        const cleanText = line
+                          .replace(/\[QC\]/gi, "")
+                          .replace(/\[TAMBAHAN QC\]/gi, "")
+                          .replace(/\[TAMBAHAN MENDING\]/gi, "")
+                          .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                          .trim();
+                        return { isLineQc, text: cleanText };
+                      }).filter((c: any) => c.text.length > 0 && c.text !== "-");
+
                       return (
-                        <tr key={item.id || index} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100">
-                            {String(item.displayNo).toUpperCase().includes("AWAL") ? (
-                              <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
-                            ) : String(item.displayNo).toUpperCase().includes("AKHIR") ? (
-                              <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
-                            ) : (
-                              <div className="flex flex-col items-center justify-center">
-                                <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
-                                {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) && (
-                                  <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                                )}
-                              </div>
-                            )}
+                        <tr key={item.id || index} className={`${rowBgClass} transition-colors`}>
+                          <td className={`px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 ${isRowQcModified ? "bg-sky-100/70" : ""}`}>
+                            <div className="flex flex-col items-center justify-center">
+                              <span>{(item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
+                              {(String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) ? (
+                                <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                              ) : isRowQcModified ? (
+                                <span className="block text-[8px] font-black bg-sky-100 text-[#0070bc] px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                              ) : null}
+                            </div>
                           </td>
                           <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100 border-b border-slate-100">
                             {item.showTgl ? item.tglStr : ""}
@@ -1074,26 +1107,45 @@ function MendingDetailContent() {
                           <td className="px-1.5 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100">
                             {item.showGrp ? item.grpStr : ""}
                           </td>
-                          <td className={`px-2 py-1.5 font-medium text-slate-700 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? "italic font-bold text-slate-500" : ""}`}>
+                          <td className={`px-2 py-1.5 font-medium text-slate-700 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? "italic font-bold text-amber-600" : ""}`}>
                             {item.hasIstirahat ? "Istirahat" : (item.showOpr ? item.oprStr : "")}
                           </td>
                           <td className="px-1.5 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100 border-b border-slate-100">
                             {item.meterDisplay}
                           </td>
                           <td className="px-1.5 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100 border-b border-slate-100">
-                            {!item.isGradable ? "" : (item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
+                            {!item.isGradable ? "" : (item.indikator_stop || item.kategori_masalah || isRowQcModified ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
                           </td>
-                          <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100 ${
-                            item.hasIstirahat || item.cacatDisplay === "ISTIRAHAT" || item.cacatDisplay === "FINISH"
-                              ? "text-slate-500"
-                              : (item.cacatDisplay && item.cacatDisplay !== "-" && item.cacatDisplay !== "START" ? "text-rose-600" : "text-slate-700")
-                          }`}>
+                          <td className="px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100">
                             {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
-                            {!item.hasIstirahat && (item.cacatDisplay || "-")}
-                            {item.hasIstirahat && item.cacatDisplay && item.cacatDisplay !== "-" && item.cacatDisplay !== "ISTIRAHAT" && (
-                              <div className="text-rose-600">{item.cacatDisplay}</div>
+                            {parsedCacatItems.length > 0 ? (
+                              <div className="flex flex-col gap-0.5">
+                                {parsedCacatItems.map((cItem: any, idx: number) => {
+                                  const numPrefix = parsedCacatItems.length > 1 ? `${idx + 1}. ` : "";
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={
+                                        cItem.isLineQc
+                                          ? "text-[#0070bc] font-semibold"
+                                          : (!item.isGradable || item.isGagalCacatOnly)
+                                          ? "text-slate-500 font-medium"
+                                          : "text-rose-600 font-medium"
+                                      }
+                                    >
+                                      {numPrefix}{cItem.text}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              !item.backupOpName && <span className="text-slate-400">-</span>
                             )}
-                            {item.hasIstirahat && (!item.cacatDisplay || item.cacatDisplay === "-" || item.cacatDisplay === "ISTIRAHAT") && !item.backupOpName && "-"}
+                            {item.keterangan_qc && item.keterangan_qc !== "-" && (
+                              <div className="text-[#0070bc] bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                                <span className="text-[#0070bc] font-black">QC:</span> {item.keterangan_qc}
+                              </div>
+                            )}
                           </td>
                           <td className="px-1 py-1.5 text-center border-r border-slate-100 border-b border-slate-100">
                             {item.isGradable ? (
@@ -1335,11 +1387,15 @@ function MendingDetailContent() {
                           ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
                           ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
 
-                          if (ketCacat) {
+                          const hasDefectsArray = detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0;
+
+                          if (ketCacat && !hasDefectsArray) {
                             if (cacatLines.length > 0) {
-                              const parts = ketCacat.split(",").map((s: string) => s.trim());
+                              const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
                               
                               cacatLines = cacatLines.map((line, i) => {
+                                if (line.match(/\(Blok/i)) return line;
+                                if (line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]")) return line;
                                 const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
                                 let partIndex = i;
                                 
@@ -1347,12 +1403,9 @@ function MendingDetailContent() {
                                    partIndex = kats.indexOf(lineKat);
                                 }
                                 
-                                if (parts[partIndex] && parts[partIndex] !== "") {
+                                if (partIndex < parts.length && parts[partIndex] && parts[partIndex] !== "") {
                                   const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                                  return `${line} (Blok ${cleanB})`;
-                                } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                                   const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                                   return `${line} (Blok ${cleanB})`;
+                                  return cleanB ? `${line} (Blok ${cleanB})` : line;
                                 }
                                 return line;
                               });
@@ -1420,10 +1473,8 @@ function MendingDetailContent() {
                                   </span>
                                 ) : (String(itemHeader.panel_no).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS") ? (
                                   <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                                ) : isPanelInsertedByQc || hasTambahanQC ? (
+                                ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
                                   <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
-                                ) : hasTambahanMnd ? (
-                                  <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                                 ) : null}
                               </div>
                             )}
@@ -1458,7 +1509,7 @@ function MendingDetailContent() {
                                   if (item.hasIstirahat && !item.backupOpName && masalahLines.length === 1 && line === "-") {
                                       return <span key={i} title={line} className="text-slate-400">-</span>;
                                   }
-                                  const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]");
+                                  const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
                                   const clean = line
                                     .replace(/\[QC\]/gi, "")
                                     .replace(/\[TAMBAHAN QC\]/gi, "")

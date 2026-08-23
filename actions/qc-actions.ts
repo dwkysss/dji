@@ -216,6 +216,99 @@ export async function submitQCInspection(params: {
         }
       }
 
+      // 4. Khusus Mesin Tricote / Awalan "T": Auto-Mending & Langsung Masuk Laporan Produksi
+      const isTricoteMachine = String(nomor_mc || "").trim().toUpperCase().startsWith("T");
+      if (isTricoteMachine) {
+        try {
+          let countA = 0;
+          let countB = 0;
+          let countBS = 0;
+          const mendingItemsPayload: any[] = [];
+
+          for (const d of params.details) {
+            let mendingGrade = "A";
+            if (d.finalInspectionId === 0 || d.finalInspectionId === null) {
+              mendingGrade = "Dihapus";
+            } else if (d.finalInspectionId === 4) {
+              mendingGrade = "BS";
+              countBS += 1;
+            } else if (d.finalInspectionId === 3) {
+              mendingGrade = "B";
+              countB += 1;
+            } else {
+              mendingGrade = "A";
+              countA += 1;
+            }
+
+            await supabase
+              .from("production_details")
+              .update({ status_mending: mendingGrade })
+              .eq("id", d.detailId);
+
+            mendingItemsPayload.push({
+              production_detail_id: d.detailId,
+              hasil_mending: mendingGrade,
+            });
+          }
+
+          let ketMending = params.notes ? `${params.notes} (Auto-Mending Tricote)` : "Otomatis Selesai (Mesin Tricote / Awalan T)";
+          if (params.elapsed_seconds !== undefined && params.elapsed_seconds !== null) {
+            ketMending += ` [ELAPSED:${params.elapsed_seconds}]`;
+          }
+          if (params.pause_seconds !== undefined && params.pause_seconds !== null) {
+            ketMending += ` [PAUSE:${params.pause_seconds}]`;
+          }
+
+          const mendingInsertPayload: any = {
+            tanggal_mending: params.tanggal_inspeksi,
+            petugas_mending: params.petugas_inspeksi,
+            start_mending: params.start_inspect,
+            finish_mending: params.finish_inspect,
+            keterangan_mending: ketMending.trim(),
+            total_panel: params.details.filter(d => d.finalInspectionId !== 0).length,
+            nomor_mc,
+            design_id,
+            potongan_ke,
+            pcs_index,
+            mending_grade_a: countA,
+            mending_grade_b: countB,
+            mending_grade_bs: countBS,
+          };
+          if (params.pause_seconds !== undefined) mendingInsertPayload.pause_seconds = params.pause_seconds;
+          if (params.elapsed_seconds !== undefined) mendingInsertPayload.elapsed_seconds = params.elapsed_seconds;
+
+          let { data: mBatchData, error: mBatchError } = await supabase
+            .from("mending_batches")
+            .insert(mendingInsertPayload)
+            .select("id")
+            .single();
+
+          if (mBatchError && (mBatchError.message?.includes("pause_seconds") || mBatchError.message?.includes("elapsed_seconds") || mBatchError.code === "PGRST204")) {
+            delete mendingInsertPayload.pause_seconds;
+            delete mendingInsertPayload.elapsed_seconds;
+            const retry = await supabase
+              .from("mending_batches")
+              .insert(mendingInsertPayload)
+              .select("id")
+              .single();
+            mBatchData = retry.data;
+            mBatchError = retry.error;
+          }
+
+          if (!mBatchError && mBatchData) {
+            const mItemsToInsert = mendingItemsPayload.map(item => ({
+              batch_id: mBatchData.id,
+              production_detail_id: item.production_detail_id,
+              hasil_mending: item.hasil_mending,
+            }));
+
+            await supabase.from("mending_items").insert(mItemsToInsert);
+          }
+        } catch (autoMendingErr) {
+          console.error("Gagal menjalankan auto-mending untuk mesin Tricote:", autoMendingErr);
+        }
+      }
+
       // Sync to Google Sheets
       try {
         const detailIds = params.details.map(d => d.detailId);

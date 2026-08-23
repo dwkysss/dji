@@ -281,7 +281,13 @@ export default function MeterHistoryTable({
         ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
         ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "");
 
-        if (ketCacat) {
+        if (ketCacat.toUpperCase() === "START" || ketCacat.toUpperCase() === "FINISH") {
+          ketCacat = "";
+        }
+
+        const hasDefectsArray = item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0;
+
+        if (ketCacat && !hasDefectsArray) {
           if (cacatLines.length > 0) {
             const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
             if (cacatLines.length === 1 && parts.length > 1) {
@@ -295,24 +301,24 @@ export default function MeterHistoryTable({
             } else {
               cacatLines = cacatLines.map((line, i) => {
                 if (line.match(/\(Blok/i)) return line;
+                if (line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]")) return line;
                 const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
                 let partIndex = i;
                 if (lineKat && kats.includes(lineKat)) {
                   partIndex = kats.indexOf(lineKat);
                 }
-                if (parts[partIndex] && parts[partIndex] !== "") {
+                if (partIndex < parts.length && parts[partIndex] && parts[partIndex] !== "") {
                   const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
-                  return `${line} (Blok ${cleanB})`;
-                } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                  const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                  return `${line} (Blok ${cleanB})`;
+                  return cleanB ? `${line} (Blok ${cleanB})` : line;
                 }
                 return line;
               });
             }
           } else {
             const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-            cacatLines.push(`(Blok ${cleanB})`);
+            if (cleanB && !cleanB.toUpperCase().includes("START") && !cleanB.toUpperCase().includes("FINISH") && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+              cacatLines.push(`(Blok ${cleanB})`);
+            }
           }
         }
 
@@ -338,14 +344,22 @@ export default function MeterHistoryTable({
           meterDisplay = cleanMeterVal(item.meter_kain);
         }
       } else {
-        if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
-          meterDisplay = cleanMeterVal(item.meter_kain);
-        } else if (defectMeterStr) {
-          meterDisplay = cleanMeterVal(defectMeterStr);
-        } else if (item.detail_masalah) {
+        if (item.detail_masalah) {
           const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
-          if (meterMatch && meterMatch[1]) {
+          if (meterMatch && meterMatch[1] && meterMatch[1].includes("-")) {
             meterDisplay = cleanMeterVal(meterMatch[1]);
+          }
+        }
+        if (meterDisplay === "-") {
+          if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+            meterDisplay = cleanMeterVal(item.meter_kain);
+          } else if (defectMeterStr) {
+            meterDisplay = cleanMeterVal(defectMeterStr);
+          } else if (item.detail_masalah) {
+            const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+            if (meterMatch && meterMatch[1]) {
+              meterDisplay = cleanMeterVal(meterMatch[1]);
+            }
           }
         }
 
@@ -671,14 +685,37 @@ export default function MeterHistoryTable({
           ) && !hasRealError;
 
           const hasMeterDefect = hasRealError;
-          const meterCacatColor = item.hasIstirahat || item.cacatDisplay === "ISTIRAHAT" || item.cacatDisplay === "FINISH"
-            ? "text-slate-600 font-semibold italic"
-            : (isGagalCacatOnly ? "text-slate-500 font-medium" : (hasMeterDefect ? "text-rose-600" : "text-slate-400"));
+          const isRowQcModified = item.hasTambahanQC || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
+          const rowBgClass = isRowQcModified
+            ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+            : item.hasIstirahat
+            ? "bg-amber-50/30"
+            : "hover:bg-slate-50";
+
+          const cacatRawLines = (item.cacatDisplay && item.cacatDisplay !== "-")
+            ? item.cacatDisplay.split("\n").map((l: string) => l.trim()).filter(Boolean)
+            : [];
+
+          const parsedCacatItems = cacatRawLines.map((line: string) => {
+            const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]") || item.hasTambahanQC;
+            const cleanText = line
+              .replace(/\[QC\]/gi, "")
+              .replace(/\[TAMBAHAN QC\]/gi, "")
+              .replace(/\[TAMBAHAN MENDING\]/gi, "")
+              .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+              .trim();
+            return { isLineQc, text: cleanText };
+          }).filter((c: any) => c.text.length > 0 && c.text !== "-");
 
           return (
-            <tr key={item.id || index} className={`${item.hasIstirahat ? "bg-amber-50/30" : "hover:bg-slate-50"} transition-colors`}>
-              <td className="px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100">
-                {item.displayNo}
+            <tr key={item.id || index} className={`${rowBgClass} transition-colors`}>
+              <td className={`px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 ${isRowQcModified ? "bg-sky-100/70" : ""}`}>
+                <div className="flex flex-col items-center justify-center">
+                  <span>{item.displayNo}</span>
+                  {isRowQcModified && (
+                    <span className="block text-[8px] font-black bg-sky-100 text-[#0070bc] px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                  )}
+                </div>
               </td>
               <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100 border-b border-slate-100">
                 {item.showTgl ? item.tglStr : ""}
@@ -701,7 +738,7 @@ export default function MeterHistoryTable({
                    if (item.hasIstirahat || item.cacatDisplay === "ISTIRAHAT" || item.cacatDisplay === "FINISH") {
                      return null;
                    }
-                   if (hasRealError) {
+                   if (hasRealError || isRowQcModified) {
                      return <XCircle className="w-4 h-4 text-rose-500 inline-block" />;
                    }
                    return <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />;
@@ -717,15 +754,30 @@ export default function MeterHistoryTable({
                       ) : (
                         <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName || "-"}</div>
                       )}
-                      {hasMeterDefect && (
-                        <div className="text-rose-600">{item.cacatDisplay}</div>
-                      )}
                     </>
                   )}
-                  {!item.hasIstirahat && item.cacatDisplay && (
-                    <div className={meterCacatColor}>
-                      {item.cacatDisplay}
+                  {parsedCacatItems.length > 0 ? (
+                    <div className="flex flex-col gap-0.5">
+                      {parsedCacatItems.map((cItem: any, idx: number) => {
+                        const numPrefix = parsedCacatItems.length > 1 ? `${idx + 1}. ` : "";
+                        return (
+                          <div
+                            key={idx}
+                            className={
+                              cItem.isLineQc
+                                ? "text-[#0070bc] font-semibold"
+                                : isGagalCacatOnly
+                                ? "text-slate-500 font-medium"
+                                : "text-rose-600 font-medium"
+                            }
+                          >
+                            {numPrefix}{cItem.text}
+                          </div>
+                        );
+                      })}
                     </div>
+                  ) : (
+                    !item.hasIstirahat && <span className="text-slate-400">-</span>
                   )}
                 </td>
                <td className={`px-1 py-1.5 text-center text-[11px] font-bold border-r border-slate-100 border-b border-slate-100 ${item.downtimeDisplay && item.downtimeDisplay !== "-" ? "text-rose-600" : "text-slate-400"}`}>

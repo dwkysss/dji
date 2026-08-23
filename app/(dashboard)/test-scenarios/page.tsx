@@ -375,47 +375,178 @@ const mockScenarioTambahanQc = [
   },
 ];
 
-// Skenario Meteran (Roll Input Type)
-const mockScenarioMeter = [
+// Skenario Meteran 1: Normal Lancar (Roll Bebas Cacat)
+const mockScenarioMeterNormal = [
   {
-    ...createHeader("m-start", { panel_no: "METERAN", meter_awal: "0", tanggal_jam: "2026-08-21T08:00:00Z" }),
-    production_details: [{ id: "md-start", meter_kain: "0", keterangan_cacat: "START" }],
+    ...createHeader("mn-1", { panel_no: "METERAN", meter_awal: "0", tanggal_jam: "2026-08-21T08:00:00Z" }),
+    production_details: [{ id: "mnd-1", meter_kain: "50" }],
   },
   {
-    ...createHeader("m-1", { panel_no: "METERAN", meter_kain: "45", tanggal_jam: "2026-08-21T08:30:00Z" }),
+    ...createHeader("mn-2", { panel_no: "METERAN", tanggal_jam: "2026-08-21T09:30:00Z" }),
+    production_details: [{ id: "mnd-2", meter_kain: "120" }],
+  },
+  {
+    ...createHeader("mn-finish", { panel_no: "METERAN", meter_akhir: "200", tanggal_jam: "2026-08-21T11:00:00Z" }),
+    production_details: [],
+  },
+];
+
+// Skenario Meteran 2: Multi-Operator / Pergantian Shift di Tengah Roll
+const mockScenarioMeterMultiOperator = [
+  {
+    ...createHeader("mmo-1", { panel_no: "METERAN", meter_awal: "0", tanggal_jam: "2026-08-21T08:30:00Z" }),
     production_details: [{ 
-      id: "md-1", 
+      id: "mmod-1", 
       meter_kain: "45", 
       production_defects: [{ kategori: "K", detail: "L1 Putus", meter: "45", blok: "10" }] 
     }],
   },
   {
-    ...createHeader("m-2", { panel_no: "METERAN", meter_kain: "80", tanggal_jam: "2026-08-21T09:15:00Z" }),
+    ...createHeader("mmo-2", { panel_no: "METERAN", tanggal_jam: "2026-08-21T09:15:00Z" }),
     production_details: [{ 
-      id: "md-2", 
+      id: "mmod-2", 
       meter_kain: "80", 
       production_defects: [{ kategori: "G", detail: "Gagal Cacat", meter: "80" }] 
     }],
   },
   {
-    ...createHeader("m-op2", { 
+    ...createHeader("mmo-op2", { 
       panel_no: "METERAN", 
-      meter_kain: "150", 
-      tanggal_jam: "2026-08-21T15:30:00Z", 
+      tanggal_jam: "2026-08-21T13:30:00Z", 
       operators: { nama_operator: "Rissa A" }, 
       groups: { nama_grup: "A" } 
     }),
-    production_details: [{ id: "md-3", meter_kain: "150" }],
+    production_details: [{ 
+      id: "mmod-3", 
+      meter_kain: "150", 
+      production_defects: [{ kategori: "B", detail: "Benang Tebal", meter: "150", blok: "04" }] 
+    }],
   },
   {
-    ...createHeader("m-finish", { 
+    ...createHeader("mmo-finish", { 
       panel_no: "METERAN", 
       meter_akhir: "220", 
-      tanggal_jam: "2026-08-21T16:00:00Z", 
+      tanggal_jam: "2026-08-21T15:00:00Z", 
       operators: { nama_operator: "Rissa A" }, 
       groups: { nama_grup: "A" } 
     }),
-    production_details: [{ id: "md-finish", meter_kain: "220", keterangan_cacat: "FINISH" }],
+    production_details: [],
+  },
+];
+
+// Skenario Meteran 3: Istirahat di Tengah Roll + Operator Backup
+const mockScenarioMeterIstirahat = [
+  {
+    ...createHeader("mi-1", { panel_no: "METERAN", meter_awal: "0", tanggal_jam: "2026-08-21T08:00:00Z" }),
+    production_details: [{ id: "mid-1", meter_kain: "30" }],
+  },
+  {
+    ...createHeader("mi-ist", { 
+      panel_no: "METERAN", 
+      tanggal_jam: "2026-08-21T11:45:00Z", 
+      operator_backup: "Dewi Lestari", 
+      jenis_laporan: "Laporan Istirahat" 
+    }),
+    production_details: [{ 
+      id: "mid-2", 
+      meter_kain: "60", 
+      keterangan_cacat: "ISTIRAHAT (Backup: Dewi Lestari)" 
+    }],
+  },
+  {
+    ...createHeader("mi-3", { panel_no: "METERAN", tanggal_jam: "2026-08-21T13:15:00Z" }),
+    production_details: [{ 
+      id: "mid-3", 
+      meter_kain: "110", 
+      production_defects: [{ kategori: "K", detail: "L1 Putus", meter: "110", blok: "07" }] 
+    }],
+  },
+  {
+    ...createHeader("mi-finish", { panel_no: "METERAN", meter_akhir: "160", tanggal_jam: "2026-08-21T14:30:00Z" }),
+    production_details: [],
+  },
+];
+
+// Skenario Meteran 4: Gagal Cacat / False Alarm Sensor Mesin
+const mockScenarioMeterGagalCacat = [
+  {
+    ...createHeader("mg-1", { panel_no: "METERAN", meter_awal: "0", tanggal_jam: "2026-08-21T08:00:00Z" }),
+    production_details: [{ 
+      id: "mgd-1", 
+      meter_kain: "35", 
+      production_defects: [{ kategori: "G", detail: "Gagal Cacat", meter: "35" }] 
+    }],
+  },
+  {
+    ...createHeader("mg-2", { panel_no: "METERAN", tanggal_jam: "2026-08-21T09:45:00Z" }),
+    production_details: [{ 
+      id: "mgd-2", 
+      meter_kain: "90", 
+      production_defects: [{ kategori: "G", detail: "Gagal Cacat", meter: "90" }] 
+    }],
+  },
+  {
+    ...createHeader("mg-3", { panel_no: "METERAN", tanggal_jam: "2026-08-21T11:00:00Z" }),
+    production_details: [{ id: "mgd-3", meter_kain: "140" }],
+  },
+  {
+    ...createHeader("mg-finish", { panel_no: "METERAN", meter_akhir: "180", tanggal_jam: "2026-08-21T12:00:00Z" }),
+    production_details: [],
+  },
+];
+
+// Skenario Meteran 5: Multi-Defect & Cacat Padat di Titik Meter Tertentu
+const mockScenarioMeterMultiDefect = [
+  {
+    ...createHeader("mmd-1", { panel_no: "METERAN", meter_awal: "0", tanggal_jam: "2026-08-21T08:00:00Z" }),
+    production_details: [{ 
+      id: "mmdd-1", 
+      meter_kain: "40", 
+      production_defects: [
+        { kategori: "K", detail: "L1 Putus", meter: "40", blok: "10" },
+        { kategori: "B", detail: "Bolong", meter: "40", blok: "15" },
+        { kategori: "L", detail: "Lusi Kendur", meter: "40", blok: "10" },
+      ] 
+    }],
+  },
+  {
+    ...createHeader("mmd-2", { panel_no: "METERAN", tanggal_jam: "2026-08-21T10:00:00Z" }),
+    production_details: [{ 
+      id: "mmdd-2", 
+      meter_kain: "95", 
+      production_defects: [
+        { kategori: "K", detail: "L2 Putus", meter: "95", blok: "08" },
+      ] 
+    }],
+  },
+  {
+    ...createHeader("mmd-finish", { panel_no: "METERAN", meter_akhir: "150", tanggal_jam: "2026-08-21T11:30:00Z" }),
+    production_details: [],
+  },
+];
+
+// Skenario Meteran 6: Tambahan Titik Cacat oleh QC / Mending (+ QC)
+const mockScenarioMeterTambahanQc = [
+  {
+    ...createHeader("mtq-1", { panel_no: "METERAN", meter_awal: "0", tanggal_jam: "2026-08-21T08:00:00Z" }),
+    production_details: [{ 
+      id: "mtqd-1", 
+      meter_kain: "45", 
+      production_defects: [{ kategori: "K", detail: "L1 Putus", meter: "45", blok: "10" }] 
+    }],
+  },
+  {
+    ...createHeader("mtq-2", { panel_no: "METERAN", tanggal_jam: "2026-08-21T09:30:00Z" }),
+    production_details: [{ 
+      id: "mtqd-qc", 
+      meter_kain: "115", 
+      keterangan_cacat: "[TAMBAHAN QC]",
+      production_defects: [{ kategori: "Q", detail: "Cacat Terlewat QC", meter: "115", blok: "20" }] 
+    }],
+  },
+  {
+    ...createHeader("mtq-finish", { panel_no: "METERAN", meter_akhir: "180", tanggal_jam: "2026-08-21T11:00:00Z" }),
+    production_details: [],
   },
 ];
 
@@ -744,6 +875,82 @@ const formatDetailsForMending = (panels: any[], selections: Record<string, strin
   return items;
 };
 
+// Formatter for Meter Mending Table display items matching real app/mending/page.tsx
+const formatDetailsForMeterMending = (panels: any[]) => {
+  const details = formatDetailsForQc(panels);
+  const items: any[] = [];
+  let globalRowCount = 0;
+  let prevOperatorLastMeter: number | null = null;
+  let lastOprString = "";
+
+  details.forEach((item, idx) => {
+    const h = item.production_headers || {};
+    const opr = h.operators?.nama_operator || h.pic || "";
+    const grp = h.groups?.nama_grup || "";
+    const operatorStr = (grp ? `(${grp}) ` : '') + opr;
+
+    let isSameAsPrev = false;
+    if (items.length === 0) {
+      lastOprString = operatorStr;
+    } else if (operatorStr !== lastOprString) {
+      prevOperatorLastMeter = parseFloat(item.meter_kain || "0");
+      lastOprString = operatorStr;
+      isSameAsPrev = false;
+    } else {
+      isSameAsPrev = true;
+    }
+
+    if (!isSameAsPrev) {
+      const startMeter = prevOperatorLastMeter !== null ? String(prevOperatorLastMeter) : (h.meter_awal ?? "0");
+      items.push({
+        id: `start-${idx}-${Math.random()}`,
+        isStartRow: true,
+        isMeter: true,
+        displayNo: (globalRowCount + 1).toString(),
+        tglStr: h.tgl || "-",
+        grpStr: grp,
+        oprStr: opr,
+        meterDisplay: startMeter,
+        cacatDisplay: "START",
+        isGradable: false,
+        showTgl: true,
+        showGrp: true,
+        showOpr: true,
+      });
+      globalRowCount += 1;
+      isSameAsPrev = true;
+    }
+
+    const defectText = (item.production_defects && item.production_defects.length > 0)
+      ? item.production_defects.map((d: any) => `${d.kategori ? `${d.kategori} - ` : ""}${d.detail}${d.blok ? ` (Blok ${d.blok})` : ""}`).join("\n")
+      : (item.detail_masalah || "-");
+
+    const isStartMarker = ((item.keterangan_cacat || "").toUpperCase() === "START" || (h.panel_no || "").toUpperCase() === "START" || (item.meter_kain === "0" && !item.detail_masalah && !item.production_defects?.length));
+    if (!isStartMarker && item.meter_kain) {
+      items.push({
+        ...item,
+        isStartRow: false,
+        isMeter: true,
+        displayNo: (globalRowCount + 1).toString(),
+        tglStr: h.tgl || "-",
+        grpStr: grp,
+        oprStr: opr,
+        meterDisplay: item.meter_kain || "-",
+        cacatDisplay: defectText,
+        isGradable: true,
+        showTgl: false,
+        showGrp: false,
+        showOpr: false,
+        hasTambahanQC: item.hasTambahanQC || (item.keterangan_cacat || "").includes("[TAMBAHAN QC]") || (item.detail_masalah || "").includes("[TAMBAHAN QC]"),
+        keterangan_qc: item.keterangan_qc || "-",
+      });
+      globalRowCount += 1;
+    }
+  });
+
+  return items;
+};
+
 // Default Auto-Grade generator for Mending
 const generateDefaultMendingSelections = (panels: any[]) => {
   const map: Record<string, string> = {};
@@ -1021,10 +1228,8 @@ function MendingReportScenarioCard({ panels, selections, isMeter }: { panels: an
                       ) : (
                         <div className="flex flex-col items-center justify-center">
                           <span>{item.displayNo || "-"}</span>
-                          {hasTambahanQC ? (
+                          {hasTambahanQC || hasTambahanMnd ? (
                             <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
-                          ) : hasTambahanMnd ? (
-                            <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                           ) : null}
                         </div>
                       )}
@@ -1055,14 +1260,16 @@ function MendingReportScenarioCard({ panels, selections, isMeter }: { panels: an
                     <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100">
                       {(() => {
                         const isTambahanQc = !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || item.hasTambahanQC;
+                        const isTambahanMnd = !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || item.hasTambahanMnd;
                         const lines = (item.cacatDisplay || "").split("\n").filter(Boolean);
 
                         const parsedCacatItems = lines
                           .map((l: string) => {
-                            const isLineQc = l.includes("[QC]") || l.includes("[TAMBAHAN QC]") || isTambahanQc;
+                            const isLineQc = l.includes("[QC]") || l.includes("[TAMBAHAN QC]") || l.includes("[TAMBAHAN MENDING]") || isTambahanQc || isTambahanMnd;
                             const clean = l
                               .replace(/\[QC\]/gi, "")
                               .replace(/\[TAMBAHAN QC\]/gi, "")
+                              .replace(/\[TAMBAHAN MENDING\]/gi, "")
                               .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
                               .trim();
                             return { isLineQc, text: clean };
@@ -1325,15 +1532,85 @@ export default function TestScenariosPlayground() {
     },
     {
       id: "tambahan-qc",
-      title: "9. Tambah Panel & Catatan Khusus QC (Highlight Biru Satu Baris)",
-      description: "Penambahan panel baru oleh QC (+ QC / + MND) dan penambahan keterangan/catatan khusus QC.",
+      title: "9. Tambah Panel & Catatan Khusus QC / Mending (Highlight Biru Satu Baris)",
+      description: "Penambahan panel baru oleh QC / Mending (+ QC) dan penambahan keterangan/catatan khusus QC.",
       expected: [
-        "Seluruh baris data yang ditambah/diubah oleh QC memiliki background biru (bg-sky-50)",
-        "Panel susulan QC berlabel badge '+ QC' atau '+ MND'",
+        "Seluruh baris data yang ditambah/diubah oleh QC / Mending memiliki background biru (bg-sky-50)",
+        "Panel susulan QC / Mending berlabel badge '+ QC'",
         "Catatan khusus QC ditampilkan dalam badge biru di bawah rincian cacat",
         "Teks cacat atau keterangan QC berwarna biru (bukan merah cacat produksi)",
       ],
       data: mockScenarioTambahanQc,
+    },
+  ];
+
+  const meterScenarios = [
+    {
+      id: "meter-normal",
+      title: "1. Normal Lancar (Roll Bebas Cacat)",
+      description: "1 operator memproduksi roll dari meter 0 hingga meter 200 tanpa hambatan/cacat.",
+      expected: [
+        "START di baris meter 0",
+        "Semua titik KET bernilai Centang Hijau (✓)",
+        "Total Produksi = 200 Meter",
+        "Inspeksi QC: 2 Pass (✓), 0 Defect, 0 BS",
+      ],
+      data: mockScenarioMeterNormal,
+    },
+    {
+      id: "meter-multi-operator",
+      title: "2. Pergantian Operator / Shift di Tengah Roll (Multi-Operator)",
+      description: "Roll 220 meter dikerjakan oleh 2 operator bergantian (Rina R: 0-80m, Rissa A: 80-220m).",
+      expected: [
+        "Baris Subtotal per operator otomatis terhitung (80m & 140m)",
+        "Penanda START muncul di awal tiap operator baru",
+        "Grand Total Produksi = 220 Meter",
+      ],
+      data: mockScenarioMeterMultiOperator,
+    },
+    {
+      id: "meter-istirahat",
+      title: "3. Istirahat di Tengah Roll + Operator Backup",
+      description: "Operator utama istirahat saat pengerjaan roll di meter 60, digantikan oleh operator backup Dewi Lestari.",
+      expected: [
+        "Kolom Operator bertuliskan 'Istirahat' (italic)",
+        "Nama operator backup tampil di kolom Keterangan Cacat",
+        "Subtotal meter tetap dihitung ke operator utama",
+      ],
+      data: mockScenarioMeterIstirahat,
+    },
+    {
+      id: "meter-gagal-cacat",
+      title: "4. Gagal Cacat / False Alarm pada Meteran",
+      description: "Pemberhentian sensor mesin yang diklasifikasikan sebagai Gagal Cacat / false alarm di meter 35 dan 90.",
+      expected: [
+        "Titik Gagal Cacat otomatis berstatus Centang Hijau (✓)",
+        "Teks '1. Gagal Cacat' berwarna abu-abu netral (text-slate-500)",
+        "Tidak mengurangi grade kualitas roll",
+      ],
+      data: mockScenarioMeterGagalCacat,
+    },
+    {
+      id: "meter-multi-defect",
+      title: "5. Multi-Defect & Cacat Padat di Titik Meter Tertentu",
+      description: "Titik meter 40 memiliki 3 temuan cacat sekaligus dengan nomor blok spesifik.",
+      expected: [
+        "Cacat bernomor urut: '1. L1 Putus (Blok 10)', '2. Bolong (Blok 15)'",
+        "Inspeksi QC otomatis memilih tombol X (Defect)",
+        "Terhitung akurat pada Overall Grade",
+      ],
+      data: mockScenarioMeterMultiDefect,
+    },
+    {
+      id: "meter-tambahan-qc",
+      title: "6. Tambahan Titik Cacat oleh QC / Mending (+ QC Highlight Biru)",
+      description: "QC / Mending menemukan cacat tambahan di meter 115 yang terlewat oleh operator produksi.",
+      expected: [
+        "Baris temuan QC berlatar belakang biru muda (bg-sky-50)",
+        "Badge '+ QC' berwarna biru",
+        "Catatan khusus QC ditampilkan dalam badge biru",
+      ],
+      data: mockScenarioMeterTambahanQc,
     },
   ];
 
@@ -1358,7 +1635,7 @@ export default function TestScenariosPlayground() {
 
           <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shrink-0">
             <button
-              onClick={() => setActiveTab("panel")}
+              onClick={() => { setActiveTab("panel"); setSelectedScenario("all"); }}
               className={`px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === "panel"
                   ? "bg-white text-slate-900 shadow-md"
@@ -1369,7 +1646,7 @@ export default function TestScenariosPlayground() {
               Skenario Panel ({panelScenarios.length})
             </button>
             <button
-              onClick={() => setActiveTab("meter")}
+              onClick={() => { setActiveTab("meter"); setSelectedScenario("all"); }}
               className={`px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === "meter"
                   ? "bg-white text-slate-900 shadow-md"
@@ -1377,7 +1654,7 @@ export default function TestScenariosPlayground() {
               }`}
             >
               <Sliders className="w-4 h-4" />
-              Skenario Meteran (Roll)
+              Skenario Meteran ({meterScenarios.length})
             </button>
             <button
               onClick={() => setActiveTab("schemes")}
@@ -1654,85 +1931,151 @@ export default function TestScenariosPlayground() {
       {/* TAB 2: METER SCENARIOS */}
       {activeTab === "meter" && (
         <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <h3 className="font-extrabold text-slate-800 text-base flex items-center gap-2">
-                  <Sliders className="w-5 h-5 text-indigo-600" />
-                  Skenario Inputan Meteran (Roll Kain)
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Menguji baris START (meter awal), titik cacat, titik Gagal Cacat (✓), pergantian operator, baris FINISH (meter akhir), dan kalkulasi Total Meteran.
-                </p>
-              </div>
+          {/* Quick Scenario Filter Bar for Meter */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+            <span className="text-xs font-bold text-slate-500 flex items-center gap-1 shrink-0 px-1">
+              <Filter className="w-3.5 h-3.5" /> Filter Skenario:
+            </span>
+            <button
+              onClick={() => setSelectedScenario("all")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                selectedScenario === "all"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Tampilkan Semua ({meterScenarios.length})
+            </button>
+            {meterScenarios.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSelectedScenario(s.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  selectedScenario === s.id
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {s.title.split(". ")[1] || s.title}
+              </button>
+            ))}
+          </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-                  START baris meter 0
-                </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-                  FINISH baris meter 220
-                </span>
-              </div>
-            </div>
+          {/* Meter Scenarios Cards Grid */}
+          <div className="space-y-8">
+            {meterScenarios
+              .filter((s) => selectedScenario === "all" || selectedScenario === s.id)
+              .map((scenario, sIdx) => {
+                const activeData = scenario.data.map((h: any) => ({
+                  ...h,
+                  production_details: (h.production_details || []).map((d: any) => {
+                    const key = d.id || `${h.id}-${d.pcs_index}`;
+                    const override = customOverrides[key] || customOverrides[d.id];
+                    return override ? { ...d, ...override } : d;
+                  })
+                }));
+                const defaultQc = generateDefaultQcSelections(activeData);
+                const defaultMending = generateDefaultMendingSelections(activeData);
+                const currentQcSelections = autoGradeEnabled ? { ...defaultQc, ...qcSelections } : qcSelections;
+                const currentMendingSelections = autoGradeEnabled ? { ...defaultMending, ...mendingSelections } : mendingSelections;
+                const detailsForQc = formatDetailsForQc(activeData);
 
-            <div className="px-4 py-2 bg-indigo-50/50 border-b border-slate-100 flex items-center justify-between text-xs text-indigo-900 font-semibold">
-              <span>
-                Komponen yang sedang dirender:{" "}
-                <strong>
-                  {viewMode === "history"
-                    ? "<MeterHistoryTable /> (Riwayat Detail Meteran)"
-                    : viewMode === "qc"
-                    ? "<MeterQCTable /> (Inspeksi QC Meteran)"
-                    : "<MeterMendingTable /> (Mending Meteran)"}
-                </strong>
-              </span>
-            </div>
+                return (
+                  <div
+                    key={scenario.id}
+                    className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden transition-all hover:shadow-md"
+                  >
+                    {/* Scenario Header */}
+                    <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-extrabold text-xs flex items-center justify-center">
+                            {sIdx + 1}
+                          </span>
+                          <h3 className="font-extrabold text-slate-800 text-base">
+                            {scenario.title}
+                          </h3>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1 pl-8">
+                          {scenario.description}
+                        </p>
+                      </div>
 
-            <div className="p-4 overflow-x-auto">
-              <div className="rounded-lg border border-slate-200 overflow-hidden">
-                {viewMode === "history" && (
-                  <MeterHistoryTable panels={mockScenarioMeter} pcsKey="ROLL 1" />
-                )}
+                      <div className="pl-8 md:pl-0 flex flex-wrap items-center gap-2">
+                        {scenario.expected.map((exp, eIdx) => (
+                          <span
+                            key={eIdx}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold"
+                          >
+                            <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                            {exp}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
 
-                {viewMode === "qc" && (
-                  <MeterQCTable
-                    detailsToDisplay={formatDetailsForQc(mockScenarioMeter)}
-                    handleSelectGrade={handleSelectQcGrade}
-                    handleOpenEditQC={() => {}}
-                    selections={autoGradeEnabled ? { ...generateDefaultQcSelections(mockScenarioMeter), ...qcSelections } : qcSelections}
-                    setDetailToDelete={() => {}}
-                  />
-                )}
+                    {/* Mode Tag & Info */}
+                    <div className="px-4 py-2 bg-indigo-50/50 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-indigo-900 font-semibold">
+                      <span>
+                        Komponen yang sedang dirender:{" "}
+                        <strong className="text-indigo-950">
+                          {viewMode === "history"
+                            ? "<MeterHistoryTable /> (Riwayat Detail Meteran)"
+                            : viewMode === "qc"
+                            ? "<MeterQCTable /> (Inspeksi QC Meteran — Tombol ✓ / X / BS Interaktif)"
+                            : viewMode === "mending"
+                            ? "<MeterMendingTable /> (Pengerjaan Mending Meteran — Kolom A / B / BS)"
+                            : "<MendingReportTable /> (Laporan Kualitas Mending & Overall Grade)"}
+                        </strong>
+                      </span>
 
-                {viewMode === "mending" && (
-                  <MeterMendingTable
-                    displayItems={formatDetailsForQc(mockScenarioMeter).map((d, i) => ({
-                      ...d,
-                      displayNo: (i + 1).toString(),
-                      meterDisplay: d.meter_kain || "-",
-                      isGradable: true,
-                      cacatDisplay: d.detail_masalah || d.keterangan_cacat || "-",
-                    }))}
-                    selections={autoGradeEnabled ? { ...generateDefaultMendingSelections(mockScenarioMeter), ...mendingSelections } : mendingSelections}
-                    onSelectGrade={handleSelectMendingGrade}
-                    onOpenDetail={() => {}}
-                    onOpenEditDetail={() => {}}
-                    onDeleteDetail={() => {}}
-                  />
-                )}
+                      {viewMode === "qc" && (
+                        <span className="text-xs text-emerald-700 font-bold bg-emerald-100/60 px-2.5 py-0.5 rounded-md">
+                          💡 Klik tombol ✓, X, atau BS pada tabel di bawah untuk melihat kalkulasi subtotal berubah langsung!
+                        </span>
+                      )}
+                    </div>
 
-                {viewMode === "report" && (
-                  <MendingReportScenarioCard
-                    panels={mockScenarioMeter}
-                    selections={autoGradeEnabled ? { ...generateDefaultMendingSelections(mockScenarioMeter), ...mendingSelections } : mendingSelections}
-                    isMeter={true}
-                  />
-                )}
-              </div>
-            </div>
+                    {/* Rendered Table Component */}
+                    <div className="p-4 overflow-x-auto bg-white">
+                      <div className="rounded-lg border border-slate-200 overflow-hidden">
+                        {viewMode === "history" && (
+                          <MeterHistoryTable panels={activeData} pcsKey="ROLL 1" />
+                        )}
+
+                        {viewMode === "qc" && (
+                          <MeterQCTable
+                            detailsToDisplay={detailsForQc}
+                            handleSelectGrade={handleSelectQcGrade}
+                            handleOpenEditQC={() => {}}
+                            selections={currentQcSelections}
+                            setDetailToDelete={() => {}}
+                          />
+                        )}
+
+                        {viewMode === "mending" && (
+                          <MeterMendingTable
+                            displayItems={formatDetailsForMeterMending(activeData)}
+                            selections={currentMendingSelections}
+                            onSelectGrade={handleSelectMendingGrade}
+                            onOpenDetail={() => {}}
+                            onOpenEditDetail={() => {}}
+                            onDeleteDetail={() => {}}
+                          />
+                        )}
+
+                        {viewMode === "report" && (
+                          <MendingReportScenarioCard
+                            panels={activeData}
+                            selections={currentMendingSelections}
+                            isMeter={true}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
@@ -1946,16 +2289,26 @@ export default function TestScenariosPlayground() {
           problemDetailsMap={MOCK_QC_DETAILS_MAP}
           allBatchDetails={[]}
           currentGrade={qcSelections[editingDetail.id || `${editingDetail.production_headers?.id}-${editingDetail.pcs_index}`] || 1}
-          onSuccess={(detailId, newGrade, updatedData) => {
+          onSuccess={(detailIdOrIds, newGrade, updatedData) => {
+            const targetIds = Array.isArray(detailIdOrIds) ? detailIdOrIds : [detailIdOrIds];
             if (newGrade !== undefined) {
-              setQcSelections((prev) => ({ ...prev, [detailId]: newGrade }));
+              setQcSelections((prev) => {
+                const next = { ...prev };
+                targetIds.forEach((id) => {
+                  next[id] = newGrade;
+                });
+                return next;
+              });
             }
             if (updatedData) {
-              setCustomOverrides((prev) => ({
-                ...prev,
-                [detailId]: updatedData,
-                [`${editingDetail.production_headers?.id}-${editingDetail.pcs_index}`]: updatedData,
-              }));
+              setCustomOverrides((prev) => {
+                const next = { ...prev };
+                targetIds.forEach((id) => {
+                  next[id] = updatedData;
+                });
+                next[`${editingDetail.production_headers?.id}-${editingDetail.pcs_index}`] = updatedData;
+                return next;
+              });
             }
           }}
         />

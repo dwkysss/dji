@@ -443,13 +443,14 @@ export default function PanelHistoryTable({
                 cacatLines.push(displayDetail);
               }
 
+              const hasDefectsArray = detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0;
               let ketCacat = detail.keterangan_cacat || "";
               ketCacat = ketCacat.replace(/\[?(SEBELUM|LAPORAN)?\s*ISTIRAHAT\]?/gi, "").trim();
               ketCacat = ketCacat.replace(/\(?Backup:\s*[^)]+\)?/gi, "").trim();
               ketCacat = ketCacat.replace(/\[TAMBAHAN QC\]/gi, "").trim();
               ketCacat = ketCacat.replace(/^,\s*|\s*,\s*$/g, "").trim();
 
-              if (ketCacat) {
+              if (ketCacat && !hasDefectsArray) {
                 if (cacatLines.length > 0) {
                   const parts = ketCacat.split(",").map((s: string) => s.trim()).filter(Boolean);
                   if (cacatLines.length === 1 && parts.length > 1) {
@@ -465,21 +466,17 @@ export default function PanelHistoryTable({
                   } else {
                     cacatLines = cacatLines.map((line, i) => {
                       if (line.match(/\(Blok/i)) return line;
+                      if (line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]")) return line;
                       const lineKat = line.includes(" - ") ? line.split(" - ")[0].trim() : "";
                       let partIndex = i;
                       if (lineKat && kats.includes(lineKat)) {
                         partIndex = kats.indexOf(lineKat);
                       }
 
-                      if (parts[partIndex] && parts[partIndex] !== "") {
+                      if (partIndex < parts.length && parts[partIndex] && parts[partIndex] !== "") {
                         const cleanB = parts[partIndex].replace(/blok\s*/gi, "").trim();
                         if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat")) {
-                          return `${line} (Blok ${cleanB})`;
-                        }
-                      } else if (parts[parts.length - 1] && parts[parts.length - 1] !== "") {
-                        const cleanB = parts[parts.length - 1].replace(/blok\s*/gi, "").trim();
-                        if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat")) {
-                          return `${line} (Blok ${cleanB})`;
+                          return cleanB ? `${line} (Blok ${cleanB})` : line;
                         }
                       }
                       return line;
@@ -595,10 +592,8 @@ export default function PanelHistoryTable({
                       </span>
                     ) : (String(item.displayNo).includes("(BS)") || item.jml_hasil_produksi === 0) ? (
                       <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                    ) : isPanelInsertedByQc || hasTambahanQC ? (
+                    ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
                       <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
-                    ) : hasTambahanMnd ? (
-                      <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded mt-0.5 leading-none border border-indigo-300 shadow-2xs">+ MND</span>
                     ) : null}
                   </div>
                 )}
@@ -631,7 +626,7 @@ export default function PanelHistoryTable({
                   const parsedCacatItems = masalahLines
                     .filter((l) => l && l !== "-")
                     .map((line) => {
-                      const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]");
+                      const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
                       const clean = line
                         .replace(/\[QC\]/gi, "")
                         .replace(/\[TAMBAHAN QC\]/gi, "")

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { submitMending } from "@/actions/mending-actions";
 import { formatHHMM } from "@/lib/shift-utils";
+import { getDefectMeterLength } from "@/lib/defect-format-utils";
 
 const mendingSchema = z.object({
   petugas_mending: z.string().min(1, "Wajib diisi"),
@@ -155,18 +156,19 @@ export default function MendingModal({
       let countB = 0;
       let countBS = 0;
 
+      const isMeteran = (headerData?.details?.[0]?.production_headers?.panel_no === "METERAN") || 
+                        (detailData?.[0]?.production_headers?.panel_no === "METERAN");
+
       const detailsList = detailData || headerData?.details || [];
       detailsList.forEach((item: any) => {
         const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
         if (isDeleted) return;
         const val = selections[item.id];
-        if (val === "A") countA++;
-        else if (val === "B") countB++;
-        else if (val === "BS") countBS++;
+        const defectLen = isMeteran ? getDefectMeterLength(item) : 1;
+        if (val === "A") countA += defectLen;
+        else if (val === "B") countB += defectLen;
+        else if (val === "BS") countBS += defectLen;
       });
-
-      const isMeteran = (headerData?.details?.[0]?.production_headers?.panel_no === "METERAN") || 
-                        (detailData?.[0]?.production_headers?.panel_no === "METERAN");
       if (isMeteran) {
         let maxMeter = 0;
         

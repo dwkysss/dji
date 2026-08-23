@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { submitQCInspection } from "@/actions/qc-actions";
 import { formatHHMM } from "@/lib/shift-utils";
+import { getDefectMeterLength } from "@/lib/defect-format-utils";
 
 const qcSchema = z.object({
   petugas_inspeksi: z.string().min(1, "Wajib diisi"),
@@ -108,6 +109,8 @@ export default function QCInspectionModal({
       headerData.details.forEach((d: any) => {
         const endM = Number(d.production_headers?.meter_akhir) || 0;
         if (endM > maxM) maxM = endM;
+        const startM = Number(d.production_headers?.meter_awal) || 0;
+        if (startM > maxM) maxM = startM;
       });
       return maxM;
     }
@@ -203,26 +206,26 @@ export default function QCInspectionModal({
           const isRealDefect = checkIsDefectRow(d);
           const isTambahanQC = !!d.hasTambahanQC || (d.keterangan_cacat || "").includes("[TAMBAHAN QC]");
           const meterAkhir = Number(d.production_headers?.meter_akhir) || 0;
-          if (meterAkhir > maxMeter) {
-            maxMeter = meterAkhir;
-          }
+          if (meterAkhir > maxMeter) maxMeter = meterAkhir;
+          const meterAwal = Number(d.production_headers?.meter_awal) || 0;
+          if (meterAwal > maxMeter) maxMeter = meterAwal;
+
+          const defectLength = getDefectMeterLength(d);
 
           // Produksi (Hanya cacat asli laporan Operator Produksi)
           if (isRealDefect && !isTambahanQC) {
-            countProdSilang += 1;
+            countProdSilang += defectLength;
           }
 
           // Inspeksi QC (Seluruh cacat hasil pemeriksaan QC termasuk Tambahan QC)
           const grade = selections[d.id];
-          if (grade === 2 || grade === 3) {
-            countSilang += 1;
-          } else if (grade === 4) {
-            countBS += 1;
+          if (grade === 2 || grade === 3 || grade === 4) {
+            countSilang += defectLength;
           }
         });
         
         countProdCeklis = Math.max(0, maxMeter - countProdSilang);
-        countCeklis = Math.max(0, maxMeter - countSilang - countBS);
+        countCeklis = Math.max(0, maxMeter - countSilang);
       } else {
         // Mode Panel (Default)
         Object.entries(selections).forEach(([detailId, val]) => {
@@ -460,6 +463,19 @@ export default function QCInspectionModal({
             </div>
           </div>
 
+          {/* Notice khusus Mesin Tricote */}
+          {String(headerData?.details?.[0]?.production_headers?.nomor_mc || "").trim().toUpperCase().startsWith("T") && (
+            <div className="bg-sky-50 border border-sky-200 rounded-xl p-3.5 flex items-center gap-3 text-sky-800 text-xs font-semibold shadow-sm">
+              <div className="w-8 h-8 rounded-lg bg-sky-500 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                T
+              </div>
+              <div>
+                <div className="font-bold text-sky-900">Mesin Tricote (Inspeksi & Mending Bersamaan)</div>
+                <div className="text-[11px] text-sky-700 font-normal">Setelah formulir ini dikirim, data Mending otomatis terisi & langsung masuk ke Laporan Produksi beserta perhitungan Grade Keseluruhan.</div>
+              </div>
+            </div>
+          )}
+
           <form
             id="qc-form"
             onSubmit={handleSubmit(onSubmit)}
@@ -624,6 +640,13 @@ export default function QCInspectionModal({
                       <input
                         type="number"
                         {...register("prod_ceklis", { valueAsNumber: true })}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setValue("prod_ceklis", val);
+                          if (isMeteranBatch && totalKeseluruhanMeter > 0) {
+                            setValue("prod_silang", Math.max(0, totalKeseluruhanMeter - val));
+                          }
+                        }}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
                         className="w-full h-9 pl-3 pr-10 rounded-lg border border-slate-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
                       />
@@ -640,6 +663,13 @@ export default function QCInspectionModal({
                       <input
                         type="number"
                         {...register("prod_silang", { valueAsNumber: true })}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setValue("prod_silang", val);
+                          if (isMeteranBatch && totalKeseluruhanMeter > 0) {
+                            setValue("prod_ceklis", Math.max(0, totalKeseluruhanMeter - val));
+                          }
+                        }}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
                         className="w-full h-9 pl-3 pr-10 rounded-lg border border-slate-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
                       />
@@ -692,6 +722,13 @@ export default function QCInspectionModal({
                       <input
                         type="number"
                         {...register("qc_ceklis", { valueAsNumber: true })}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setValue("qc_ceklis", val);
+                          if (isMeteranBatch && totalKeseluruhanMeter > 0) {
+                            setValue("qc_silang", Math.max(0, totalKeseluruhanMeter - val));
+                          }
+                        }}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
                         className="w-full h-9 pl-3 pr-10 rounded-lg border border-sky-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
                       />
@@ -708,6 +745,13 @@ export default function QCInspectionModal({
                       <input
                         type="number"
                         {...register("qc_silang", { valueAsNumber: true })}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setValue("qc_silang", val);
+                          if (isMeteranBatch && totalKeseluruhanMeter > 0) {
+                            setValue("qc_ceklis", Math.max(0, totalKeseluruhanMeter - val));
+                          }
+                        }}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
                         className="w-full h-9 pl-3 pr-10 rounded-lg border border-sky-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
                       />

@@ -85,17 +85,46 @@ export default function MeterMendingTable({
           }
 
           const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+          const isRowQcModified = item.hasTambahanQC || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || (!!item.keterangan_qc && item.keterangan_qc !== "-");
+
+          const cacatRawLines = (item.cacatDisplay && item.cacatDisplay !== "-")
+            ? item.cacatDisplay.split("\n").map((l: string) => l.trim()).filter(Boolean)
+            : [];
+
+          const parsedCacatItems = cacatRawLines.map((line: string) => {
+            const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]") || item.hasTambahanQC;
+            const cleanText = line
+              .replace(/\[QC\]/gi, "")
+              .replace(/\[TAMBAHAN QC\]/gi, "")
+              .replace(/\[TAMBAHAN MENDING\]/gi, "")
+              .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+              .trim();
+            return { isLineQc, text: cleanText };
+          }).filter((c: any) => c.text.length > 0 && c.text !== "-");
 
           return (
-            <tr key={item.id || index} className={`transition-colors ${isDeleted ? "bg-slate-100/60 opacity-80" : (item.isIstirahat || item.hasIstirahat) ? "bg-amber-50/30 hover:bg-amber-50/50" : "bg-white hover:bg-slate-50"}`}>
-              <td className={`sticky left-0 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isDeleted ? "bg-slate-100" : (item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
+            <tr
+              key={item.id || index}
+              className={`transition-colors ${
+                isDeleted
+                  ? "bg-slate-100/60 opacity-80"
+                  : isRowQcModified
+                  ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+                  : (item.isIstirahat || item.hasIstirahat)
+                  ? "bg-amber-50/30 hover:bg-amber-50/50"
+                  : "bg-white hover:bg-slate-50"
+              }`}
+            >
+              <td className={`sticky left-0 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isDeleted ? "bg-slate-100" : isRowQcModified ? "bg-sky-100/70" : (item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
                 <div className="flex flex-col items-center justify-center">
                   <span>{item.displayNo}</span>
-                  {isDeleted && (
+                  {isDeleted ? (
                     <span className="text-[8px] font-black bg-rose-100 text-rose-700 px-1 py-0.2 rounded mt-0.5 leading-none shadow-sm border border-rose-200">
                       DIHAPUS
                     </span>
-                  )}
+                  ) : isRowQcModified ? (
+                    <span className="block text-[8px] font-black bg-sky-100 text-[#0070bc] px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                  ) : null}
                 </div>
               </td>
               <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100 border-b border-slate-100">
@@ -111,26 +140,41 @@ export default function MeterMendingTable({
                 {item.meterDisplay}
               </td>
               <td className="px-1.5 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100 border-b border-slate-100">
-                {isDeleted ? <span className="text-slate-400 font-bold">-</span> : !item.isGradable ? "" : (item.indikator_stop || item.kategori_masalah ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
+                {isDeleted ? <span className="text-slate-400 font-bold">-</span> : !item.isGradable ? "" : (item.indikator_stop || item.kategori_masalah || isRowQcModified ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
               </td>
-              <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100 ${
-                isDeleted ? "text-slate-400 italic" :
-                item.hasIstirahat || item.cacatDisplay === "ISTIRAHAT" || item.cacatDisplay === "FINISH"
-                  ? "text-slate-500"
-                  : (item.cacatDisplay && item.cacatDisplay !== "-" && item.cacatDisplay !== "START" ? "text-rose-600" : "text-slate-400")
-              }`}>
+              <td className="px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100">
                 {isDeleted ? (
                   <div className="italic text-slate-400 font-medium">[Titik Dihapus]</div>
                 ) : (
                   <>
                     {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
-                    {!item.hasIstirahat && (item.cacatDisplay || "-")}
-                    {item.hasIstirahat && item.cacatDisplay && item.cacatDisplay !== "-" && item.cacatDisplay !== "ISTIRAHAT" && (
-                      <div className="text-rose-600">{item.cacatDisplay}</div>
+                    {parsedCacatItems.length > 0 ? (
+                      <div className="flex flex-col gap-0.5">
+                        {parsedCacatItems.map((cItem: any, idx: number) => {
+                          const numPrefix = parsedCacatItems.length > 1 ? `${idx + 1}. ` : "";
+                          return (
+                            <div
+                              key={idx}
+                              className={
+                                cItem.isLineQc
+                                  ? "text-[#0070bc] font-semibold"
+                                  : (!item.isGradable || item.isGagalCacatOnly)
+                                  ? "text-slate-500 font-medium"
+                                  : "text-rose-600 font-medium"
+                              }
+                            >
+                              {numPrefix}{cItem.text}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      !item.backupOpName && <span className="text-slate-400">-</span>
                     )}
-                    {item.hasIstirahat && (!item.cacatDisplay || item.cacatDisplay === "-" || item.cacatDisplay === "ISTIRAHAT") && !item.backupOpName && "-"}
                     {item.keterangan_qc && item.keterangan_qc !== "-" && (
-                      <div className="text-sky-700 font-semibold text-[10px] mt-0.5">QC: {item.keterangan_qc}</div>
+                      <div className="text-[#0070bc] bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                        <span className="text-[#0070bc] font-black">QC:</span> {item.keterangan_qc}
+                      </div>
                     )}
                   </>
                 )}

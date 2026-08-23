@@ -208,7 +208,7 @@ export default function QCBulkEditModal({
                     key={d.id || d.nama_cacat}
                     type="button"
                     onClick={() => handleToggleQCDefect(d.nama_cacat)}
-                    className={`min-h-[48px] px-4 py-3 rounded-2xl border text-center font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-center cursor-pointer active:scale-98 ${
+                    className={`min-h-[48px] px-4.5 py-3 rounded-2xl border text-left font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-start cursor-pointer active:scale-98 ${
                       isSelected
                         ? "border-rose-500 bg-rose-50/80 text-rose-900 shadow-xs ring-2 ring-rose-500/20"
                         : "border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50"
@@ -227,7 +227,7 @@ export default function QCBulkEditModal({
                     key={customName}
                     type="button"
                     onClick={() => handleToggleQCDefect(customName)}
-                    className="min-h-[48px] px-4 py-3 rounded-2xl border border-rose-500 bg-rose-50/80 text-rose-900 shadow-xs ring-2 ring-rose-500/20 text-center font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                    className="min-h-[48px] px-4.5 py-3 rounded-2xl border border-rose-500 bg-rose-50/80 text-rose-900 shadow-xs ring-2 ring-rose-500/20 text-left font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-between gap-1.5 cursor-pointer active:scale-98"
                     title="Klik untuk menghapus"
                   >
                     <span>{customName}</span>
