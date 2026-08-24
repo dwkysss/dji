@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Trash2, CheckCircle, X, Edit3, Plus } from "lucide-react";
 import { PROBLEM_DETAILS } from "../page";
-import { formatDefectLinesWithNumbering, getDefectMeterLength } from "@/lib/defect-format-utils";
+import { formatDefectLinesWithNumbering, getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
 
 export default function MeterQCTable({
   detailsToDisplay,
@@ -32,12 +32,12 @@ export default function MeterQCTable({
     let prevOperatorLastMeter: number | null = null;
     let currentOpStartMeter: number | null = null;
     let currentOpLastMeter: number | null = null;
-    let currentOpCacatCount = 0;
+    let currentOpDefectItems: any[] = [];
     let lastOprString = "";
 
     let grandTotalStartMeter: number | null = null;
     let grandTotalLastMeter: number | null = null;
-    let grandTotalCacatCount = 0;
+    let grandTotalDefectItems: any[] = [];
 
     const cleanMeterVal = (val: any) => {
       if (val === null || val === undefined) return "";
@@ -65,15 +65,20 @@ export default function MeterQCTable({
         const [prevGrp, prevOpr] = lastOprString.includes(") ") 
           ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
           : ["", lastOprString];
+        const cacatPoints = calculateMeterDefectPoints(currentOpDefectItems);
+        const normalMeter = totalMeter !== null ? Math.max(0, totalMeter - cacatPoints) : null;
         items.push({
           id: `total-${lastOprString}-${Math.random()}`,
           isTotalRow: true,
           totalLabel: `Total Produksi${prevGrp ? ` (${prevGrp})` : ""} ${prevOpr}:`,
           totalMeter: totalMeter !== null ? `${totalMeter} Meter` : "-",
+          normalMeter: normalMeter !== null ? `${normalMeter} Meter` : "-",
+          cacatMeter: `${cacatPoints} Titik / Meter`,
         });
         prevOperatorLastMeter = currentOpLastMeter;
         currentOpStartMeter = null;
         currentOpLastMeter = null;
+        currentOpDefectItems = [];
         lastOprString = operatorStr;
         isSameAsPrev = false;
       } else if (items.length > 0) {
@@ -425,9 +430,8 @@ export default function MeterQCTable({
 
         const isDefectRow = !isIstirahatOnly && (hasRealDefects || hasTambahanQC);
         if (isDefectRow) {
-          const defectLength = getDefectMeterLength(item);
-          currentOpCacatCount += defectLength;
-          grandTotalCacatCount += defectLength;
+          currentOpDefectItems.push(item);
+          grandTotalDefectItems.push(item);
         }
       }
     });
@@ -438,8 +442,8 @@ export default function MeterQCTable({
       const [lastGrp, lastOprOnly] = lastOprString.includes(") ") 
         ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
         : ["", lastOprString];
-      const normalMeter = Math.max(0, totalMeter - currentOpCacatCount);
-      const cacatMeter = currentOpCacatCount;
+      const cacatPoints = calculateMeterDefectPoints(currentOpDefectItems);
+      const normalMeter = Math.max(0, totalMeter - cacatPoints);
 
       items.push({
         id: `total-last-${lastOprString}-${Math.random()}`,
@@ -447,14 +451,15 @@ export default function MeterQCTable({
         totalLabel: `Total Produksi${lastGrp ? ` (${lastGrp})` : ""} ${lastOprOnly}:`,
         totalMeter: `${totalMeter} Meter`,
         normalMeter: `${normalMeter} Meter`,
-        cacatMeter: `${cacatMeter} Meter`,
+        cacatMeter: `${cacatPoints} Titik / Meter`,
       });
     }
 
     // Push Grand Total Row untuk Total (Inspeksi)
     if (items.length > 0 && grandTotalStartMeter !== null && grandTotalLastMeter !== null) {
       const grandTotalMeter = Math.abs(grandTotalLastMeter - grandTotalStartMeter);
-      const grandTotalNormal = Math.max(0, grandTotalMeter - grandTotalCacatCount);
+      const grandTotalCacat = calculateMeterDefectPoints(grandTotalDefectItems);
+      const grandTotalNormal = Math.max(0, grandTotalMeter - grandTotalCacat);
 
       items.push({
         id: `grand-total-${Math.random()}`,
@@ -462,7 +467,7 @@ export default function MeterQCTable({
         totalLabel: "Total (Inspeksi):",
         totalMeter: `${grandTotalMeter} Meter`,
         normalMeter: `${grandTotalNormal} Meter`,
-        cacatMeter: `${grandTotalCacatCount} Meter`,
+        cacatMeter: `${grandTotalCacat} Titik / Meter`,
       });
     }
 

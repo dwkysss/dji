@@ -1,3 +1,5 @@
+import { calculateMeterDefectPoints } from "@/lib/defect-format-utils";
+
 export const isBsAwalAkhir = (item: any): boolean => {
   const pNo = String(
     item.panelNo ||
@@ -12,7 +14,8 @@ export const isBsAwalAkhir = (item: any): boolean => {
 export const calculateOverallGradeData = (
   items: any[],
   isMeter: boolean,
-  totalMeterSum?: number
+  totalMeterSum?: number,
+  cacatPointsOverride?: number
 ) => {
   let totalQty = 0;
   let totalCacat = 0;
@@ -28,23 +31,29 @@ export const calculateOverallGradeData = (
       if (totalQty === 0) totalQty = 300;
     }
 
-    (items || []).forEach((i: any) => {
-      if (isBsAwalAkhir(i)) return;
-      const isSpecial =
-        ((!!i.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") ||
-          !!i.kategori_masalah?.toUpperCase().includes("ISTIRAHAT")) &&
-          !i.kategori_masalah &&
-          !i.detail_masalah) ||
-        i.cacatDisplay === "START" ||
-        i.cacatDisplay === "FINISH" ||
-        i.cacatDisplay === "ISTIRAHAT";
-      if (isSpecial) return;
+    if (cacatPointsOverride !== undefined) {
+      totalCacat = cacatPointsOverride;
+    } else {
+      const cacatItems: any[] = [];
+      (items || []).forEach((i: any) => {
+        if (isBsAwalAkhir(i)) return;
+        const isSpecial =
+          ((!!i.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") ||
+            !!i.kategori_masalah?.toUpperCase().includes("ISTIRAHAT")) &&
+            !i.kategori_masalah &&
+            !i.detail_masalah) ||
+          i.cacatDisplay === "START" ||
+          i.cacatDisplay === "FINISH" ||
+          i.cacatDisplay === "ISTIRAHAT";
+        if (isSpecial) return;
 
-      // Diambil dari SETELAH INSPECT (hasil_mending), bukan data produksi
-      if (i.hasil_mending === "B" || i.hasil_mending === "BS") {
-        totalCacat += 1;
-      }
-    });
+        // Diambil dari SETELAH INSPECT (hasil_mending), bukan data produksi
+        if (i.hasil_mending === "B" || i.hasil_mending === "BS") {
+          cacatItems.push(i.detail || i);
+        }
+      });
+      totalCacat = calculateMeterDefectPoints(cacatItems);
+    }
   } else {
     // Panel: Panel BS Awal dan BS Akhir tidak disertakan
     const regularItems = (items || []).filter((i: any) => !isBsAwalAkhir(i));

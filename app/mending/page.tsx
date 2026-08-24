@@ -52,7 +52,7 @@ import {
 import { REGISTERED_MACHINES } from "@/app/qc/page";
 import MeterMendingTable from "./components/MeterMendingTable";
 import PanelMendingTable from "./components/PanelMendingTable";
-import { formatDefectLinesWithNumbering, getDefectMeterLength } from "@/lib/defect-format-utils";
+import { formatDefectLinesWithNumbering, getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
 
 const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = {
   A: ["L1/L2/L3 Benang timbul putus", "Benang lolos", "Bolong corak", "Benang narik/Kendor", "Benang Nyilang", "Perbaikan/Beset benang Dasar", "Benang Kejepit/Jebol/Kusut", "Jalur benang"],
@@ -698,15 +698,21 @@ export default function MendingPage() {
       const pcsSet = batchPcsMap.get(batchKey);
       const maxPcs = pcsSet && pcsSet.size > 0 ? Math.max(...Array.from(pcsSet)) : parseInt(d.pcs_index, 10) || 1;
 
+      const isTricoteMachine = String(h?.nomor_mc || "").trim().toUpperCase().startsWith("T");
       const pcsIndex = d.pcs_index ? String(d.pcs_index) : "1";
-      const key = `${batchKey}_${pcsIndex}`;
+      const key = isTricoteMachine ? `${batchKey}_tricote` : `${batchKey}_${pcsIndex}`;
       if (!map.has(key)) {
+        const displayPcs = (isTricoteMachine && pcsSet && pcsSet.size > 1)
+          ? Array.from(pcsSet).sort((a, b) => a - b).join(" & ")
+          : pcsIndex;
         map.set(key, {
           nomor_mc: h?.nomor_mc,
           design_id: h?.design_id,
           potongan_ke: h?.potongan_ke,
-          pcs_index: pcsIndex,
+          pcs_index: displayPcs,
+          start_pcs_index: pcsIndex,
           total_pcs: maxPcs,
+          isTricote: isTricoteMachine,
           meter_kain: d.meter_kain || null,
           header: h,
           detailsCount: 0,
@@ -1257,12 +1263,12 @@ export default function MendingPage() {
     let prevOperatorLastMeter: number | null = null;
     let currentOpStartMeter: number | null = null;
     let currentOpLastMeter: number | null = null;
-    let currentOpCacatCount = 0;
+    let currentOpDefectItems: any[] = [];
     let lastOprString = "";
 
     let grandTotalStartMeter: number | null = null;
     let grandTotalLastMeter: number | null = null;
-    let grandTotalCacatCount = 0;
+    let grandTotalDefectItems: any[] = [];
 
     // cleanMeterVal is defined globally at the top
 
@@ -1285,8 +1291,8 @@ export default function MendingPage() {
           ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
           : ["", lastOprString];
 
-        const normalMeter = totalMeter !== null ? Math.max(0, totalMeter - currentOpCacatCount) : 0;
-        const cacatMeter = currentOpCacatCount;
+        const cacatPoints = calculateMeterDefectPoints(currentOpDefectItems);
+        const normalMeter = totalMeter !== null ? Math.max(0, totalMeter - cacatPoints) : 0;
 
         items.push({
           id: `total-${lastOprString}-${Math.random()}`,
@@ -1294,12 +1300,12 @@ export default function MendingPage() {
           totalLabel: `Total Produksi${prevGrp ? ` (${prevGrp})` : ""} ${prevOpr}:`,
           totalMeter: totalMeter !== null ? `${totalMeter} Meter` : "-",
           normalMeter: totalMeter !== null ? `${normalMeter} Meter` : "-",
-          cacatMeter: totalMeter !== null ? `${cacatMeter} Meter` : "-",
+          cacatMeter: totalMeter !== null ? `${cacatPoints} Titik / Meter` : "-",
         });
         prevOperatorLastMeter = currentOpLastMeter;
         currentOpStartMeter = null;
         currentOpLastMeter = null;
-        currentOpCacatCount = 0;
+        currentOpDefectItems = [];
         lastOprString = operatorStr;
         isSameAsPrev = false;
       } else if (items.length > 0) {
@@ -1596,9 +1602,8 @@ export default function MendingPage() {
 
         const isDefectRow = !isIstirahat && (hasRealDefects || hasTambahanQC || !!item.kategori_masalah);
         if (isDefectRow) {
-          const defectLength = getDefectMeterLength(item);
-          currentOpCacatCount += defectLength;
-          grandTotalCacatCount += defectLength;
+          currentOpDefectItems.push(item);
+          grandTotalDefectItems.push(item);
         }
       }
     });
@@ -1609,11 +1614,16 @@ export default function MendingPage() {
         ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
         : ["", lastOprString];
 
+      const cacatPoints = calculateMeterDefectPoints(currentOpDefectItems);
+      const normalMeter = Math.max(0, totalMeter - cacatPoints);
+
       items.push({
         id: `total-last-${lastOprString}-${Math.random()}`,
         isTotalRow: true,
         totalLabel: `Total Produksi${lastGrp ? ` (${lastGrp})` : ""} ${lastOprOnly}:`,
         totalMeter: `${totalMeter} Meter`,
+        normalMeter: `${normalMeter} Meter`,
+        cacatMeter: `${cacatPoints} Titik / Meter`,
       });
     }
 
@@ -2074,11 +2084,21 @@ export default function MendingPage() {
     );
   };
 
+  const isTricoteMachine = String(activeMendingPcs?.nomor_mc || "").trim().toUpperCase().startsWith("T");
+  const distinctPcsList = React.useMemo(() => {
+    if (!isTricoteMachine) return [];
+    const pcsSet = new Set<string>();
+    detailsToDisplay.forEach((d: any) => {
+      pcsSet.add(String(d.pcs_index || "1"));
+    });
+    return Array.from(pcsSet).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  }, [detailsToDisplay, isTricoteMachine]);
+
   if (activeMendingPcs) {
     return (
       <div className="w-full max-w-6xl mx-auto pb-10 animate-fadeIn">
         <SessionTimerHeader
-          title={`Mending PCS Ke-${activeMendingPcs.pcs_index}`}
+          title={isTricoteMachine && distinctPcsList.length > 1 ? `Mending Simultan Mesin ${activeMendingPcs.nomor_mc} (${distinctPcsList.map(p => `PCS ${p}`).join(" & ")})` : `Mending PCS Ke-${activeMendingPcs.pcs_index}`}
           icon={<Scissors className="w-6 h-6 text-rose-500 shrink-0" />}
           onBack={async () => {
             if (activeMendingPcs) {
@@ -2106,8 +2126,6 @@ export default function MendingPage() {
           cancelLabel="Batal Mending"
           pauseLabel="Mending"
         />
-
-
 
         <div className="mb-6">
           <CompactHeaderCard {...compactProps} />
@@ -2153,6 +2171,102 @@ export default function MendingPage() {
                 <CheckCircle className="w-8 h-8 text-slate-300" />
               </div>
               <h3 className="text-sm font-bold text-slate-700">Tidak ada panel/roll untuk di-mending.</h3>
+            </div>
+          ) : isTricoteMachine && distinctPcsList.length > 1 ? (
+            <div className="p-4 sm:p-5 space-y-6">
+              <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black text-xs shadow-sm">
+                    T
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-sm">
+                      Mode Mending Bersamaan (Mesin Tricote / Awalan T)
+                    </h4>
+                    <p className="text-xs text-purple-700 font-semibold mt-0.5">
+                      Terdapat {distinctPcsList.length} tabel PCS aktif yang diperiksa dan diperbaiki secara simultan.
+                    </p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-600 text-white uppercase tracking-wider">
+                  {distinctPcsList.map(p => `PCS ${p}`).join(" & ")}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                {distinctPcsList.map((pcsNum) => {
+                  const pcsDetails = detailsToDisplay.filter((d: any) => String(d.pcs_index || "1") === pcsNum);
+                  const pcsDisplayItems = displayItems.filter((item: any) => {
+                    if (item.isTotalRow) return true;
+                    return String(item.pcs_index || "1") === pcsNum;
+                  });
+
+                  const pcsGradable = pcsDetails.filter((d: any) => !d.is_deleted && d.status_inspeksi !== "Dihapus").length;
+                  const pcsA = pcsDetails.filter((d: any) => selections[d.id] === "A").length;
+                  const pcsB = pcsDetails.filter((d: any) => selections[d.id] === "B").length;
+                  const pcsBS = pcsDetails.filter((d: any) => selections[d.id] === "BS").length;
+
+                  return (
+                    <div key={pcsNum} className="bg-white rounded-2xl border-2 border-purple-200 shadow-sm overflow-hidden flex flex-col">
+                      <div className="px-5 py-3.5 bg-gradient-to-r from-purple-100/70 via-purple-50 to-indigo-50 border-b border-purple-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center font-black text-xs shadow-sm">
+                            {pcsNum}
+                          </span>
+                          <div>
+                            <h4 className="font-black text-sm text-slate-900">
+                              Tabel Mending PCS {pcsNum}
+                            </h4>
+                            <span className="text-[11px] font-bold text-purple-700">
+                              Total {pcsDetails.length} {isMeteranBatch ? "Meter / Baris" : "Panel"}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-white text-purple-800 border border-purple-200">
+                          Potongan {activeMendingPcs.potongan_ke}
+                        </span>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        {isMeteranBatch ? (
+                          <MeterMendingTable
+                            displayItems={pcsDisplayItems}
+                            selections={selections}
+                            onSelectGrade={handleSelectGrade}
+                            onOpenDetail={handleOpenDetail}
+                            onOpenEditDetail={handleOpenEditDetail}
+                            onDeleteDetail={setDetailToDelete}
+                          />
+                        ) : (
+                          <PanelMendingTable
+                            displayItems={pcsDisplayItems}
+                            selections={selections}
+                            onSelectGrade={handleSelectGrade}
+                            onOpenDetail={handleOpenDetail}
+                            onOpenEditDetail={handleOpenEditDetail}
+                            onDeleteDetail={setDetailToDelete}
+                            totalGradable={pcsGradable}
+                            totalA={pcsA}
+                            totalB={pcsB}
+                            totalBS={pcsBS}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end">
+                <button
+                  disabled={!isAllSelected}
+                  onClick={() => setIsModalOpen(true)}
+                  className={`h-12 px-8 rounded-xl font-bold text-sm text-white flex items-center gap-2 transition-all duration-300 ${isAllSelected ? "bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/30 active:scale-95" : "bg-slate-300 cursor-not-allowed"}`}
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Isi Rangkuman & Kirim Mending Simultan
+                </button>
+              </div>
             </div>
           ) : detailsToDisplay.length === 1 && !detailsToDisplay[0].kategori_masalah ? (
             <div className="p-10 flex flex-col items-center text-center">
@@ -2853,7 +2967,8 @@ export default function MendingPage() {
             {/* Mobile & Tablet Card View (< md) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 md:hidden">
               {currentPcsList.map((g: any) => {
-                const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${g.pcs_index}`;
+                const targetPcs = g.start_pcs_index || g.pcs_index;
+                const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${targetPcs}`;
                 const session = activeSessionsMap.get(sessionKey);
                 const isPausedItem = session?.is_paused;
                 const isProcessingItem = session && !session.is_paused;
@@ -2871,7 +2986,7 @@ export default function MendingPage() {
                         </div>
                       </div>
                       <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 font-extrabold text-slate-800 text-xs border border-slate-200/60 shadow-xs">
-                        PCS {g.pcs_index} / {g.total_pcs || g.pcs_index}
+                        PCS {g.pcs_index} {g.isTricote ? "" : `/ ${g.total_pcs || g.pcs_index}`}
                       </div>
                     </div>
 
@@ -2898,7 +3013,7 @@ export default function MendingPage() {
 
                     {/* Bottom Section: Action Button */}
                     <button
-                      onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                      onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
                       className={`w-full h-10 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
                         isPausedItem 
                           ? "bg-amber-500 hover:bg-amber-600 text-white" 
@@ -2924,16 +3039,17 @@ export default function MendingPage() {
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
                     <th className="sticky left-0 z-20 bg-slate-50 px-6 py-4 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Tanggal & Waktu</th>
-                    <th className="px-6 py-4">Nomor Mesin</th>
+                    <th className="px-6 py-4">Mesin</th>
                     <th className="px-6 py-4">Potongan</th>
                     <th className="px-6 py-4">Desain</th>
-                    <th className="px-6 py-4 text-center">PCS Ke</th>
+                    <th className="px-6 py-4 text-center">PCS</th>
                     <th className="px-6 py-4 text-center whitespace-nowrap">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
                   {currentPcsList.map((g: any) => {
-                    const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${g.pcs_index}`;
+                    const targetPcs = g.start_pcs_index || g.pcs_index;
+                    const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${targetPcs}`;
                     const session = activeSessionsMap.get(sessionKey);
                     const isPausedItem = session?.is_paused;
                     const isProcessingItem = session && !session.is_paused;
@@ -2973,7 +3089,7 @@ export default function MendingPage() {
                         <td className="px-6 py-4 text-center">
                           <div className="inline-flex items-center gap-1.5 justify-center">
                             <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 font-extrabold text-slate-700 text-xs whitespace-nowrap border border-slate-200/60 shadow-xs">
-                              {g.pcs_index} / {g.total_pcs || g.pcs_index}
+                              {g.pcs_index} {g.isTricote ? "" : `/ ${g.total_pcs || g.pcs_index}`}
                             </div>
                             {isPausedItem && (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-black text-[10px] animate-pulse">
@@ -2990,14 +3106,14 @@ export default function MendingPage() {
                         <td className="px-6 py-4 text-center whitespace-nowrap">
                           {isPausedItem ? (
                             <button
-                              onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                              onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
                               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 mx-auto cursor-pointer whitespace-nowrap"
                             >
                               <Play className="w-3.5 h-3.5 fill-white" /> Lanjut Mending
                             </button>
                           ) : (
                             <button
-                              onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                              onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
                               className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer whitespace-nowrap shadow-sm flex items-center gap-1.5 mx-auto"
                             >
                               <Scissors className="w-3.5 h-3.5" />

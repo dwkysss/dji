@@ -567,15 +567,21 @@ export default function QCPage() {
       const pcsSet = batchPcsMap.get(batchKey);
       const maxPcs = pcsSet && pcsSet.size > 0 ? Math.max(...Array.from(pcsSet)) : parseInt(d.pcs_index, 10) || 1;
 
+      const isTricoteMachine = String(h?.nomor_mc || "").trim().toUpperCase().startsWith("T");
       const pcsIndex = d.pcs_index ? String(d.pcs_index) : "1";
-      const key = `${batchKey}_${pcsIndex}`;
+      const key = isTricoteMachine ? `${batchKey}_tricote` : `${batchKey}_${pcsIndex}`;
       if (!map.has(key)) {
+        const displayPcs = (isTricoteMachine && pcsSet && pcsSet.size > 1)
+          ? Array.from(pcsSet).sort((a, b) => a - b).join(" & ")
+          : pcsIndex;
         map.set(key, {
           nomor_mc: h?.nomor_mc,
           design_id: h?.design_id,
           potongan_ke: h?.potongan_ke,
-          pcs_index: pcsIndex,
+          pcs_index: displayPcs,
+          start_pcs_index: pcsIndex,
           total_pcs: maxPcs,
+          isTricote: isTricoteMachine,
           meter_kain: d.meter_kain || null,
           header: h,
           detailsCount: 0,
@@ -628,9 +634,13 @@ export default function QCPage() {
     setNowMs(now.getTime());
     const defaultIso = now.toISOString();
 
-    // 1. Fetch details first
+    const isTricote = String(nomor_mc || "").trim().toUpperCase().startsWith("T");
+
+    // 1. Fetch details first (Mesin Tricote / Awalan T memuat seluruh PCS sekaligus untuk diinspeksi bersamaan)
     const res = await getPendingQCDetailsByBatch(nomor_mc, design_id, potongan_ke);
-    const filteredByPcs = (res.success && res.data) ? res.data.filter((d: any) => String(d.pcs_index || "1") === String(pcs_index || "1")) : [];
+    const filteredByPcs = (res.success && res.data)
+      ? (isTricote ? res.data : res.data.filter((d: any) => String(d.pcs_index || "1") === String(pcs_index || "1")))
+      : [];
     setFullActiveQcDetails(filteredByPcs);
 
     // 2. Check DB for active session
@@ -1234,11 +1244,21 @@ export default function QCPage() {
     rollNo: firstDetail?.roll_no || "-"
   };
 
+  const isTricoteMachine = String(activeQcPcs?.nomor_mc || "").trim().toUpperCase().startsWith("T");
+  const distinctPcsList = React.useMemo(() => {
+    if (!isTricoteMachine) return [];
+    const pcsSet = new Set<string>();
+    detailsToDisplay.forEach((d: any) => {
+      pcsSet.add(String(d.pcs_index || "1"));
+    });
+    return Array.from(pcsSet).sort((a: string, b: string) => parseInt(a, 10) - parseInt(b, 10));
+  }, [detailsToDisplay, isTricoteMachine]);
+
   if (activeQcPcs) {
     return (
       <div className="w-full max-w-6xl mx-auto pb-10">
         <SessionTimerHeader
-          title={`Inspeksi PCS ${activeQcPcs.pcs_index}`}
+          title={isTricoteMachine && distinctPcsList.length > 1 ? `Inspeksi Simultan Mesin ${activeQcPcs.nomor_mc} (${distinctPcsList.map((p: string) => `PCS ${p}`).join(" & ")})` : `Inspeksi PCS ${activeQcPcs.pcs_index}`}
           icon={<ClipboardCheck className="w-6 h-6 text-sky-500 shrink-0" />}
           onBack={async () => {
             if (activeQcPcs) {
@@ -1328,46 +1348,134 @@ export default function QCPage() {
           </div>
         )}
 
-        <div data-tour="qc-inspection-results" className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fadeIn">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
           {detailsToDisplay.length === 0 ? (
-            <div className="p-10 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-3">
-                <CheckCircle className="w-8 h-8 text-slate-300" />
+            <div className="p-12 text-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                <CheckCircle className="w-6 h-6" />
               </div>
               <h3 className="text-sm font-bold text-slate-700">Semua Panel di PCS ini sudah diinspeksi.</h3>
             </div>
           ) : (
             <>
-              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-center">
-                <h5 className="font-black text-slate-700 tracking-wide text-sm">
-                  PCS {activeQcPcs.pcs_index}
-                </h5>
-              </div>
-              {isMeteranBatch ? (
-                <MeterQCTable
-                  detailsToDisplay={detailsToDisplay}
-                  handleSelectGrade={handleSelectGrade}
-                  handleOpenEditQC={handleOpenEditQC}
-                  handleOpenAddQC={handleOpenAddQC}
-                  selections={selections}
-                  setDetailToDelete={setDetailToDelete}
-                  selectedIds={selectedDetailIds}
-                  onToggleSelect={handleToggleSelectDetail}
-                  onSelectAll={handleSelectAllDetails}
-                />
+              {isTricoteMachine && distinctPcsList.length > 1 ? (
+                <div className="p-4 sm:p-5 space-y-6">
+                  <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-[#0070bc] text-white flex items-center justify-center font-black text-xs shadow-sm">
+                        T
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-900 text-sm">
+                          Mode Inspeksi Bersamaan (Mesin Tricote / Awalan T)
+                        </h4>
+                        <p className="text-xs text-sky-700 font-semibold mt-0.5">
+                          Terdapat {distinctPcsList.length} tabel PCS aktif yang diinspeksi secara simultan.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-black bg-[#0070bc] text-white uppercase tracking-wider">
+                      {distinctPcsList.map(p => `PCS ${p}`).join(" & ")}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                    {distinctPcsList.map((pcsNum) => {
+                      const pcsDetails = detailsToDisplay.filter((d: any) => String(d.pcs_index || "1") === pcsNum);
+                      return (
+                        <div key={pcsNum} className="bg-white rounded-2xl border-2 border-sky-200 shadow-sm overflow-hidden flex flex-col">
+                          <div className="px-5 py-3.5 bg-gradient-to-r from-sky-100/70 via-sky-50 to-indigo-50 border-b border-sky-200 flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-[#0070bc] text-white flex items-center justify-center font-black text-xs shadow-sm">
+                                {pcsNum}
+                              </span>
+                              <div>
+                                <h4 className="font-black text-sm text-slate-900">
+                                  Tabel PCS {pcsNum}
+                                </h4>
+                                <span className="text-[11px] font-bold text-sky-700">
+                                  Total {pcsDetails.length} {isMeteranBatch ? "Meter / Baris" : "Panel"}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-white text-sky-800 border border-sky-200">
+                              Potongan {activeQcPcs.potongan_ke}
+                            </span>
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            {isMeteranBatch ? (
+                              <MeterQCTable
+                                detailsToDisplay={pcsDetails}
+                                handleSelectGrade={handleSelectGrade}
+                                handleOpenEditQC={handleOpenEditQC}
+                                handleOpenAddQC={handleOpenAddQC}
+                                selections={selections}
+                                setDetailToDelete={setDetailToDelete}
+                                selectedIds={selectedDetailIds}
+                                onToggleSelect={handleToggleSelectDetail}
+                                onSelectAll={(selectAll) => {
+                                  const ids = pcsDetails.map((d: any) => d.id);
+                                  setSelectedDetailIds((prev) => selectAll ? Array.from(new Set([...prev, ...ids])) : prev.filter((id) => !ids.includes(id)));
+                                }}
+                              />
+                            ) : (
+                              <PanelQCTable
+                                detailsToDisplay={pcsDetails}
+                                handleSelectGrade={handleSelectGrade}
+                                handleOpenDetail={handleOpenDetail}
+                                handleOpenEditQC={handleOpenEditQC}
+                                handleOpenAddQC={handleOpenAddQC}
+                                selections={selections}
+                                setDetailToDelete={setDetailToDelete}
+                                selectedIds={selectedDetailIds}
+                                onToggleSelect={handleToggleSelectDetail}
+                                onSelectAll={(selectAll) => {
+                                  const ids = pcsDetails.map((d: any) => d.id);
+                                  setSelectedDetailIds((prev) => selectAll ? Array.from(new Set([...prev, ...ids])) : prev.filter((id) => !ids.includes(id)));
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               ) : (
-                <PanelQCTable
-                  detailsToDisplay={detailsToDisplay}
-                  handleSelectGrade={handleSelectGrade}
-                  handleOpenDetail={handleOpenDetail}
-                  handleOpenEditQC={handleOpenEditQC}
-                  handleOpenAddQC={handleOpenAddQC}
-                  selections={selections}
-                  setDetailToDelete={setDetailToDelete}
-                  selectedIds={selectedDetailIds}
-                  onToggleSelect={handleToggleSelectDetail}
-                  onSelectAll={handleSelectAllDetails}
-                />
+                <>
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-center">
+                    <h5 className="font-black text-slate-700 tracking-wide text-sm">
+                      PCS {activeQcPcs.pcs_index}
+                    </h5>
+                  </div>
+                  {isMeteranBatch ? (
+                    <MeterQCTable
+                      detailsToDisplay={detailsToDisplay}
+                      handleSelectGrade={handleSelectGrade}
+                      handleOpenEditQC={handleOpenEditQC}
+                      handleOpenAddQC={handleOpenAddQC}
+                      selections={selections}
+                      setDetailToDelete={setDetailToDelete}
+                      selectedIds={selectedDetailIds}
+                      onToggleSelect={handleToggleSelectDetail}
+                      onSelectAll={handleSelectAllDetails}
+                    />
+                  ) : (
+                    <PanelQCTable
+                      detailsToDisplay={detailsToDisplay}
+                      handleSelectGrade={handleSelectGrade}
+                      handleOpenDetail={handleOpenDetail}
+                      handleOpenEditQC={handleOpenEditQC}
+                      handleOpenAddQC={handleOpenAddQC}
+                      selections={selections}
+                      setDetailToDelete={setDetailToDelete}
+                      selectedIds={selectedDetailIds}
+                      onToggleSelect={handleToggleSelectDetail}
+                      onSelectAll={handleSelectAllDetails}
+                    />
+                  )}
+                </>
               )}
 
               {/* Floating / Sticky Bulk Action Bar */}
@@ -2423,7 +2531,8 @@ export default function QCPage() {
             {/* Mobile & Tablet Card View (< md) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 md:hidden">
               {currentPcsList.map((g: any) => {
-                const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${g.pcs_index}`;
+                const targetPcs = g.start_pcs_index || g.pcs_index;
+                const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${targetPcs}`;
                 const session = activeSessionsMap.get(sessionKey);
                 const isPausedItem = session?.is_paused;
                 const isProcessingItem = session && !session.is_paused;
@@ -2441,7 +2550,7 @@ export default function QCPage() {
                         </div>
                       </div>
                       <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 font-extrabold text-slate-800 text-xs border border-slate-200/60 shadow-xs">
-                        PCS {g.pcs_index} / {g.total_pcs || g.pcs_index}
+                        PCS {g.pcs_index} {g.isTricote ? "" : `/ ${g.total_pcs || g.pcs_index}`}
                       </div>
                     </div>
 
@@ -2468,7 +2577,7 @@ export default function QCPage() {
 
                     {/* Bottom Section: Action Button */}
                     <button
-                      onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                      onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
                       className={`w-full h-10 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
                         isPausedItem 
                           ? "bg-amber-500 hover:bg-amber-600 text-white" 
@@ -2504,7 +2613,8 @@ export default function QCPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[11px] font-medium text-slate-700">
                   {currentPcsList.map((g: any) => {
-                    const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${g.pcs_index}`;
+                    const targetPcs = g.start_pcs_index || g.pcs_index;
+                    const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${targetPcs}`;
                     const session = activeSessionsMap.get(sessionKey);
                     const isPausedItem = session?.is_paused;
                     const isProcessingItem = session && !session.is_paused;
@@ -2540,7 +2650,7 @@ export default function QCPage() {
                         <td className="px-2 py-2 text-center">
                           <div className="inline-flex items-center gap-1.5">
                             <div className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-slate-100 font-extrabold text-slate-700 text-xs whitespace-nowrap border border-slate-200/60 shadow-xs">
-                              {g.pcs_index} / {g.total_pcs || g.pcs_index}
+                              {g.pcs_index} {g.isTricote ? "" : `/ ${g.total_pcs || g.pcs_index}`}
                             </div>
                             {isPausedItem && (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-black text-[10px] animate-pulse">
@@ -2557,14 +2667,14 @@ export default function QCPage() {
                         <td className="px-2 py-2 text-center whitespace-nowrap">
                           {isPausedItem ? (
                             <button
-                              onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                              onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
                               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 mx-auto cursor-pointer whitespace-nowrap"
                             >
                               <Play className="w-3.5 h-3.5 fill-white" /> Lanjut Inspeksi
                             </button>
                           ) : (
                             <button
-                              onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, g.pcs_index)}
+                              onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
                               className="px-4 py-2 bg-[#0070bc] hover:bg-[#004777] active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer whitespace-nowrap shadow-sm flex items-center gap-1.5 mx-auto"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />

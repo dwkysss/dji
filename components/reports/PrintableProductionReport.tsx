@@ -166,9 +166,15 @@ function groupByPcs(rawPanels: any[]) {
       if (existing) {
         existing.production_details.push(...(panel.production_details || []));
         let existingDt: any[] = [];
-        try { existingDt = typeof existing.downtime_events === 'string' ? JSON.parse(existing.downtime_events) : (existing.downtime_events || []); } catch {}
+        try {
+          const parsed = typeof existing.downtime_events === 'string' ? JSON.parse(existing.downtime_events) : existing.downtime_events;
+          existingDt = Array.isArray(parsed) ? parsed : [];
+        } catch {}
         let newDt: any[] = [];
-        try { newDt = typeof panel.downtime_events === 'string' ? JSON.parse(panel.downtime_events) : (panel.downtime_events || []); } catch {}
+        try {
+          const parsed = typeof panel.downtime_events === 'string' ? JSON.parse(panel.downtime_events) : panel.downtime_events;
+          newDt = Array.isArray(parsed) ? parsed : [];
+        } catch {}
         existing.downtime_events = [...existingDt, ...newDt];
         const existingPcs = parseInt(existing.pcs || "1"); const newPcs = parseInt(panel.pcs || "1");
         if (newPcs > existingPcs) existing.pcs = newPcs.toString();
@@ -200,9 +206,15 @@ function groupByPcs(rawPanels: any[]) {
       const panelClone = { ...panel };
       let dtEvents: any[] = [];
       try {
-        if (typeof panelClone.downtime_events === 'string') dtEvents = JSON.parse(panelClone.downtime_events);
-        else if (Array.isArray(panelClone.downtime_events)) dtEvents = panelClone.downtime_events;
-      } catch {}
+        if (typeof panelClone.downtime_events === 'string') {
+          const parsed = JSON.parse(panelClone.downtime_events);
+          dtEvents = Array.isArray(parsed) ? parsed : [];
+        } else if (Array.isArray(panelClone.downtime_events)) {
+          dtEvents = panelClone.downtime_events;
+        }
+      } catch {
+        dtEvents = [];
+      }
 
       const matchedEvents = dtEvents.filter((e: any) =>
         !e.pcsKe || e.pcsKe === "Semua" || e.pcsKe.split(",").map((x: any) => x.trim()).includes(pcsKey)

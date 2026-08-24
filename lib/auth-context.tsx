@@ -7,7 +7,7 @@ import { getUserProfile } from "@/actions/user-actions";
 
 import { Loader2 } from "lucide-react";
 
-export type UserRole = "admin" | "manager" | "employee" | "qc" | "operator" | "inspeksi" | "mending";
+export type UserRole = "admin" | "manager" | "employee" | "qc" | "operator" | "inspeksi" | "mending" | "kepala_shift";
 
 export interface User {
   id: string;

@@ -68,7 +68,7 @@ interface UserAccount {
   email: string;
   full_name: string;
   employee_id: string;
-  role: "admin" | "manager" | "operator" | "inspeksi" | "mending";
+  role: "admin" | "manager" | "operator" | "inspeksi" | "mending" | "kepala_shift";
   created_at: string;
 }
 
@@ -362,6 +362,12 @@ export default function UserManagementPage() {
         label: "Mending",
         icon: SlidersHorizontal,
       },
+      kepala_shift: {
+        bg: "bg-indigo-50 border-indigo-200",
+        text: "text-indigo-700",
+        label: "Kepala Shift",
+        icon: UserCheck,
+      },
     };
 
     const c = config[roleName] || {
@@ -495,6 +501,7 @@ export default function UserManagementPage() {
             <option value="operator">Operator</option>
             <option value="inspeksi">Inspeksi (QC)</option>
             <option value="mending">Mending</option>
+            <option value="kepala_shift">Kepala Shift</option>
           </select>
         </div>
 
@@ -771,8 +778,10 @@ export default function UserManagementPage() {
                   <option value="operator">
                     Operator (Form Input Produksi)
                   </option>
+                  <option value="kepala_shift">Kepala Shift (Leader Shift)</option>
                   <option value="inspeksi">Inspeksi (Mutu/QC)</option>
                   <option value="mending">Mending (Departemen Mending)</option>
+                  <option value="manager">Manager</option>
                   <option value="admin">Admin (Akses Penuh)</option>
                 </select>
               </div>
@@ -884,8 +893,10 @@ export default function UserManagementPage() {
                   <option value="operator">
                     Operator (Form Input Produksi)
                   </option>
+                  <option value="kepala_shift">Kepala Shift (Leader Shift)</option>
                   <option value="inspeksi">Inspeksi (Mutu/QC)</option>
                   <option value="mending">Mending (Departemen Mending)</option>
+                  <option value="manager">Manager</option>
                   <option value="admin">Admin (Akses Penuh)</option>
                 </select>
               </div>

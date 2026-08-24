@@ -34,6 +34,8 @@ import {
   Bell,
   FlaskConical,
   Tag,
+  Trophy,
+  UserCheck,
 } from "lucide-react";
 
 const MACHINE_INPUT_TYPES: Record<string, string> = {
@@ -113,19 +115,31 @@ export default function Sidebar() {
           name: "Dashboard Umum",
           href: "/",
           icon: LayoutDashboard,
-          roles: ["admin", "manager"],
+          roles: ["admin", "manager", "kepala_shift"],
         },
         {
           name: "Monitoring Mesin",
           href: "/machines",
           icon: Factory,
-          roles: ["admin", "manager"],
+          roles: ["admin", "manager", "kepala_shift"],
         },
         {
           name: "Dashboard Pegawai",
           href: "/dashboard",
           icon: LayoutDashboard,
-          roles: ["admin", "manager", "operator"],
+          roles: ["admin", "manager", "operator", "kepala_shift"],
+        },
+      ],
+    },
+    {
+      label: "Kepala Shift",
+      groupIcon: UserCheck,
+      items: [
+        {
+          name: "Kinerja Shift Bulanan",
+          href: "/shift-performance",
+          icon: Trophy,
+          roles: ["admin", "manager", "operator", "kepala_shift"],
         },
       ],
     },
@@ -137,19 +151,19 @@ export default function Sidebar() {
           name: "Input Produksi",
           href: inputRoute,
           icon: ClipboardList,
-          roles: ["admin", "operator"],
+          roles: ["admin", "operator", "kepala_shift"],
         },
         {
           name: "Riwayat Input",
           href: "/history",
           icon: History,
-          roles: ["admin", "operator"],
+          roles: ["admin", "operator", "kepala_shift"],
         },
         {
           name: "Lapor Mesin Off",
           href: "/status-mesin",
           icon: PowerOff,
-          roles: ["admin", "operator"],
+          roles: ["admin", "operator", "kepala_shift"],
         },
       ],
     },
@@ -215,19 +229,19 @@ export default function Sidebar() {
           name: "Laporan Bulanan",
           href: "/reports/monthly-machine",
           icon: FileSpreadsheet,
-          roles: ["admin", "manager"],
+          roles: ["admin", "manager", "kepala_shift"],
         },
         {
           name: "Laporan Produksi",
           href: "/reports/mending-production",
           icon: FileSpreadsheet,
-          roles: ["admin", "manager", "inspeksi", "mending"],
+          roles: ["admin", "manager", "inspeksi", "mending", "kepala_shift"],
         },
         {
           name: "Laporan Potong Kain",
           href: "/reports/mending-potong",
           icon: FileSpreadsheet,
-          roles: ["admin", "manager", "inspeksi", "mending"],
+          roles: ["admin", "manager", "inspeksi", "mending", "kepala_shift"],
         },
       ],
     },
@@ -239,13 +253,13 @@ export default function Sidebar() {
           name: "Jadwal Produksi",
           href: "/production-plans",
           icon: Calendar,
-          roles: ["admin", "manager"],
+          roles: ["admin", "manager", "kepala_shift"],
         },
         {
           name: "Chatbot AI",
           href: "/chatbot",
           icon: MessageSquare,
-          roles: ["admin", "manager"],
+          roles: ["admin", "manager", "kepala_shift"],
         },
         {
           name: "Manajemen Akun",
@@ -263,13 +277,13 @@ export default function Sidebar() {
           name: "Set Pengumuman",
           href: "/announcements",
           icon: Megaphone,
-          roles: ["admin", "manager"],
+          roles: ["admin", "manager", "kepala_shift"],
         },
         {
           name: "Uji Skenario Tampilan",
           href: "/test-scenarios",
           icon: FlaskConical,
-          roles: ["admin", "manager", "operator", "inspeksi", "mending"],
+          roles: ["admin", "manager", "operator", "inspeksi", "mending", "kepala_shift"],
         },
       ],
     },
@@ -308,7 +322,7 @@ export default function Sidebar() {
 
   const generalItems = [
     { name: "Settings", href: "#", icon: Settings, roles: ["admin"] },
-    { name: "Help", href: "#", icon: HelpCircle, roles: ["admin", "operator"] },
+    { name: "Help", href: "#", icon: HelpCircle, roles: ["admin", "operator", "kepala_shift"] },
   ];
 
   const filteredGeneralItems = generalItems.filter((item) =>

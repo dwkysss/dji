@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { submitQCInspection } from "@/actions/qc-actions";
 import { formatHHMM } from "@/lib/shift-utils";
-import { getDefectMeterLength } from "@/lib/defect-format-utils";
+import { getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
 
 const qcSchema = z.object({
   petugas_inspeksi: z.string().min(1, "Wajib diisi"),
@@ -117,8 +117,12 @@ export default function QCInspectionModal({
     return headerData.details.filter((d: any) => !d.is_deleted && d.status_inspeksi !== "Dihapus" && !(d.keterangan_cacat || "").includes("[DIHAPUS]")).length;
   }, [headerData, isMeteranBatch]);
 
+  const initializedRef = React.useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !initializedRef.current) {
+      initializedRef.current = true;
+
       // Load from localStorage or set current date
       const storedPetugas1 = localStorage.getItem("qc_petugas1");
       const storedPetugas2 = localStorage.getItem("qc_petugas2");
@@ -201,6 +205,8 @@ export default function QCInspectionModal({
 
       if (isMeteranBatch && headerData?.details) {
         let maxMeter = 0;
+        const prodDefectItems: any[] = [];
+        const qcDefectItems: any[] = [];
         
         headerData.details.forEach((d: any) => {
           const isRealDefect = checkIsDefectRow(d);
@@ -210,22 +216,24 @@ export default function QCInspectionModal({
           const meterAwal = Number(d.production_headers?.meter_awal) || 0;
           if (meterAwal > maxMeter) maxMeter = meterAwal;
 
-          const defectLength = getDefectMeterLength(d);
-
           // Produksi (Hanya cacat asli laporan Operator Produksi)
           if (isRealDefect && !isTambahanQC) {
-            countProdSilang += defectLength;
+            prodDefectItems.push(d);
           }
 
           // Inspeksi QC (Seluruh cacat hasil pemeriksaan QC termasuk Tambahan QC)
           const grade = selections[d.id];
           if (grade === 2 || grade === 3 || grade === 4) {
-            countSilang += defectLength;
+            qcDefectItems.push(d);
           }
         });
         
-        countProdCeklis = Math.max(0, maxMeter - countProdSilang);
-        countCeklis = Math.max(0, maxMeter - countSilang);
+        countProdSilang = calculateMeterDefectPoints(prodDefectItems);
+        countSilang = calculateMeterDefectPoints(qcDefectItems);
+        
+        // Untuk kain meteran, Normal tetap menunjukkan total panjang kain (tidak dikurangi titik cacat)
+        countProdCeklis = maxMeter;
+        countCeklis = maxMeter;
       } else {
         // Mode Panel (Default)
         Object.entries(selections).forEach(([detailId, val]) => {
@@ -263,8 +271,10 @@ export default function QCInspectionModal({
       setValue("prod_silang", countProdSilang);
       setValue("qc_ceklis", countCeklis);
       setValue("qc_silang", countSilang);
+    } else if (!isOpen) {
+      initializedRef.current = false;
     }
-  }, [isOpen, headerData, selections, setValue, startInspectTime, isMeteranBatch]);
+  }, [isOpen]);
 
   if (!isOpen || !headerData) return null;
 
@@ -626,7 +636,7 @@ export default function QCInspectionModal({
                   <div className="text-[11px] font-extrabold text-slate-700 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">
                     Keseluruhan: <span className="text-slate-900 font-black">
                       {isMeteranBatch 
-                        ? `${(watchedProdCeklis || 0) + (watchedProdSilang || 0)} Meter` 
+                        ? `${watchedProdCeklis || totalKeseluruhanMeter || 0} Meter` 
                         : `${(watchedProdCeklis || 0) + (watchedProdSilang || 0)} Panel${prodBsCount > 0 ? ` (+ ${prodBsCount} BS)` : ""}`}
                     </span>
                   </div>
@@ -637,19 +647,25 @@ export default function QCInspectionModal({
                       <CheckCircle className="w-3 h-3 text-emerald-500" /> Normal
                     </label>
                     <div className="relative">
-                      <input
-                        type="number"
-                        {...register("prod_ceklis", { valueAsNumber: true })}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          setValue("prod_ceklis", val);
-                          if (isMeteranBatch && totalKeseluruhanMeter > 0) {
-                            setValue("prod_silang", Math.max(0, totalKeseluruhanMeter - val));
-                          }
-                        }}
-                        onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-10 rounded-lg border border-slate-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
-                      />
+                      {(() => {
+                        const reg = register("prod_ceklis", { valueAsNumber: true });
+                        return (
+                          <input
+                            type="number"
+                            {...reg}
+                            onChange={(e) => {
+                              reg.onChange(e);
+                              const val = parseInt(e.target.value) || 0;
+                              setValue("prod_ceklis", val, { shouldDirty: true });
+                              if (!isMeteranBatch && totalKeseluruhanMeter > 0) {
+                                setValue("prod_silang", Math.max(0, totalKeseluruhanMeter - val - prodBsCount), { shouldDirty: true });
+                              }
+                            }}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="w-full h-9 pl-3 pr-10 rounded-lg border border-slate-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
+                          />
+                        );
+                      })()}
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
                         {isMeteranBatch ? "meter" : "panel"}
                       </span>
@@ -660,19 +676,25 @@ export default function QCInspectionModal({
                       <X className="w-3 h-3 text-red-500" /> Cacat
                     </label>
                     <div className="relative">
-                      <input
-                        type="number"
-                        {...register("prod_silang", { valueAsNumber: true })}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          setValue("prod_silang", val);
-                          if (isMeteranBatch && totalKeseluruhanMeter > 0) {
-                            setValue("prod_ceklis", Math.max(0, totalKeseluruhanMeter - val));
-                          }
-                        }}
-                        onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-10 rounded-lg border border-slate-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
-                      />
+                      {(() => {
+                        const reg = register("prod_silang", { valueAsNumber: true });
+                        return (
+                          <input
+                            type="number"
+                            {...reg}
+                            onChange={(e) => {
+                              reg.onChange(e);
+                              const val = parseInt(e.target.value) || 0;
+                              setValue("prod_silang", val, { shouldDirty: true });
+                              if (!isMeteranBatch && totalKeseluruhanMeter > 0) {
+                                setValue("prod_ceklis", Math.max(0, totalKeseluruhanMeter - val - prodBsCount), { shouldDirty: true });
+                              }
+                            }}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="w-full h-9 pl-3 pr-10 rounded-lg border border-slate-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
+                          />
+                        );
+                      })()}
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
                         {isMeteranBatch ? "titik" : "panel"}
                       </span>
@@ -708,7 +730,7 @@ export default function QCInspectionModal({
                   <div className="text-[11px] font-extrabold text-sky-800 bg-white px-2.5 py-1 rounded-md border border-sky-200 shadow-sm">
                     Keseluruhan: <span className="text-sky-950 font-black">
                       {isMeteranBatch 
-                        ? `${(watchedQcCeklis || 0) + (watchedQcSilang || 0)} Meter` 
+                        ? `${watchedQcCeklis || totalKeseluruhanMeter || 0} Meter` 
                         : `${(watchedQcCeklis || 0) + (watchedQcSilang || 0)} Panel${qcBsCount > 0 ? ` (+ ${qcBsCount} BS)` : ""}`}
                     </span>
                   </div>
@@ -719,19 +741,25 @@ export default function QCInspectionModal({
                       <CheckCircle className="w-3 h-3 text-emerald-500" /> Normal
                     </label>
                     <div className="relative">
-                      <input
-                        type="number"
-                        {...register("qc_ceklis", { valueAsNumber: true })}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          setValue("qc_ceklis", val);
-                          if (isMeteranBatch && totalKeseluruhanMeter > 0) {
-                            setValue("qc_silang", Math.max(0, totalKeseluruhanMeter - val));
-                          }
-                        }}
-                        onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-10 rounded-lg border border-sky-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
-                      />
+                      {(() => {
+                        const reg = register("qc_ceklis", { valueAsNumber: true });
+                        return (
+                          <input
+                            type="number"
+                            {...reg}
+                            onChange={(e) => {
+                              reg.onChange(e);
+                              const val = parseInt(e.target.value) || 0;
+                              setValue("qc_ceklis", val, { shouldDirty: true });
+                              if (!isMeteranBatch && totalKeseluruhanMeter > 0) {
+                                setValue("qc_silang", Math.max(0, totalKeseluruhanMeter - val - qcBsCount), { shouldDirty: true });
+                              }
+                            }}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="w-full h-9 pl-3 pr-10 rounded-lg border border-sky-200 text-sm font-bold text-emerald-700 focus:border-emerald-500 outline-none"
+                          />
+                        );
+                      })()}
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
                         {isMeteranBatch ? "meter" : "panel"}
                       </span>
@@ -742,19 +770,25 @@ export default function QCInspectionModal({
                       <X className="w-3 h-3 text-red-500" /> Cacat
                     </label>
                     <div className="relative">
-                      <input
-                        type="number"
-                        {...register("qc_silang", { valueAsNumber: true })}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          setValue("qc_silang", val);
-                          if (isMeteranBatch && totalKeseluruhanMeter > 0) {
-                            setValue("qc_ceklis", Math.max(0, totalKeseluruhanMeter - val));
-                          }
-                        }}
-                        onWheel={(e) => (e.target as HTMLElement).blur()}
-                        className="w-full h-9 pl-3 pr-10 rounded-lg border border-sky-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
-                      />
+                      {(() => {
+                        const reg = register("qc_silang", { valueAsNumber: true });
+                        return (
+                          <input
+                            type="number"
+                            {...reg}
+                            onChange={(e) => {
+                              reg.onChange(e);
+                              const val = parseInt(e.target.value) || 0;
+                              setValue("qc_silang", val, { shouldDirty: true });
+                              if (!isMeteranBatch && totalKeseluruhanMeter > 0) {
+                                setValue("qc_ceklis", Math.max(0, totalKeseluruhanMeter - val - qcBsCount), { shouldDirty: true });
+                              }
+                            }}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="w-full h-9 pl-3 pr-10 rounded-lg border border-sky-200 text-sm font-bold text-rose-700 focus:border-red-500 outline-none"
+                          />
+                        );
+                      })()}
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
                         {isMeteranBatch ? "titik" : "panel"}
                       </span>

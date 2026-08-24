@@ -168,9 +168,19 @@ export default function ContinuousHistoryDrawer({
                   if (existing) {
                     existing.production_details.push(...(panel.production_details || []));
                     let existingDt: any[] = [];
-                    try { existingDt = typeof existing.downtime_events === 'string' ? JSON.parse(existing.downtime_events) : (existing.downtime_events || []); } catch (e) { }
+                    try {
+                      const parsed = typeof existing.downtime_events === 'string' ? JSON.parse(existing.downtime_events) : existing.downtime_events;
+                      existingDt = Array.isArray(parsed) ? parsed : [];
+                    } catch (e) {
+                      existingDt = [];
+                    }
                     let newDt: any[] = [];
-                    try { newDt = typeof panel.downtime_events === 'string' ? JSON.parse(panel.downtime_events) : (panel.downtime_events || []); } catch (e) { }
+                    try {
+                      const parsed = typeof panel.downtime_events === 'string' ? JSON.parse(panel.downtime_events) : panel.downtime_events;
+                      newDt = Array.isArray(parsed) ? parsed : [];
+                    } catch (e) {
+                      newDt = [];
+                    }
                     existing.downtime_events = [...existingDt, ...newDt];
 
                     const existingPcs = parseInt(existing.pcs || "1");
@@ -209,11 +219,14 @@ export default function ContinuousHistoryDrawer({
                   let dtEvents: any[] = [];
                   try {
                     if (typeof panelClone.downtime_events === 'string') {
-                      dtEvents = JSON.parse(panelClone.downtime_events);
+                      const parsed = JSON.parse(panelClone.downtime_events);
+                      dtEvents = Array.isArray(parsed) ? parsed : [];
                     } else if (Array.isArray(panelClone.downtime_events)) {
                       dtEvents = panelClone.downtime_events;
                     }
-                  } catch (e) { }
+                  } catch (e) {
+                    dtEvents = [];
+                  }
 
                   const matchedEvents = dtEvents.filter(
                     (e: any) =>
@@ -228,7 +241,7 @@ export default function ContinuousHistoryDrawer({
                       const pIndex = d.pcs_index ? parseInt(d.pcs_index) : 1;
                       return pIndex === i;
                     });
-                    const hasErrors = filteredDetails.some((d: any) => d.kategori_masalah || d.keterangan_cacat);
+                    const hasErrors = filteredDetails.some((d: any) => d.kategori_masalah || d.keterangan_cacat || (d.production_defects && d.production_defects.length > 0));
                     if (hasErrors) {
                       hasDetails = true;
                       panelClone.production_details = filteredDetails;

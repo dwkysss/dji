@@ -835,7 +835,7 @@ export async function getPendingMendingDetailsByDate(tanggal: string) {
 export async function getMendingDetailsByGroup(nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string) {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("production_details")
       .select(`
         id, 
@@ -860,8 +860,14 @@ export async function getMendingDetailsByGroup(nomor_mc: string, design_id: stri
         )
       `)
       .eq("production_headers.nomor_mc", nomor_mc)
-      .eq("production_headers.potongan_ke", potongan_ke)
-      .eq("pcs_index", pcs_index);
+      .eq("production_headers.potongan_ke", potongan_ke);
+
+    const isTricote = String(nomor_mc || "").trim().toUpperCase().startsWith("T");
+    if (!isTricote && pcs_index) {
+      query = query.eq("pcs_index", pcs_index);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       return { success: false, error: error.message };

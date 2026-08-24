@@ -1108,7 +1108,10 @@ export async function getRecentShiftInputHistory(
         operators (id, nama_operator),
         groups (id, nama_grup),
         downtime_events,
-        production_details (*)
+        production_details (
+          *,
+          production_defects (*)
+        )
       `)
       .order("tanggal_jam", { ascending: false })
       .limit(limitCount);

@@ -262,9 +262,19 @@ function HistoryDetailContent() {
 
                   // Merge downtime events
                   let existingDt: any[] = [];
-                  try { existingDt = typeof existing.downtime_events === 'string' ? JSON.parse(existing.downtime_events) : (existing.downtime_events || []); } catch (e) { }
+                  try {
+                    const parsed = typeof existing.downtime_events === 'string' ? JSON.parse(existing.downtime_events) : existing.downtime_events;
+                    existingDt = Array.isArray(parsed) ? parsed : [];
+                  } catch (e) {
+                    existingDt = [];
+                  }
                   let newDt: any[] = [];
-                  try { newDt = typeof panel.downtime_events === 'string' ? JSON.parse(panel.downtime_events) : (panel.downtime_events || []); } catch (e) { }
+                  try {
+                    const parsed = typeof panel.downtime_events === 'string' ? JSON.parse(panel.downtime_events) : panel.downtime_events;
+                    newDt = Array.isArray(parsed) ? parsed : [];
+                  } catch (e) {
+                    newDt = [];
+                  }
                   existing.downtime_events = [...existingDt, ...newDt];
 
                   // Update total PCS if the new one has more PCS
@@ -305,11 +315,14 @@ function HistoryDetailContent() {
                  let dtEvents: any[] = [];
                  try {
                    if (typeof panelClone.downtime_events === 'string') {
-                     dtEvents = JSON.parse(panelClone.downtime_events);
+                     const parsed = JSON.parse(panelClone.downtime_events);
+                     dtEvents = Array.isArray(parsed) ? parsed : [];
                    } else if (Array.isArray(panelClone.downtime_events)) {
                      dtEvents = panelClone.downtime_events;
                    }
-                 } catch (e) { }
+                 } catch (e) {
+                   dtEvents = [];
+                 }
 
                  const matchedEvents = dtEvents.filter(
                    (e: any) =>

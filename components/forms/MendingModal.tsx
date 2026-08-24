@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { submitMending } from "@/actions/mending-actions";
 import { formatHHMM } from "@/lib/shift-utils";
-import { getDefectMeterLength } from "@/lib/defect-format-utils";
+import { getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
 
 const mendingSchema = z.object({
   petugas_mending: z.string().min(1, "Wajib diisi"),
@@ -44,10 +44,10 @@ type MendingFormData = z.infer<typeof mendingSchema>;
 interface MendingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  headerData: any;
-  selections: Record<string, string>; // DetailId -> Grade ("A", "B", "BS")
-  detailData?: any[]; // To get berat_inspecting
-  onSuccess: () => void;
+  onSuccess?: () => void;
+  headerData?: any;
+  detailData?: any;
+  selections: { [detailId: string]: string };
   startMendingTime?: string;
   pauseSeconds?: number;
   elapsedSeconds?: number;
@@ -56,10 +56,10 @@ interface MendingModalProps {
 export default function MendingModal({
   isOpen,
   onClose,
-  headerData,
-  selections,
-  detailData,
   onSuccess,
+  headerData,
+  detailData,
+  selections,
   startMendingTime,
   pauseSeconds = 0,
   elapsedSeconds = 0,
@@ -70,9 +70,9 @@ export default function MendingModal({
   const {
     register,
     handleSubmit,
-    reset,
     setValue,
     watch,
+    reset,
     formState: { errors },
   } = useForm<MendingFormData>({
     resolver: zodResolver(mendingSchema) as any,
@@ -150,8 +150,11 @@ export default function MendingModal({
     }
   }, [isOpen, setValue, startMendingTime]);
 
+  const initializedRef = React.useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !initializedRef.current) {
+      initializedRef.current = true;
       let countA = 0;
       let countB = 0;
       let countBS = 0;
@@ -160,15 +163,7 @@ export default function MendingModal({
                         (detailData?.[0]?.production_headers?.panel_no === "METERAN");
 
       const detailsList = detailData || headerData?.details || [];
-      detailsList.forEach((item: any) => {
-        const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
-        if (isDeleted) return;
-        const val = selections[item.id];
-        const defectLen = isMeteran ? getDefectMeterLength(item) : 1;
-        if (val === "A") countA += defectLen;
-        else if (val === "B") countB += defectLen;
-        else if (val === "BS") countBS += defectLen;
-      });
+
       if (isMeteran) {
         let maxMeter = 0;
         
@@ -191,21 +186,43 @@ export default function MendingModal({
           });
         }
         
-        const countCacat = countA + countB + countBS;
-        const sisaNormal = Math.max(0, maxMeter - countCacat);
+        const itemsB: any[] = [];
+        const itemsBS: any[] = [];
+
+        detailsList.forEach((item: any) => {
+          const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+          if (isDeleted) return;
+          const val = selections[item.id];
+          if (val === "B") itemsB.push(item);
+          else if (val === "BS") itemsBS.push(item);
+        });
         
-        countA = sisaNormal + countA;
+        countB = calculateMeterDefectPoints(itemsB);
+        countBS = calculateMeterDefectPoints(itemsBS);
+        // Untuk kain meteran, Normal tetap menunjukkan total panjang kain
+        countA = maxMeter;
 
         setValue("mending_grade_a", countA);
         setValue("mending_grade_b", countB);
         setValue("mending_grade_bs", countBS);
       } else {
+        detailsList.forEach((item: any) => {
+          const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+          if (isDeleted) return;
+          const val = selections[item.id];
+          if (val === "A") countA += 1;
+          else if (val === "B") countB += 1;
+          else if (val === "BS") countBS += 1;
+        });
+
         setValue("mending_grade_a", countA);
         setValue("mending_grade_b", countB);
         setValue("mending_grade_bs", countBS);
       }
+    } else if (!isOpen) {
+      initializedRef.current = false;
     }
-  }, [isOpen, selections, detailData, headerData, setValue]);
+  }, [isOpen]);
 
   const onSubmit = async (data: MendingFormData) => {
     setIsSubmitting(true);
@@ -245,7 +262,7 @@ export default function MendingModal({
       localStorage.setItem("mending_start", data.start_mending || "");
       localStorage.setItem("mending_finish", data.finish_mending || "");
 
-      onSuccess();
+      if (onSuccess) onSuccess();
       reset();
     } catch (err: any) {
       setErrorMsg(err.message || "Terjadi kesalahan yang tidak diketahui");
@@ -467,39 +484,116 @@ export default function MendingModal({
             </div>
 
             {/* Bagian 3: Rincian Grade */}
-            <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-4 border-b border-sky-100 pb-2">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-[#0070bc]" /> Total Hasil Mending
-                </h4>
+            <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between border-b border-sky-100 pb-2">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-[#0070bc]" /> Total Hasil Mending
+                  </h4>
+                  {isMeteranBatch && (
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                      Estimasi point cacat per 5 meter kain (dapat disesuaikan secara manual di bawah).
+                    </p>
+                  )}
+                </div>
                 <div className="text-[11px] font-extrabold text-sky-800 bg-white px-2.5 py-1 rounded-md border border-sky-200 shadow-sm">
-                  Keseluruhan: <span className="text-sky-950 font-black">{totalKeseluruhanMeter} {isMeteranBatch ? "METER" : "PANEL"}</span>
+                  Keseluruhan: <span className="text-sky-950 font-black">
+                    {isMeteranBatch 
+                      ? `${valGradeA || totalKeseluruhanMeter || 0} Meter` 
+                      : `${totalKeseluruhanMeter} Panel`}
+                  </span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white border border-slate-200/60 rounded-xl p-3 text-center shadow-sm">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Grade A
-                  </span>
-                  <span className="text-xl font-black text-emerald-600 block">
-                    {isMeteranBatch ? `${valGradeA} METER` : `${valGradeA} PANEL`}
-                  </span>
+
+              <div className="grid grid-cols-3 gap-3">
+                {/* Grade A */}
+                <div className="bg-white border border-slate-200/80 rounded-xl p-3 shadow-sm">
+                  <label className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block mb-1">
+                    Grade A (Normal)
+                  </label>
+                  <div className="relative">
+                    {(() => {
+                      const reg = register("mending_grade_a", { valueAsNumber: true });
+                      return (
+                        <input
+                          type="number"
+                          {...reg}
+                          onChange={(e) => {
+                            reg.onChange(e);
+                            const val = parseInt(e.target.value) || 0;
+                            setValue("mending_grade_a", val, { shouldDirty: true });
+                          }}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
+                          className="w-full h-9 pl-3 pr-10 rounded-lg border border-emerald-200 bg-emerald-50/30 text-sm font-black text-emerald-700 focus:border-emerald-500 outline-none"
+                        />
+                      );
+                    })()}
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                      {isMeteranBatch ? "meter" : "panel"}
+                    </span>
+                  </div>
                 </div>
-                <div className="bg-white border border-slate-200/60 rounded-xl p-3 text-center shadow-sm">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Grade B
-                  </span>
-                  <span className="text-xl font-black text-amber-500 block">
-                    {isMeteranBatch ? `${valGradeB} METER` : `${valGradeB} PANEL`}
-                  </span>
+
+                {/* Grade B */}
+                <div className="bg-white border border-slate-200/80 rounded-xl p-3 shadow-sm">
+                  <label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block mb-1">
+                    Grade B (Cacat B)
+                  </label>
+                  <div className="relative">
+                    {(() => {
+                      const reg = register("mending_grade_b", { valueAsNumber: true });
+                      return (
+                        <input
+                          type="number"
+                          {...reg}
+                          onChange={(e) => {
+                            reg.onChange(e);
+                            const val = parseInt(e.target.value) || 0;
+                            setValue("mending_grade_b", val, { shouldDirty: true });
+                            if (!isMeteranBatch && totalKeseluruhanMeter > 0) {
+                              setValue("mending_grade_a", Math.max(0, totalKeseluruhanMeter - (val + valGradeBs)), { shouldDirty: true });
+                            }
+                          }}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
+                          className="w-full h-9 pl-3 pr-10 rounded-lg border border-amber-200 bg-amber-50/30 text-sm font-black text-amber-700 focus:border-amber-500 outline-none"
+                        />
+                      );
+                    })()}
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                      {isMeteranBatch ? "titik" : "panel"}
+                    </span>
+                  </div>
                 </div>
-                <div className="bg-white border border-slate-200/60 rounded-xl p-3 text-center shadow-sm">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Grade BS
-                  </span>
-                  <span className="text-xl font-black text-rose-600 block">
-                    {isMeteranBatch ? `${valGradeBs} METER` : `${valGradeBs} PANEL`}
-                  </span>
+
+                {/* Grade BS */}
+                <div className="bg-white border border-slate-200/80 rounded-xl p-3 shadow-sm">
+                  <label className="text-[10px] font-bold text-rose-700 uppercase tracking-wider block mb-1">
+                    Grade BS (Cacat BS)
+                  </label>
+                  <div className="relative">
+                    {(() => {
+                      const reg = register("mending_grade_bs", { valueAsNumber: true });
+                      return (
+                        <input
+                          type="number"
+                          {...reg}
+                          onChange={(e) => {
+                            reg.onChange(e);
+                            const val = parseInt(e.target.value) || 0;
+                            setValue("mending_grade_bs", val, { shouldDirty: true });
+                            if (!isMeteranBatch && totalKeseluruhanMeter > 0) {
+                              setValue("mending_grade_a", Math.max(0, totalKeseluruhanMeter - (valGradeB + val)), { shouldDirty: true });
+                            }
+                          }}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
+                          className="w-full h-9 pl-3 pr-10 rounded-lg border border-rose-200 bg-rose-50/30 text-sm font-black text-rose-700 focus:border-rose-500 outline-none"
+                        />
+                      );
+                    })()}
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                      {isMeteranBatch ? "titik" : "panel"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -40,3 +40,12 @@
 
 # Cara penanganan mesin Tricote atau Mesin dengan awalan jenis T
 - saya ada satu informasi, bahwa untuk hasil dari mesin Tricote atau mesin dengan awalan T, itu inspek dan mendingnya bersamaan (melakukan inspek, jika ada cacat langsung diperbaiki), maka apakah bisa ketika setelah mengisi inspek, maka mendingnya otomatis diisi sama dan langsung masuk menjadi laporan produksi dan ada hasil grade keseluruhan seperti setelah mengisi mending di mesin normal.
+
+# Cara perhitungan titik cacat di halaman inspek dan mending untuk jenis kain meteran
+- untuk satu point cacat di hitung per 5 meter, misalkan ada cacat di meter 1 dan 3 atau salah satu meter diantara 1-5 meter kain, nah dihitungnya tuh satu point.
+- ketika mengisi laporan di kain dengan jenis meteran, itu kita hanya mengestimasikan point cacat nya saja, jadi harus bisa diganti jangan sampe tidak bisa diganti.
+- ada kondisi ketika petugas inspeksi menginputkan sebuah range meter cacat, maka otomatis cuma dihitung satu point saja
+
+# Perlakukan berbeda untuk mesin berawalan T atau Tricote
+- di halanan inspek dan mending, untuk jenis mesin ini menginspeknya bareng.
+Maka kalo misal ada dua pcs atau roll, maka di halaman inspek dan mending akan ada dua tabel
