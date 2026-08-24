@@ -1343,20 +1343,11 @@ export async function updateProductionReport(
     if (oldDetails && oldDetails.length > 0) {
       const oldDetailIds = oldDetails.map(d => d.id);
       // Hapus data cacat (defects) yang berelasi dengan details ini terlebih dahulu
-      // untuk mencegah error foreign key violation
       await supabase
         .from("production_defects")
         .delete()
         .in("production_detail_id", oldDetailIds);
     }
-
-    // 3. Delete old details
-    const { error: delError } = await supabase
-      .from("production_details")
-      .delete()
-      .eq("header_id", headerId);
-
-    if (delError) throw new Error(delError.message);
 
     // Delete old downtime records
     await supabase.from("downtime_records").delete().eq("header_id", headerId);
@@ -1388,7 +1379,7 @@ export async function updateProductionReport(
 
     const productionDefectsData: any[] = [];
 
-    // 4. Insert new details
+    // 3. Prepare updated details
     if (data.pcsData && data.pcsData.length > 0) {
       const detailData = data.pcsData.map((pcsItem: any, idx: number) => {
         const detailId = generateExcelStyleId() + "-" + idx;
@@ -1503,10 +1494,6 @@ export async function updateProductionReport(
           } else if (data.jenisLaporan === "Selesai Istirahat" || data.jenisLaporan?.startsWith("Istirahat")) {
             keteranganStr = keteranganStr ? keteranganStr + " [LAPORAN ISTIRAHAT]" : "[LAPORAN ISTIRAHAT]";
           }
-
-          if (keteranganStr === null && fallbackKeterangan === null) {
-            keteranganStr = ""; // Force clear if there's no defect and no fallback (like START/FINISH)
-          }
         } else {
           // Pertahankan [LAPORAN ISTIRAHAT] atau [SEBELUM ISTIRAHAT] jika sebelumnya ada
           if (fallbackKeterangan) {
@@ -1518,6 +1505,10 @@ export async function updateProductionReport(
           }
         }
 
+        if (oldDetail.keterangan_cacat && oldDetail.keterangan_cacat.includes("[TAMBAHAN QC]")) {
+          keteranganStr = keteranganStr ? keteranganStr + " [TAMBAHAN QC]" : "[TAMBAHAN QC]";
+        }
+
         return {
           ...oldDetail,
           id: oldDetail.id || detailId,
@@ -1527,17 +1518,29 @@ export async function updateProductionReport(
           indikator_stop: indikatorStop,
           kategori_masalah: kategoriStr,
           detail_masalah: detailStr,
-          keterangan_cacat: keteranganStr !== null ? keteranganStr : (oldDetail.keterangan_cacat !== undefined ? oldDetail.keterangan_cacat : null),
+          keterangan_cacat: keteranganStr || null,
           meter_kain: pcsItem.meterKain || oldDetail.meter_kain || null,
           roll_no: pcsItem.rollNo || oldDetail.roll_no || null,
         };
       });
 
-      const { error: insertError } = await supabase
-        .from("production_details")
-        .insert(detailData);
+      // Delete details for any removed PCS indices
+      const newPcsIndices = (data.pcsData || []).map((p: any) => p.pcsIndex ? parseInt(p.pcsIndex) : null).filter(Boolean);
+      const removedDetails = (oldDetails || []).filter((d: any) => !newPcsIndices.includes(d.pcs_index));
+      const removedDetailIds = removedDetails.map((d: any) => d.id);
 
-      if (insertError) throw new Error(insertError.message);
+      if (removedDetailIds.length > 0) {
+        await supabase.from("qc_inspection_items").delete().in("production_detail_id", removedDetailIds);
+        await supabase.from("production_defects").delete().in("production_detail_id", removedDetailIds);
+        await supabase.from("production_details").delete().in("id", removedDetailIds);
+      }
+
+      // Upsert details so existing IDs & qc_inspection_items foreign keys remain valid
+      const { error: upsertError } = await supabase
+        .from("production_details")
+        .upsert(detailData, { onConflict: "id" });
+
+      if (upsertError) throw new Error(upsertError.message);
 
       // C. Insert ke Tabel production_defects
       if (productionDefectsData.length > 0) {

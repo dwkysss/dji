@@ -661,3 +661,71 @@ export async function getMonthlyShiftPerformance(
     return { success: false, error: err.message || "Terjadi kesalahan saat memproses data kinerja shift." };
   }
 }
+
+export async function deleteProductionBatch(params: {
+  nomor_mc: string;
+  design_id?: string | null;
+  potongan_ke: string | number;
+}) {
+  try {
+    const supabase = await createClient();
+
+    // 1. Find all headers for this batch
+    let query = supabase
+      .from("production_headers")
+      .select("id")
+      .eq("nomor_mc", params.nomor_mc)
+      .eq("potongan_ke", parseInt(String(params.potongan_ke)));
+
+    if (params.design_id) {
+      query = query.eq("design_id", params.design_id);
+    }
+
+    const { data: headers, error: headErr } = await query;
+    if (headErr) throw headErr;
+    if (!headers || headers.length === 0) {
+      return { success: true, message: "Tidak ada data batch yang ditemukan." };
+    }
+
+    const headerIds = headers.map((h: any) => h.id);
+
+    // 2. Find all details
+    const { data: details } = await supabase
+      .from("production_details")
+      .select("id")
+      .in("header_id", headerIds);
+
+    const detailIds = (details || []).map((d: any) => d.id);
+
+    // 3. Delete defects and qc items
+    if (detailIds.length > 0) {
+      await supabase
+        .from("qc_inspection_items")
+        .delete()
+        .in("production_detail_id", detailIds);
+
+      await supabase
+        .from("production_defects")
+        .delete()
+        .in("production_detail_id", detailIds);
+
+      // 4. Delete details
+      await supabase
+        .from("production_details")
+        .delete()
+        .in("id", detailIds);
+    }
+
+    // 5. Delete headers
+    await supabase
+      .from("production_headers")
+      .delete()
+      .in("id", headerIds);
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error deleting production batch:", err);
+    return { success: false, error: err.message || "Gagal menghapus batch data." };
+  }
+}
+

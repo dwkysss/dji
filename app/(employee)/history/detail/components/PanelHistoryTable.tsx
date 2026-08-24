@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Edit, CheckCircle2, XCircle } from "lucide-react";
+import { Edit, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/app/qc/page";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
@@ -43,11 +43,13 @@ const formatWibTime = (dateVal?: string): string => {
 export default function PanelHistoryTable({
   panels,
   pcsKey,
-  downtimeRecords
+  downtimeRecords,
+  setDetailToDelete,
 }: {
   panels: any[];
   pcsKey: string;
   downtimeRecords?: any[];
+  setDetailToDelete?: (val: any) => void;
 }) {
   const header = panels[0] || {};
   const actualDowntimeRecords = downtimeRecords || panels.flatMap(p => p.downtime_records || []);
@@ -483,9 +485,12 @@ export default function PanelHistoryTable({
                     });
                   }
                 } else {
-                  const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-                  if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
-                    cacatLines.push(`(Blok ${cleanB})`);
+                  const isJustBlok = /^blok\s*\d+(\s*,\s*blok\s*\d+)*$/i.test(ketCacat.trim()) || /^\d+(\s*,\s*\d+)*$/.test(ketCacat.trim()) || /^blok\s*$/i.test(ketCacat.trim());
+                  if (!isJustBlok) {
+                    const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
+                    if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+                      cacatLines.push(ketCacat);
+                    }
                   }
                 }
               }
@@ -702,15 +707,35 @@ export default function PanelHistoryTable({
                   <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
                 ) : (String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR") || String(itemHeader?.panel_no || "").toUpperCase().includes("BS AWAL") || String(itemHeader?.panel_no || "").toUpperCase().includes("BS AKHIR")) ? (
                   <span className="text-slate-300 font-medium">-</span>
-                ) : itemHeader?.id && detail.keterangan_cacat !== "FINISH" ? (
-                  <Link
-                    href={`/edit/${itemHeader.id}`}
-                    className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
-                    title="Edit Data"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                  </Link>
-                ) : null}
+                ) : (
+                  <div className="flex items-center justify-center gap-1">
+                    {itemHeader?.id && detail.keterangan_cacat !== "FINISH" && (
+                      <Link
+                        href={`/edit/${itemHeader.id}`}
+                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
+                        title="Edit Data"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
+                    {setDetailToDelete && detail.id && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDetailToDelete({
+                            id: detail.id,
+                            panelNo: item.displayNo,
+                            name: `${detail.kategori_masalah || "Panel"} - ${detail.detail_masalah || "Normal"}`,
+                          })
+                        }
+                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                        title="Hapus Data Baris Ini"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </td>
             </tr>
           );

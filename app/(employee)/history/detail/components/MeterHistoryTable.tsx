@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Edit, CheckCircle2, XCircle } from "lucide-react";
+import { Edit, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/app/qc/page";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
@@ -50,11 +50,13 @@ const cleanMeterVal = (val: any) => {
 export default function MeterHistoryTable({
   panels,
   pcsKey,
-  downtimeRecords
+  downtimeRecords,
+  setDetailToDelete,
 }: {
   panels: any[];
   pcsKey: string;
   downtimeRecords?: any[];
+  setDetailToDelete?: (val: any) => void;
 }) {
   const header = panels[0] || {};
   const actualDowntimeRecords = downtimeRecords || panels.flatMap(p => p.downtime_records || []);
@@ -784,15 +786,32 @@ export default function MeterHistoryTable({
                  {item.downtimeDisplay || "-"}
                </td>
                <td className="px-1 py-1.5 text-center w-12 border-b border-slate-100">
-                  {item.header_id && !item.isStartRow && item.cacatDisplay !== "START" && (
-                    <Link
-                      href={`/edit/${item.header_id}${item.meterDisplay && item.meterDisplay !== '-' ? `?meter=${encodeURIComponent(item.meterDisplay)}&pcs=${item.pcs_index}` : `?pcs=${item.pcs_index}`}`}
-                      className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
-                      title="Edit Data"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                    </Link>
-                  )}
+                  <div className="flex items-center justify-center gap-1">
+                    {item.header_id && !item.isStartRow && item.cacatDisplay !== "START" && (
+                      <Link
+                        href={`/edit/${item.header_id}${item.meterDisplay && item.meterDisplay !== '-' ? `?meter=${encodeURIComponent(item.meterDisplay)}&pcs=${item.pcs_index}` : `?pcs=${item.pcs_index}`}`}
+                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
+                        title="Edit Data"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
+                    {setDetailToDelete && item.db_id && !item.isStartRow && item.cacatDisplay !== "START" && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDetailToDelete({
+                            id: item.db_id,
+                            name: `Meter: ${item.meterDisplay || "-"} - ${item.cacatDisplay || "Normal"}`,
+                          })
+                        }
+                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                        title="Hapus Data Baris Ini"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                </td>
             </tr>
           );

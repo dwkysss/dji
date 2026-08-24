@@ -102,10 +102,14 @@ const buildCacatText = (item: any): string => {
     } else {
       let line = k && d ? `${k} - ${d}` : (k || d);
       if (ketCacat) {
+        const isJustBlok = /^blok\s*\d+(\s*,\s*blok\s*\d+)*$/i.test(ketCacat.trim()) || /^\d+(\s*,\s*\d+)*$/.test(ketCacat.trim()) || /^blok\s*$/i.test(ketCacat.trim());
         const cleanB = ketCacat.replace(/blok\s*/gi, "").trim();
-        if (cleanB) {
-          if (line) line += ` (b. ${cleanB})`;
-          else line = `(b. ${cleanB})`;
+        if (cleanB && !cleanB.toLowerCase().includes("backup") && !cleanB.toLowerCase().includes("istirahat") && cleanB !== "()" && cleanB !== "-") {
+          if (line) {
+            line += ` (b. ${cleanB})`;
+          } else if (!isJustBlok) {
+            line = ketCacat;
+          }
         }
       }
       if (line && !lines.includes(line)) lines.push(line);

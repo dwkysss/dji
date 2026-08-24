@@ -1,20 +1,34 @@
 /**
  * Format defect lines replacing category letters (e.g. "A - ", "B - ", "Kode A: ")
  * with sequential defect numbers (e.g. "1 - ", "2 - ") per row.
+ * Safely accepts string[], string, or null/undefined.
  */
-export function formatDefectLinesWithNumbering(lines: string[]): string[] {
+export function formatDefectLinesWithNumbering<T extends string[] | string | null | undefined>(
+  lines: T
+): T extends string[] ? string[] : string {
+  if (!lines) {
+    return (Array.isArray(lines) ? [] : "") as any;
+  }
+  const isStringInput = typeof lines === "string";
+  const rawArray: string[] = isStringInput
+    ? (lines as string).split(/\r?\n/).filter(Boolean)
+    : Array.isArray(lines)
+    ? (lines as string[])
+    : [String(lines)];
+
   let defectIndex = 1;
-  return lines.map((line) => {
-    const trimmed = line.trim();
+  const formatted = rawArray.map((line) => {
+    const trimmed = String(line || "").trim();
     if (!trimmed) return trimmed;
-    
+
     // Check if it's special non-defect metadata or already formatted QC note
-    const isSpecial = trimmed.includes("Sisa Awal Potongan") || 
-                      trimmed.includes("Sisa Akhir Potongan") ||
-                      trimmed.startsWith("[Panel Dihapus]") ||
-                      trimmed === "[TAMBAHAN QC]" ||
-                      trimmed.startsWith("[DIHAPUS]") ||
-                      trimmed.startsWith("QC:");
+    const isSpecial =
+      trimmed.includes("Sisa Awal Potongan") ||
+      trimmed.includes("Sisa Akhir Potongan") ||
+      trimmed.startsWith("[Panel Dihapus]") ||
+      trimmed === "[TAMBAHAN QC]" ||
+      trimmed.startsWith("[DIHAPUS]") ||
+      trimmed.startsWith("QC:");
     if (isSpecial) return line;
 
     // Remove letter category prefix or existing numbering if present (e.g. "A - ", "B. ", "1. ", "1 - ")
@@ -25,6 +39,11 @@ export function formatDefectLinesWithNumbering(lines: string[]): string[] {
     defectIndex++;
     return `${numPrefix}${clean}`;
   });
+
+  if (isStringInput) {
+    return formatted.join("\n") as any;
+  }
+  return formatted as any;
 }
 
 /**
