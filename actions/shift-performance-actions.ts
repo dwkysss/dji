@@ -697,8 +697,13 @@ export async function deleteProductionBatch(params: {
 
     const detailIds = (details || []).map((d: any) => d.id);
 
-    // 3. Delete defects and qc items
+    // 3. Delete mending items, qc items, and defects
     if (detailIds.length > 0) {
+      await supabase
+        .from("mending_items")
+        .delete()
+        .in("production_detail_id", detailIds);
+
       await supabase
         .from("qc_inspection_items")
         .delete()

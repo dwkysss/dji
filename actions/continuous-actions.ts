@@ -787,10 +787,10 @@ export async function updateContinuousReport(
 
     if (headerError) throw new Error(headerError.message);
 
-    // 2. Delete old details
+    // 2. Fetch old details to preserve downstream data
     const { data: oldDetails } = await supabase
       .from("production_details")
-      .select("id")
+      .select("*")
       .eq("header_id", headerId);
 
     if (oldDetails && oldDetails.length > 0) {
@@ -800,13 +800,6 @@ export async function updateContinuousReport(
         .delete()
         .in("production_detail_id", oldDetailIds);
     }
-
-    const { error: delError } = await supabase
-      .from("production_details")
-      .delete()
-      .eq("header_id", headerId);
-
-    if (delError) throw new Error(delError.message);
 
     // Delete old downtime records
     await supabase.from("downtime_records").delete().eq("header_id", headerId);
@@ -838,7 +831,7 @@ export async function updateContinuousReport(
 
     const productionDefectsData: any[] = [];
     
-    // 3. Insert new details
+    // 3. Prepare details
     if (data.pcsData && data.pcsData.length > 0) {
       const detailData = data.pcsData.map((pcsItem: any, idx: number) => {
         const detailId = generateExcelStyleId() + "-" + idx;
@@ -848,6 +841,8 @@ export async function updateContinuousReport(
         const pcsIndexNum = pcsItem.pcsIndex
           ? parseInt(pcsItem.pcsIndex)
           : null;
+
+        const oldDetail = oldDetails?.find((d: any) => d.pcs_index === pcsIndexNum) || {};
 
         // Filter event khusus untuk PCS ini berdasarkan pcsIndex aktual (bukan posisi array)
         const actualPcsKey = pcsItem.pcsIndex ? pcsItem.pcsIndex.toString() : (idx + 1).toString();
@@ -890,7 +885,7 @@ export async function updateContinuousReport(
                     allDetails.add(detailText);
                     
                     productionDefectsData.push({
-                      production_detail_id: detailId,
+                      production_detail_id: oldDetail.id || detailId,
                       kategori: p.kategori,
                       detail: d,
                       meter: meterForThisPcs || null,
@@ -899,7 +894,7 @@ export async function updateContinuousReport(
                   });
                 } else if (p.kategori) {
                   productionDefectsData.push({
-                    production_detail_id: detailId,
+                    production_detail_id: oldDetail.id || detailId,
                     kategori: p.kategori,
                     detail: null,
                     meter: meterForThisPcs || null,
@@ -913,7 +908,7 @@ export async function updateContinuousReport(
               if (e.blok) allBloks.add(`Blok ${e.blok}`);
               
               productionDefectsData.push({
-                production_detail_id: detailId,
+                production_detail_id: oldDetail.id || detailId,
                 kategori: e.kategori,
                 detail: e.detail || null,
                 meter: e.meter || null,
@@ -943,25 +938,43 @@ export async function updateContinuousReport(
           keteranganStr = keteranganStr ? keteranganStr + " [LAPORAN ISTIRAHAT]" : "[LAPORAN ISTIRAHAT]";
         }
 
+        if (oldDetail.keterangan_cacat && oldDetail.keterangan_cacat.includes("[TAMBAHAN QC]")) {
+          keteranganStr = keteranganStr ? keteranganStr + " [TAMBAHAN QC]" : "[TAMBAHAN QC]";
+        }
+
         return {
-          id: detailId,
+          ...oldDetail,
+          id: oldDetail.id || detailId,
           header_id: headerId,
           pcs_index: pcsIndexNum,
           jml_hasil_produksi: jmlHasilNum,
           indikator_stop: indikatorStop,
           kategori_masalah: kategoriStr,
           detail_masalah: detailStr,
-          keterangan_cacat: keteranganStr,
+          keterangan_cacat: keteranganStr || null,
           meter_kain: pcsItem.meterKain || ((data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat") ? data.meterAkhir : null) || null,
-          roll_no: pcsItem.rollNo || null,
+          roll_no: pcsItem.rollNo || oldDetail.roll_no || null,
         };
       });
 
-      const { error: insertError } = await supabase
-        .from("production_details")
-        .insert(detailData);
+      // Delete details for any removed PCS indices
+      const newPcsIndices = (data.pcsData || []).map((p: any) => p.pcsIndex ? parseInt(p.pcsIndex) : null).filter(Boolean);
+      const removedDetails = (oldDetails || []).filter((d: any) => !newPcsIndices.includes(d.pcs_index));
+      const removedDetailIds = removedDetails.map((d: any) => d.id);
 
-      if (insertError) throw new Error(insertError.message);
+      if (removedDetailIds.length > 0) {
+        await supabase.from("mending_items").delete().in("production_detail_id", removedDetailIds);
+        await supabase.from("qc_inspection_items").delete().in("production_detail_id", removedDetailIds);
+        await supabase.from("production_defects").delete().in("production_detail_id", removedDetailIds);
+        await supabase.from("production_details").delete().in("id", removedDetailIds);
+      }
+
+      // Upsert details so existing IDs & FK constraints remain valid
+      const { error: upsertError } = await supabase
+        .from("production_details")
+        .upsert(detailData, { onConflict: "id" });
+
+      if (upsertError) throw new Error(upsertError.message);
 
       if (productionDefectsData.length > 0) {
         const { error: defectError } = await supabase

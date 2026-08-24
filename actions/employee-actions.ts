@@ -1530,6 +1530,7 @@ export async function updateProductionReport(
       const removedDetailIds = removedDetails.map((d: any) => d.id);
 
       if (removedDetailIds.length > 0) {
+        await supabase.from("mending_items").delete().in("production_detail_id", removedDetailIds);
         await supabase.from("qc_inspection_items").delete().in("production_detail_id", removedDetailIds);
         await supabase.from("production_defects").delete().in("production_detail_id", removedDetailIds);
         await supabase.from("production_details").delete().in("id", removedDetailIds);
