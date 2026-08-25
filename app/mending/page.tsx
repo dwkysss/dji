@@ -300,9 +300,17 @@ export default function MendingPage() {
 
   const [selectedDetailForEdit, setSelectedDetailForEdit] = useState<any | null>(null);
   const [isEditDetailModalOpen, setIsEditDetailModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"add_qc" | "edit">("add_qc");
+
+  const handleOpenAddQC = (detail: any) => {
+    setSelectedDetailForEdit(detail);
+    setModalMode("add_qc");
+    setIsEditDetailModalOpen(true);
+  };
 
   const handleOpenEditDetail = (detail: any) => {
     setSelectedDetailForEdit(detail);
+    setModalMode("edit");
     setIsEditDetailModalOpen(true);
   };
 
@@ -2234,6 +2242,7 @@ export default function MendingPage() {
                             selections={selections}
                             onSelectGrade={handleSelectGrade}
                             onOpenDetail={handleOpenDetail}
+                            onOpenAddQC={handleOpenAddQC}
                             onOpenEditDetail={handleOpenEditDetail}
                             onDeleteDetail={setDetailToDelete}
                           />
@@ -2243,6 +2252,7 @@ export default function MendingPage() {
                             selections={selections}
                             onSelectGrade={handleSelectGrade}
                             onOpenDetail={handleOpenDetail}
+                            onOpenAddQC={handleOpenAddQC}
                             onOpenEditDetail={handleOpenEditDetail}
                             onDeleteDetail={setDetailToDelete}
                             totalGradable={pcsGradable}
@@ -2298,6 +2308,7 @@ export default function MendingPage() {
                     selections={selections}
                     onSelectGrade={handleSelectGrade}
                     onOpenDetail={handleOpenDetail}
+                    onOpenAddQC={handleOpenAddQC}
                     onOpenEditDetail={handleOpenEditDetail}
                     onDeleteDetail={setDetailToDelete}
                   />
@@ -2307,6 +2318,7 @@ export default function MendingPage() {
                     selections={selections}
                     onSelectGrade={handleSelectGrade}
                     onOpenDetail={handleOpenDetail}
+                    onOpenAddQC={handleOpenAddQC}
                     onOpenEditDetail={handleOpenEditDetail}
                     onDeleteDetail={setDetailToDelete}
                     totalGradable={totalGradable}
@@ -2393,6 +2405,7 @@ export default function MendingPage() {
             problemDetailsMap={problemDetailsMap}
             allBatchDetails={detailsToDisplay}
             currentGrade={selections[selectedDetailForEdit.id] === "BS" ? 4 : (selections[selectedDetailForEdit.id] === "B" ? 3 : 1)}
+            mode={modalMode}
             onSuccess={async (detailIdOrIds, newGrade) => {
               const targetIds = Array.isArray(detailIdOrIds) ? detailIdOrIds : [detailIdOrIds];
               if (newGrade !== undefined) {

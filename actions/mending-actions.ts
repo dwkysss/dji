@@ -131,7 +131,7 @@ export async function getPendingMendingDetailsByBatch(mesin: string, designId: s
     // Get inspected & unmended items (or deleted items), but only from fully-inspected PCS indexes
     const { data: details, error: detailsError } = await supabase
       .from("production_details")
-      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id, is_deleted, status_inspeksi, status_mending, qc_inspection_items(qc_inspection_batches(berat_kain)), production_defects(*)")
+      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, keterangan_qc, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id, is_deleted, status_inspeksi, status_mending, qc_inspection_items(qc_inspection_batches(berat_kain)), production_defects(*)")
       .in("header_id", headerIds);
 
     if (detailsError) return { success: false, error: detailsError.message };
@@ -755,6 +755,7 @@ export async function getAllDetailsForPcs(nomor_mc: string, design_id: string, p
         kategori_masalah, 
         detail_masalah, 
         keterangan_cacat, 
+        keterangan_qc,
         meter_kain, 
         roll_no, 
         indikator_stop, 
@@ -844,6 +845,7 @@ export async function getMendingDetailsByGroup(nomor_mc: string, design_id: stri
         kategori_masalah, 
         detail_masalah, 
         keterangan_cacat, 
+        keterangan_qc,
         meter_kain, 
         roll_no, 
         indikator_stop, 
@@ -852,6 +854,7 @@ export async function getMendingDetailsByGroup(nomor_mc: string, design_id: stri
         status_mending,
         is_deleted,
         header_id,
+        production_defects(*),
         production_headers!inner (
           id, tanggal_jam, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup)
         ),

@@ -1,11 +1,12 @@
 import React from "react";
-import { CheckCircle, Eye, Trash2, Edit3 } from "lucide-react";
+import { CheckCircle, Eye, Trash2, Edit3, Plus } from "lucide-react";
 
 interface PanelMendingTableProps {
   displayItems: any[];
   selections: Record<string, string>;
   onSelectGrade: (id: string, grade: string) => void;
   onOpenDetail: (headerId: string) => void;
+  onOpenAddQC?: (detail: any) => void;
   onOpenEditDetail?: (detail: any) => void;
   onDeleteDetail: (val: any) => void;
   totalGradable: number;
@@ -19,6 +20,7 @@ export default function PanelMendingTable({
   selections,
   onSelectGrade,
   onOpenDetail,
+  onOpenAddQC,
   onOpenEditDetail,
   onDeleteDetail,
   totalGradable,
@@ -206,11 +208,20 @@ export default function PanelMendingTable({
                   <span className="text-[10px] text-slate-400 font-semibold italic text-center block">Dihapus</span>
                 ) : item.isGradable ? (
                   <div className="flex items-center justify-center gap-1">
+                    {onOpenAddQC && (
+                      <button
+                        onClick={() => onOpenAddQC(item)}
+                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-xs cursor-pointer"
+                        title="Tambah Temuan / Catatan"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {onOpenEditDetail && (
                       <button
                         onClick={() => onOpenEditDetail(item)}
                         className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all shadow-xs cursor-pointer"
-                        title="Tambah / Ubah Keterangan & Cacat"
+                        title="Koreksi Data Bawaan"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>

@@ -13,6 +13,7 @@ import {
   Clock,
   ClipboardList,
   Scale,
+  FileText,
 } from "lucide-react";
 import { submitMending } from "@/actions/mending-actions";
 import { formatHHMM } from "@/lib/shift-utils";
@@ -596,6 +597,19 @@ export default function MendingModal({
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Bagian 4: Catatan Mending */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-sky-500" /> Catatan / Keterangan Mending (Opsional)
+              </h4>
+              <textarea
+                {...register("notes")}
+                rows={3}
+                className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:border-sky-500 outline-none resize-none placeholder:text-slate-400 font-medium text-slate-700"
+                placeholder="Tuliskan catatan khusus atau kendala perbaikan kain bila ada..."
+              />
             </div>
           </form>
         </div>
