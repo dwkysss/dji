@@ -88,13 +88,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Check initial session
+    // Check initial session with fallback timeout
+    const sessionTimeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 4000);
+
     supabase.auth
       .getSession()
       .then(({ data: { session } }) => {
+        clearTimeout(sessionTimeout);
         fetchUser(session);
       })
       .catch((err) => {
+        clearTimeout(sessionTimeout);
         console.warn("Auth getSession network fetch failed:", err);
         fetchUser(null);
       });

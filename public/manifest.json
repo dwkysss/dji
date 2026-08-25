@@ -1,14 +1,16 @@
 {
-  "id": "/",
+  "id": "/?source=pwa",
   "name": "DJI Portal Produksi",
   "short_name": "DJI Produksi",
   "description": "Portal Input Data Produksi, QC, & Monitoring DJI",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#0070bc",
+  "prefer_related_applications": false,
   "categories": ["business", "productivity"],
   "icons": [
     {
