@@ -126,17 +126,83 @@ export async function getMonthlyMachineReport(
       });
     }
 
-    // Helper to determine shift date for a record (Shift 3: 23:10 - 07:10 belongs to start date)
-    function getShiftDayForHeader(tglStr: string, timestampStr?: string): { day: number; month: number; year: number } {
-      const targetStr = timestampStr || tglStr;
-      const shiftDateStr = getShiftDate(targetStr);
-      const parts = shiftDateStr.split("-");
-      return {
-        year: parseInt(parts[0]) || 2026,
-        month: parseInt(parts[1]) || 1,
-        day: parseInt(parts[2]) || 1,
-      };
+    // Helper to determine shift name
+    function getShiftNameFromDate(dt: Date): string {
+      const hourStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", hour: "2-digit", hour12: false });
+      const minStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", minute: "2-digit" });
+      const hour = parseInt(hourStr);
+      const min = parseInt(minStr);
+      const totalMinutes = (isNaN(hour) ? 0 : hour) * 60 + (isNaN(min) ? 0 : min);
+      if (totalMinutes >= 430 && totalMinutes < 910) return "Shift 1";
+      if (totalMinutes >= 910 && totalMinutes < 1390) return "Shift 2";
+      return "Shift 3";
     }
+
+    // Deduplicate unique headers and sort them chronologically
+    const headersMap = new Map<string, any>();
+    data?.forEach((row: any) => {
+      const h = row.production_headers;
+      if (h && !headersMap.has(h.id)) {
+        headersMap.set(h.id, h);
+      }
+    });
+
+    const sortedHeaders = Array.from(headersMap.values()).sort((a: any, b: any) => {
+      const tsA = a.tanggal_jam || a.tgl || "";
+      const tsB = b.tanggal_jam || b.tgl || "";
+      return String(tsA).localeCompare(String(tsB));
+    });
+
+    // Pre-calculate shift assignment with continuation rule for overtime / same operator
+    const headerAssignment = new Map<string, { shiftDateStr: string; day: number; month: number; year: number; groupName: string; operatorName: string }>();
+    let prevAssigned: { shiftDateStr: string; shiftName: string; groupName: string; operatorName: string; timestamp: Date } | null = null;
+
+    sortedHeaders.forEach((h: any) => {
+      const ts = h.tanggal_jam || h.tgl;
+      const dt = parseAsWibDate(ts);
+      const naturalShiftDateStr = getShiftDate(ts);
+      const naturalShiftName = getShiftNameFromDate(dt);
+      const opr = (h.operators?.nama_operator || h.pic || "").trim();
+      const grp = (h.groups?.nama_grup || "A").trim().toUpperCase();
+
+      let assignedShiftDateStr = naturalShiftDateStr;
+      let assignedShiftName = naturalShiftName;
+      let assignedGroup = grp;
+
+      if (prevAssigned) {
+        const isShiftBoundaryCrossed = naturalShiftDateStr !== prevAssigned.shiftDateStr || naturalShiftName !== prevAssigned.shiftName;
+        const isSameOperator = opr && prevAssigned.operatorName && opr.toLowerCase() === prevAssigned.operatorName.toLowerCase();
+        
+        const timeDiffMs = dt.getTime() - prevAssigned.timestamp.getTime();
+        const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+
+        // Jika melewati batas jam kerja normal tetapi diinput oleh operator yang sama dalam rentang kerja bersambung (< 5 jam)
+        if (isShiftBoundaryCrossed && isSameOperator && timeDiffHours < 5 && timeDiffHours >= 0) {
+          assignedShiftDateStr = prevAssigned.shiftDateStr;
+          assignedShiftName = prevAssigned.shiftName;
+          assignedGroup = prevAssigned.groupName;
+        }
+      }
+
+      const parts = assignedShiftDateStr.split("-");
+      const assignedObj = {
+        shiftDateStr: assignedShiftDateStr,
+        day: parseInt(parts[2]) || 1,
+        month: parseInt(parts[1]) || 1,
+        year: parseInt(parts[0]) || 2026,
+        groupName: assignedGroup,
+        operatorName: opr,
+      };
+
+      headerAssignment.set(h.id, assignedObj);
+      prevAssigned = {
+        shiftDateStr: assignedShiftDateStr,
+        shiftName: assignedShiftName,
+        groupName: assignedGroup,
+        operatorName: opr,
+        timestamp: dt,
+      };
+    });
 
     // To prevent double counting downtime per header, keep track of processed headers per team
     const processedHeaders = new Set<string>();
@@ -153,15 +219,16 @@ export async function getMonthlyMachineReport(
         isMeterMachine = true;
       }
 
-      const shiftDate = getShiftDayForHeader(header.tgl, header.tanggal_jam);
-      if (shiftDate.month !== month || shiftDate.year !== year) return;
+      const assignment = headerAssignment.get(header.id);
+      if (!assignment) return;
+      if (assignment.month !== month || assignment.year !== year) return;
 
-      const day = shiftDate.day;
+      const day = assignment.day;
       const reportDay = reportMap.get(day);
       if (!reportDay) return;
 
-      const groupName = header.groups?.nama_grup || "A"; // Default to A if null
-      const operatorName = header.operators?.nama_operator || header.pic || "";
+      const groupName = assignment.groupName || "A"; // Default to A if null
+      const operatorName = assignment.operatorName || header.operators?.nama_operator || header.pic || "";
 
       // Update shift/day metadata
       if (header.design_id && !reportDay.desain) reportDay.desain = header.design_id;
@@ -206,9 +273,10 @@ export async function getMonthlyMachineReport(
         }
       }
 
-      // Aggregate defects (moved outside so we can still count defects from details)
+      // Aggregate defects (BS AWAL and BS AKHIR are not machine defect incidents, so skip them)
+      const panelNoStr = String(header.panel_no || "").toUpperCase();
+      const isBsAwalAkhir = panelNoStr.includes("BS AWAL") || panelNoStr.includes("BS AKHIR");
 
-      // Aggregate defects
       let hasDefects = false;
       let defectCountForRow = 0;
 
@@ -216,7 +284,8 @@ export async function getMonthlyMachineReport(
         team.keterangan_per_kategori = {};
       }
       const addKeterangan = (kat: string, detail: string) => {
-        if (!kat || kat === "Unknown") return;
+        if (!kat || kat === "Unknown" || kat === "BS") return;
+        if (detail.includes("Sisa Awal Potongan") || detail.includes("Sisa Akhir Potongan")) return;
         if (!team.keterangan_per_kategori![kat]) team.keterangan_per_kategori![kat] = [];
         const d = detail.trim();
         if (d) {
@@ -226,28 +295,28 @@ export async function getMonthlyMachineReport(
 
       const addDefect = (k: string) => {
          const code = k.replace("KODE ", "");
+         if (code === "BS") return;
          if (!team.kode_tindakan[code]) team.kode_tindakan[code] = 0;
          team.kode_tindakan[code] += 1;
          defectCountForRow += 1;
       };
-
-
 
       let cleanD = row.detail_masalah 
         ? String(row.detail_masalah).replace(/\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").replace(/\|\s*$/, "").replace(/,\s*$/, "").trim()
         : "";
         
       const katsRaw = row.kategori_masalah || "";
-      let kats = katsRaw === "X" ? [] : katsRaw.split(",").map((s: string) => s.trim().toUpperCase()).filter(Boolean);
+      let kats = katsRaw === "X" ? [] : katsRaw.split(",").map((s: string) => s.trim().toUpperCase()).filter((k: string) => Boolean(k) && k !== "BS");
       
       const recordedKats = new Set<string>();
       const addDefectKeterangan = (kat: string, detail: string) => {
+         if (kat === "BS") return;
          addDefect(kat);
          if (detail) addKeterangan(kat, detail);
          recordedKats.add(kat);
       };
 
-      if (cleanD || kats.length > 0) {
+      if (!isBsAwalAkhir && (cleanD || kats.length > 0)) {
         if (cleanD) {
            const allKnownProblems: { kat: string; detail: string }[] = [];
            for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
@@ -271,7 +340,7 @@ export async function getMonthlyMachineReport(
            });
 
            // Any remaining text is custom/unknown details. Split them by comma or pipe.
-           const leftoverParts = remainingD.split(/\||,/).map(s => s.trim()).filter(Boolean);
+           const leftoverParts = remainingD.split(/\||,/).map(s => s.trim()).filter((s: string) => Boolean(s) && !s.includes("Sisa Awal Potongan") && !s.includes("Sisa Akhir Potongan"));
            
            leftoverParts.forEach(part => {
              // Assign leftover parts to the first selected category, or "A" as a fallback
@@ -281,19 +350,19 @@ export async function getMonthlyMachineReport(
         }
 
         kats.forEach((k: string) => {
-          if (k && !recordedKats.has(k)) {
+          if (k && k !== "BS" && !recordedKats.has(k)) {
             addDefectKeterangan(k, "");
           }
         });
         hasDefects = true;
       }
 
-      if (row.kategori_masalah === "X") {
+      if (!isBsAwalAkhir && row.kategori_masalah === "X") {
          team.jumlah_cacat += 1;
          hasDefects = true;
       }
 
-      if (hasDefects && defectCountForRow > 0) {
+      if (!isBsAwalAkhir && hasDefects && defectCountForRow > 0) {
         team.jumlah_cacat += defectCountForRow;
       }
 

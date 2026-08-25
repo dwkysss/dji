@@ -1,6 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import {
+  getMaxPanelConfig,
+  saveMaxPanelConfig,
+  deleteMaxPanelConfig,
+  getAllMaxPanelConfigs,
+} from "./machine-config-actions";
 
 export async function getProductionPlan(nomorMc: string, potonganKe: number) {
   try {
@@ -13,15 +19,29 @@ export async function getProductionPlan(nomorMc: string, potonganKe: number) {
       .eq("potongan_ke", potonganKe)
       .single();
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Not found is expected if no plan exists
-        return { success: true, data: null };
-      }
-      throw error;
+    if (error && error.code !== 'PGRST116') {
+      console.error("Error fetching production plan:", error);
     }
 
-    return { success: true, data };
+    const maxPanel = await getMaxPanelConfig(nomorMc, potonganKe);
+
+    if (!data) {
+      if (maxPanel) {
+        return {
+          success: true,
+          data: { nomor_mc: nomorMc, potongan_ke: potonganKe, max_panel: maxPanel },
+        };
+      }
+      return { success: true, data: null };
+    }
+
+    return {
+      success: true,
+      data: {
+        ...data,
+        max_panel: maxPanel !== null ? maxPanel : data.max_panel || null,
+      },
+    };
   } catch (err: any) {
     console.error("Error fetching production plan:", err);
     return { success: false, error: err.message };
@@ -31,13 +51,23 @@ export async function getProductionPlan(nomorMc: string, potonganKe: number) {
 export async function upsertProductionPlan(data: any) {
   try {
     const supabase = await createClient();
+    const { max_panel, ...cleanPayload } = data;
+
+    // Save max_panel config if provided
+    if (max_panel !== undefined && data.nomor_mc && data.potongan_ke) {
+      if (Number(max_panel) > 0) {
+        await saveMaxPanelConfig(data.nomor_mc, Number(max_panel), data.potongan_ke);
+      } else {
+        await deleteMaxPanelConfig(data.nomor_mc, data.potongan_ke);
+      }
+    }
     
-    // First, check if it already exists
+    // Check if plan already exists in production_plans
     const { data: existing, error: fetchError } = await supabase
       .from("production_plans")
       .select("id")
-      .eq("nomor_mc", data.nomor_mc)
-      .eq("potongan_ke", data.potongan_ke)
+      .eq("nomor_mc", cleanPayload.nomor_mc)
+      .eq("potongan_ke", cleanPayload.potongan_ke)
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
@@ -49,7 +79,7 @@ export async function upsertProductionPlan(data: any) {
       // Update
       const { data: updated, error } = await supabase
         .from("production_plans")
-        .update(data)
+        .update(cleanPayload)
         .eq("id", existing.id)
         .select()
         .single();
@@ -60,7 +90,7 @@ export async function upsertProductionPlan(data: any) {
       // Insert
       const { data: inserted, error } = await supabase
         .from("production_plans")
-        .insert(data)
+        .insert(cleanPayload)
         .select()
         .single();
         
@@ -68,7 +98,13 @@ export async function upsertProductionPlan(data: any) {
       result = inserted;
     }
 
-    return { success: true, data: result };
+    return {
+      success: true,
+      data: {
+        ...result,
+        max_panel: max_panel ? Number(max_panel) : null,
+      },
+    };
   } catch (err: any) {
     console.error("Error upserting production plan:", err);
     return { success: false, error: err.message };
@@ -96,7 +132,20 @@ export async function getAllProductionPlans(page: number = 1, limit: number = 20
 
     if (error) throw error;
 
-    return { success: true, data, total: count || 0 };
+    const maxPanelRes = await getAllMaxPanelConfigs();
+    const maxPanelMap = maxPanelRes.data || {};
+
+    const enhancedData = (data || []).map((p: any) => {
+      const mcUpper = String(p.nomor_mc || "").toUpperCase().trim();
+      const specKey = `${mcUpper}:${p.potongan_ke}`;
+      const maxPanel = maxPanelMap[specKey] || maxPanelMap[mcUpper] || p.max_panel || null;
+      return {
+        ...p,
+        max_panel: maxPanel,
+      };
+    });
+
+    return { success: true, data: enhancedData, total: count || 0 };
   } catch (err: any) {
     console.error("Error fetching all production plans:", err);
     return { success: false, error: err.message };

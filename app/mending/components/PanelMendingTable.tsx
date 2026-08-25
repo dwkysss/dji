@@ -9,6 +9,9 @@ interface PanelMendingTableProps {
   onOpenAddQC?: (detail: any) => void;
   onOpenEditDetail?: (detail: any) => void;
   onDeleteDetail: (val: any) => void;
+  selectedDetailIds?: string[];
+  onToggleSelectDetail?: (id: string) => void;
+  onToggleSelectAll?: (ids: string[]) => void;
   totalGradable: number;
   totalA: number;
   totalB: number;
@@ -23,6 +26,9 @@ export default function PanelMendingTable({
   onOpenAddQC,
   onOpenEditDetail,
   onDeleteDetail,
+  selectedDetailIds = [],
+  onToggleSelectDetail,
+  onToggleSelectAll,
   totalGradable,
   totalA,
   totalB,
@@ -42,10 +48,33 @@ export default function PanelMendingTable({
     return counts;
   }, [displayItems]);
 
+  const selectableIds = React.useMemo(() => {
+    return displayItems
+      .filter((it) => !it.isTotalRow && !it.is_deleted && it.status_inspeksi !== "Dihapus" && it.status_mending !== "Dihapus")
+      .map((it) => it.id);
+  }, [displayItems]);
+
+  const isAllSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedDetailIds?.includes(id));
+  const isSomeSelected = selectableIds.some((id) => selectedDetailIds?.includes(id)) && !isAllSelected;
+
   return (
     <table className="w-full min-w-[720px] text-left text-xs border-collapse">
       <thead>
         <tr className="bg-slate-50">
+          {onToggleSelectDetail && (
+            <th className="px-1.5 py-1.5 border-b border-slate-200 w-8 text-center border-r border-slate-100" rowSpan={2}>
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = isSomeSelected;
+                }}
+                onChange={() => onToggleSelectAll && onToggleSelectAll(selectableIds)}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                title="Pilih Semua Baris"
+              />
+            </th>
+          )}
           <th className="sticky left-0 z-20 bg-slate-50 px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>PNL NO</th>
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-20 text-center whitespace-nowrap border-r border-slate-100" rowSpan={2}>TGL</th>
           <th className="px-1.5 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100" rowSpan={2}>Group</th>
@@ -66,7 +95,7 @@ export default function PanelMendingTable({
           if (item.isTotalRow) {
             return (
               <tr key={item.id || index} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
-                <td colSpan={4} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-right whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                <td colSpan={onToggleSelectDetail ? 5 : 4} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-right whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   {item.totalLabel}
                 </td>
                 <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap border-r border-slate-100">
@@ -114,6 +143,18 @@ export default function PanelMendingTable({
 
           return (
             <tr key={item.id} className={`transition-colors ${rowBgClass}`}>
+              {onToggleSelectDetail && (
+                <td className="px-1.5 py-1 text-center border-r border-slate-100 border-b border-slate-100">
+                  {!isDeleted ? (
+                    <input
+                      type="checkbox"
+                      checked={selectedDetailIds?.includes(item.id)}
+                      onChange={() => onToggleSelectDetail(item.id)}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    />
+                  ) : null}
+                </td>
+              )}
               <td className={`sticky left-0 z-10 px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${stickyCellBgClass}`}>
                 {String(item.displayNo).toUpperCase().includes("AWAL") ? (
                   <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>

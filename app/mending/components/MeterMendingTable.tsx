@@ -9,6 +9,9 @@ interface MeterMendingTableProps {
   onOpenAddQC?: (detail: any) => void;
   onOpenEditDetail?: (detail: any) => void;
   onDeleteDetail: (val: any) => void;
+  selectedDetailIds?: string[];
+  onToggleSelectDetail?: (id: string) => void;
+  onToggleSelectAll?: (ids: string[]) => void;
 }
 
 export default function MeterMendingTable({
@@ -19,11 +22,37 @@ export default function MeterMendingTable({
   onOpenAddQC,
   onOpenEditDetail,
   onDeleteDetail,
+  selectedDetailIds = [],
+  onToggleSelectDetail,
+  onToggleSelectAll,
 }: MeterMendingTableProps) {
+  const selectableIds = React.useMemo(() => {
+    return displayItems
+      .filter((it) => !it.isTotalRow && !it.isStartRow && !it.is_deleted && it.status_inspeksi !== "Dihapus" && it.status_mending !== "Dihapus")
+      .map((it) => it.id);
+  }, [displayItems]);
+
+  const isAllSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedDetailIds?.includes(id));
+  const isSomeSelected = selectableIds.some((id) => selectedDetailIds?.includes(id)) && !isAllSelected;
+
   return (
     <table className="w-full min-w-[720px] text-left text-xs border-collapse">
       <thead>
         <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+          {onToggleSelectDetail && (
+            <th className="px-1.5 py-2 w-8 text-center border-r border-slate-100" rowSpan={2}>
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = isSomeSelected;
+                }}
+                onChange={() => onToggleSelectAll && onToggleSelectAll(selectableIds)}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                title="Pilih Semua Baris"
+              />
+            </th>
+          )}
           <th className="sticky left-0 z-20 bg-slate-50 px-2 py-2 w-8 text-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>NO</th>
           <th className="px-2 py-2 w-20 text-center border-r border-slate-100 whitespace-nowrap" rowSpan={2}>TGL</th>
           <th className="px-1.5 py-2 w-10 text-center border-r border-slate-100" rowSpan={2}>Group</th>
@@ -45,7 +74,7 @@ export default function MeterMendingTable({
           if (item.isTotalRow) {
             return (
               <tr key={item.id || index} className="bg-slate-100 border-t-2 border-b-2 border-slate-300">
-                <td colSpan={11} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-center text-xs font-semibold text-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                <td colSpan={onToggleSelectDetail ? 12 : 11} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-center text-xs font-semibold text-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   {item.totalLabel} <span className="font-extrabold text-slate-800 ml-1">{item.totalMeter}</span>
                 </td>
               </tr>
@@ -55,6 +84,9 @@ export default function MeterMendingTable({
           if (item.isStartRow) {
             return (
               <tr key={item.id || index} className="hover:bg-slate-50 transition-colors">
+                {onToggleSelectDetail && (
+                  <td className="px-1.5 py-1.5 text-center border-r border-slate-100 border-b border-slate-100"></td>
+                )}
                 <td className="sticky left-0 z-10 bg-white px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   {item.displayNo}
                 </td>
@@ -117,6 +149,18 @@ export default function MeterMendingTable({
                   : "bg-white hover:bg-slate-50"
               }`}
             >
+              {onToggleSelectDetail && (
+                <td className="px-1.5 py-1 text-center border-r border-slate-100 border-b border-slate-100">
+                  {!isDeleted ? (
+                    <input
+                      type="checkbox"
+                      checked={selectedDetailIds?.includes(item.id)}
+                      onChange={() => onToggleSelectDetail(item.id)}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    />
+                  ) : null}
+                </td>
+              )}
               <td className={`sticky left-0 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isDeleted ? "bg-slate-100" : isRowQcModified ? "bg-sky-100/70" : (item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
                 <div className="flex flex-col items-center justify-center">
                   <span>{item.displayNo}</span>

@@ -574,23 +574,23 @@ export default function MonthlyMachineReportPage() {
       {/* Modal for Keterangan */}
       {modalData.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-100 animate-scaleUp">
-            <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden border border-slate-100 animate-scaleUp">
+            <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
               <h3 className="font-bold text-slate-800">{modalData.title}</h3>
               <button 
                 onClick={() => setModalData({ ...modalData, isOpen: false })}
-                className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
               {modalData.contentObj && Object.entries(modalData.contentObj).length > 0 ? (
                 <div className="flex flex-col gap-4">
                   {Object.entries(modalData.contentObj).sort(([a], [b]) => a.localeCompare(b)).map(([kat, details]) => (
                     <div key={kat} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                       <div className="font-black text-slate-700 text-sm mb-2 flex items-center gap-2">
-                        <span className="bg-amber-100 text-amber-700 w-6 h-6 flex items-center justify-center rounded-md">{kat}</span>
+                        <span className="bg-amber-100 text-amber-700 w-6 h-6 flex items-center justify-center rounded-md font-bold">{kat}</span>
                         <span>Kategori {kat}</span>
                       </div>
                       {details.length > 0 ? (
@@ -624,10 +624,10 @@ export default function MonthlyMachineReportPage() {
                 <p className="text-slate-400 italic text-center py-4">Tidak ada keterangan.</p>
               )}
             </div>
-            <div className="p-4 border-t border-slate-100 flex justify-end bg-slate-50/50">
+            <div className="p-4 border-t border-slate-100 flex justify-end bg-slate-50/50 shrink-0">
               <button
                 onClick={() => setModalData({ ...modalData, isOpen: false })}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl transition-all shadow-sm"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
               >
                 Tutup
               </button>

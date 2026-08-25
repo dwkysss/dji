@@ -344,6 +344,7 @@ export default function EmployeeForm({
   // Timer ref for debouncing localStorage draft saves
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [maxPanelLimit, setMaxPanelLimit] = useState<number | null>(null);
   const [successData, setSuccessData] = useState<
     (ProductionFormInput & { id?: string }) | null
   >(null);
@@ -882,6 +883,7 @@ export default function EmployeeForm({
         const planRes = await getProductionPlan(watchNomorMc, parseInt(watchPotonganKe));
         if (planRes.success && planRes.data) {
           const plan = planRes.data;
+          setMaxPanelLimit(plan.max_panel ? Number(plan.max_panel) : null);
           if (plan.design_id) setValue("designId", plan.design_id);
           if (plan.pick) setValue("pick", plan.pick);
           if (plan.course) setValue("course", plan.course);
@@ -896,6 +898,8 @@ export default function EmployeeForm({
           if (plan.pcs_count && typeof plan.pcs_count === "number") {
             handleChangePcsCount(plan.pcs_count, true);
           }
+        } else {
+          setMaxPanelLimit(null);
         }
       } catch (e) { }
     }, 600);
@@ -985,7 +989,6 @@ export default function EmployeeForm({
 
 
     // Save Header Data to LocalStorage automatically on submit
-    // Save Header Data to LocalStorage automatically on submit
     const currentPanelNo = data.panelNo;
     let nextPanelNo = "1";
     if (currentPanelNo) {
@@ -998,13 +1001,26 @@ export default function EmployeeForm({
       }
     }
 
-    const isCutSubmit = !isEdit && !!data.tanggalPotong;
+    const currentPanelNum = parseInt((currentPanelNo || "").replace(/\D/g, ""), 10) || 0;
+    const isTargetReached = !isEdit && !!maxPanelLimit && currentPanelNum >= maxPanelLimit;
+    const isCutSubmit = !isEdit && (!!data.tanggalPotong || isTargetReached);
     const submitData: ProductionFormInput = data;
+
+    // Jika target potongan tercapai, otomatis set potongan berikutnya untuk panel berikutnya
+    let nextPotonganKeForSave = data.potonganKe;
+    let nextPanelNoForSave = isCutSubmit ? "1" : nextPanelNo;
+
+    if (isTargetReached && !isEdit) {
+      const curPotNum = parseInt(data.potonganKe || "0", 10);
+      if (!isNaN(curPotNum) && curPotNum > 0) {
+        nextPotonganKeForSave = String(curPotNum + 1);
+        nextPanelNoForSave = "1";
+      }
+    }
 
     // Jika mesinMasihStop atau ada panel gagal/BS, tahan nomor panel (tidak maju)
     // Operator harus menginput panel fisik yang valid untuk nomor panel ini terlebih dahulu
     const hasBs = data.pcsData && data.pcsData.some((p: any) => p.isBs);
-    let nextPanelNoForSave = isCutSubmit ? "1" : nextPanelNo;
     if ((data.mesinMasihStop || data.isPanelGagal || hasBs) && !isCutSubmit) {
       const cleanCurrentPanelNo = currentPanelNo ? currentPanelNo.replace(/\s*\(BS\)/gi, "").trim() : "";
       nextPanelNoForSave = cleanCurrentPanelNo || currentPanelNo || nextPanelNo; // tetap di nomor panel yang sama untuk panel valid
@@ -1015,7 +1031,7 @@ export default function EmployeeForm({
           durasiDetik: 0 // Reset waktu, shift baru mulai hitung dari 0
         }));
       }
-    } else {
+    } else if (!data.mesinMasihStop) {
       localStorage.removeItem("dji_unresolved_downtime");
     }
 
@@ -1038,7 +1054,7 @@ export default function EmployeeForm({
         course: data.course,
         rpm: data.rpm,
         pic: data.pic,
-        potonganKe: data.potonganKe,
+        potonganKe: nextPotonganKeForSave,
         nextPanelNo: nextPanelNoForSave, // we store the next available panel no
       };
       localStorage.setItem("dji_form_header", JSON.stringify(headerDataToSave));
@@ -1054,8 +1070,10 @@ export default function EmployeeForm({
         setSuccessData({
           ...data,
           isOfflineSaved: true,
-
           isCutSubmit,
+          wasTargetReached: isTargetReached,
+          nextPotonganTarget: nextPotonganKeForSave,
+          maxPanelLimit,
         } as any);
         return;
       }
@@ -1085,6 +1103,9 @@ export default function EmployeeForm({
           ...data,
           id: isEdit ? initialData.id : (result as any).productionId,
           isCutSubmit,
+          wasTargetReached: isTargetReached,
+          nextPotonganTarget: nextPotonganKeForSave,
+          maxPanelLimit,
         } as any);
       } else {
         setErrorMsg(result.error || "Gagal menyimpan laporan produksi rajut.");
@@ -1104,6 +1125,9 @@ export default function EmployeeForm({
           ...data,
           isOfflineSaved: true,
           isCutSubmit,
+          wasTargetReached: isTargetReached,
+          nextPotonganTarget: nextPotonganKeForSave,
+          maxPanelLimit,
         } as any);
       } else {
         console.error("Uncaught exception in onSubmit:", err);
@@ -1165,7 +1189,9 @@ export default function EmployeeForm({
       return;
     }
 
-    const wasLastPanel = !!successData?.tanggalPotong;
+    const wasTargetReached = !!(successData as any)?.wasTargetReached;
+    const nextPotonganTarget = (successData as any)?.nextPotonganTarget;
+    const wasLastPanel = !!successData?.tanggalPotong || wasTargetReached;
 
     setSuccessData(null);
     const savedHeader = localStorage.getItem("dji_form_header");
@@ -1183,10 +1209,9 @@ export default function EmployeeForm({
     }));
 
     const currentPotongan = parseInt(watchPotonganKe || "0");
-    const nextPotongan =
-      wasLastPanel && !isNaN(currentPotongan)
-        ? String(currentPotongan + 1)
-        : watchPotonganKe;
+    const nextPotongan = wasTargetReached && nextPotonganTarget
+      ? nextPotonganTarget
+      : (wasLastPanel && !isNaN(currentPotongan) ? String(currentPotongan + 1) : watchPotonganKe);
 
     // Jika mesinMasihStop, gunakan panelNo yang sama (dari localStorage yang sudah disimpan dengan nextPanelNo = currentPanelNo)
     // nextPanelNo dari localStorage sudah memegang nomor panel yang sama
@@ -1411,6 +1436,7 @@ export default function EmployeeForm({
                   design={watch("designId") || ""}
                   statusMatching={watch("statusMatching") || ""}
                   potonganKe={watchPotonganKe}
+                  maxPanel={maxPanelLimit}
                   onEdit={() => setIsHeaderModalOpen(true)}
                   showEditButton
                   showEditButtonPlacement="bottom"
@@ -1420,26 +1446,45 @@ export default function EmployeeForm({
               {/* Data Panel Umum */}
               <div
                 data-tour="panel-info"
-                className="w-full bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden relative grid grid-cols-2"
+                className="w-full bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden relative"
               >
                 <input type="hidden" {...register("panelNo")} />
 
-                {/* Kiri: Label */}
-                <div className="flex flex-col items-center justify-center gap-1.5 border-r border-slate-200 p-4">
-                  <div className="w-7 h-7 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
-                    <Hash className="w-4 h-4" />
+                <div className="grid grid-cols-2">
+                  {/* Kiri: Label */}
+                  <div className="flex flex-col items-center justify-center gap-1.5 border-r border-slate-200 p-4">
+                    <div className="w-7 h-7 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+                      <Hash className="w-4 h-4" />
+                    </div>
+                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest text-center">
+                      Nomor Panel:
+                    </span>
                   </div>
-                  <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest text-center">
-                    Nomor Panel:
-                  </span>
+
+                  {/* Kanan: Angka */}
+                  <div className="flex items-center justify-center p-4">
+                    <span className="text-5xl sm:text-6xl font-black text-slate-800 leading-none">
+                      {String(watchPanelNo || "-")}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Kanan: Angka */}
-                <div className="flex items-center justify-center p-4">
-                  <span className="text-5xl sm:text-6xl font-black text-slate-800 leading-none">
-                    {String(watchPanelNo || "-")}
-                  </span>
-                </div>
+                {maxPanelLimit && (
+                  <div
+                    className={`px-4 py-2 border-t flex items-center justify-between text-xs font-bold ${
+                      (parseInt((watchPanelNo || "0").replace(/\D/g, ""), 10) || 0) >= maxPanelLimit
+                        ? "bg-emerald-100 text-emerald-900 border-emerald-300 font-black"
+                        : "bg-emerald-50 text-emerald-800 border-emerald-200/80"
+                    }`}
+                  >
+                    <span>Target: {maxPanelLimit} Panel</span>
+                    <span>
+                      {(parseInt((watchPanelNo || "0").replace(/\D/g, ""), 10) || 0) >= maxPanelLimit
+                        ? "🏁 Target Tercapai (Otomatis ganti potongan)"
+                        : `Sisa ${maxPanelLimit - (parseInt((watchPanelNo || "0").replace(/\D/g, ""), 10) || 0)} Panel`}
+                    </span>
+                  </div>
+                )}
 
                 {errors.panelNo && (
                   <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 text-red-500 text-[10px] font-bold whitespace-nowrap">
@@ -1885,7 +1930,7 @@ export default function EmployeeForm({
                 ? "Tersimpan Offline"
                 : "Laporan Berhasil Disimpan"}
             </h4>
-            <p className="text-xs text-slate-500 mt-1 mb-5">
+            <p className="text-xs text-slate-500 mt-1 mb-4">
               {(successData as any)?.isCutSubmit
                 ? (successData as any)?.isOfflineSaved
                   ? `Data potong kain Potongan ${successData?.potonganKe} antre dikirim otomatis saat sinyal pulih.`
@@ -1894,8 +1939,21 @@ export default function EmployeeForm({
                   ? `Data Panel #${successData?.panelNo} antre dikirim otomatis saat sinyal pulih.`
                   : `Data laporan untuk Panel #${successData?.panelNo} (Potongan ${successData?.potonganKe}) telah terekam.`}
             </p>
+
+            {(successData as any)?.wasTargetReached && (
+              <div className="w-full mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-left shadow-xs flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <h5 className="text-xs font-black text-emerald-900 uppercase">Target Potongan Tercapai!</h5>
+                  <p className="text-[11px] font-medium text-emerald-700 leading-snug mt-0.5">
+                    Target <strong>{(successData as any).maxPanelLimit} panel</strong> untuk Potongan <strong>{successData?.potonganKe}</strong> terpenuhi. Formulir otomatis beralih ke <strong>Potongan {(successData as any).nextPotonganTarget} (Panel 1)</strong>.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {(successData as any).autoAdjustedDowntimeMsg && (
-              <div className="w-full mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-left shadow-inner">
+              <div className="w-full mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-left shadow-inner">
                 <p className="text-[11px] font-bold text-amber-700 leading-snug">
                   <AlertCircle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
                   {(successData as any).autoAdjustedDowntimeMsg}
@@ -1904,9 +1962,11 @@ export default function EmployeeForm({
             )}
             <button
               onClick={handleCloseSuccess}
-              className="w-full py-3 bg-[#0070bc] text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
+              className="w-full py-3 bg-[#0070bc] hover:bg-[#005a96] text-white font-bold rounded-xl active:scale-95 transition-all text-sm shadow-md shadow-blue-200"
             >
-              {isEdit ? "Kembali ke Riwayat" : "Input Panel Berikutnya"}
+              {(successData as any)?.wasTargetReached
+                ? `Mulai Potongan ${(successData as any).nextPotonganTarget} (Panel 1)`
+                : (isEdit ? "Kembali ke Riwayat" : "Input Panel Berikutnya")}
             </button>
           </div>
         </div>

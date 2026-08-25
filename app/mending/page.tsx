@@ -40,7 +40,7 @@ import {
   getPendingMendingDetailsByDate,
   getMendingDetailsByGroup,
 } from "@/actions/mending-actions";
-import { insertMissingPanel, deleteProductionDetailRow, addQCDefectDetail } from "@/actions/qc-actions";
+import { insertMissingPanel, deleteProductionDetailRow, bulkDeleteProductionDetailRows, addQCDefectDetail } from "@/actions/qc-actions";
 import { getEmployeeHistoryDetail } from "@/actions/employee-actions";
 import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import {
@@ -293,6 +293,74 @@ export default function MendingPage() {
 
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Bulk Selection & Multiple Deletion States
+  const [selectedDetailIds, setSelectedDetailIds] = useState<string[]>([]);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [pendingBulkDeleteMode, setPendingBulkDeleteMode] = useState<"permanent" | "keep_slot" | null>(null);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+
+  const handleToggleSelectDetail = (id: string) => {
+    setSelectedDetailIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = (ids: string[]) => {
+    setSelectedDetailIds((prev) => {
+      const allIn = ids.every((id) => prev.includes(id));
+      if (allIn) {
+        return prev.filter((id) => !ids.includes(id));
+      } else {
+        const set = new Set([...prev, ...ids]);
+        return Array.from(set);
+      }
+    });
+  };
+
+  const handleBulkSetGrade = (grade: string) => {
+    setSelections((prev) => {
+      const next = { ...prev };
+      selectedDetailIds.forEach((id) => {
+        next[id] = grade;
+      });
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async (mode: "permanent" | "keep_slot" = "permanent") => {
+    if (selectedDetailIds.length === 0) return;
+    setIsDeletingBulk(true);
+    try {
+      const res = await bulkDeleteProductionDetailRows(selectedDetailIds, mode);
+      if (res.success) {
+        setSelectedDetailIds([]);
+        setIsBulkDeleteModalOpen(false);
+        setPendingBulkDeleteMode(null);
+        if (activeMendingPcs) {
+          await refreshActiveMendingDetails(
+            activeMendingPcs.nomor_mc,
+            activeMendingPcs.design_id,
+            activeMendingPcs.potongan_ke,
+            activeMendingPcs.pcs_index
+          );
+        }
+        const queryTanggal = searchTanggal === "" ? "all" : searchTanggal;
+        getPendingMendingDetailsByDate(queryTanggal).then((qRes) => {
+          if (qRes.success && qRes.data) {
+            setAllDetails(qRes.data);
+            setPendingCount(qRes.pendingCount || 0);
+          }
+        });
+      } else {
+        alert("Gagal menghapus data: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsDeletingBulk(false);
+    }
+  };
 
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailData, setDetailData] = useState<any | null>(null);
@@ -1652,6 +1720,22 @@ export default function MendingPage() {
     return displayItems.filter((item: any) => item.isGradable && !item.isDeleted);
   }, [displayItems]);
 
+  const handleRequestDeleteDetail = (val: any) => {
+    if (selectedDetailIds.length > 1 || (selectedDetailIds.length === 1 && !selectedDetailIds.includes(val.id))) {
+      // Multiple items selected: trigger bulk delete for all selected rows
+      const targetIds = selectedDetailIds.includes(val.id)
+        ? selectedDetailIds
+        : [...selectedDetailIds, val.id];
+      setSelectedDetailIds(targetIds);
+      setPendingBulkDeleteMode(null);
+      setIsBulkDeleteModalOpen(true);
+    } else {
+      // Single row delete
+      setPendingDeleteMode(null);
+      setDetailToDelete(val);
+    }
+  };
+
   const handleDeleteDetail = async (mode: "permanent" | "keep_slot" = "permanent") => {
     if (!detailToDelete) return;
     setIsDeletingDetail(true);
@@ -2274,7 +2358,10 @@ export default function MendingPage() {
                             onOpenDetail={handleOpenDetail}
                             onOpenAddQC={handleOpenAddQC}
                             onOpenEditDetail={handleOpenEditDetail}
-                            onDeleteDetail={setDetailToDelete}
+                            onDeleteDetail={handleRequestDeleteDetail}
+                            selectedDetailIds={selectedDetailIds}
+                            onToggleSelectDetail={handleToggleSelectDetail}
+                            onToggleSelectAll={handleToggleSelectAll}
                           />
                         ) : (
                           <PanelMendingTable
@@ -2284,7 +2371,10 @@ export default function MendingPage() {
                             onOpenDetail={handleOpenDetail}
                             onOpenAddQC={handleOpenAddQC}
                             onOpenEditDetail={handleOpenEditDetail}
-                            onDeleteDetail={setDetailToDelete}
+                            onDeleteDetail={handleRequestDeleteDetail}
+                            selectedDetailIds={selectedDetailIds}
+                            onToggleSelectDetail={handleToggleSelectDetail}
+                            onToggleSelectAll={handleToggleSelectAll}
                             totalGradable={pcsGradable}
                             totalA={pcsA}
                             totalB={pcsB}
@@ -2296,6 +2386,78 @@ export default function MendingPage() {
                   );
                 })}
               </div>
+
+              {/* Floating / Sticky Bulk Action Bar */}
+              {selectedDetailIds.length > 0 && (
+                <div className="sticky bottom-4 z-40 mx-4 my-2 p-3.5 bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/80 text-white flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-bottom-5 duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-black text-sm">
+                      {selectedDetailIds.length}
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-white">
+                        {selectedDetailIds.length} {isMeteranBatch ? "Titik Meter" : "Panel"} Dipilih
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Hapus baris atau atur grade pengerjaan mending bersama
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingBulkDeleteMode(null);
+                        setIsBulkDeleteModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-xs shadow-md shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Hapus Terpilih ({selectedDetailIds.length})
+                    </button>
+
+                    <div className="h-6 w-px bg-slate-700 mx-1 hidden sm:block"></div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkSetGrade("A")}
+                      className="px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Set Grade A untuk semua yang terpilih"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Grade A Semua
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkSetGrade("B")}
+                      className="px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Set Grade B untuk semua yang terpilih"
+                    >
+                      Grade B Semua
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkSetGrade("BS")}
+                      className="px-3 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Set Grade BS untuk semua yang terpilih"
+                    >
+                      BS Semua
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDetailIds([])}
+                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                      title="Batal Pilih"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end">
                 <button
@@ -2340,7 +2502,10 @@ export default function MendingPage() {
                     onOpenDetail={handleOpenDetail}
                     onOpenAddQC={handleOpenAddQC}
                     onOpenEditDetail={handleOpenEditDetail}
-                    onDeleteDetail={setDetailToDelete}
+                    onDeleteDetail={handleRequestDeleteDetail}
+                    selectedDetailIds={selectedDetailIds}
+                    onToggleSelectDetail={handleToggleSelectDetail}
+                    onToggleSelectAll={handleToggleSelectAll}
                   />
                 ) : (
                   <PanelMendingTable
@@ -2350,7 +2515,10 @@ export default function MendingPage() {
                     onOpenDetail={handleOpenDetail}
                     onOpenAddQC={handleOpenAddQC}
                     onOpenEditDetail={handleOpenEditDetail}
-                    onDeleteDetail={setDetailToDelete}
+                    onDeleteDetail={handleRequestDeleteDetail}
+                    selectedDetailIds={selectedDetailIds}
+                    onToggleSelectDetail={handleToggleSelectDetail}
+                    onToggleSelectAll={handleToggleSelectAll}
                     totalGradable={totalGradable}
                     totalA={totalA}
                     totalB={totalB}
@@ -2358,6 +2526,78 @@ export default function MendingPage() {
                   />
                 )}
               </div>
+
+              {/* Floating / Sticky Bulk Action Bar */}
+              {selectedDetailIds.length > 0 && (
+                <div className="sticky bottom-4 z-40 mx-4 my-2 p-3.5 bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/80 text-white flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-bottom-5 duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-black text-sm">
+                      {selectedDetailIds.length}
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-white">
+                        {selectedDetailIds.length} {isMeteranBatch ? "Titik Meter" : "Panel"} Dipilih
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Hapus baris atau atur grade pengerjaan mending bersama
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingBulkDeleteMode(null);
+                        setIsBulkDeleteModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-xs shadow-md shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Hapus Terpilih ({selectedDetailIds.length})
+                    </button>
+
+                    <div className="h-6 w-px bg-slate-700 mx-1 hidden sm:block"></div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkSetGrade("A")}
+                      className="px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Set Grade A untuk semua yang terpilih"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Grade A Semua
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkSetGrade("B")}
+                      className="px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Set Grade B untuk semua yang terpilih"
+                    >
+                      Grade B Semua
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkSetGrade("BS")}
+                      className="px-3 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Set Grade BS untuk semua yang terpilih"
+                    >
+                      BS Semua
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDetailIds([])}
+                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                      title="Batal Pilih"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end">
                 <button
                   disabled={!isAllSelected}
@@ -2872,6 +3112,148 @@ export default function MendingPage() {
                         <Trash2 className="w-4 h-4" />
                       )}
                       Ya, Hapus Data
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal Hapus Massal / Multiple Delete */}
+        {isBulkDeleteModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-200">
+              {pendingBulkDeleteMode === null ? (
+                /* Step 1: Pilih Opsi Hapus */
+                <>
+                  <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
+                    <Trash2 className="w-6 h-6 text-rose-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
+                    Hapus {selectedDetailIds.length} {isMeteranBatch ? "Titik Meter" : "Baris Panel"}
+                  </h3>
+                  <p className="text-xs text-center text-slate-500 mb-5">
+                    Pilih metode penghapusan untuk <strong className="text-slate-700">{selectedDetailIds.length} baris</strong> terpilih:
+                  </p>
+
+                  <div className="flex flex-col gap-3 mb-5">
+                    {/* Opsi 1: Hapus Permanen */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingBulkDeleteMode("permanent")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
+                        1
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
+                          <span>Hapus Baris Terpilih</span>
+                          <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Permanen</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          Hapus data {selectedDetailIds.length} baris ini sepenuhnya dari database. Nomor panel lain <span className="font-semibold text-rose-600">tidak akan bergeser</span>.
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Opsi 2: Tandai Dihapus (Nomor Tetap) */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingBulkDeleteMode("keep_slot")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
+                        2
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
+                          <span>Tandai Dihapus (Nomor Tetap)</span>
+                          <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">Nomor Tetap</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          Nomor panel tetap berada di posisinya, status diubah menjadi <span className="font-semibold text-rose-600">DIHAPUS</span>, dan tidak dihitung dalam total penjumlahan.
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsBulkDeleteModalOpen(false);
+                        setPendingBulkDeleteMode(null);
+                      }}
+                      className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Step 2: Konfirmasi */
+                <>
+                  <div className={`w-12 h-12 rounded-full ${pendingBulkDeleteMode === "permanent" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"} flex items-center justify-center mb-3 mx-auto`}>
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
+                    Konfirmasi Hapus {selectedDetailIds.length} {isMeteranBatch ? "Titik Meter" : "Baris"}
+                  </h3>
+                  <p className="text-xs text-center text-slate-500 mb-4">
+                    Apakah Anda yakin ingin menghapus <strong className="text-slate-700">{selectedDetailIds.length} baris</strong> terpilih?
+                  </p>
+
+                  {pendingBulkDeleteMode === "permanent" ? (
+                    <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
+                        <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">1</span>
+                        Hapus Permanen ({selectedDetailIds.length} Baris)
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        Sebanyak <strong>{selectedDetailIds.length} baris</strong> akan <strong>dihapus permanen</strong>. Nomor panel lain <strong>tidak akan bergeser</strong>.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
+                        <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
+                        Tandai Dihapus ({selectedDetailIds.length} Baris)
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        Sebanyak <strong>{selectedDetailIds.length} baris</strong> akan berstatus <strong>DIHAPUS</strong> (nomor panel tetap berada di posisinya).
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      disabled={isDeletingBulk}
+                      onClick={() => setPendingBulkDeleteMode(null)}
+                      className="flex-1 h-11 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      Kembali
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeletingBulk}
+                      onClick={() => handleBulkDelete(pendingBulkDeleteMode)}
+                      className={`flex-1 h-11 rounded-xl font-bold text-sm text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95 ${
+                        pendingBulkDeleteMode === "permanent"
+                          ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20"
+                          : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"
+                      }`}
+                    >
+                      {isDeletingBulk ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Menghapus...</span>
+                        </>
+                      ) : (
+                        <span>Ya, Hapus {selectedDetailIds.length} Baris</span>
+                      )}
                     </button>
                   </div>
                 </>

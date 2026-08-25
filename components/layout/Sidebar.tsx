@@ -277,7 +277,7 @@ export default function Sidebar() {
           name: "Parameter & Aturan Mesin",
           href: "/machine-config",
           icon: SlidersHorizontal,
-          roles: ["admin"],
+          roles: ["admin", "manager", "kepala_shift"],
         },
         {
           name: "Set Pengumuman",

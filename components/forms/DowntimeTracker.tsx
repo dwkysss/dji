@@ -87,6 +87,8 @@ const PROBLEM_DETAILS: Record<string, string[]> = {
   ],
 };
 
+import { useAuth } from "@/lib/auth-context";
+
 interface DowntimeTrackerProps {
   control: any;
   watch: any;
@@ -122,6 +124,9 @@ export default function DowntimeTracker({
   isPanelType = false,
   viewMode = "all",
 }: DowntimeTrackerProps) {
+  const { user } = useAuth();
+  const isKepalaShiftOrAdmin = user?.role === "kepala_shift" || user?.role === "admin" || user?.role === "manager";
+
   const {
     connectionStatus,
     isSimulationMode,
@@ -1669,6 +1674,13 @@ export default function DowntimeTracker({
                               >
                                 <Lock className="w-3.5 h-3.5 text-slate-500" />
                               </div>
+                            ) : !isKepalaShiftOrAdmin ? (
+                              <div
+                                className="p-1.5 text-slate-400 bg-slate-100/70 rounded-lg shrink-0 self-start cursor-not-allowed border border-slate-200/80"
+                                title="Hanya Kepala Shift / Admin yang berwenang menghapus riwayat berhenti/cacat"
+                              >
+                                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                              </div>
                             ) : (
                               <button
                                 type="button"
@@ -1682,7 +1694,7 @@ export default function DowntimeTracker({
                                   }
                                 }}
                                 className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 self-start cursor-pointer"
-                                title="Hapus Downtime Manual"
+                                title="Hapus Downtime Manual (Khusus Kepala Shift / Admin)"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>

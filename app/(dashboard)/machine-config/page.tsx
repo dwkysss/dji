@@ -6,6 +6,8 @@ import {
   upsertAllMachineConfigs,
   getBlockRequiredDefects,
   saveBlockRequiredDefects,
+  getAllMaxPanelConfigs,
+  saveMaxPanelConfig,
   MachineConfig,
 } from "@/actions/machine-config-actions";
 import {
@@ -116,24 +118,28 @@ const FALLBACK_CATEGORIES: Record<string, { desc: string; items: string[] }> = {
 export default function MachineConfigPage() {
   const [configs, setConfigs] = useState<MachineConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"MACHINES" | "BLOCK_REQUIRED">("MACHINES");
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // Required block defects list
-  const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([]);
-  // Dynamic categories & details map
+  const [maxPanelMap, setMaxPanelMap] = useState<Record<string, number>>({});
   const [categoriesMap, setCategoriesMap] = useState<Record<string, { desc: string; items: string[] }>>(FALLBACK_CATEGORIES);
-
+  const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"MACHINES" | "BLOCK_REQUIRED">("MACHINES");
   const [toastMsg, setToastMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Machine Configs
-      const cfgRes = await getMachineConfigs();
+      // 1. Fetch Machine Configs & Max Panel Configs
+      const [cfgRes, maxRes] = await Promise.all([
+        getMachineConfigs(),
+        getAllMaxPanelConfigs(),
+      ]);
+
       if (cfgRes.success && cfgRes.data) {
         setConfigs(cfgRes.data);
+      }
+      if (maxRes.success && maxRes.data) {
+        setMaxPanelMap(maxRes.data);
       }
 
       // 2. Fetch Master Categories & Details to build dynamic groups
@@ -213,9 +219,15 @@ export default function MachineConfigPage() {
       localStorage.setItem("dji_required_block_defects", JSON.stringify(requiredBlockDefects));
       window.dispatchEvent(new Event("storage_dji_required_block_defects"));
 
+      // Save max panel configs
+      const maxPanelPromises = Object.entries(maxPanelMap).map(([mc, val]) =>
+        saveMaxPanelConfig(mc, val)
+      );
+
       const [res, blockSaveRes] = await Promise.all([
         upsertAllMachineConfigs(configs),
         saveBlockRequiredDefects(requiredBlockDefects),
+        ...maxPanelPromises,
       ]);
 
       if (res.success && blockSaveRes.success) {
@@ -421,6 +433,26 @@ export default function MachineConfigPage() {
                               setConfigs(newConfigs);
                             }}
                             className="w-14 h-8 text-center rounded-lg font-black text-[#0070bc] bg-slate-50 focus:bg-white border border-slate-200 outline-none text-xs"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-emerald-200/80 bg-emerald-50/20">
+                          <span className="text-xs font-extrabold text-emerald-700">
+                            Max Panel Def:
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Bebas"
+                            value={maxPanelMap[cfg.nomor_mc.toUpperCase().trim()] || ""}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              setMaxPanelMap((prev) => ({
+                                ...prev,
+                                [cfg.nomor_mc.toUpperCase().trim()]: val,
+                              }));
+                            }}
+                            className="w-16 h-8 text-center rounded-lg font-black text-emerald-800 bg-emerald-50/60 focus:bg-white border border-emerald-300 outline-none text-xs placeholder:text-slate-400 placeholder:font-normal"
                           />
                         </div>
 

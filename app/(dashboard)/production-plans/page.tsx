@@ -58,11 +58,15 @@ export default function ProductionPlansPage() {
   const handleOpenModal = (plan?: any) => {
     setErrorMsg(null);
     if (plan) {
-      setFormData({ ...plan });
+      setFormData({
+        ...plan,
+        max_panel: plan.max_panel !== undefined && plan.max_panel !== null ? plan.max_panel : "",
+      });
     } else {
       setFormData({
         nomor_mc: "",
         potongan_ke: "",
+        max_panel: "",
         design_id: "",
         pick: "",
         course: "",
@@ -187,6 +191,7 @@ export default function ProductionPlansPage() {
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Aksi</th>
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Mesin</th>
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Potongan</th>
+              <th className="px-3 py-2.5 font-bold text-emerald-700 uppercase tracking-wider">Max Panel</th>
               <th className="px-3 py-2.5 font-bold text-blue-600 uppercase tracking-wider">Target PCS</th>
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Design</th>
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Pick</th>
@@ -212,6 +217,15 @@ export default function ProductionPlansPage() {
                 </td>
                 <td className="px-3 py-1.5">
                   <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-bold">{p.potongan_ke}</span>
+                </td>
+                <td className="px-3 py-1.5">
+                  {p.max_panel ? (
+                    <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-bold shadow-xs">
+                      {p.max_panel} Panel
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 font-medium italic">-</span>
+                  )}
                 </td>
                 <td className="px-3 py-1.5">
                   <span className="bg-blue-100 text-blue-800 border border-blue-200 px-2 py-0.5 rounded font-bold">{p.pcs_count || 1} PCS</span>
@@ -288,7 +302,7 @@ export default function ProductionPlansPage() {
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-600 uppercase">Nomor Mesin *</label>
                   <select
@@ -315,6 +329,19 @@ export default function ProductionPlansPage() {
                     onChange={(e) => setFormData({ ...formData, potongan_ke: e.target.value })}
                     className="h-10 px-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none font-bold text-amber-600"
                     placeholder="Contoh: 550"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-emerald-700 uppercase flex items-center justify-between">
+                    <span>Max Panel</span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase">target</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.max_panel || ""}
+                    onChange={(e) => setFormData({ ...formData, max_panel: e.target.value })}
+                    className="h-10 px-3 rounded-xl border border-emerald-300 focus:border-emerald-500 outline-none font-bold text-emerald-800 bg-emerald-50/40"
+                    placeholder="Contoh: 50"
                   />
                 </div>
               </div>

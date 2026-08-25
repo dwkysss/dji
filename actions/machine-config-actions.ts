@@ -190,7 +190,7 @@ export async function saveBlockRequiredDefects(defects: string[]) {
         .upsert(payloads, { onConflict: "nomor_mc" });
 
       if (error) {
-        console.error("Error saving block required defects to DB:", error);
+        console.error("Error saving block required defects:", error);
         return { success: false, error: error.message };
       }
     }
@@ -202,3 +202,140 @@ export async function saveBlockRequiredDefects(defects: string[]) {
   }
 }
 
+export async function getMaxPanelConfig(
+  nomorMc: string,
+  potonganKe?: number | string
+): Promise<number | null> {
+  try {
+    const supabase = await createClient();
+    const mcUpper = String(nomorMc || "").toUpperCase().trim();
+
+    // 1. Check specific for MC + Potongan (e.g. MAX_PANEL:R1:1)
+    if (potonganKe !== undefined && potonganKe !== null && potonganKe !== "") {
+      const specificKey = `MAX_PANEL:${mcUpper}:${potonganKe}`;
+      const { data: specData } = await supabase
+        .from("machine_configs")
+        .select("default_pcs")
+        .eq("nomor_mc", specificKey)
+        .maybeSingle();
+
+      if (specData && specData.default_pcs > 0) {
+        return Number(specData.default_pcs);
+      }
+    }
+
+    // 2. Check for specific MC default (e.g. MAX_PANEL:R1)
+    const mcKey = `MAX_PANEL:${mcUpper}`;
+    const { data: mcData } = await supabase
+      .from("machine_configs")
+      .select("default_pcs")
+      .eq("nomor_mc", mcKey)
+      .maybeSingle();
+
+    if (mcData && mcData.default_pcs > 0) {
+      return Number(mcData.default_pcs);
+    }
+
+    // 3. Check for global default (e.g. MAX_PANEL:GLOBAL)
+    const { data: globalData } = await supabase
+      .from("machine_configs")
+      .select("default_pcs")
+      .eq("nomor_mc", "MAX_PANEL:GLOBAL")
+      .maybeSingle();
+
+    if (globalData && globalData.default_pcs > 0) {
+      return Number(globalData.default_pcs);
+    }
+
+    return null;
+  } catch (err) {
+    console.error("Error in getMaxPanelConfig:", err);
+    return null;
+  }
+}
+
+export async function saveMaxPanelConfig(
+  nomorMc: string,
+  maxPanel: number,
+  potonganKe?: number | string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const mcUpper = String(nomorMc || "").toUpperCase().trim();
+    const key =
+      potonganKe !== undefined && potonganKe !== null && potonganKe !== ""
+        ? `MAX_PANEL:${mcUpper}:${potonganKe}`
+        : `MAX_PANEL:${mcUpper}`;
+
+    const payload = {
+      nomor_mc: key,
+      default_pcs: Number(maxPanel),
+      input_type: "MAX_PANEL",
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("machine_configs")
+      .upsert(payload, { onConflict: "nomor_mc" });
+
+    if (error) throw error;
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error in saveMaxPanelConfig:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function deleteMaxPanelConfig(
+  nomorMc: string,
+  potonganKe?: number | string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const mcUpper = String(nomorMc || "").toUpperCase().trim();
+    const key =
+      potonganKe !== undefined && potonganKe !== null && potonganKe !== ""
+        ? `MAX_PANEL:${mcUpper}:${potonganKe}`
+        : `MAX_PANEL:${mcUpper}`;
+
+    const { error } = await supabase
+      .from("machine_configs")
+      .delete()
+      .eq("nomor_mc", key);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error in deleteMaxPanelConfig:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getAllMaxPanelConfigs(): Promise<{
+  success: boolean;
+  data: Record<string, number>;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("machine_configs")
+      .select("nomor_mc, default_pcs")
+      .like("nomor_mc", "MAX_PANEL:%");
+
+    if (error) throw error;
+
+    const map: Record<string, number> = {};
+    if (data && Array.isArray(data)) {
+      data.forEach((row: any) => {
+        const cleanKey = String(row.nomor_mc).replace("MAX_PANEL:", "");
+        map[cleanKey] = Number(row.default_pcs);
+      });
+    }
+
+    return { success: true, data: map };
+  } catch (err: any) {
+    console.error("Error in getAllMaxPanelConfigs:", err);
+    return { success: false, data: {} };
+  }
+}

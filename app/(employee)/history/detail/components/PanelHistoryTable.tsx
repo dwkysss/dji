@@ -723,8 +723,6 @@ export default function PanelHistoryTable({
               <td className="px-1 py-1 text-center border-r border-slate-100 font-bold text-sm">
                 {isDeleted ? (
                   <span className="text-slate-400 font-bold">-</span>
-                ) : isIstirahatOnly ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 inline-block" />
                 ) : hasRealError ? (
                   <span className="text-rose-600">X</span>
                 ) : (

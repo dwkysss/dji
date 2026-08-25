@@ -17,6 +17,7 @@ interface HeaderSummaryCardProps {
   statusMatching: string;
   potonganKe?: string | number;
   pcsCount?: number;
+  maxPanel?: number | null;
   showEditButton?: boolean;
   showEditButtonPlacement?: "right" | "bottom";
 }
@@ -30,6 +31,7 @@ function HeaderSummaryCard({
   statusMatching,
   potonganKe,
   pcsCount,
+  maxPanel,
   showEditButton = true,
   showEditButtonPlacement = "right",
 }: HeaderSummaryCardProps) {
@@ -76,11 +78,18 @@ function HeaderSummaryCard({
           </div>
 
           <div className="p-2.5 sm:p-3 lg:p-4 bg-sky-50/80">
-            <div className="flex items-center gap-1 mb-0.5">
-              <Box className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-sky-600 shrink-0" />
-              <span className="text-[9px] sm:text-[10px] font-bold text-sky-600 uppercase tracking-wider">
-                Potongan Ke
-              </span>
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <div className="flex items-center gap-1">
+                <Box className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-sky-600 shrink-0" />
+                <span className="text-[9px] sm:text-[10px] font-bold text-sky-600 uppercase tracking-wider">
+                  Potongan Ke
+                </span>
+              </div>
+              {maxPanel ? (
+                <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
+                  Max: {maxPanel}
+                </span>
+              ) : null}
             </div>
             <p className="text-xs sm:text-sm font-black text-slate-900 leading-tight break-words">
               {potonganKe || "-"}
@@ -182,9 +191,16 @@ function HeaderSummaryCard({
               <Box className="w-6 h-6" />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Potongan Ke
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Potongan Ke
+                </span>
+                {maxPanel ? (
+                  <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
+                    Max: {maxPanel} Panel
+                  </span>
+                ) : null}
+              </div>
               <span className="text-xl font-black text-slate-900 leading-tight truncate">
                 {potonganKe}
               </span>
