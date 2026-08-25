@@ -2,7 +2,7 @@
 
 import React from "react";
 import { CheckCircle, X, CheckCircle2, XCircle } from "lucide-react";
-import { PROBLEM_DETAILS } from "../../../page";
+import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 export default function PanelHistoryTable({

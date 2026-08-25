@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Trash2, CheckCircle, X, Edit3, Plus } from "lucide-react";
-import { PROBLEM_DETAILS } from "../page";
+import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering, getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
 
 export default function MeterQCTable({

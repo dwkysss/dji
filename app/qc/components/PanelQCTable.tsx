@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Eye, Trash2, CheckCircle, X, Edit3, Plus } from "lucide-react";
-import { PROBLEM_DETAILS } from "../page";
+import { PROBLEM_DETAILS } from "@/lib/constants";
 
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { CheckCircle2, XCircle, CheckCircle, X } from "lucide-react";
-import { PROBLEM_DETAILS } from "../../../page";
+import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering, getDefectMeterLength } from "@/lib/defect-format-utils";
 
 export default function MeterHistoryTable({

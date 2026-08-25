@@ -4,7 +4,7 @@ import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { searchEmployeeHistory, markPotonganAsCut } from "@/actions/employee-actions";
-import { deleteProductionDetailRow } from "@/actions/qc-actions";
+import { deleteProductionDetailRow, bulkDeleteProductionDetailRows } from "@/actions/qc-actions";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import {
   Loader2,
@@ -20,6 +20,7 @@ import {
   X,
   Trash2,
   AlertTriangle,
+  CheckSquare,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import PanelHistoryTable from "@/app/(employee)/history/detail/components/PanelHistoryTable";
@@ -47,15 +48,65 @@ function ShiftHistoryDetailContent() {
   const [isSubmittingMarkCut, setIsSubmittingMarkCut] = useState(false);
   const [markCutError, setMarkCutError] = useState<string | null>(null);
 
-  // Deletion Modal States (seperti di halaman Inspeksi QC)
+  // Single Deletion Modal States
   const [detailToDelete, setDetailToDelete] = useState<any | null>(null);
   const [pendingDeleteMode, setPendingDeleteMode] = useState<"shift" | "keep_slot" | null>(null);
   const [isDeletingDetail, setIsDeletingDetail] = useState(false);
+
+  // Bulk Selection & Deletion States
+  const [selectedDetailIds, setSelectedDetailIds] = useState<string[]>([]);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [pendingBulkDeleteMode, setPendingBulkDeleteMode] = useState<"shift" | "keep_slot" | null>(null);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleToggleSelectDetail = (id: string) => {
+    setSelectedDetailIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = (ids: string[]) => {
+    setSelectedDetailIds((prev) => {
+      const allIn = ids.every((id) => prev.includes(id));
+      if (allIn) {
+        return prev.filter((id) => !ids.includes(id));
+      } else {
+        const set = new Set([...prev, ...ids]);
+        return Array.from(set);
+      }
+    });
+  };
+
+  const handleBulkDelete = async (mode: "shift" | "keep_slot") => {
+    if (selectedDetailIds.length === 0) return;
+    setIsDeletingBulk(true);
+    try {
+      const res = await bulkDeleteProductionDetailRows(selectedDetailIds, mode);
+      if (res.success) {
+        showToast(
+          mode === "shift"
+            ? `${res.count || selectedDetailIds.length} baris data berhasil dihapus dan nomor panel digeser.`
+            : `${res.count || selectedDetailIds.length} baris data ditandai DIHAPUS (slot tetap).`
+        );
+        setSelectedDetailIds([]);
+        setIsBulkDeleteModalOpen(false);
+        setPendingBulkDeleteMode(null);
+        await fetchDetail();
+      } else {
+        showToast("Gagal menghapus: " + res.error, "error");
+      }
+    } catch (err: any) {
+      showToast("Terjadi kesalahan: " + err.message, "error");
+    } finally {
+      setIsDeletingBulk(false);
+    }
   };
 
   const fetchDetail = async () => {
@@ -487,11 +538,54 @@ function ShiftHistoryDetailContent() {
 
           return (
             <div className="mb-6">
-              {!isMeterReport && (
-                <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  Rincian per Panel
-                </h4>
-              )}
+              {/* Sticky Top Contextual Action Header */}
+              <div className="sticky top-3 z-30 mb-3 transition-all duration-200">
+                {selectedDetailIds.length > 0 ? (
+                  <div className="bg-slate-900/95 text-white backdrop-blur-md px-4 py-3 rounded-2xl border border-slate-700/80 shadow-2xl flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-top-3 duration-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-black text-sm">
+                        {selectedDetailIds.length}
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+                          <span>{selectedDetailIds.length} Baris Panel Dipilih</span>
+                        </h4>
+                        <p className="text-[11px] text-slate-400 hidden sm:block">
+                          Pilih aksi untuk baris panel yang telah dicentang
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDetailIds([])}
+                        className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs transition-all cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingBulkDeleteMode(null);
+                          setIsBulkDeleteModalOpen(true);
+                        }}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-xs shadow-md shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Hapus Terpilih ({selectedDetailIds.length})
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  !isMeterReport && (
+                    <h4 className="text-sm font-bold text-slate-800 py-1 flex items-center gap-2">
+                      Rincian per Panel
+                    </h4>
+                  )
+                )}
+              </div>
+
               <div className="w-full overflow-x-auto pb-4 custom-scrollbar bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <div className="flex w-max min-w-full gap-8">
                   {sortedPcsKeys.map((pcsKey) => {
@@ -542,12 +636,26 @@ function ShiftHistoryDetailContent() {
                             panels={panels}
                             pcsKey={pcsKey}
                             setDetailToDelete={setDetailToDelete}
+                            selectedDetailIds={selectedDetailIds}
+                            onToggleSelectDetail={handleToggleSelectDetail}
+                            onToggleSelectAll={handleToggleSelectAll}
+                            onRequestBulkDelete={() => {
+                              setPendingBulkDeleteMode(null);
+                              setIsBulkDeleteModalOpen(true);
+                            }}
                           />
                         ) : (
                           <PanelHistoryTable
                             panels={panels}
                             pcsKey={pcsKey}
                             setDetailToDelete={setDetailToDelete}
+                            selectedDetailIds={selectedDetailIds}
+                            onToggleSelectDetail={handleToggleSelectDetail}
+                            onToggleSelectAll={handleToggleSelectAll}
+                            onRequestBulkDelete={() => {
+                              setPendingBulkDeleteMode(null);
+                              setIsBulkDeleteModalOpen(true);
+                            }}
                           />
                         )}
                       </div>
@@ -727,6 +835,160 @@ function ShiftHistoryDetailContent() {
                       <Trash2 className="w-4 h-4" />
                     )}
                     Ya, Hapus Data
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL HAPUS MULTIPLE BARIS PANEL ================= */}
+      {isBulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+            {pendingBulkDeleteMode === null ? (
+              /* Step 1: Pilih Opsi Hapus */
+              <>
+                <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
+                  <AlertTriangle className="w-6 h-6 text-rose-600" />
+                </div>
+                <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
+                  Hapus {selectedDetailIds.length} Baris Panel
+                </h3>
+                <p className="text-xs text-center text-slate-500 mb-5">
+                  Pilih mode penghapusan untuk <strong>{selectedDetailIds.length} baris panel</strong> terpilih:
+                </p>
+
+                <div className="flex flex-col gap-3 mb-5">
+                  {/* Opsi 1: Hapus & Geser */}
+                  <button
+                    type="button"
+                    onClick={() => setPendingBulkDeleteMode("shift")}
+                    className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
+                      1
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
+                        <span>Hapus & Geser Nomor Panel</span>
+                        <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">
+                          Permanen
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                        Hapus seluruh baris terpilih secara permanen. Nomor panel yang tersisa akan digeser naik dan diurutkan kembali.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Opsi 2: Tandai Dihapus */}
+                  <button
+                    type="button"
+                    onClick={() => setPendingBulkDeleteMode("keep_slot")}
+                    className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
+                      2
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
+                        <span>Tandai Dihapus (Nomor Tetap)</span>
+                        <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">
+                          Nomor Tetap
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                        Nomor panel tetap di tempatnya dan diberi label <span className="font-semibold text-rose-600">DIHAPUS</span>, serta tidak dihitung dalam total penjumlahan panel.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsBulkDeleteModalOpen(false);
+                      setPendingBulkDeleteMode(null);
+                    }}
+                    className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Step 2: Konfirmasi */
+              <>
+                <div
+                  className={`w-12 h-12 rounded-full ${
+                    pendingBulkDeleteMode === "shift"
+                      ? "bg-rose-100 text-rose-600"
+                      : "bg-amber-100 text-amber-600"
+                  } flex items-center justify-center mb-3 mx-auto`}
+                >
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
+                  Konfirmasi Hapus Multiple
+                </h3>
+                <p className="text-xs text-center text-slate-500 mb-4">
+                  Apakah Anda yakin ingin menghapus <strong>{selectedDetailIds.length} baris panel</strong> terpilih?
+                </p>
+
+                {pendingBulkDeleteMode === "shift" ? (
+                  <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
+                    <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
+                      <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">
+                        1
+                      </span>
+                      Opsi 1: Hapus & Geser Nomor Panel
+                    </div>
+                    <p className="text-xs text-slate-700 leading-relaxed">
+                      Sebanyak <strong>{selectedDetailIds.length} baris panel</strong> akan <strong>dihapus permanen</strong> dan nomor panel setelahnya akan <strong>digeser naik</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
+                    <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
+                      <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">
+                        2
+                      </span>
+                      Opsi 2: Tandai Dihapus (Nomor Tetap)
+                    </div>
+                    <p className="text-xs text-slate-700 leading-relaxed">
+                      Sebanyak <strong>{selectedDetailIds.length} baris panel</strong> akan berstatus <strong>DIHAPUS</strong> (nomor panel tetap berada di posisinya).
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPendingBulkDeleteMode(null)}
+                    disabled={isDeletingBulk}
+                    className="flex-1 h-11 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 border border-slate-200 cursor-pointer"
+                  >
+                    Kembali
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkDelete(pendingBulkDeleteMode)}
+                    disabled={isDeletingBulk}
+                    className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${
+                      pendingBulkDeleteMode === "shift"
+                        ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20"
+                        : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"
+                    } shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
+                  >
+                    {isDeletingBulk ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    Ya, Hapus {selectedDetailIds.length} Baris
                   </button>
                 </div>
               </>

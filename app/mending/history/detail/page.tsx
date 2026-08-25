@@ -18,7 +18,7 @@ import {
   QrCode
 } from "lucide-react";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
-import { PROBLEM_DETAILS } from "../../../qc/page";
+import { PROBLEM_DETAILS } from "@/lib/constants";
 import { getAllDetailsForPcs, getMendingBatchById } from "@/actions/mending-actions";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 

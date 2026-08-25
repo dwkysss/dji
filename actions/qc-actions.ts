@@ -2076,6 +2076,68 @@ export async function bulkUpdateQCDetails(params: BulkQCDetailParams) {
   }
 }
 
+export async function bulkDeleteProductionDetailRows(
+  detailIds: string[],
+  mode: "shift" | "keep_slot"
+): Promise<{ success: boolean; error?: string; count?: number }> {
+  try {
+    if (!detailIds || detailIds.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    const supabase = await createClient();
+
+    if (mode === "keep_slot") {
+      const { error } = await supabase
+        .from("production_details")
+        .update({
+          is_deleted: true,
+          status_inspeksi: "Dihapus",
+          status_mending: "Dihapus",
+          jml_hasil_produksi: 0,
+          keterangan_cacat: "[DIHAPUS]",
+        })
+        .in("id", detailIds);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true, count: detailIds.length };
+    }
+
+    // Mode "shift": Sort by panel number descending to safely delete from highest to lowest
+    const { data: details, error: fetchErr } = await supabase
+      .from("production_details")
+      .select("id, header_id, pcs_index, production_headers(panel_no)")
+      .in("id", detailIds);
+
+    if (fetchErr) {
+      return { success: false, error: fetchErr.message };
+    }
+
+    const sortedDetails = (details || []).sort((a: any, b: any) => {
+      const pA = parseInt(a.production_headers?.panel_no || "0");
+      const pB = parseInt(b.production_headers?.panel_no || "0");
+      return pB - pA; // Descending
+    });
+
+    for (const d of sortedDetails) {
+      const res = await deleteProductionDetailRow(d.id, "shift");
+      if (!res.success) {
+        return { success: false, error: res.error };
+      }
+    }
+
+    return { success: true, count: detailIds.length };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || "Gagal menghapus baris data terpilih.",
+    };
+  }
+}
+
+
 
 
 

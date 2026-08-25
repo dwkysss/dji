@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { getBatchesForBarcode } from "@/actions/barcode-actions";
 import { getMachineConfigs } from "@/actions/machine-config-actions";
-import { REGISTERED_MACHINES } from "@/app/qc/page";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 import {
   Search,
   Loader2,

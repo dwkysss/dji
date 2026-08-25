@@ -334,7 +334,9 @@ export async function getMonthlyShiftPerformance(
       const pNo = String(header.panel_no || "").toUpperCase();
       const isBsAwalAkhir = pNo.includes("AWAL") || pNo.includes("AKHIR") || 
                            String(row.keterangan_cacat || "").toUpperCase().includes("SISA AWAL") ||
-                           String(row.keterangan_cacat || "").toUpperCase().includes("SISA AKHIR");
+                           String(row.keterangan_cacat || "").toUpperCase().includes("SISA AKHIR") ||
+                           String(row.detail_masalah || "").toUpperCase().includes("SISA AWAL") ||
+                           String(row.detail_masalah || "").toUpperCase().includes("SISA AKHIR");
 
       const isIstirahat = (!!row.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") ||
                            !!row.kategori_masalah?.toUpperCase().includes("ISTIRAHAT")) &&
@@ -367,7 +369,7 @@ export async function getMonthlyShiftPerformance(
 
       // Calculate Defects & Categories
       let defectCountForRow = 0;
-      const hasRealDefects = !isIstirahat && (
+      const hasRealDefects = !isIstirahat && !isBsAwalAkhir && (
         (row.production_defects && row.production_defects.length > 0) ||
         (row.kategori_masalah && row.kategori_masalah !== "G" && !String(row.kategori_masalah).includes("ISTIRAHAT")) ||
         (row.keterangan_cacat && (row.keterangan_cacat.includes("[TAMBAHAN QC]") || row.keterangan_cacat.includes("QC:")))

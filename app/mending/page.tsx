@@ -49,7 +49,7 @@ import {
   deleteTimerSession,
   getActiveTimerSessions,
 } from "@/actions/timer-actions";
-import { REGISTERED_MACHINES } from "@/app/qc/page";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 import MeterMendingTable from "./components/MeterMendingTable";
 import PanelMendingTable from "./components/PanelMendingTable";
 import { formatDefectLinesWithNumbering, getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";

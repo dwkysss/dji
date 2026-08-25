@@ -18,10 +18,10 @@ import {
   Filter, 
   Package,
   ArrowLeft,
-  Wrench
+  Wrench,
 } from "lucide-react";
 import * as xlsx from "xlsx";
-import { PROBLEM_DETAILS, REGISTERED_MACHINES } from "../../../qc/page";
+import { PROBLEM_DETAILS, REGISTERED_MACHINES } from "@/lib/constants";
 
 const cleanMeterVal = (val: any) => {
   if (val === null || val === undefined) return "";
@@ -57,7 +57,6 @@ const getActualMeter = (item: any, h: any) => {
 };
 
 import { calculateOverallGradeData, isBsAwalAkhir } from "@/lib/mending-grade-utils";
-export { calculateOverallGradeData, isBsAwalAkhir };
 
 export default function MendingProductionReportPage() {
   const [options, setOptions] = useState<{ mesins: string[], potongans: number[] }>({

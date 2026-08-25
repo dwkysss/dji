@@ -23,6 +23,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { getRealProductionsData } from "@/actions/dashboard-actions";
+import { isBsAwalAkhir } from "@/lib/mending-grade-utils";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 
 const DASHBOARD_TOUR_STEPS: ProductTourStep[] = [
@@ -591,6 +592,7 @@ export default function DashboardPage() {
       gradeScoped
         .filter(
           (item) =>
+            !isBsAwalAkhir(item) &&
             item.status_qc === "Recheck" &&
             item.is_production &&
             (item.hasil_meter || 0) === 0 &&
@@ -610,6 +612,7 @@ export default function DashboardPage() {
     // Cacat Meteran (Count raw detail problem rows, as they are points on a continuous fabric)
     const countMasalahMeteran = gradeScoped.filter(
       (item) =>
+        !isBsAwalAkhir(item) &&
         item.status_qc === "Recheck" &&
         item.is_production &&
         (item.posisi_meter || 0) > 0,
@@ -1025,7 +1028,7 @@ export default function DashboardPage() {
           downtimeHeaders: new Map(),
         };
       }
-      if (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")) {
+      if (!isBsAwalAkhir(item) && (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== ""))) {
         criticalMachineMap[item.mesin_id].defects += 1;
       }
       criticalMachineMap[item.mesin_id].downtimeHeaders.set(
@@ -1089,9 +1092,10 @@ export default function DashboardPage() {
     if (paretoGroupBy === "KATEGORI") {
       const problemData = transactionsToAnalyze.filter(
         (item) =>
-          item.grade === "BS" ||
+          !isBsAwalAkhir(item) &&
+          (item.grade === "BS" ||
           (item.kategori_masalah && item.kategori_masalah.trim() !== "") ||
-          (item.detail_masalah && item.detail_masalah.trim() !== "")
+          (item.detail_masalah && item.detail_masalah.trim() !== ""))
       );
 
       const PROBLEM_DETAILS_MAP: Record<string, string[]> = {
@@ -1213,15 +1217,28 @@ export default function DashboardPage() {
           detailsList = item.detail_masalah.split(",").map(d => d.trim()).filter(d => d !== "");
         }
 
+        // Filter out any non-defect / scrap entries from detailsList
+        detailsList = detailsList.filter((det) => {
+          const upper = det.toUpperCase();
+          return (
+            !upper.includes("SISA AWAL") &&
+            !upper.includes("SISA AKHIR") &&
+            !upper.includes("POTONGAN AWAL") &&
+            !upper.includes("POTONGAN AKHIR") &&
+            !upper.includes("SISA POTONGAN") &&
+            upper !== "START" &&
+            upper !== "FINISH" &&
+            upper !== "ISTIRAHAT"
+          );
+        });
+
         if (detailsList.length === 0) {
           if (item.kategori_masalah && item.kategori_masalah.trim() !== "" && item.kategori_masalah !== "X") {
             const cat = item.kategori_masalah.trim().toUpperCase();
             const desc = CATEGORY_NAMES[cat] || "Masalah Lain";
             detailsList.push(`[${cat}] ${desc}`);
-          } else if (item.grade === "BS") {
+          } else if (item.grade === "BS" && !isBsAwalAkhir(item)) {
             detailsList.push("[X] Panel BS (Tanpa Detail)");
-          } else {
-            detailsList.push("[X] Masalah Lain");
           }
         }
 
@@ -1249,6 +1266,7 @@ export default function DashboardPage() {
     } else {
       // Group by MESIN: hitung jumlah kejadian masalah/cacat sesungguhnya per mesin
       transactionsToAnalyze.forEach((item) => {
+        if (isBsAwalAkhir(item)) return;
         const isDefect = item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "");
         const downtime = item.total_downtime_detik || 0;
         if (!isDefect && downtime === 0) return;
@@ -1318,24 +1336,18 @@ export default function DashboardPage() {
     if (chartGradeFilter === "GRADE_B") return "Grade B";
     if (chartGradeFilter === "BS") return "BS";
     if (chartGradeFilter === "UNGRADED") return "Belum Diinspeksi";
-    return "Semua";
+    return "Semua Grade";
   }, [chartGradeFilter]);
 
   // Filter criteria logic
   const filteredData = useMemo(() => {
     const validProductionData = dateFilteredTransactions.filter(
-      (item) =>
-        !item.is_dummy_downtime &&
-        item.panel_no_str !== "Downtime Mekanik (Direct)" &&
-        item.panel_no_str !== "BERHENTI" &&
-        !String(item.panel_no_str || "").includes("Downtime")
+      (item) => item.is_production,
     );
 
     switch (activeFilter) {
       case "LOLOS":
-        return validProductionData.filter(
-          (item) => item.status_qc === "Lolos",
-        );
+        return validProductionData.filter((item) => item.status_qc === "Lolos");
       case "EFISIENSI":
         return validProductionData.filter((item) => {
           const ef =
@@ -1344,7 +1356,7 @@ export default function DashboardPage() {
         });
       case "PROBLEMS":
         return dateFilteredTransactions.filter(
-          (item) => item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== ""),
+          (item) => !isBsAwalAkhir(item) && (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")),
         );
       case "NOL_PRODUKSI":
         return validProductionData.filter((item) => item.hasil_pcs === 0);
@@ -1377,7 +1389,8 @@ export default function DashboardPage() {
 
     const problemData = dateFilteredTransactions.filter(
       (item) =>
-        item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== ""),
+        !isBsAwalAkhir(item) &&
+        (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")),
     );
     const catMap = new Map<string, number>();
 

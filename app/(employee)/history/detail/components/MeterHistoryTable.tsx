@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Edit, CheckCircle2, XCircle, Trash2 } from "lucide-react";
-import { PROBLEM_DETAILS } from "@/app/qc/page";
+import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 const formatWibTime = (dateVal?: string): string => {
@@ -52,11 +52,19 @@ export default function MeterHistoryTable({
   pcsKey,
   downtimeRecords,
   setDetailToDelete,
+  selectedDetailIds,
+  onToggleSelectDetail,
+  onToggleSelectAll,
+  onRequestBulkDelete,
 }: {
   panels: any[];
   pcsKey: string;
   downtimeRecords?: any[];
   setDetailToDelete?: (val: any) => void;
+  selectedDetailIds?: string[];
+  onToggleSelectDetail?: (id: string) => void;
+  onToggleSelectAll?: (ids: string[]) => void;
+  onRequestBulkDelete?: () => void;
 }) {
   const header = panels[0] || {};
   const actualDowntimeRecords = downtimeRecords || panels.flatMap(p => p.downtime_records || []);
@@ -593,10 +601,40 @@ export default function MeterHistoryTable({
     return items;
   }, [detailsToDisplay, panels]);
 
+  const selectableIds = React.useMemo(() => {
+    return displayItems
+      .filter((it: any) => !it.isTotalRow && !it.isStartRow && it.db_id && it.cacatDisplay !== "START")
+      .map((it: any) => it.db_id);
+  }, [displayItems]);
+
+  const isAllSelected =
+    selectableIds.length > 0 &&
+    selectableIds.every((id) => selectedDetailIds?.includes(id));
+  const isSomeSelected =
+    selectableIds.some((id) => selectedDetailIds?.includes(id)) && !isAllSelected;
+
   return (
     <table className="w-full text-left border-collapse text-xs">
       <thead>
         <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+          {onToggleSelectDetail && (
+            <th className="px-1 py-2 w-7 text-center border-r border-slate-100">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = isSomeSelected;
+                }}
+                onChange={() => {
+                  if (onToggleSelectAll) {
+                    onToggleSelectAll(selectableIds);
+                  }
+                }}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                title="Pilih Semua Baris di PCS ini"
+              />
+            </th>
+          )}
           <th className="px-1 py-2 w-8 text-center border-r border-slate-100">NO</th>
           <th className="px-1 py-2 w-20 border-r border-slate-100">TGL</th>
           <th className="px-1 py-2 w-14 text-center border-r border-slate-100">JAM</th>
@@ -614,7 +652,7 @@ export default function MeterHistoryTable({
           if (item.isTotalRow) {
             return (
               <tr key={item.id || index} className="bg-slate-100 border-t-2 border-b-2 border-slate-300">
-                <td colSpan={10} className="px-3 py-2 text-center text-xs font-semibold text-slate-600">
+                <td colSpan={onToggleSelectDetail ? 11 : 10} className="px-3 py-2 text-center text-xs font-semibold text-slate-600">
                   {item.totalLabel} <span className="font-extrabold text-slate-800 ml-1">{item.totalMeter}</span>
                 </td>
               </tr>
@@ -624,6 +662,11 @@ export default function MeterHistoryTable({
           if (item.isStartRow) {
             return (
               <tr key={item.id || index} className="hover:bg-slate-50 transition-colors">
+                {onToggleSelectDetail && (
+                  <td className="px-1 py-1.5 text-center text-xs text-slate-300 border-r border-slate-100 border-b border-slate-100">
+                    -
+                  </td>
+                )}
                 <td className="px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100">
                   {item.displayNo}
                 </td>
@@ -688,7 +731,11 @@ export default function MeterHistoryTable({
 
           const hasMeterDefect = hasRealError;
           const isRowQcModified = item.hasTambahanQC || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
-          const rowBgClass = isRowQcModified
+          const isSelected = !!(selectedDetailIds && item.db_id && selectedDetailIds.includes(item.db_id));
+
+          const rowBgClass = isSelected
+            ? "bg-rose-50/70 hover:bg-rose-100/60 border-y border-rose-200"
+            : isRowQcModified
             ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
             : item.hasIstirahat
             ? "bg-amber-50/30"
@@ -711,7 +758,21 @@ export default function MeterHistoryTable({
 
           return (
             <tr key={item.id || index} className={`${rowBgClass} transition-colors`}>
-              <td className={`px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 ${isRowQcModified ? "bg-sky-100/70" : ""}`}>
+              {onToggleSelectDetail && (
+                <td className={`px-1 py-1.5 text-center text-xs border-r border-slate-100 border-b border-slate-100 ${isSelected ? "bg-rose-100/80" : ""}`}>
+                  {item.db_id && !item.isStartRow && item.cacatDisplay !== "START" ? (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggleSelectDetail(item.db_id)}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    />
+                  ) : (
+                    <span className="text-slate-300">-</span>
+                  )}
+                </td>
+              )}
+              <td className={`px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 ${isSelected ? "bg-rose-100/80" : isRowQcModified ? "bg-sky-100/70" : ""}`}>
                 <div className="flex flex-col items-center justify-center">
                   <span>{item.displayNo}</span>
                   {isRowQcModified && (
@@ -799,14 +860,26 @@ export default function MeterHistoryTable({
                     {setDetailToDelete && item.db_id && !item.isStartRow && item.cacatDisplay !== "START" && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setDetailToDelete({
-                            id: item.db_id,
-                            name: `Meter: ${item.meterDisplay || "-"} - ${item.cacatDisplay || "Normal"}`,
-                          })
+                        onClick={() => {
+                          if (isSelected && onRequestBulkDelete) {
+                            onRequestBulkDelete();
+                          } else {
+                            setDetailToDelete({
+                              id: item.db_id,
+                              name: `Meter: ${item.meterDisplay || "-"} - ${item.cacatDisplay || "Normal"}`,
+                            });
+                          }
+                        }}
+                        className={`inline-flex items-center justify-center p-1.5 rounded transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-rose-600 text-white hover:bg-rose-700 shadow-xs"
+                            : "hover:bg-rose-100 text-rose-600"
+                        }`}
+                        title={
+                          isSelected
+                            ? `Hapus ${selectedDetailIds?.length} data terpilih bersamaan`
+                            : "Hapus Data Baris Ini"
                         }
-                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
-                        title="Hapus Data Baris Ini"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

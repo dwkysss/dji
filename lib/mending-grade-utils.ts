@@ -1,14 +1,28 @@
 import { calculateMeterDefectPoints } from "@/lib/defect-format-utils";
 
 export const isBsAwalAkhir = (item: any): boolean => {
+  if (!item) return false;
   const pNo = String(
     item.panelNo ||
       item.panel_no ||
+      item.panel_no_str ||
       item.keterangan_cacat ||
+      item.detail_masalah ||
+      item.keterangan ||
       item.detail?.keterangan_cacat ||
+      item.detail?.detail_masalah ||
+      item.detail?.panel_no ||
       ""
   ).toUpperCase();
-  return pNo.includes("AWAL") || pNo.includes("AKHIR");
+  return (
+    pNo.includes("AWAL") ||
+    pNo.includes("AKHIR") ||
+    pNo.includes("SISA AWAL") ||
+    pNo.includes("SISA AKHIR") ||
+    pNo.includes("SISA POTONGAN") ||
+    pNo.includes("POTONGAN AWAL") ||
+    pNo.includes("POTONGAN AKHIR")
+  );
 };
 
 export const calculateOverallGradeData = (

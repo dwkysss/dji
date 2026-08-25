@@ -47,7 +47,7 @@ import {
   ShiftDailyTrend,
 } from "@/actions/shift-performance-actions";
 import { getMachineStatuses } from "@/actions/dashboard-actions";
-import { REGISTERED_MACHINES } from "@/app/qc/page";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 
 const MONTH_NAMES = [
   "Januari",

@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Edit, CheckCircle2, XCircle, Trash2 } from "lucide-react";
-import { PROBLEM_DETAILS } from "@/app/qc/page";
+import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 
 const formatWibTime = (dateVal?: string): string => {
@@ -45,11 +45,19 @@ export default function PanelHistoryTable({
   pcsKey,
   downtimeRecords,
   setDetailToDelete,
+  selectedDetailIds,
+  onToggleSelectDetail,
+  onToggleSelectAll,
+  onRequestBulkDelete,
 }: {
   panels: any[];
   pcsKey: string;
   downtimeRecords?: any[];
   setDetailToDelete?: (val: any) => void;
+  selectedDetailIds?: string[];
+  onToggleSelectDetail?: (id: string) => void;
+  onToggleSelectAll?: (ids: string[]) => void;
+  onRequestBulkDelete?: () => void;
 }) {
   const header = panels[0] || {};
   const actualDowntimeRecords = downtimeRecords || panels.flatMap(p => p.downtime_records || []);
@@ -219,10 +227,48 @@ export default function PanelHistoryTable({
     return items;
   }, [detailsToDisplay, panels]);
 
+  const selectableIds = React.useMemo(() => {
+    return displayItems
+      .filter(
+        (it: any) =>
+          !it.isTotalRow &&
+          it.id &&
+          !String(it.displayNo).toUpperCase().includes("AWAL") &&
+          !String(it.displayNo).toUpperCase().includes("AKHIR") &&
+          it.status_inspeksi !== "Dihapus" &&
+          !it.is_deleted
+      )
+      .map((it: any) => it.id);
+  }, [displayItems]);
+
+  const isAllSelected =
+    selectableIds.length > 0 &&
+    selectableIds.every((id) => selectedDetailIds?.includes(id));
+  const isSomeSelected =
+    selectableIds.some((id) => selectedDetailIds?.includes(id)) && !isAllSelected;
+
   return (
     <table className="w-full text-left border-collapse text-xs">
       <thead>
         <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+          {onToggleSelectDetail && (
+            <th className="px-1 py-2 w-7 text-center border-r border-slate-100">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = isSomeSelected;
+                }}
+                onChange={() => {
+                  if (onToggleSelectAll) {
+                    onToggleSelectAll(selectableIds);
+                  }
+                }}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                title="Pilih Semua Baris di PCS ini"
+              />
+            </th>
+          )}
           <th className="px-1 py-2 w-8 text-center border-r border-slate-100">PNL</th>
           <th className="px-1 py-2 w-20 border-r border-slate-100">TGL</th>
           <th className="px-1 py-2 w-14 text-center border-r border-slate-100">JAM</th>
@@ -239,7 +285,7 @@ export default function PanelHistoryTable({
           if (item.isTotalRow) {
             return (
               <tr key={item.id || idx} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
-                <td colSpan={5} className="px-3 py-2 text-right whitespace-nowrap">
+                <td colSpan={onToggleSelectDetail ? 6 : 5} className="px-3 py-2 text-right whitespace-nowrap">
                   {item.totalLabel}
                 </td>
                 <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap">
@@ -565,7 +611,11 @@ export default function PanelHistoryTable({
             (detail.production_defects && detail.production_defects.some((d: any) => (d.detail || "").toUpperCase().includes("GAGAL CACAT") || (d.kategori || "").toUpperCase() === "G"))
           ) && !hasRealError;
 
-          const rowBgClass = isDeleted
+          const isSelected = !!(selectedDetailIds && detail.id && selectedDetailIds.includes(detail.id));
+
+          const rowBgClass = isSelected
+            ? "bg-rose-50/70 hover:bg-rose-100/60 border-y border-rose-200"
+            : isDeleted
             ? "bg-slate-100/60 opacity-80"
             : isRowQcModified
             ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
@@ -573,7 +623,9 @@ export default function PanelHistoryTable({
             ? "bg-amber-50/30 hover:bg-amber-50/50"
             : "hover:bg-slate-50";
 
-          const stickyCellBgClass = isDeleted
+          const stickyCellBgClass = isSelected
+            ? "bg-rose-100/80"
+            : isDeleted
             ? "bg-slate-100"
             : isRowQcModified
             ? "bg-sky-100/70"
@@ -583,6 +635,20 @@ export default function PanelHistoryTable({
 
           return (
             <tr key={item.id || idx} className={`${rowBgClass} transition-colors`}>
+              {onToggleSelectDetail && (
+                <td className={`px-1 py-1 text-center border-r border-slate-100 ${stickyCellBgClass}`}>
+                  {detail.id && !String(item.displayNo).toUpperCase().includes("AWAL") && !String(item.displayNo).toUpperCase().includes("AKHIR") && !isDeleted ? (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggleSelectDetail(detail.id)}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    />
+                  ) : (
+                    <span className="text-slate-300">-</span>
+                  )}
+                </td>
+              )}
               <td className={`px-1 py-1 font-bold text-slate-800 text-center border-r border-slate-100 flex flex-col items-center justify-center ${stickyCellBgClass}`}>
                 {String(item.displayNo).toUpperCase().includes("AWAL") ? (
                   <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
@@ -721,15 +787,27 @@ export default function PanelHistoryTable({
                     {setDetailToDelete && detail.id && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setDetailToDelete({
-                            id: detail.id,
-                            panelNo: item.displayNo,
-                            name: `${detail.kategori_masalah || "Panel"} - ${detail.detail_masalah || "Normal"}`,
-                          })
+                        onClick={() => {
+                          if (isSelected && onRequestBulkDelete) {
+                            onRequestBulkDelete();
+                          } else {
+                            setDetailToDelete({
+                              id: detail.id,
+                              panelNo: item.displayNo,
+                              name: `${detail.kategori_masalah || "Panel"} - ${detail.detail_masalah || "Normal"}`,
+                            });
+                          }
+                        }}
+                        className={`inline-flex items-center justify-center p-1.5 rounded transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-rose-600 text-white hover:bg-rose-700 shadow-xs"
+                            : "hover:bg-rose-100 text-rose-600"
+                        }`}
+                        title={
+                          isSelected
+                            ? `Hapus ${selectedDetailIds?.length} data terpilih bersamaan`
+                            : "Hapus Data Baris Ini"
                         }
-                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
-                        title="Hapus Data Baris Ini"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

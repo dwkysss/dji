@@ -1,23 +1,39 @@
 {
+  "id": "/",
   "name": "DJI Portal Produksi",
   "short_name": "DJI Produksi",
-  "description": "Portal Input Data Produksi & QC",
-  "start_url": "/dashboard",
+  "description": "Portal Input Data Produksi, QC, & Monitoring DJI",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#0070bc",
+  "categories": ["business", "productivity"],
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/logo.png",
+      "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
