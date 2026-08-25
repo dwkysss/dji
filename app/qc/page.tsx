@@ -360,7 +360,7 @@ export default function QCPage() {
   const [detailData, setDetailData] = useState<any | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailToDelete, setDetailToDelete] = useState<any>(null);
-  const [pendingDeleteMode, setPendingDeleteMode] = useState<"shift" | "keep_slot" | null>(null);
+  const [pendingDeleteMode, setPendingDeleteMode] = useState<"permanent" | "keep_slot" | null>(null);
   const [insertPanelMode, setInsertPanelMode] = useState<"insert" | "append" | null>(null);
   const [insertPanelAt, setInsertPanelAt] = useState<string>("");
   const [isInsertingPanel, setIsInsertingPanel] = useState(false);
@@ -700,6 +700,16 @@ export default function QCPage() {
         const numB = parseInt(panelB, 10);
         if (!isNaN(numA) && !isNaN(numB)) {
           if (numA !== numB) return numA - numB;
+          const isQcA = !!a.isPanelInsertedByQc || !!a.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!a.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!a.hasTambahanQC || !!a.hasTambahanMnd || (!!a.keterangan_qc && a.keterangan_qc !== "-");
+          const isQcB = !!b.isPanelInsertedByQc || !!b.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!b.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!b.hasTambahanQC || !!b.hasTambahanMnd || (!!b.keterangan_qc && b.keterangan_qc !== "-");
+          if (!isQcA && isQcB) return -1;
+          if (isQcA && !isQcB) return 1;
+          const diffJml = (b.jml_hasil_produksi || 0) - (a.jml_hasil_produksi || 0);
+          if (diffJml !== 0) return diffJml;
+          const timeA = new Date(a.created_at || a.created_date || 0).getTime();
+          const timeB = new Date(b.created_at || b.created_date || 0).getTime();
+          if (timeA !== timeB && !isNaN(timeA) && !isNaN(timeB)) return timeA - timeB;
+          return String(a.id || "").localeCompare(String(b.id || ""));
         }
         return String(panelA || "").localeCompare(String(panelB || ""), undefined, { numeric: true });
       }
@@ -1108,7 +1118,7 @@ export default function QCPage() {
     }
   };
 
-  const handleDeletePanel = async (mode: "shift" | "keep_slot" = "shift") => {
+  const handleDeletePanel = async (mode: "permanent" | "keep_slot" = "permanent") => {
     if (!detailToDelete || !activeQcPcs) return;
     setIsDeleting(true);
     try {
@@ -1926,7 +1936,7 @@ export default function QCPage() {
                   Tambah Panel
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  Pilih apakah ingin menyisipkan panel baru di urutan tertentu atau menambahkannya di bagian paling akhir.
+                  Pilih apakah ingin menyisipkan panel di nomor tertentu (label DOUBLE) atau menambahkannya di bagian paling akhir.
                 </p>
               </div>
 
@@ -1970,7 +1980,7 @@ export default function QCPage() {
                       }`}
                     >
                       <span className="text-xs font-extrabold">Sisipkan Tengah</span>
-                      <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Posisi tertentu</span>
+                      <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Duplikat (DOUBLE)</span>
                     </button>
                   </div>
                 </div>
@@ -1988,6 +1998,9 @@ export default function QCPage() {
                       className="w-full h-11 px-4 rounded-xl border-2 border-slate-200 focus:border-[#0070bc] focus:ring-4 focus:ring-[#0070bc]/10 outline-none font-medium text-slate-700 transition-all"
                       placeholder="Contoh: 3"
                     />
+                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2 leading-tight">
+                      ℹ️ Panel berikutnya <strong>tidak bergeser</strong>. Panel {insertPanelAt || "target"} akan memiliki 2 baris dengan badge <strong>DOUBLE</strong>.
+                    </p>
                   </div>
                 )}
 
@@ -2018,7 +2031,7 @@ export default function QCPage() {
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-500 mt-1 pl-6 leading-tight">
-                        Nomor panel tidak bergeser, panel {insertPanelAt || "?"} jadi 2 baris (Normal & BS).
+                        Tandai baris ini sebagai panel sisa/BS.
                       </p>
                     </label>
                   ) : null}
@@ -2242,10 +2255,10 @@ export default function QCPage() {
                   </p>
                   
                   <div className="flex flex-col gap-3 mb-5">
-                    {/* Opsi 1: Hapus & Geser */}
+                    {/* Opsi 1: Hapus Baris Panel (Permanen / Nomor Tetap) */}
                     <button
                       type="button"
-                      onClick={() => setPendingDeleteMode("shift")}
+                      onClick={() => setPendingDeleteMode("permanent")}
                       className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
                     >
                       <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
@@ -2253,11 +2266,11 @@ export default function QCPage() {
                       </div>
                       <div className="flex-1">
                         <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
-                          <span>Hapus & Geser Nomor Panel</span>
+                          <span>Hapus Baris Panel</span>
                           <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Permanen</span>
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                          Hapus data baris ini sepenuhnya. Nomor panel berikutnya akan digeser naik 1 angka (contoh: Panel 4 jadi Panel 3).
+                          Hapus data baris ini sepenuhnya dari database. Nomor panel lain <span className="font-semibold text-rose-600">tidak akan bergeser</span>.
                         </p>
                       </div>
                     </button>
@@ -2299,7 +2312,7 @@ export default function QCPage() {
               ) : (
                 /* Step 2: Layar Konfirmasi Kedua */
                 <>
-                  <div className={`w-12 h-12 rounded-full ${pendingDeleteMode === "shift" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"} flex items-center justify-center mb-3 mx-auto`}>
+                  <div className={`w-12 h-12 rounded-full ${pendingDeleteMode === "permanent" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"} flex items-center justify-center mb-3 mx-auto`}>
                     <AlertTriangle className="w-6 h-6" />
                   </div>
                   <h3 className="text-lg font-bold text-center text-slate-800 mb-1">Konfirmasi Penghapusan</h3>
@@ -2307,14 +2320,14 @@ export default function QCPage() {
                     Apakah Anda yakin ingin melanjutkan tindakan ini?
                   </p>
 
-                  {pendingDeleteMode === "shift" ? (
+                  {pendingDeleteMode === "permanent" ? (
                     <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
                       <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
                         <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">1</span>
-                        Opsi 1: Hapus & Geser Nomor Panel
+                        Opsi 1: Hapus Baris Panel (Permanen)
                       </div>
                       <p className="text-xs text-slate-700 leading-relaxed">
-                        Data baris <span className="font-semibold text-rose-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>dihapus permanen</strong> dan nomor panel setelahnya akan <strong>digeser naik 1 nomor</strong>.
+                        Data baris <span className="font-semibold text-rose-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>dihapus permanen</strong>. Nomor panel lain <strong>tidak akan bergeser</strong>.
                       </p>
                     </div>
                   ) : (
@@ -2342,7 +2355,7 @@ export default function QCPage() {
                       type="button"
                       onClick={() => handleDeletePanel(pendingDeleteMode)}
                       disabled={isDeleting}
-                      className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${pendingDeleteMode === "shift" ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20" : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"} shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
+                      className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${pendingDeleteMode === "permanent" ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20" : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"} shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
                     >
                       {isDeleting ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

@@ -50,13 +50,13 @@ function ShiftHistoryDetailContent() {
 
   // Single Deletion Modal States
   const [detailToDelete, setDetailToDelete] = useState<any | null>(null);
-  const [pendingDeleteMode, setPendingDeleteMode] = useState<"shift" | "keep_slot" | null>(null);
+  const [pendingDeleteMode, setPendingDeleteMode] = useState<"permanent" | "keep_slot" | "shift" | null>(null);
   const [isDeletingDetail, setIsDeletingDetail] = useState(false);
 
   // Bulk Selection & Deletion States
   const [selectedDetailIds, setSelectedDetailIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
-  const [pendingBulkDeleteMode, setPendingBulkDeleteMode] = useState<"shift" | "keep_slot" | null>(null);
+  const [pendingBulkDeleteMode, setPendingBulkDeleteMode] = useState<"permanent" | "keep_slot" | "shift" | null>(null);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
 
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -84,7 +84,7 @@ function ShiftHistoryDetailContent() {
     });
   };
 
-  const handleBulkDelete = async (mode: "shift" | "keep_slot") => {
+  const handleBulkDelete = async (mode: "permanent" | "keep_slot" | "shift") => {
     if (selectedDetailIds.length === 0) return;
     setIsDeletingBulk(true);
     try {
@@ -93,6 +93,8 @@ function ShiftHistoryDetailContent() {
         showToast(
           mode === "shift"
             ? `${res.count || selectedDetailIds.length} baris data berhasil dihapus dan nomor panel digeser.`
+            : mode === "permanent"
+            ? `${res.count || selectedDetailIds.length} baris data berhasil dihapus permanen.`
             : `${res.count || selectedDetailIds.length} baris data ditandai DIHAPUS (slot tetap).`
         );
         setSelectedDetailIds([]);
@@ -151,7 +153,7 @@ function ShiftHistoryDetailContent() {
     fetchDetail();
   }, [nomor_mc, design_id, potongan_ke, tgl]);
 
-  const handleDeletePanel = async (mode: "shift" | "keep_slot") => {
+  const handleDeletePanel = async (mode: "permanent" | "keep_slot" | "shift") => {
     if (!detailToDelete) return;
     setIsDeletingDetail(true);
     try {
@@ -160,6 +162,8 @@ function ShiftHistoryDetailContent() {
         showToast(
           mode === "shift"
             ? "Data baris berhasil dihapus dan nomor panel digeser."
+            : mode === "permanent"
+            ? "Data baris berhasil dihapus permanen."
             : "Data baris ditandai DIHAPUS (slot tetap)."
         );
         setDetailToDelete(null);
@@ -692,10 +696,10 @@ function ShiftHistoryDetailContent() {
                 </p>
 
                 <div className="flex flex-col gap-3 mb-5">
-                  {/* Opsi 1: Hapus & Geser */}
+                  {/* Opsi 1: Hapus Baris Panel (Permanen / Nomor Tetap) */}
                   <button
                     type="button"
-                    onClick={() => setPendingDeleteMode("shift")}
+                    onClick={() => setPendingDeleteMode("permanent")}
                     className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
                   >
                     <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
@@ -703,13 +707,13 @@ function ShiftHistoryDetailContent() {
                     </div>
                     <div className="flex-1">
                       <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
-                        <span>Hapus & Geser Nomor Panel</span>
+                        <span>Hapus Baris Panel</span>
                         <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">
                           Permanen
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                        Hapus data baris ini sepenuhnya. Nomor panel berikutnya akan digeser naik 1 angka (contoh: Panel 4 jadi Panel 3).
+                        Hapus data baris ini sepenuhnya dari database. Nomor panel lain <span className="font-semibold text-rose-600">tidak akan bergeser</span>.
                       </p>
                     </div>
                   </button>
@@ -756,7 +760,7 @@ function ShiftHistoryDetailContent() {
               <>
                 <div
                   className={`w-12 h-12 rounded-full ${
-                    pendingDeleteMode === "shift"
+                    pendingDeleteMode === "permanent"
                       ? "bg-rose-100 text-rose-600"
                       : "bg-amber-100 text-amber-600"
                   } flex items-center justify-center mb-3 mx-auto`}
@@ -770,13 +774,13 @@ function ShiftHistoryDetailContent() {
                   Apakah Anda yakin ingin melanjutkan tindakan ini?
                 </p>
 
-                {pendingDeleteMode === "shift" ? (
+                {pendingDeleteMode === "permanent" ? (
                   <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
                     <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
                       <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">
                         1
                       </span>
-                      Opsi 1: Hapus & Geser Nomor Panel
+                      Opsi 1: Hapus Baris Panel (Permanen)
                     </div>
                     <p className="text-xs text-slate-700 leading-relaxed">
                       Data baris{" "}
@@ -785,8 +789,8 @@ function ShiftHistoryDetailContent() {
                           ? `Panel ${detailToDelete.panelNo}`
                           : detailToDelete.name}
                       </span>{" "}
-                      akan <strong>dihapus permanen</strong> dan nomor panel setelahnya akan{" "}
-                      <strong>digeser naik 1 nomor</strong>.
+                      akan <strong>dihapus permanen</strong>. Nomor panel lain{" "}
+                      <strong>tidak akan bergeser</strong>.
                     </p>
                   </div>
                 ) : (
@@ -824,7 +828,7 @@ function ShiftHistoryDetailContent() {
                     onClick={() => handleDeletePanel(pendingDeleteMode)}
                     disabled={isDeletingDetail}
                     className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${
-                      pendingDeleteMode === "shift"
+                      pendingDeleteMode === "permanent"
                         ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20"
                         : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"
                     } shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
@@ -861,10 +865,10 @@ function ShiftHistoryDetailContent() {
                 </p>
 
                 <div className="flex flex-col gap-3 mb-5">
-                  {/* Opsi 1: Hapus & Geser */}
+                  {/* Opsi 1: Hapus Baris Panel Terpilih (Permanen) */}
                   <button
                     type="button"
-                    onClick={() => setPendingBulkDeleteMode("shift")}
+                    onClick={() => setPendingBulkDeleteMode("permanent")}
                     className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
                   >
                     <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
@@ -872,13 +876,13 @@ function ShiftHistoryDetailContent() {
                     </div>
                     <div className="flex-1">
                       <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
-                        <span>Hapus & Geser Nomor Panel</span>
+                        <span>Hapus Baris Panel Terpilih</span>
                         <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">
                           Permanen
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                        Hapus seluruh baris terpilih secara permanen. Nomor panel yang tersisa akan digeser naik dan diurutkan kembali.
+                        Hapus seluruh baris terpilih secara permanen dari database. Nomor panel yang tersisa <span className="font-semibold text-rose-600">tidak akan bergeser</span>.
                       </p>
                     </div>
                   </button>
@@ -924,7 +928,7 @@ function ShiftHistoryDetailContent() {
               <>
                 <div
                   className={`w-12 h-12 rounded-full ${
-                    pendingBulkDeleteMode === "shift"
+                    pendingBulkDeleteMode === "permanent"
                       ? "bg-rose-100 text-rose-600"
                       : "bg-amber-100 text-amber-600"
                   } flex items-center justify-center mb-3 mx-auto`}
@@ -938,16 +942,16 @@ function ShiftHistoryDetailContent() {
                   Apakah Anda yakin ingin menghapus <strong>{selectedDetailIds.length} baris panel</strong> terpilih?
                 </p>
 
-                {pendingBulkDeleteMode === "shift" ? (
+                {pendingBulkDeleteMode === "permanent" ? (
                   <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
                     <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
                       <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">
                         1
                       </span>
-                      Opsi 1: Hapus & Geser Nomor Panel
+                      Opsi 1: Hapus Baris Panel Terpilih (Permanen)
                     </div>
                     <p className="text-xs text-slate-700 leading-relaxed">
-                      Sebanyak <strong>{selectedDetailIds.length} baris panel</strong> akan <strong>dihapus permanen</strong> dan nomor panel setelahnya akan <strong>digeser naik</strong>.
+                      Sebanyak <strong>{selectedDetailIds.length} baris panel</strong> akan <strong>dihapus permanen</strong>. Nomor panel yang tersisa <strong>tidak akan bergeser</strong>.
                     </p>
                   </div>
                 ) : (
@@ -978,7 +982,7 @@ function ShiftHistoryDetailContent() {
                     onClick={() => handleBulkDelete(pendingBulkDeleteMode)}
                     disabled={isDeletingBulk}
                     className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${
-                      pendingBulkDeleteMode === "shift"
+                      pendingBulkDeleteMode === "permanent"
                         ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20"
                         : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"
                     } shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}

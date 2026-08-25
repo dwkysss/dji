@@ -139,7 +139,7 @@ export default function Sidebar() {
           name: "Kinerja Shift Bulanan",
           href: "/shift-performance",
           icon: Trophy,
-          roles: ["admin", "manager", "operator", "kepala_shift"],
+          roles: ["admin", "manager", "kepala_shift"],
         },
         {
           name: "Koreksi Riwayat Input",
@@ -289,7 +289,7 @@ export default function Sidebar() {
           name: "Uji Skenario Tampilan",
           href: "/test-scenarios",
           icon: FlaskConical,
-          roles: ["admin", "manager", "operator", "inspeksi", "mending"],
+          roles: ["admin", "manager"],
         },
       ],
     },

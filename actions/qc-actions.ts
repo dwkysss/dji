@@ -1023,7 +1023,7 @@ export async function getPendingQCDetailsByDate(tanggal: string) {
   }
 }
 
-export async function deleteProductionDetailRow(detailId: string, mode: "shift" | "keep_slot" = "shift") {
+export async function deleteProductionDetailRow(detailId: string, mode: "permanent" | "keep_slot" | "shift" = "permanent") {
   try {
     const supabase = await createAdminClient();
 
@@ -1174,8 +1174,8 @@ export async function deleteProductionDetailRow(detailId: string, mode: "shift" 
     }
 
     // 3. Shift subsequent panels down by 1 to fill the void for current PCS
-    // Tapi JANGAN geser jika yang dihapus adalah panel BS (karena BS tidak menggeser antrean saat ditambahkan)
-    if (!isBsPanel && !hasRemainingDetailsForCurrentPcs && deletedPanelNoStr && deletedPanelNoStr !== "METERAN" && batchInfo && pcsIndex !== undefined) {
+    // HANYA jika mode === "shift" dan bukan BS panel serta tidak ada sisa detail untuk PCS ini
+    if (mode === "shift" && !isBsPanel && !hasRemainingDetailsForCurrentPcs && deletedPanelNoStr && deletedPanelNoStr !== "METERAN" && batchInfo && pcsIndex !== undefined) {
       const deletedPanelNo = parseInt(deletedPanelNoStr);
       if (!isNaN(deletedPanelNo)) {
         const { data: allHeaders } = await supabase
@@ -1346,16 +1346,10 @@ export async function insertMissingPanel(params: {
     let needsNewHeader = false;
 
     if (existingHeaderLinkedToCurrentPcs) {
-      if (params.isBs) {
-        // Jika BS, jangan geser panel lain dan jangan buat header baru (gunakan header yang sudah ada di nomor panel tersebut sehingga nomor panel tsb memiliki 2 data)
-        needsShift = false;
-        needsNewHeader = false;
-        targetHeaderId = existingHeaderLinkedToCurrentPcs.id;
-      } else {
-        // Jika bukan BS, kita harus geser panel >= newPanelNo dan buat header baru untuk panel yang disisipkan
-        needsShift = true;
-        needsNewHeader = true;
-      }
+      // Sesuai aturan: penambahan panel tidak menggeser nomor panel berikutnya, panel target menjadi 2 baris (double)
+      needsShift = false;
+      needsNewHeader = false;
+      targetHeaderId = existingHeaderLinkedToCurrentPcs.id;
     } else {
       needsShift = false;
       if (existingHeadersAtPos.length > 0) {
@@ -1374,55 +1368,6 @@ export async function insertMissingPanel(params: {
       needsShift,
       needsNewHeader,
     });
-
-    if (needsShift) {
-      // 4. Shift all panels >= newPanelNo by +1, from highest to lowest to avoid unique constraint clashes
-      const toShift = panelHeaders
-        .filter((h: any) => parseInt(h.panel_no) >= newPanelNo)
-        .sort((a: any, b: any) => parseInt(b.panel_no) - parseInt(a.panel_no));
-
-      for (const h of toShift) {
-        // Cek apakah header ini dipakai oleh PCS lain
-        const { data: detailsForH } = await supabase
-          .from("production_details")
-          .select("id, pcs_index")
-          .eq("header_id", (h as any).id);
-
-        const otherPcsDetails = (detailsForH || []).filter(d => String(d.pcs_index) !== String(params.pcsIndex));
-        const currentPcsDetail = (detailsForH || []).find(d => String(d.pcs_index) === String(params.pcsIndex));
-
-        if (!currentPcsDetail) continue;
-
-        if (otherPcsDetails.length > 0) {
-          // Header ini di-share dengan PCS lain. Kita tidak boleh menggeser header aslinya.
-          // Buat kloningan header khusus untuk PCS ini.
-          const clonedHeaderId = genId();
-          const clonedHeaderPayload = { ...h };
-          delete clonedHeaderPayload.production_details; // Hapus relasi jika ada
-          delete clonedHeaderPayload.idempotency_key; // Hapus agar tidak duplikat
-          clonedHeaderPayload.id = clonedHeaderId;
-          clonedHeaderPayload.panel_no = String(parseInt(h.panel_no) + 1);
-
-          const { error: cloneErr } = await supabase.from("production_headers").insert(clonedHeaderPayload);
-          if (cloneErr) {
-            return { success: false, error: `Gagal kloning header ${(h as any).panel_no}: ${cloneErr.message}` };
-          }
-          
-          // Update detail PCS ini agar menunjuk ke header yang baru dikloning
-          await supabase.from("production_details").update({ header_id: clonedHeaderId }).eq("id", currentPcsDetail.id);
-        } else {
-          // Header ini hanya dipakai oleh PCS ini, aman untuk digeser
-          const { error: shiftErr } = await supabase
-            .from("production_headers")
-            .update({ panel_no: String(parseInt((h as any).panel_no) + 1) })
-            .eq("id", (h as any).id);
-
-          if (shiftErr) {
-            return { success: false, error: `Gagal menggeser panel ${(h as any).panel_no}: ${shiftErr.message}` };
-          }
-        }
-      }
-    }
 
     // 5. Get current datetime in WIB
     const now = new Date();
@@ -2078,7 +2023,7 @@ export async function bulkUpdateQCDetails(params: BulkQCDetailParams) {
 
 export async function bulkDeleteProductionDetailRows(
   detailIds: string[],
-  mode: "shift" | "keep_slot"
+  mode: "permanent" | "keep_slot" | "shift" = "permanent"
 ): Promise<{ success: boolean; error?: string; count?: number }> {
   try {
     if (!detailIds || detailIds.length === 0) {
@@ -2105,7 +2050,7 @@ export async function bulkDeleteProductionDetailRows(
       return { success: true, count: detailIds.length };
     }
 
-    // Mode "shift": Sort by panel number descending to safely delete from highest to lowest
+    // Mode "permanent" / "shift": Sort by panel number descending to safely delete from highest to lowest
     const { data: details, error: fetchErr } = await supabase
       .from("production_details")
       .select("id, header_id, pcs_index, production_headers(panel_no)")
@@ -2122,7 +2067,7 @@ export async function bulkDeleteProductionDetailRows(
     });
 
     for (const d of sortedDetails) {
-      const res = await deleteProductionDetailRow(d.id, "shift");
+      const res = await deleteProductionDetailRow(d.id, mode);
       if (!res.success) {
         return { success: false, error: res.error };
       }

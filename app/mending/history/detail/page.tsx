@@ -296,6 +296,16 @@ function MendingDetailContent() {
       const panelB = parseInt(pBStr, 10);
       if (!isNaN(panelA) && !isNaN(panelB)) {
         if (panelA !== panelB) return panelA - panelB;
+        const isQcA = !!a.isPanelInsertedByQc || !!a.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!a.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!a.hasTambahanQC || !!a.hasTambahanMnd || (!!a.keterangan_qc && a.keterangan_qc !== "-");
+        const isQcB = !!b.isPanelInsertedByQc || !!b.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!b.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!b.hasTambahanQC || !!b.hasTambahanMnd || (!!b.keterangan_qc && b.keterangan_qc !== "-");
+        if (!isQcA && isQcB) return -1;
+        if (isQcA && !isQcB) return 1;
+        const diffJml = (b.jml_hasil_produksi || 0) - (a.jml_hasil_produksi || 0);
+        if (diffJml !== 0) return diffJml;
+        const timeA = new Date(a.created_at || a.created_date || 0).getTime();
+        const timeB = new Date(b.created_at || b.created_date || 0).getTime();
+        if (timeA !== timeB && !isNaN(timeA) && !isNaN(timeB)) return timeA - timeB;
+        return String(a.id || "").localeCompare(String(b.id || ""));
       }
       return pAStr.localeCompare(pBStr, undefined, { numeric: true });
     });
@@ -1192,13 +1202,26 @@ function MendingDetailContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
-                    {displayItems.map((item: any, idx: number) => {
-                      if (item.isTotalRow) {
-                        return (
-                          <tr key={item.id || idx} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
-                            <td colSpan={4} className="px-3 py-2 text-right whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
-                              {item.totalLabel}
-                            </td>
+                    {(() => {
+                      const panelCounts: Record<string, number> = {};
+                      displayItems.forEach((it: any) => {
+                        if (it.isTotalRow) return;
+                        const itH = it.production_headers || header;
+                        const isDel = !!it.is_deleted || it.status_inspeksi === "Dihapus" || it.status_mending === "Dihapus" || (it.keterangan_cacat || "").includes("[DIHAPUS]");
+                        if (isDel) return;
+                        const clean = String(itH.panel_no || it.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
+                        if (clean && clean !== "-" && !clean.toUpperCase().includes("AWAL") && !clean.toUpperCase().includes("AKHIR")) {
+                          panelCounts[clean] = (panelCounts[clean] || 0) + 1;
+                        }
+                      });
+
+                      return displayItems.map((item: any, idx: number) => {
+                        if (item.isTotalRow) {
+                          return (
+                            <tr key={item.id || idx} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
+                              <td colSpan={4} className="px-3 py-2 text-right whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
+                                {item.totalLabel}
+                              </td>
                             <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
                               {item.totalCount} Panel
                             </td>
@@ -1457,6 +1480,9 @@ function MendingDetailContent() {
                         ? "bg-amber-100"
                         : "bg-white";
 
+                      const cleanPanelNo = (itemHeader.panel_no === "METERAN" ? (detail.meter_kain ?? "-") : String(itemHeader.panel_no || "-")).replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
+                      const isDouble = !isDeleted && !isBsAwal && !isBsAkhir && (panelCounts[cleanPanelNo] || 0) > 1;
+
                       return (
                         <tr key={item.id || idx} className={`${rowBgClass} transition-colors group`}>
                           <td className={`px-2 py-1 font-bold text-slate-800 text-center border-r border-slate-100 border-b border-slate-100 ${stickyCellBgClass}`}>
@@ -1466,16 +1492,25 @@ function MendingDetailContent() {
                               <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
                             ) : (
                               <div className="flex flex-col items-center justify-center">
-                                <span>{(itemHeader.panel_no === "METERAN" ? (detail.meter_kain ?? "-") : String(itemHeader.panel_no || "-")).replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
+                                <span>{cleanPanelNo}</span>
                                 {isDeleted ? (
                                   <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">
                                     DIHAPUS
                                   </span>
-                                ) : (String(itemHeader.panel_no).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS") ? (
-                                  <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                                ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
-                                  <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
-                                ) : null}
+                                ) : (
+                                  <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                                    {isDouble && (
+                                      <span className="text-[8px] font-black bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded leading-none border border-amber-300 shadow-2xs">
+                                        DOUBLE
+                                      </span>
+                                    )}
+                                    {(String(itemHeader.panel_no).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS") ? (
+                                      <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
+                                    ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
+                                      <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                                    ) : null}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </td>
@@ -1569,8 +1604,9 @@ function MendingDetailContent() {
                           </td>
                         </tr>
                       );
-                    })}
-                    {totalGradable > 0 && (
+                    });
+                  })()}
+                  {totalGradable > 0 && (
                       <tr className="bg-slate-50 font-bold border-t border-slate-200 text-[11px] text-slate-700 uppercase tracking-wider">
                         <td className="px-2 py-3 text-right font-extrabold border-r border-slate-100 border-b border-slate-100" colSpan={6}>
                           Total ({totalGradable} Panel):

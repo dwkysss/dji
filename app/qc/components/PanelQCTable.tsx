@@ -50,7 +50,20 @@ export default function PanelQCTable({
       const pA = parseInt(pAStr || "0");
       const pB = parseInt(pBStr || "0");
       if (pA !== pB) return pA - pB;
-      return (b.jml_hasil_produksi || 0) - (a.jml_hasil_produksi || 0);
+
+      const isQcA = !!a.isPanelInsertedByQc || !!a.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!a.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!a.hasTambahanQC || !!a.hasTambahanMnd || (!!a.keterangan_qc && a.keterangan_qc !== "-");
+      const isQcB = !!b.isPanelInsertedByQc || !!b.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!b.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!b.hasTambahanQC || !!b.hasTambahanMnd || (!!b.keterangan_qc && b.keterangan_qc !== "-");
+      if (!isQcA && isQcB) return -1;
+      if (isQcA && !isQcB) return 1;
+
+      const diffJml = (b.jml_hasil_produksi || 0) - (a.jml_hasil_produksi || 0);
+      if (diffJml !== 0) return diffJml;
+
+      const timeA = new Date(a.created_at || a.created_date || 0).getTime();
+      const timeB = new Date(b.created_at || b.created_date || 0).getTime();
+      if (timeA !== timeB && !isNaN(timeA) && !isNaN(timeB)) return timeA - timeB;
+
+      return String(a.id || "").localeCompare(String(b.id || ""));
     });
 
     const processed = sorted.map((item) => {
@@ -186,6 +199,20 @@ export default function PanelQCTable({
 
     return items;
   }, [detailsToDisplay, selections]);
+
+  const panelCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    displayItems.forEach((it) => {
+      if (it.isTotalRow) return;
+      const isDeleted = !!it.is_deleted || it.status_inspeksi === "Dihapus" || (it.keterangan_cacat || "").includes("[DIHAPUS]");
+      if (isDeleted) return;
+      const clean = (it.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
+      if (clean && clean !== "-" && !clean.toUpperCase().includes("AWAL") && !clean.toUpperCase().includes("AKHIR")) {
+        counts[clean] = (counts[clean] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [displayItems]);
 
   const { totalGradable, totalPass, totalDefect, totalBS } = React.useMemo(() => {
     let g = 0, p = 0, d = 0, bs = 0;
@@ -527,6 +554,8 @@ export default function PanelQCTable({
               ? "bg-rose-50/30"
               : "bg-white";
 
+            const isDouble = !isDeleted && !isBsAwal && !isBsAkhir && (panelCounts[cleanPanelNo] || 0) > 1;
+
             return (
               <tr
                 key={item.id}
@@ -554,11 +583,20 @@ export default function PanelQCTable({
                         <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">
                           DIHAPUS
                         </span>
-                      ) : (String(rawPanelNo).includes("(BS)") || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS") ? (
-                        <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded mt-0.5 leading-none shadow-sm border border-rose-200">BS</span>
-                      ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
-                        <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
-                      ) : null}
+                      ) : (
+                        <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                          {isDouble && (
+                            <span className="text-[8px] font-black bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded leading-none border border-amber-300 shadow-2xs">
+                              DOUBLE
+                            </span>
+                          )}
+                          {(String(rawPanelNo).includes("(BS)") || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS") ? (
+                            <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded leading-none shadow-sm border border-rose-200">BS</span>
+                          ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
+                            <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded leading-none border border-sky-300 shadow-2xs">+ QC</span>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   )}
                 </td>
