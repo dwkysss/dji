@@ -67,7 +67,7 @@ export async function getMonthlyMachineReport(
           kategori_masalah,
           detail_masalah,
           indikator_stop,
-          production_defects(kategori),
+          production_defects(kategori, detail),
           production_headers!inner (
             id,
             nomor_mc,
@@ -208,6 +208,7 @@ export async function getMonthlyMachineReport(
     const processedHeaders = new Set<string>();
     // To track unique panels and whether they have failed/stopped
     const processedPanels = new Map<string, { countedForTeam: string | null, isFailed: boolean }>();
+    const processedDefectivePanels = new Set<string>();
 
     let isMeterMachine = false;
 
@@ -276,29 +277,33 @@ export async function getMonthlyMachineReport(
       // Aggregate defects (BS AWAL and BS AKHIR are not machine defect incidents, so skip them)
       const panelNoStr = String(header.panel_no || "").toUpperCase();
       const isBsAwalAkhir = panelNoStr.includes("BS AWAL") || panelNoStr.includes("BS AKHIR");
-
-      let hasDefects = false;
-      let defectCountForRow = 0;
+      const isBerhenti = panelNoStr === "BERHENTI";
 
       if (!team.keterangan_per_kategori) {
         team.keterangan_per_kategori = {};
       }
       const addKeterangan = (kat: string, detail: string) => {
-        if (!kat || kat === "Unknown" || kat === "BS") return;
-        if (detail.includes("Sisa Awal Potongan") || detail.includes("Sisa Akhir Potongan")) return;
-        if (!team.keterangan_per_kategori![kat]) team.keterangan_per_kategori![kat] = [];
+        if (!kat || kat === "Unknown" || kat === "BS" || kat === "G") return;
         const d = detail.trim();
-        if (d) {
-          team.keterangan_per_kategori![kat].push(d);
-        }
+        if (!d) return;
+        const dUpper = d.toUpperCase();
+        if (
+          dUpper.includes("SISA AWAL POTONGAN") ||
+          dUpper.includes("SISA AKHIR POTONGAN") ||
+          dUpper.includes("GAGAL CACAT") ||
+          dUpper.includes("ISTIRAHAT") ||
+          dUpper.includes("START") ||
+          dUpper.includes("FINISH")
+        ) return;
+        if (!team.keterangan_per_kategori![kat]) team.keterangan_per_kategori![kat] = [];
+        team.keterangan_per_kategori![kat].push(d);
       };
 
-      const addDefect = (k: string) => {
-         const code = k.replace("KODE ", "");
-         if (code === "BS") return;
-         if (!team.kode_tindakan[code]) team.kode_tindakan[code] = 0;
-         team.kode_tindakan[code] += 1;
-         defectCountForRow += 1;
+      const addDefectCode = (k: string) => {
+        const code = k.replace("KODE ", "").trim().toUpperCase();
+        if (!code || code === "BS" || code === "G") return;
+        if (!team.kode_tindakan[code]) team.kode_tindakan[code] = 0;
+        team.kode_tindakan[code] += 1;
       };
 
       let cleanD = row.detail_masalah 
@@ -306,70 +311,122 @@ export async function getMonthlyMachineReport(
         : "";
         
       const katsRaw = row.kategori_masalah || "";
-      let kats = katsRaw === "X" ? [] : katsRaw.split(",").map((s: string) => s.trim().toUpperCase()).filter((k: string) => Boolean(k) && k !== "BS");
-      
+      let kats = katsRaw === "X" ? [] : katsRaw.split(",")
+        .map((s: string) => s.trim().toUpperCase())
+        .filter((k: string) => Boolean(k) && k !== "BS" && k !== "G" && !k.includes("ISTIRAHAT") && !k.includes("GAGAL CACAT"));
+
       const recordedKats = new Set<string>();
+      let hasRealDefectsOnRow = false;
+
       const addDefectKeterangan = (kat: string, detail: string) => {
-         if (kat === "BS") return;
-         addDefect(kat);
-         if (detail) addKeterangan(kat, detail);
-         recordedKats.add(kat);
+        if (!kat || kat === "BS" || kat === "G") return;
+        const d = detail.trim();
+        const dUpper = d.toUpperCase();
+        if (
+          dUpper.includes("GAGAL CACAT") ||
+          dUpper.includes("ISTIRAHAT") ||
+          dUpper.includes("START") ||
+          dUpper.includes("FINISH") ||
+          dUpper.includes("SISA AWAL POTONGAN") ||
+          dUpper.includes("SISA AKHIR POTONGAN")
+        ) {
+          return;
+        }
+        hasRealDefectsOnRow = true;
+        addDefectCode(kat);
+        recordedKats.add(kat);
+        if (d) {
+          addKeterangan(kat, d);
+        }
       };
 
-      if (!isBsAwalAkhir && (cleanD || kats.length > 0)) {
-        if (cleanD) {
-           const allKnownProblems: { kat: string; detail: string }[] = [];
-           for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
-             detList.forEach(det => {
+      if (!isBsAwalAkhir && !isBerhenti) {
+        // If production_defects array exists and has entries, use it directly as source of truth
+        if (row.production_defects && Array.isArray(row.production_defects) && row.production_defects.length > 0) {
+          const seenRowDefects = new Set<string>();
+          row.production_defects.forEach((d: any) => {
+            const k = (d.kategori || "").toUpperCase().trim();
+            const det = (d.detail || "").trim();
+            const defKey = `${k}|${det}|${d.blok || ''}|${d.meter || ''}`;
+            if (seenRowDefects.has(defKey)) return;
+            seenRowDefects.add(defKey);
+
+            if (k && k !== "G" && k !== "BS") {
+              addDefectKeterangan(k, det);
+            }
+          });
+        } else {
+          // Fallback to text parsing for legacy data where production_defects relation is empty
+          if (cleanD) {
+            const allKnownProblems: { kat: string; detail: string }[] = [];
+            for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
+              if (kat === "G") continue;
+              detList.forEach(det => {
                 allKnownProblems.push({ kat, detail: det });
-             });
-           }
-           // Sort by length descending to match longest phrases first
-           allKnownProblems.sort((a, b) => b.detail.length - a.detail.length);
+              });
+            }
+            allKnownProblems.sort((a, b) => b.detail.length - a.detail.length);
 
-           let remainingD = cleanD;
+            let remainingD = cleanD;
 
-           // Extract all known problems from the string, regardless of which category was checked
-           allKnownProblems.forEach(known => {
-             const escapedDetail = known.detail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-             const regex = new RegExp(escapedDetail, "gi");
-             if (regex.test(remainingD)) {
-               addDefectKeterangan(known.kat, known.detail);
-               remainingD = remainingD.replace(regex, "");
-             }
-           });
+            allKnownProblems.forEach(known => {
+              const escapedDetail = known.detail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp(escapedDetail, "gi");
+              if (regex.test(remainingD)) {
+                addDefectKeterangan(known.kat, known.detail);
+                remainingD = remainingD.replace(regex, "");
+              }
+            });
 
-           // Any remaining text is custom/unknown details. Split them by comma or pipe.
-           const leftoverParts = remainingD.split(/\||,/).map(s => s.trim()).filter((s: string) => Boolean(s) && !s.includes("Sisa Awal Potongan") && !s.includes("Sisa Akhir Potongan"));
-           
-           leftoverParts.forEach(part => {
-             // Assign leftover parts to the first selected category, or "A" as a fallback
-             const targetKat = kats.length > 0 ? kats[0] : "A";
-             addDefectKeterangan(targetKat, part);
-           });
+            const leftoverParts = remainingD.split(/\||,/)
+              .map(s => s.trim())
+              .filter((s: string) => {
+                if (!s) return false;
+                const sUpper = s.toUpperCase();
+                return (
+                  !sUpper.includes("SISA AWAL POTONGAN") &&
+                  !sUpper.includes("SISA AKHIR POTONGAN") &&
+                  !sUpper.includes("GAGAL CACAT") &&
+                  !sUpper.includes("ISTIRAHAT") &&
+                  !sUpper.includes("START") &&
+                  !sUpper.includes("FINISH")
+                );
+              });
+            
+            leftoverParts.forEach(part => {
+              const targetKat = kats.length > 0 ? kats[0] : "A";
+              addDefectKeterangan(targetKat, part);
+            });
+          }
+
+          kats.forEach((k: string) => {
+            if (k && k !== "BS" && k !== "G" && !recordedKats.has(k)) {
+              addDefectKeterangan(k, "");
+            }
+          });
         }
 
-        kats.forEach((k: string) => {
-          if (k && k !== "BS" && !recordedKats.has(k)) {
-            addDefectKeterangan(k, "");
+        // Count 1 defective panel (menghitung jumlah panel cacat, bukan frekuensi detail masalah)
+        if (hasRealDefectsOnRow) {
+          if (header.panel_no === "METERAN") {
+            team.jumlah_cacat += 1;
+          } else {
+            const cutScope = header.potongan_ke || header.design_id || header.id;
+            const defectPanelKey = `${day}-${groupName}-${cutScope}-${panelNoStr}`;
+            if (!processedDefectivePanels.has(defectPanelKey)) {
+              processedDefectivePanels.add(defectPanelKey);
+              team.jumlah_cacat += 1;
+            }
           }
-        });
-        hasDefects = true;
+        }
       }
 
-      if (!isBsAwalAkhir && row.kategori_masalah === "X") {
-         team.jumlah_cacat += 1;
-         hasDefects = true;
-      }
-
-      if (!isBsAwalAkhir && hasDefects && defectCountForRow > 0) {
-        team.jumlah_cacat += defectCountForRow;
-      }
-
-      // Add downtime ONLY ONCE per header
+      // Add downtime ONLY ONCE per header (skip BS AWAL and BS AKHIR so they never duplicate panel downtime)
       if (!processedHeaders.has(header.id)) {
         processedHeaders.add(header.id);
-        team.downtime_detik += (header.total_downtime_detik || 0);
+        if (!isBsAwalAkhir) {
+          team.downtime_detik += (header.total_downtime_detik || 0);
+        }
         
         if (header.panel_no === "METERAN") {
           // For meter machines, add total_produksi_meter ONCE per header

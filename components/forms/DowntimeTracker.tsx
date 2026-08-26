@@ -309,29 +309,49 @@ export default function DowntimeTracker({
     const now = Date.now();
     const isoDate = new Date().toISOString().split("T")[0];
     const initialShift = watch("groupId") || "A";
+
+    // 1. Ambil waktu mulai stop jika timer downtime normal sedang berjalan (detik dipindahkan ke blok)
+    const savedStartStr = typeof window !== "undefined" ? localStorage.getItem("dji_active_downtime_start") : null;
+    const activeStart = activeTimerStartRef.current || (savedStartStr ? parseInt(savedStartStr) : null);
+    const effectiveStartTime = (activeStart !== null && (now - activeStart) < 24 * 3600 * 1000) ? activeStart : now;
+
+    // 2. Hentikan dan bersihkan timer downtime normal agar tidak jalan di background / tidak double
+    activeTimerStartRef.current = null;
+    setIsTimerRunning(false);
+    setTimerStartRef(null);
+    setLiveTimerSeconds(0);
+    accumulatedSecRef.current = 0;
+    setTempDuration(0);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("dji_active_downtime_start");
+      localStorage.removeItem("dji_active_timer_source");
+    }
+
     const newBlock = {
       id: `block-${now}`,
       nomorMc: targetMc,
-      startTime: now,
-      startTimeStr: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-      startDateStr: new Date().toLocaleDateString("id-ID"),
+      startTime: effectiveStartTime,
+      startTimeStr: new Date(effectiveStartTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      startDateStr: new Date(effectiveStartTime).toLocaleDateString("id-ID"),
       dateIso: isoDate,
       initialReporter: currentOperatorName || "Operator",
       handoffLogs: [
         {
           id: `log-${now}`,
-          startTime: now,
+          startTime: effectiveStartTime,
           operatorName: currentOperatorName || "Operator Aktif",
           shift: initialShift,
-          timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-          dateStr: new Date().toLocaleDateString("id-ID"),
+          timestamp: new Date(effectiveStartTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          dateStr: new Date(effectiveStartTime).toLocaleDateString("id-ID"),
           dateIso: isoDate,
           notes: "Mulai Memblokir Mesin (Perbaikan Berlangsung)"
         }
       ]
     };
     setActiveBlock(newBlock);
-    localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(newBlock));
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(newBlock));
+    }
     setShowConfirmBlockModal(false);
   };
 
@@ -438,6 +458,21 @@ export default function DowntimeTracker({
 
   useEffect(() => {
     // 1. Recover saved timer if it exists (for long downtimes)
+    if (activeBlock) {
+      // Jika mesin sedang diblok (dalam perbaikan), pastikan timer downtime normal mati dan bersih
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("dji_active_downtime_start");
+        localStorage.removeItem("dji_active_timer_source");
+      }
+      activeTimerStartRef.current = null;
+      if (isTimerRunning) {
+        setIsTimerRunning(false);
+        setTimerStartRef(null);
+        setLiveTimerSeconds(0);
+      }
+      return;
+    }
+
     const savedStart = localStorage.getItem("dji_active_downtime_start");
     if (savedStart && !isTimerRunning) {
       const parsed = parseInt(savedStart);
@@ -464,11 +499,16 @@ export default function DowntimeTracker({
       setLiveTimerSeconds(0);
     }
     return () => clearInterval(interval);
-  }, [isTimerRunning, timerStartRef]);
+  }, [isTimerRunning, timerStartRef, activeBlock]);
 
   const [showCancelTimerConfirmModal, setShowCancelTimerConfirmModal] = useState(false);
 
   const handleStartTimer = React.useCallback((source?: any) => {
+    // Jika mesin sedang diblok (dalam perbaikan khusus), abaikan trigger start timer untuk panel biasa
+    if (activeBlock) {
+      return;
+    }
+
     const now = Date.now();
     if (activeTimerStartRef.current !== null) {
       const elapsedSec = (now - activeTimerStartRef.current) / 1000;
@@ -492,7 +532,7 @@ export default function DowntimeTracker({
     timerSourceRef.current = normalizedSource;
     setCurrentTimerSource(normalizedSource);
     localStorage.setItem("dji_active_timer_source", normalizedSource);
-  }, []);
+  }, [activeBlock]);
 
   const handleCancelTimer = () => {
     setShowCancelTimerConfirmModal(true);
@@ -516,6 +556,11 @@ export default function DowntimeTracker({
   });
 
   const handleStopTimer = React.useCallback((source?: any) => {
+    // Jika mesin sedang diblok, abaikan trigger stop untuk panel biasa
+    if (activeBlock) {
+      return;
+    }
+
     const savedStartStr = localStorage.getItem("dji_active_downtime_start");
     const startTimestamp = activeTimerStartRef.current || (savedStartStr ? parseInt(savedStartStr) : null);
 
@@ -580,7 +625,7 @@ export default function DowntimeTracker({
     } else {
       handleOpenClassifyModal(newIndex, newUnclassifiedEvent);
     }
-  }, [currentOperatorName, fields, watch, append]);
+  }, [currentOperatorName, fields, watch, append, activeBlock]);
 
   useEffect(() => {
     if (onRegisterRef.current) {

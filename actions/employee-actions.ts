@@ -499,6 +499,8 @@ export async function createProductionReport(
               ...headerData,
               id: bsAwalHeaderId,
               panel_no: "BS AWAL",
+              total_downtime_detik: 0,
+              downtime_events: null,
               idempotency_key: null,
             };
             const bsAwalDetails = pcsDataToProcess.map((pcsItem, idx) => ({
@@ -543,6 +545,8 @@ export async function createProductionReport(
                     ...lastPrevHeader,
                     id: autoBsAkhirHeaderId,
                     panel_no: "BS AKHIR",
+                    total_downtime_detik: 0,
+                    downtime_events: null,
                     idempotency_key: null,
                     tanggal_potong: cutDate,
                   };
