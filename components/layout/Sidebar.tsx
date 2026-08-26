@@ -228,6 +228,24 @@ export default function Sidebar() {
       ],
     },
     {
+      label: "Final Inspek",
+      groupIcon: ClipboardCheck,
+      items: [
+        {
+          name: "Final Inspek Mending",
+          href: "/final-inspection",
+          icon: ClipboardCheck,
+          roles: ["admin", "mending", "inspeksi", "manager"],
+        },
+        {
+          name: "Riwayat Final Inspek",
+          href: "/final-inspection/history",
+          icon: History,
+          roles: ["admin", "mending", "inspeksi", "manager"],
+        },
+      ],
+    },
+    {
       label: "Laporan",
       groupIcon: FileSpreadsheet,
       items: [

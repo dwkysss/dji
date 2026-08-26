@@ -61,8 +61,18 @@ export const calculateOverallGradeData = (
           i.cacatDisplay === "ISTIRAHAT";
         if (isSpecial) return;
 
-        // Diambil dari SETELAH INSPECT (hasil_mending), bukan data produksi
-        if (i.hasil_mending === "B" || i.hasil_mending === "BS") {
+        // Prioritas: Final Inspek Mending -> Mending -> QC
+        const effectiveGrade = (
+          i.hasil_final ||
+          i.status_final_mending ||
+          i.detail?.status_final_mending ||
+          i.hasil_mending ||
+          i.status_mending ||
+          i.detail?.status_mending ||
+          ""
+        ).toString().trim().toUpperCase();
+
+        if (effectiveGrade === "B" || effectiveGrade === "BS" || effectiveGrade === "SILANG") {
           cacatItems.push(i.detail || i);
         }
       });
@@ -73,9 +83,19 @@ export const calculateOverallGradeData = (
     const regularItems = (items || []).filter((i: any) => !isBsAwalAkhir(i));
     totalQty = regularItems.length;
 
-    // Total Cacat diambil dari SETELAH INSPECT (hasil_mending)
+    // Total Cacat diambil dari SETELAH FINAL INSPEK MENDING (atau Mending)
     regularItems.forEach((i: any) => {
-      if (i.hasil_mending === "B" || i.hasil_mending === "BS") {
+      const effectiveGrade = (
+        i.hasil_final ||
+        i.status_final_mending ||
+        i.detail?.status_final_mending ||
+        i.hasil_mending ||
+        i.status_mending ||
+        i.detail?.status_mending ||
+        ""
+      ).toString().trim().toUpperCase();
+
+      if (effectiveGrade === "B" || effectiveGrade === "BS" || effectiveGrade === "SILANG") {
         totalCacat += 1;
       }
     });

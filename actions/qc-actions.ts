@@ -242,7 +242,10 @@ export async function submitQCInspection(params: {
 
             await supabase
               .from("production_details")
-              .update({ status_mending: mendingGrade })
+              .update({ 
+                status_mending: mendingGrade,
+                status_final_mending: mendingGrade
+              })
               .eq("id", d.detailId);
 
             mendingItemsPayload.push({
@@ -304,8 +307,43 @@ export async function submitQCInspection(params: {
 
             await supabase.from("mending_items").insert(mItemsToInsert);
           }
+
+          // Auto-insert Final Inspection for Tricote machines
+          const finalInsertPayload: any = {
+            tanggal_final: params.tanggal_inspeksi,
+            petugas_final: params.petugas_inspeksi,
+            start_final: params.start_inspect,
+            finish_final: params.finish_inspect,
+            keterangan_final: ketMending.trim(),
+            total_panel: params.details.filter(d => d.finalInspectionId !== 0).length,
+            nomor_mc,
+            design_id,
+            potongan_ke,
+            pcs_index,
+            final_grade_a: countA,
+            final_grade_b: countB,
+            final_grade_bs: countBS,
+            pause_seconds: params.pause_seconds || 0,
+            elapsed_seconds: params.elapsed_seconds || 0,
+          };
+
+          const { data: fBatchData, error: fBatchError } = await supabase
+            .from("final_inspection_batches")
+            .insert(finalInsertPayload)
+            .select("id")
+            .single();
+
+          if (!fBatchError && fBatchData) {
+            const fItemsToInsert = mendingItemsPayload.map(item => ({
+              batch_id: fBatchData.id,
+              production_detail_id: item.production_detail_id,
+              hasil_final: item.hasil_mending,
+            }));
+
+            await supabase.from("final_inspection_items").insert(fItemsToInsert);
+          }
         } catch (autoMendingErr) {
-          console.error("Gagal menjalankan auto-mending untuk mesin Tricote:", autoMendingErr);
+          console.error("Gagal menjalankan auto-mending & final inspek untuk mesin Tricote:", autoMendingErr);
         }
       }
 

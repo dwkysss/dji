@@ -244,55 +244,57 @@ export default function PanelQCTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse text-xs">
+      <table className="w-full text-left text-xs border-collapse">
         <thead>
-          <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider">
-            <th className="sticky left-0 z-20 bg-slate-50 px-1 py-2 w-7 text-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>
-              <input
-                type="checkbox"
-                checked={isAllSelected}
-                ref={(input) => {
-                  if (input) input.indeterminate = isSomeSelected;
-                }}
-                onChange={(e) => onSelectAll && onSelectAll(e.target.checked)}
-                className="w-3.5 h-3.5 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
-                title="Pilih Semua Panel"
-              />
-            </th>
-            <th className="sticky left-7 z-20 bg-slate-50 px-0.5 py-2 w-7 text-center border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>PNL</th>
-            <th className="px-1 py-2 w-14 border-r border-slate-200" rowSpan={2}>Tgl</th>
-            <th className="px-0.5 py-2 w-8 text-center border-r border-slate-200" rowSpan={2}>Group</th>
-            <th className="px-1 py-2 w-16 border-r border-slate-200" rowSpan={2}>Operator</th>
-            <th className="px-0.5 py-2 text-center w-8 border-r border-slate-200" rowSpan={2}>KET <br /> ✓/X</th>
-            <th className="px-1 py-2 min-w-[150px] w-full border-r border-slate-200" rowSpan={2}>KETERANGAN CACAT</th>
-            <th className="px-1 py-2 text-center w-14 border-r border-slate-200" rowSpan={2}>AKSI</th>
-            <th className="px-2 py-1 text-center font-extrabold text-slate-600 border-r border-slate-200" colSpan={3}>INSPEKSI QC</th>
+          <tr className="bg-slate-50">
+            {onToggleSelect && (
+              <th className="px-1.5 py-1.5 border-b border-slate-200 w-8 text-center border-r border-slate-100" rowSpan={2}>
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  ref={(input) => {
+                    if (input) input.indeterminate = isSomeSelected;
+                  }}
+                  onChange={(e) => onSelectAll && onSelectAll(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
+                  title="Pilih Semua Panel"
+                />
+              </th>
+            )}
+            <th className="sticky left-0 z-20 bg-slate-50 px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>PNL NO</th>
+            <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-20 text-center whitespace-nowrap border-r border-slate-100" rowSpan={2}>TGL</th>
+            <th className="px-1.5 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100" rowSpan={2}>Group</th>
+            <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-24 text-center border-r border-slate-100" rowSpan={2}>Operator</th>
+            <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-14 text-center border-r border-slate-100" rowSpan={2}>KET ✓/X</th>
+            <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 min-w-[160px] w-full text-center border-r border-slate-100" rowSpan={2}>KETERANGAN CACAT</th>
+            <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-16 text-center border-r border-slate-100" rowSpan={2}>AKSI</th>
+            <th className="px-1 py-1 border-b border-slate-200 font-extrabold text-slate-600 text-center border-r border-slate-100" colSpan={3}>INSPEKSI QC</th>
           </tr>
-          <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider">
-            <th className="px-0.5 py-1 text-center text-emerald-600 font-black w-5 border-r border-slate-200">✓</th>
-            <th className="px-0.5 py-1 text-center text-rose-600 font-black w-5 border-r border-slate-200">X</th>
-            <th className="px-0.5 py-1 text-center text-rose-600 font-black w-5">BS</th>
+          <tr className="bg-slate-50">
+            <th className="px-1 py-1 border-b border-slate-200 text-center font-black text-emerald-600 border-r border-slate-100 w-16">✓</th>
+            <th className="px-1 py-1 border-b border-slate-200 text-center font-black text-rose-600 border-r border-slate-100 w-16">X</th>
+            <th className="px-1 py-1 border-b border-slate-200 text-center font-black text-rose-600 border-r border-slate-100 w-16">BS</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100 text-[10px] text-slate-700">
+        <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
           {displayItems.map((item, index) => {
             if (item.isTotalRow) {
               return (
                 <tr key={item.id} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
-                  <td colSpan={5} className="px-3 py-2 text-right whitespace-nowrap animate-fadeIn border-r border-slate-100 font-extrabold">
+                  <td colSpan={onToggleSelect ? 5 : 4} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-right whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                     {item.totalLabel}
                   </td>
-                  <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap animate-fadeIn border-r border-slate-100">
+                  <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap border-r border-slate-100">
                     {item.totalCount} Panel
                   </td>
                   <td colSpan={2} className="bg-slate-100 border-r border-slate-100"></td>
-                  <td className="px-1 py-2 text-center text-emerald-600 bg-emerald-50/20 font-black border-r border-slate-100">
+                  <td className="px-1 py-2 text-center text-emerald-600 bg-emerald-50/20 font-black border-r border-slate-100 w-16">
                     {item.countPass}
                   </td>
-                  <td className="px-1 py-2 text-center text-rose-600 bg-rose-50/20 font-black border-r border-slate-100">
+                  <td className="px-1 py-2 text-center text-rose-600 bg-rose-50/20 font-black border-r border-slate-100 w-16">
                     {item.countDefect}
                   </td>
-                  <td className="px-1 py-2 text-center text-rose-600 bg-rose-50/20 font-black">
+                  <td className="px-1 py-2 text-center text-rose-600 bg-rose-50/20 font-black w-16">
                     {item.countBS}
                   </td>
                 </tr>
@@ -561,17 +563,19 @@ export default function PanelQCTable({
                 key={item.id}
                 className={`${rowBgClass} transition-colors`}
               >
-                <td className={`sticky left-0 z-10 px-1 py-1 text-center border-r border-slate-100 ${stickyCellBgClass}`}>
-                  {!isDeleted && (
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => onToggleSelect && onToggleSelect(item.id)}
-                      className="w-3.5 h-3.5 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
-                    />
-                  )}
-                </td>
-                <td className={`sticky left-7 z-10 px-1 py-1 font-bold text-slate-800 text-center flex flex-col items-center justify-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${stickyCellBgClass}`}>
+                {onToggleSelect && (
+                  <td className={`px-1.5 py-1.5 text-center border-r border-slate-100 ${stickyCellBgClass}`}>
+                    {!isDeleted && (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelect && onToggleSelect(item.id)}
+                        className="w-3.5 h-3.5 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
+                      />
+                    )}
+                  </td>
+                )}
+                <td className={`sticky left-0 z-10 px-2 py-1.5 font-bold text-slate-800 text-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${stickyCellBgClass}`}>
                   {isBsAwal ? (
                     <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                   ) : isBsAkhir ? (
@@ -600,16 +604,16 @@ export default function PanelQCTable({
                     </div>
                   )}
                 </td>
-                <td className="px-1 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100">
+                <td className="px-2 py-1 text-slate-600 text-center whitespace-nowrap border-r border-slate-100">
                   {showTgl ? tglStr : ""}
                 </td>
-                <td className="px-1 py-1 font-medium text-slate-700 text-center border-r border-slate-100">
+                <td className="px-1.5 py-1 font-medium text-slate-700 text-center border-r border-slate-100">
                   {showGrp ? grpStr : ""}
                 </td>
-                <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(!showOpr && hasIstirahat) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
+                <td className={`px-2 py-1 leading-tight text-center border-r border-slate-100 ${(!showOpr && hasIstirahat) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
                   {showOpr ? (item.oprBase || grpStr || "-") : (hasIstirahat ? "Istirahat" : "")}
                 </td>
-                <td className="px-1 py-1 text-center font-bold text-sm border-r border-slate-100">
+                <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100">
                   {isDeleted ? <span className="text-slate-400 font-bold">-</span> : hasError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
                 </td>
                 <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100">
@@ -681,7 +685,7 @@ export default function PanelQCTable({
                     );
                   })()}
                 </td>
-                <td className="px-1 py-1 border-r border-slate-100">
+                <td className="px-2 py-1 border-r border-slate-100 text-center w-16">
                   <div className="flex items-center justify-center gap-1">
                     {isDeleted ? (
                       <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
@@ -716,39 +720,39 @@ export default function PanelQCTable({
                     )}
                   </div>
                 </td>
-                <td className="px-1 py-1 text-center border-r border-slate-100">
+                <td className="px-1 py-1 text-center border-r border-slate-100 w-16">
                   {isDeleted ? (
                     <span className="text-slate-300 font-bold block text-center">-</span>
                   ) : (
                     <button
                       onClick={() => handleSelectGrade(item.id, 1)}
-                      className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 1 ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-emerald-300 hover:text-emerald-500"}`}
+                      className={`w-7 h-7 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 1 ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-emerald-300 hover:text-emerald-500"}`}
                     >
-                      <CheckCircle className="w-3.5 h-3.5" />
+                      <CheckCircle className="w-4 h-4" />
                     </button>
                   )}
                 </td>
-                <td className="px-1 py-1 text-center border-r border-slate-100">
+                <td className="px-1 py-1 text-center border-r border-slate-100 w-16">
                   {isDeleted ? (
                     <span className="text-slate-300 font-bold block text-center">-</span>
                   ) : (
                     <button
                       onClick={() => handleSelectGrade(item.id, 3)}
-                      className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 3 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}
+                      className={`w-7 h-7 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 3 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-4 h-4" />
                     </button>
                   )}
                 </td>
-                <td className="px-1 py-1 text-center">
+                <td className="px-1 py-1 text-center w-16">
                   {isDeleted ? (
                     <span className="text-slate-300 font-bold block text-center">-</span>
                   ) : (
                     <button
                       onClick={() => handleSelectGrade(item.id, 4)}
-                      className={`w-6 h-6 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 4 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}
+                      className={`w-7 h-7 mx-auto flex items-center justify-center rounded-md transition-all border ${selections[item.id] === 4 ? "border-rose-500 bg-rose-100 text-rose-700 shadow-sm" : "border-slate-200 bg-white text-slate-300 hover:border-rose-300 hover:text-rose-500"}`}
                     >
-                      <span className="text-[10px] font-black">BS</span>
+                      <span className="text-xs font-black">BS</span>
                     </button>
                   )}
                 </td>
@@ -757,17 +761,17 @@ export default function PanelQCTable({
           })}
 
           {(totalGradable > 0 || totalBS > 0) && (
-            <tr className="bg-slate-50 font-bold border-t border-slate-200 text-[11px] text-slate-700 uppercase tracking-wider">
-              <td className="px-2 py-3 text-right font-extrabold border-r border-slate-100" colSpan={8}>
+            <tr className="bg-slate-50 font-bold border-t border-slate-200 text-xs text-slate-700 uppercase tracking-wider">
+              <td className="px-2 py-3 text-right font-extrabold border-r border-slate-100" colSpan={onToggleSelect ? 8 : 7}>
                 TOTAL ({totalGradable + totalBS} PANEL):
               </td>
-              <td className="px-1 py-3 text-center text-emerald-600 bg-emerald-50/40 font-black border-r border-slate-100">
+              <td className="px-1 py-3 text-center text-emerald-600 bg-emerald-50/40 font-black border-r border-slate-100 w-16">
                 {totalPass}
               </td>
-              <td className="px-1 py-3 text-center text-rose-600 bg-rose-50/40 font-black border-r border-slate-100">
+              <td className="px-1 py-3 text-center text-rose-600 bg-rose-50/40 font-black border-r border-slate-100 w-16">
                 {totalDefect}
               </td>
-              <td className="px-1 py-3 text-center text-rose-600 bg-rose-50/40 font-black">
+              <td className="px-1 py-3 text-center text-rose-600 bg-rose-50/40 font-black w-16">
                 {totalBS}
               </td>
             </tr>

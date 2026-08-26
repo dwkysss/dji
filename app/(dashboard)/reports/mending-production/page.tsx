@@ -19,6 +19,9 @@ import {
   Package,
   ArrowLeft,
   Wrench,
+  CheckCircle2,
+  ClipboardCheck,
+  Scale,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import { PROBLEM_DETAILS, REGISTERED_MACHINES } from "@/lib/constants";
@@ -54,6 +57,58 @@ const getActualMeter = (item: any, h: any) => {
     if (!isNaN(parsed)) return parsed;
   }
   return null;
+};
+
+const formatDateTimeStr = (date?: string | null, time?: string | null) => {
+  if (!time || time === "-") return "-";
+  if (!date || date === "-") return time;
+  if (time.includes(date) || time.match(/\d{4}-\d{2}-\d{2}/)) return time;
+  return `${date} ${time}`;
+};
+
+const calculateDurationStr = (start?: string | null, finish?: string | null, pauseSec: number = 0, elapsedSec?: number | null) => {
+  if (!start && !finish && (elapsedSec === undefined || elapsedSec === null)) {
+    return "-";
+  }
+
+  let totalSec = 0;
+
+  if (elapsedSec !== undefined && elapsedSec !== null && elapsedSec >= 0) {
+    totalSec = elapsedSec;
+  } else if (start && finish) {
+    const parseSecs = (str: string) => {
+      const match = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (!match) return null;
+      const h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const s = match[3] ? parseInt(match[3], 10) : 0;
+      return h * 3600 + m * 60 + s;
+    };
+
+    const sSecs = parseSecs(start);
+    const fSecs = parseSecs(finish);
+    if (sSecs !== null && fSecs !== null) {
+      let diff = fSecs - sSecs;
+      if (diff < 0) diff += 24 * 3600;
+      totalSec = Math.max(0, diff - pauseSec);
+    } else {
+      return "-";
+    }
+  } else {
+    return "-";
+  }
+
+  const hours = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+
+  if (hours > 0) {
+    return mins > 0 ? `${hours}j ${mins}m` : `${hours}j`;
+  }
+  if (mins > 0) {
+    return secs > 0 ? `${mins}m ${secs}d` : `${mins} mnt`;
+  }
+  return `${secs} dtk`;
 };
 
 import { calculateOverallGradeData, isBsAwalAkhir } from "@/lib/mending-grade-utils";
@@ -952,6 +1007,45 @@ export default function MendingProductionReportPage() {
       const startInspect = pcs.qc_batch?.start_inspect || "";
       const finishInspect = pcs.qc_batch?.finish_inspect || "";
 
+      const qcBatch = pcs.qc_batch || {};
+      let elapsedQc = qcBatch.elapsed_seconds;
+      let pauseQc = qcBatch.pause_seconds || 0;
+      if (elapsedQc === undefined || elapsedQc === null) {
+        const m = (qcBatch.keterangan_qc || "").match(/\[ELAPSED:(\d+)\]/);
+        if (m && m[1]) elapsedQc = parseInt(m[1], 10);
+      }
+      if (!pauseQc) {
+        const mp = (qcBatch.keterangan_qc || "").match(/\[PAUSE:(\d+)\]/);
+        if (mp && mp[1]) pauseQc = parseInt(mp[1], 10);
+      }
+      const durasiQc = calculateDurationStr(startInspect, finishInspect, pauseQc, elapsedQc);
+
+      const mndBatch = pcs.mending_batch || {};
+      let elapsedMnd = mndBatch.elapsed_seconds;
+      let pauseMnd = mndBatch.pause_seconds || 0;
+      if (elapsedMnd === undefined || elapsedMnd === null) {
+        const m = (mndBatch.keterangan_mending || "").match(/\[ELAPSED:(\d+)\]/);
+        if (m && m[1]) elapsedMnd = parseInt(m[1], 10);
+      }
+      if (!pauseMnd) {
+        const mp = (mndBatch.keterangan_mending || "").match(/\[PAUSE:(\d+)\]/);
+        if (mp && mp[1]) pauseMnd = parseInt(mp[1], 10);
+      }
+      const durasiMnd = calculateDurationStr(pcs.start_mending || mndBatch.start_mending, pcs.finish_mending || mndBatch.finish_mending, pauseMnd, elapsedMnd);
+
+      const finalBatch = pcs.final_batch || pcs || {};
+      let elapsedFinal = finalBatch.elapsed_seconds;
+      let pauseFinal = finalBatch.pause_seconds || 0;
+      if (elapsedFinal === undefined || elapsedFinal === null) {
+        const m = (finalBatch.keterangan_final || "").match(/\[ELAPSED:(\d+)\]/);
+        if (m && m[1]) elapsedFinal = parseInt(m[1], 10);
+      }
+      if (!pauseFinal) {
+        const mp = (finalBatch.keterangan_final || "").match(/\[PAUSE:(\d+)\]/);
+        if (mp && mp[1]) pauseFinal = parseInt(mp[1], 10);
+      }
+      const durasiFinal = calculateDurationStr(pcs.start_final || finalBatch.start_final, pcs.finish_final || finalBatch.finish_final, pauseFinal, elapsedFinal);
+
       const unit = isMeter ? 'Meter' : 'Panel';
 
       sumTitleRow.push("KET", "Produksi", "Setelah Inspect", "", "GRADE KESELURUHAN", "", "", "", "");
@@ -960,12 +1054,11 @@ export default function MendingProductionReportPage() {
       sumRowBS.push("BS", prodBS, inspectBS, "", `Total: ${totalQty} ${unit} • Cacat: ${totalCacat}`, "", "", "", "");
 
       infoBlank.push("", "", "", "", "", "", "", "", "");
-      infoRow1.push(`Total ${unit} Setelah di Inspecting`, ":", totalSetelahInspect, "", "", "", "", "", "");
-      infoRow2.push(`Berat Inspecting`, ":", beratInspect, "", "", "", "", "", "");
-      infoRow3.push(`Tanggal Inspecting`, ":", tanggalInspect, "", `Tanggal Mending`, ":", pcs.tanggal_mending || "", "", "");
-      infoRow4.push(`Petugas Inspecting`, ":", petugasInspect, "", `Petugas Mending`, ":", pcs.petugas_mending || "", "", "");
-      infoRow5.push(`Start Inspect`, ":", startInspect, "", `Start Mending`, ":", pcs.start_mending || "", "", "");
-      infoRow6.push(`Finish Inspect`, ":", finishInspect, "", `Finish Mending`, ":", pcs.finish_mending || "", "", "");
+      infoRow1.push(`Total ${unit} Setelah di Inspecting`, ":", totalSetelahInspect, "", `Petugas Inspecting`, ":", petugasInspect, "", `Petugas Final Inspek`, ":", pcs.petugas_final || pcs.final_batch?.petugas_final || "");
+      infoRow2.push(`Berat Inspecting`, ":", beratInspect, "", `Start Inspect`, ":", formatDateTimeStr(tanggalInspect, startInspect), "", `Start Final Inspek`, ":", formatDateTimeStr(pcs.tanggal_final || pcs.final_batch?.tanggal_final, pcs.start_final || pcs.final_batch?.start_final));
+      infoRow3.push(`Petugas Mending`, ":", pcs.petugas_mending || "", "", `Finish Inspect`, ":", formatDateTimeStr(tanggalInspect, finishInspect), "", `Finish Final Inspek`, ":", formatDateTimeStr(pcs.tanggal_final || pcs.final_batch?.tanggal_final, pcs.finish_final || pcs.final_batch?.finish_final));
+      infoRow4.push(`Start Mending`, ":", formatDateTimeStr(pcs.tanggal_mending, pcs.start_mending), "", `Durasi Inspect`, ":", durasiQc, "", `Durasi Final Inspek`, ":", durasiFinal);
+      infoRow5.push(`Finish Mending`, ":", formatDateTimeStr(pcs.tanggal_mending, pcs.finish_mending), "", `Durasi Mending`, ":", durasiMnd, "", "", "", "");
     });
 
     wsData.push(sumTitleRow);
@@ -978,7 +1071,6 @@ export default function MendingProductionReportPage() {
     wsData.push(infoRow3);
     wsData.push(infoRow4);
     wsData.push(infoRow5);
-    wsData.push(infoRow6);
 
     const ws = xlsx.utils.aoa_to_sheet(wsData);
     xlsx.utils.book_append_sheet(wb, ws, "Hasil Produksi");
@@ -1313,7 +1405,7 @@ export default function MendingProductionReportPage() {
                 </h2>
               </div>
 
-              <div className="grid grid-cols-2 gap-x-2 lg:gap-x-12 gap-y-1 max-w-5xl mx-auto text-[10px] sm:text-xs lg:text-sm">
+              <div className="grid grid-cols-2 gap-x-2 lg:gap-x-12 gap-y-1 w-full text-[10px] sm:text-xs lg:text-sm">
                 <div className="space-y-1">
                   <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
                     <span className="font-bold text-slate-500 whitespace-nowrap">Design</span>
@@ -1387,8 +1479,8 @@ export default function MendingProductionReportPage() {
             </div>
 
             {/* PCS Tables Grid - Side by Side Scrollable */}
-            <div className="w-full overflow-x-auto pb-4 custom-scrollbar bg-slate-50/50 p-6 rounded-b-2xl">
-              <div className="flex gap-6 min-w-max">
+            <div className="w-full overflow-x-auto pb-4 custom-scrollbar bg-slate-50/50 p-4 sm:p-6 rounded-b-2xl">
+              <div className="flex gap-6 w-full min-w-full">
                 {selectedPcsData.map((pcs: any) => {
                   const sortedItems = [...(pcs.items || [])].sort((a: any, b: any) => {
                     const pA = a.detail?.header?.panel_no;
@@ -1460,7 +1552,7 @@ export default function MendingProductionReportPage() {
                   return (
                     <div 
                       key={pcs.id} 
-                      className="min-w-[500px] border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden flex flex-col"
+                      className="flex-1 w-full min-w-[500px] border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden flex flex-col"
                     >
                       {/* PCS Title Header */}
                       <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
@@ -1482,10 +1574,10 @@ export default function MendingProductionReportPage() {
                             <th className="px-2 py-2 font-extrabold text-slate-600 w-24 text-center border-r border-slate-100">Operator</th>
                             <th className="px-2 py-2 font-extrabold text-slate-600 text-center w-14 border-r border-slate-100">✓/X</th>
                             {isMeter && <th className="px-2 py-2 font-extrabold text-slate-600 w-16 border-r border-slate-100 text-center">Meter</th>}
-                            <th className="px-2 py-2 font-extrabold text-slate-600 border-r border-slate-100 min-w-[160px]">KETERANGAN CACAT</th>
-                            <th className="px-1 py-2 font-extrabold text-emerald-600 text-center w-10 border-r border-slate-100">A</th>
-                            <th className="px-1 py-2 font-extrabold text-amber-600 text-center w-10 border-r border-slate-100">B</th>
-                            <th className="px-1 py-2 font-extrabold text-rose-600 text-center w-10">BS</th>
+                            <th className="px-2 py-2 font-extrabold text-slate-600 border-r border-slate-100 min-w-[160px] w-full">KETERANGAN CACAT</th>
+                            <th className="px-1.5 py-2 font-extrabold text-emerald-600 text-center w-14 min-w-[52px] border-r border-slate-100">A</th>
+                            <th className="px-1.5 py-2 font-extrabold text-amber-600 text-center w-14 min-w-[52px] border-r border-slate-100">B</th>
+                            <th className="px-1.5 py-2 font-extrabold text-rose-600 text-center w-14 min-w-[52px]">BS</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -1812,14 +1904,14 @@ export default function MendingProductionReportPage() {
                                     )}
                                   </td>
 
-                                  <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100">
-                                    {isGradable && grade === "A" && <div className="mx-auto w-4 h-4 rounded bg-emerald-100 text-emerald-700 font-black flex items-center justify-center text-[10px]">A</div>}
+                                  <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100 w-14 min-w-[52px]">
+                                    {isGradable && grade === "A" && <div className="mx-auto px-1.5 py-0.5 w-fit rounded bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-[11px]">A</div>}
                                   </td>
-                                  <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100">
-                                    {isGradable && grade === "B" && <div className="mx-auto w-4 h-4 rounded bg-amber-100 text-amber-700 font-black flex items-center justify-center text-[10px]">B</div>}
+                                  <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100 w-14 min-w-[52px]">
+                                    {isGradable && grade === "B" && <div className="mx-auto px-1.5 py-0.5 w-fit rounded bg-amber-100 text-amber-700 font-bold flex items-center justify-center text-[11px]">B</div>}
                                   </td>
-                                  <td className="px-1 py-1 text-center border-b border-slate-100">
-                                    {isGradable && grade === "BS" && <div className="mx-auto w-4 h-4 rounded bg-rose-100 text-rose-700 font-black flex items-center justify-center text-[10px]">BS</div>}
+                                  <td className="px-1 py-1 text-center border-b border-slate-100 w-14 min-w-[52px]">
+                                    {isGradable && grade === "BS" && <div className="mx-auto px-1.5 py-0.5 w-fit rounded bg-rose-100 text-rose-700 font-bold flex items-center justify-center text-[11px]">BS</div>}
                                   </td>
                                 </tr>
                               );
@@ -1878,74 +1970,157 @@ export default function MendingProductionReportPage() {
                           </div>
                         </div>
 
-                        {/* Additional Info Forms */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2 w-full">
-                          
-                          {/* Column 1: Info */}
-                          <div className="flex flex-col gap-4">
-                            <table className="w-full text-left text-xs border-collapse border border-black bg-white">
-                              <tbody>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold w-1/2">Total {unit} Setelah di Inspecting</td>
-                                  <td className="px-2 py-1.5 border border-black w-1/2">: {totalSetelahInspect}</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold">Berat Inspecting</td>
-                                  <td className="px-2 py-1.5 border border-black">: {beratInspect}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
+                        {/* Additional Info Cards (4 Columns / 2x2 Responsive) */}
+                        {(() => {
+                          const qcBatch = pcs.qc_batch || {};
+                          let elapsedQc = qcBatch.elapsed_seconds;
+                          let pauseQc = qcBatch.pause_seconds || 0;
+                          if (elapsedQc === undefined || elapsedQc === null) {
+                            const m = (qcBatch.keterangan_qc || "").match(/\[ELAPSED:(\d+)\]/);
+                            if (m && m[1]) elapsedQc = parseInt(m[1], 10);
+                          }
+                          if (!pauseQc) {
+                            const mp = (qcBatch.keterangan_qc || "").match(/\[PAUSE:(\d+)\]/);
+                            if (mp && mp[1]) pauseQc = parseInt(mp[1], 10);
+                          }
+                          const durasiQc = calculateDurationStr(startInspect, finishInspect, pauseQc, elapsedQc);
 
-                          {/* Column 2: Inspect Info */}
-                          <div className="flex flex-col gap-4">
-                            <table className="w-full text-left text-xs border-collapse border border-black bg-white h-full">
-                              <tbody>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold w-1/2">Tanggal Inspecting</td>
-                                  <td className="px-2 py-1.5 border border-black w-1/2">: {tanggalInspect}</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold w-1/2">Petugas Inspecting</td>
-                                  <td className="px-2 py-1.5 border border-black w-1/2">: {petugasInspect}</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold">Start Inspect</td>
-                                  <td className="px-2 py-1.5 border border-black">: {startInspect}</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold">Finish Inspect</td>
-                                  <td className="px-2 py-1.5 border border-black">: {finishInspect}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
+                          const mndBatch = pcs.mending_batch || {};
+                          let elapsedMnd = mndBatch.elapsed_seconds;
+                          let pauseMnd = mndBatch.pause_seconds || 0;
+                          if (elapsedMnd === undefined || elapsedMnd === null) {
+                            const m = (mndBatch.keterangan_mending || "").match(/\[ELAPSED:(\d+)\]/);
+                            if (m && m[1]) elapsedMnd = parseInt(m[1], 10);
+                          }
+                          if (!pauseMnd) {
+                            const mp = (mndBatch.keterangan_mending || "").match(/\[PAUSE:(\d+)\]/);
+                            if (mp && mp[1]) pauseMnd = parseInt(mp[1], 10);
+                          }
+                          const durasiMnd = calculateDurationStr(pcs.mending_batch?.start_mending || pcs.start_mending, pcs.mending_batch?.finish_mending || pcs.finish_mending, pauseMnd, elapsedMnd);
 
-                          {/* Column 3: Mending Info */}
-                          <div className="flex flex-col gap-4">
-                            <table className="w-full text-left text-xs border-collapse border border-black bg-white h-full">
-                              <tbody>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold w-1/2">Tanggal Mending</td>
-                                  <td className="px-2 py-1.5 border border-black w-1/2">: {pcs.tanggal_mending || ""}</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold w-1/2">Petugas Mending</td>
-                                  <td className="px-2 py-1.5 border border-black w-1/2">: {pcs.petugas_mending || ""}</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold">Start Mending</td>
-                                  <td className="px-2 py-1.5 border border-black">: {pcs.start_mending || ""}</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-2 py-1.5 border border-black font-bold">Finish Mending</td>
-                                  <td className="px-2 py-1.5 border border-black">: {pcs.finish_mending || ""}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
+                          const finalBatch = pcs.final_batch || pcs || {};
+                          let elapsedFinal = finalBatch.elapsed_seconds;
+                          let pauseFinal = finalBatch.pause_seconds || 0;
+                          if (elapsedFinal === undefined || elapsedFinal === null) {
+                            const m = (finalBatch.keterangan_final || "").match(/\[ELAPSED:(\d+)\]/);
+                            if (m && m[1]) elapsedFinal = parseInt(m[1], 10);
+                          }
+                          if (!pauseFinal) {
+                            const mp = (finalBatch.keterangan_final || "").match(/\[PAUSE:(\d+)\]/);
+                            if (mp && mp[1]) pauseFinal = parseInt(mp[1], 10);
+                          }
+                          const durasiFinal = calculateDurationStr(pcs.tanggal_final ? pcs.start_final : finalBatch.start_final, pcs.tanggal_final ? pcs.finish_final : finalBatch.finish_final, pauseFinal, elapsedFinal);
 
-                        </div>
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4 w-full">
+                              
+                              {/* Card 1: Ringkasan Fisik */}
+                              <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col justify-between">
+                                <div className="bg-slate-50/90 px-3.5 py-2.5 border-b border-slate-200/80 flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                                    <Scale className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Ringkasan Fisik</span>
+                                </div>
+                                <div className="p-3.5 space-y-2 text-xs flex-1 flex flex-col justify-center">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-500 font-medium">Total Setelah Inspect</span>
+                                    <span className="font-extrabold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-xs">{totalSetelahInspect}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Berat Inspecting</span>
+                                    <span className="font-bold text-slate-700">{beratInspect || "-"}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card 2: Inspect Info (QC) */}
+                              <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col justify-between">
+                                <div className="bg-sky-50/70 px-3.5 py-2.5 border-b border-sky-100 flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200/60">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-[11px] font-extrabold text-sky-900 uppercase tracking-wider">Inspecting (QC)</span>
+                                </div>
+                                <div className="p-3.5 space-y-2 text-xs flex-1 flex flex-col justify-center">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-500 font-medium">Petugas</span>
+                                    <span className="font-bold text-slate-800 truncate max-w-[150px]" title={petugasInspect}>{petugasInspect || "-"}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Start</span>
+                                    <span className="font-semibold text-slate-700 font-mono text-[11px]">{formatDateTimeStr(tanggalInspect, startInspect)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Finish</span>
+                                    <span className="font-semibold text-slate-700 font-mono text-[11px]">{formatDateTimeStr(tanggalInspect, finishInspect)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Durasi</span>
+                                    <span className="font-black text-amber-700 font-mono text-[11px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">{durasiQc}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card 3: Mending Info */}
+                              <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col justify-between">
+                                <div className="bg-amber-50/70 px-3.5 py-2.5 border-b border-amber-100 flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200/60">
+                                    <Wrench className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider">Mending</span>
+                                </div>
+                                <div className="p-3.5 space-y-2 text-xs flex-1 flex flex-col justify-center">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-500 font-medium">Petugas</span>
+                                    <span className="font-bold text-slate-800 truncate max-w-[150px]" title={pcs.mending_batch?.petugas_mending || pcs.petugas_mending}>{pcs.mending_batch?.petugas_mending || pcs.petugas_mending || "-"}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Start</span>
+                                    <span className="font-semibold text-slate-700 font-mono text-[11px]">{formatDateTimeStr(pcs.mending_batch?.tanggal_mending || pcs.tanggal_mending, pcs.mending_batch?.start_mending || pcs.start_mending)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Finish</span>
+                                    <span className="font-semibold text-slate-700 font-mono text-[11px]">{formatDateTimeStr(pcs.mending_batch?.tanggal_mending || pcs.tanggal_mending, pcs.mending_batch?.finish_mending || pcs.finish_mending)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Durasi</span>
+                                    <span className="font-black text-amber-700 font-mono text-[11px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">{durasiMnd}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card 4: Final Inspek Info */}
+                              <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col justify-between">
+                                <div className="bg-emerald-50/70 px-3.5 py-2.5 border-b border-emerald-100 flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200/60">
+                                    <ClipboardCheck className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-[11px] font-extrabold text-emerald-900 uppercase tracking-wider">Final Inspek</span>
+                                </div>
+                                <div className="p-3.5 space-y-2 text-xs flex-1 flex flex-col justify-center">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-500 font-medium">Petugas</span>
+                                    <span className="font-bold text-slate-800 truncate max-w-[150px]" title={pcs.petugas_final || pcs.final_batch?.petugas_final}>{pcs.petugas_final || pcs.final_batch?.petugas_final || "-"}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Start</span>
+                                    <span className="font-semibold text-slate-700 font-mono text-[11px]">{formatDateTimeStr(pcs.tanggal_final || pcs.final_batch?.tanggal_final, pcs.start_final || pcs.final_batch?.start_final)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Finish</span>
+                                    <span className="font-semibold text-slate-700 font-mono text-[11px]">{formatDateTimeStr(pcs.tanggal_final || pcs.final_batch?.tanggal_final, pcs.finish_final || pcs.final_batch?.finish_final)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                                    <span className="text-slate-500 font-medium">Durasi</span>
+                                    <span className="font-black text-amber-700 font-mono text-[11px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">{durasiFinal}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );

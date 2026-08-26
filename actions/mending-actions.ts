@@ -762,6 +762,7 @@ export async function getAllDetailsForPcs(nomor_mc: string, design_id: string, p
         final_inspection_id, 
         status_inspeksi,
         status_mending,
+        status_final_mending,
         is_deleted,
         header_id,
         production_defects(*)
@@ -914,12 +915,12 @@ export async function getMendingDetailsByGroup(nomor_mc: string, design_id: stri
 export async function getMendingReportOptions() {
   try {
     const supabase = await createClient();
-    const [mendingRes, headersRes] = await Promise.all([
-      supabase.from("mending_batches").select("nomor_mc, potongan_ke, design_id"),
+    const [finalRes, headersRes] = await Promise.all([
+      supabase.from("final_inspection_batches").select("nomor_mc, potongan_ke, design_id"),
       supabase.from("production_headers").select("nomor_mc")
     ]);
       
-    const mendingData = mendingRes.data || [];
+    const finalData = finalRes.data || [];
     const headerData = headersRes.data || [];
     
     const registeredMachines = [
@@ -930,15 +931,15 @@ export async function getMendingReportOptions() {
 
     const allMesins = [
       ...registeredMachines,
-      ...mendingData.map((d: any) => d.nomor_mc),
+      ...finalData.map((d: any) => d.nomor_mc),
       ...headerData.map((d: any) => d.nomor_mc)
     ].filter(Boolean);
 
     const mesins = Array.from(new Set(allMesins)).sort((a: any, b: any) => 
       String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
     );
-    const potongans = Array.from(new Set(mendingData.map((d: any) => d.potongan_ke).filter(Boolean)));
-    const designs = Array.from(new Set(mendingData.map((d: any) => d.design_id).filter(Boolean)));
+    const potongans = Array.from(new Set(finalData.map((d: any) => d.potongan_ke).filter(Boolean)));
+    const designs = Array.from(new Set(finalData.map((d: any) => d.design_id).filter(Boolean)));
     
     return { success: true, data: { mesins, potongans, designs } };
   } catch (err: any) {
@@ -950,23 +951,23 @@ export async function getMendingReportSummary(nomor_mc?: string, potongan_ke?: s
   try {
     const supabase = await createClient();
     let query = supabase
-      .from("mending_batches")
+      .from("final_inspection_batches")
       .select(`
         id,
         nomor_mc,
         design_id,
         potongan_ke,
         pcs_index,
-        tanggal_mending,
-        petugas_mending,
-        mending_grade_a,
-        mending_grade_b,
-        mending_grade_bs,
+        tanggal_final,
+        petugas_final,
+        final_grade_a,
+        final_grade_b,
+        final_grade_bs,
         total_panel,
-        keterangan_mending,
+        keterangan_final,
         created_at
       `)
-      .order("tanggal_mending", { ascending: false })
+      .order("tanggal_final", { ascending: false })
       .order("potongan_ke", { ascending: false })
       .order("pcs_index", { ascending: true })
       .limit(1000);
@@ -981,13 +982,35 @@ export async function getMendingReportSummary(nomor_mc?: string, potongan_ke?: s
       }
     }
     if (tanggal && tanggal.trim() !== "") {
-      query = query.eq("tanggal_mending", tanggal.trim());
+      query = query.eq("tanggal_final", tanggal.trim());
     }
 
     const { data, error } = await query;
     if (error) return { success: false, error: error.message };
 
-    return { success: true, data: data || [] };
+    const formattedData = (data || []).map((d: any) => ({
+      id: d.id,
+      nomor_mc: d.nomor_mc,
+      design_id: d.design_id,
+      potongan_ke: d.potongan_ke,
+      pcs_index: d.pcs_index,
+      tanggal_mending: d.tanggal_final,
+      tanggal_final: d.tanggal_final,
+      petugas_mending: d.petugas_final,
+      petugas_final: d.petugas_final,
+      mending_grade_a: d.final_grade_a,
+      final_grade_a: d.final_grade_a,
+      mending_grade_b: d.final_grade_b,
+      final_grade_b: d.final_grade_b,
+      mending_grade_bs: d.final_grade_bs,
+      final_grade_bs: d.final_grade_bs,
+      total_panel: d.total_panel,
+      keterangan_mending: d.keterangan_final,
+      keterangan_final: d.keterangan_final,
+      created_at: d.created_at,
+    }));
+
+    return { success: true, data: formattedData };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
@@ -997,21 +1020,25 @@ export async function getMendingReportDetailByPotongan(nomor_mc: string, design_
   try {
     const supabase = await createClient();
 
-    // 1. Fetch full mending batches with items and details for only this specific cut
+    // 1. Fetch full final inspection batches with items and details for only this specific cut
     const { data, error } = await supabase
-      .from("mending_batches")
+      .from("final_inspection_batches")
       .select(`
         *,
-        items:mending_items!inner (
-          id, hasil_mending,
+        items:final_inspection_items!inner (
+          id, hasil_final,
           detail:production_details!inner (
-            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, indikator_stop, is_deleted,
+            id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, indikator_stop, status_mending, status_final_mending, is_deleted,
             header:production_headers!inner (
               id, tanggal_jam, design_id, potongan_ke, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, meter_awal, meter_akhir,
               operators(nama_operator), groups(nama_grup)
             ),
             qc_items:qc_inspection_items (
-              batch:qc_inspection_batches (berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi)
+              batch:qc_inspection_batches (berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi, elapsed_seconds, pause_seconds, keterangan_qc)
+            ),
+            mending_items:mending_items (
+              hasil_mending,
+              batch:mending_batches (tanggal_mending, petugas_mending, start_mending, finish_mending, elapsed_seconds, pause_seconds, keterangan_mending)
             )
           )
         )
@@ -1025,7 +1052,14 @@ export async function getMendingReportDetailByPotongan(nomor_mc: string, design_
     // 2. Fallback query from qc_inspection_batches for this cut
     const { data: allQcBatches } = await supabase
       .from("qc_inspection_batches")
-      .select("id, nomor_mc, potongan_ke, pcs_index, berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi")
+      .select("id, nomor_mc, potongan_ke, pcs_index, berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi, elapsed_seconds, pause_seconds, keterangan_qc")
+      .eq("nomor_mc", nomor_mc)
+      .eq("potongan_ke", potongan_ke);
+
+    // 3. Fallback query from mending_batches for this cut
+    const { data: allMendingBatches } = await supabase
+      .from("mending_batches")
+      .select("id, nomor_mc, potongan_ke, pcs_index, tanggal_mending, petugas_mending, start_mending, finish_mending, berat_kain, elapsed_seconds, pause_seconds, keterangan_mending")
       .eq("nomor_mc", nomor_mc)
       .eq("potongan_ke", potongan_ke);
 
@@ -1033,13 +1067,23 @@ export async function getMendingReportDetailByPotongan(nomor_mc: string, design_
       const firstItem = batch.items && batch.items.length > 0 ? batch.items[0] : null;
       const header = firstItem?.detail?.header || {};
 
-      const formattedItems = (batch.items || []).map((item: any) => ({
-        id: item.id,
-        hasil_mending: item.hasil_mending,
-        detail: item.detail || {},
-        header: item.detail?.header || {},
-        qc_batch: item.detail?.qc_items?.[0]?.batch || {}
-      }));
+      const formattedItems = (batch.items || []).map((item: any) => {
+        const mendingBatchInfo = item.detail?.mending_items?.[0]?.batch;
+        const mendingGradeAsli = item.detail?.mending_items?.[0]?.hasil_mending;
+        return {
+          id: item.id,
+          hasil_mending: item.hasil_final || item.detail?.status_final_mending || item.hasil_mending,
+          hasil_mending_asli: mendingGradeAsli,
+          hasil_final: item.hasil_final,
+          detail: {
+            ...item.detail,
+            status_final_mending: item.hasil_final || item.detail?.status_final_mending,
+          },
+          header: item.detail?.header || {},
+          qc_batch: item.detail?.qc_items?.[0]?.batch || {},
+          mending_batch: mendingBatchInfo || {}
+        };
+      });
 
       let resolvedQcBatch: any = {};
       for (const fi of formattedItems) {
@@ -1061,12 +1105,47 @@ export async function getMendingReportDetailByPotongan(nomor_mc: string, design_
         }
       }
 
+      let resolvedMendingBatch: any = {};
+      for (const fi of formattedItems) {
+        const mb = fi.mending_batch;
+        if (mb && (mb.petugas_mending || mb.tanggal_mending || mb.start_mending)) {
+          resolvedMendingBatch = mb;
+          break;
+        }
+      }
+
+      if ((!resolvedMendingBatch.petugas_mending && !resolvedMendingBatch.start_mending) && allMendingBatches) {
+        const match = allMendingBatches.find((mb: any) => 
+          String(mb.nomor_mc) === String(batch.nomor_mc) &&
+          Number(mb.potongan_ke) === Number(batch.potongan_ke) &&
+          Number(mb.pcs_index || 1) === Number(batch.pcs_index || 1)
+        );
+        if (match) {
+          resolvedMendingBatch = match;
+        }
+      }
+
+      const petugasFinalStr = [batch.petugas_final, batch.petugas_final_2, batch.petugas_final_3].filter(Boolean).join(", ");
+
       return {
         ...batch,
+        // QC Info
+        qc_batch: resolvedQcBatch,
+        // Mending Info
+        mending_batch: resolvedMendingBatch,
+        tanggal_mending: resolvedMendingBatch?.tanggal_mending || null,
+        petugas_mending: resolvedMendingBatch?.petugas_mending || null,
+        start_mending: resolvedMendingBatch?.start_mending || null,
+        finish_mending: resolvedMendingBatch?.finish_mending || null,
+        // Final Inspection Info
+        final_batch: batch,
+        petugas_final: petugasFinalStr || batch.petugas_final || null,
+        tanggal_final: batch.tanggal_final || null,
+        start_final: batch.start_final || null,
+        finish_final: batch.finish_final || null,
         header,
         detail: { pcs_index: batch.pcs_index },
         items: formattedItems,
-        qc_batch: resolvedQcBatch
       };
     });
 
@@ -1080,11 +1159,11 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
   try {
     const supabase = await createClient();
     let query = supabase
-      .from("mending_batches")
+      .from("final_inspection_batches")
       .select(`
         *,
-        items:mending_items!inner (
-          id, hasil_mending,
+        items:final_inspection_items!inner (
+          id, hasil_final,
           detail:production_details!inner (
             id, pcs_index, final_inspection_id, header_id, roll_no, meter_kain, keterangan_qc, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, indikator_stop,
             header:production_headers!inner (
@@ -1125,7 +1204,8 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
       
       const formattedItems = (batch.items || []).map((item: any) => ({
         id: item.id,
-        hasil_mending: item.hasil_mending,
+        hasil_mending: item.hasil_final,
+        hasil_final: item.hasil_final,
         detail: item.detail || {},
         header: item.detail?.header || {},
         qc_batch: item.detail?.qc_items?.[0]?.batch || {}
@@ -1141,7 +1221,6 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
         }
       }
 
-      // Direct fallback from qc_inspection_batches table
       if ((!resolvedQcBatch.petugas_inspeksi && !resolvedQcBatch.start_inspect && !resolvedQcBatch.berat_kain) && allQcBatches) {
         const match = allQcBatches.find((qb: any) => 
           String(qb.nomor_mc) === String(batch.nomor_mc) &&
@@ -1155,6 +1234,12 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
 
       return {
         ...batch,
+        tanggal_mending: batch.tanggal_final,
+        petugas_mending: batch.petugas_final,
+        mending_grade_a: batch.final_grade_a,
+        mending_grade_b: batch.final_grade_b,
+        mending_grade_bs: batch.final_grade_bs,
+        keterangan_mending: batch.keterangan_final,
         header,
         detail: { pcs_index: batch.pcs_index },
         items: formattedItems,

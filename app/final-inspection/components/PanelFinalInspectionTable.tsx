@@ -1,7 +1,7 @@
 import React from "react";
-import { CheckCircle, Eye, Trash2, Edit3, Plus } from "lucide-react";
+import { CheckCircle, Trash2, Edit3, Plus } from "lucide-react";
 
-interface PanelMendingTableProps {
+interface PanelFinalInspectionTableProps {
   displayItems: any[];
   selections: Record<string, string>;
   onSelectGrade: (id: string, grade: string) => void;
@@ -18,7 +18,7 @@ interface PanelMendingTableProps {
   totalBS: number;
 }
 
-export default function PanelMendingTable({
+export default function PanelFinalInspectionTable({
   displayItems,
   selections,
   onSelectGrade,
@@ -33,12 +33,12 @@ export default function PanelMendingTable({
   totalA,
   totalB,
   totalBS,
-}: PanelMendingTableProps) {
+}: PanelFinalInspectionTableProps) {
   const panelCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
     displayItems.forEach((it) => {
       if (it.isTotalRow) return;
-      const isDeleted = !!it.is_deleted || it.status_inspeksi === "Dihapus" || it.status_mending === "Dihapus" || (it.keterangan_cacat || "").includes("[DIHAPUS]");
+      const isDeleted = !!it.is_deleted || it.status_inspeksi === "Dihapus" || it.status_mending === "Dihapus" || it.status_final_mending === "Dihapus" || (it.keterangan_cacat || "").includes("[DIHAPUS]");
       if (isDeleted) return;
       const clean = (it.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
       if (clean && clean !== "-" && !clean.toUpperCase().includes("AWAL") && !clean.toUpperCase().includes("AKHIR")) {
@@ -50,7 +50,7 @@ export default function PanelMendingTable({
 
   const selectableIds = React.useMemo(() => {
     return displayItems
-      .filter((it) => !it.isTotalRow && !it.is_deleted && it.status_inspeksi !== "Dihapus" && it.status_mending !== "Dihapus")
+      .filter((it) => !it.isTotalRow && !it.is_deleted && it.status_inspeksi !== "Dihapus" && it.status_mending !== "Dihapus" && it.status_final_mending !== "Dihapus")
       .map((it) => it.id);
   }, [displayItems]);
 
@@ -80,9 +80,9 @@ export default function PanelMendingTable({
           <th className="px-1.5 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100" rowSpan={2}>Group</th>
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-24 text-center border-r border-slate-100" rowSpan={2}>Operator</th>
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-14 text-center border-r border-slate-100" rowSpan={2}>KET ✓/X</th>
-          <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 min-w-[160px] w-full text-center border-r border-slate-100" rowSpan={2}>KETERANGAN CACAT</th>
+          <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 min-w-[160px] w-full text-center border-r border-slate-100" rowSpan={2}>KETERANGAN CACAT & MENDING</th>
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-16 text-center border-r border-slate-100" rowSpan={2}>AKSI</th>
-          <th className="px-1 py-1 border-b border-slate-200 font-extrabold text-slate-600 text-center border-r border-slate-100" colSpan={3}>MENDING</th>
+          <th className="px-1 py-1 border-b border-slate-200 font-extrabold text-slate-600 text-center border-r border-slate-100" colSpan={3}>FINAL INSPEK</th>
         </tr>
         <tr className="bg-slate-50">
           <th className="px-1 py-1 border-b border-slate-200 text-center font-black text-emerald-600 border-r border-slate-100 w-16">A</th>
@@ -115,7 +115,7 @@ export default function PanelMendingTable({
             );
           }
 
-          const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+          const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || item.status_final_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
           const cleanPanelNo = (item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
 
           const isPanelInsertedByQc = !!item.isPanelInsertedByQc || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(item.displayNo || "").includes("QC"));
@@ -278,7 +278,7 @@ export default function PanelMendingTable({
                       <button
                         onClick={() => onOpenAddQC(item)}
                         className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-xs cursor-pointer"
-                        title="Tambah Temuan / Catatan"
+                        title="Tambah Temuan / Catatan Final"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -287,7 +287,7 @@ export default function PanelMendingTable({
                       <button
                         onClick={() => onOpenEditDetail(item)}
                         className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all shadow-xs cursor-pointer"
-                        title="Koreksi Data Bawaan"
+                        title="Koreksi Data"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>

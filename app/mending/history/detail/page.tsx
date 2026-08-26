@@ -56,9 +56,13 @@ const getActualMeter = (item: any, h: any) => {
 };
 
 const calculateDurationStr = (start?: string | null, finish?: string | null, pauseSec: number = 0, elapsedSec?: number | null) => {
+  if (!start && !finish && (elapsedSec === undefined || elapsedSec === null)) {
+    return "-";
+  }
+
   let totalSec = 0;
 
-  if (elapsedSec !== undefined && elapsedSec !== null && elapsedSec > 0) {
+  if (elapsedSec !== undefined && elapsedSec !== null && elapsedSec >= 0) {
     totalSec = elapsedSec;
   } else if (start && finish) {
     const parseSecs = (str: string) => {
@@ -76,10 +80,12 @@ const calculateDurationStr = (start?: string | null, finish?: string | null, pau
       let diff = fSecs - sSecs;
       if (diff < 0) diff += 24 * 3600;
       totalSec = Math.max(0, diff - pauseSec);
+    } else {
+      return "-";
     }
+  } else {
+    return "-";
   }
-
-  if (totalSec <= 0) return "-";
 
   const hours = Math.floor(totalSec / 3600);
   const mins = Math.floor((totalSec % 3600) / 60);

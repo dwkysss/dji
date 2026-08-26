@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export interface TimerSession {
   id: string;
-  type: "qc" | "mending";
+  type: "qc" | "mending" | "final_inspection";
   nomor_mc: string;
   design_id: string;
   potongan_ke: string;
@@ -18,7 +18,7 @@ export interface TimerSession {
 }
 
 const buildSessionId = (
-  type: "qc" | "mending",
+  type: "qc" | "mending" | "final_inspection",
   nomor_mc: string,
   design_id: string,
   potongan_ke: string | number,
@@ -28,7 +28,7 @@ const buildSessionId = (
 };
 
 export async function getTimerSession(
-  type: "qc" | "mending",
+  type: "qc" | "mending" | "final_inspection",
   nomor_mc: string,
   design_id: string,
   potongan_ke: string | number,
@@ -60,7 +60,7 @@ export async function getTimerSession(
 }
 
 export async function upsertTimerSession(params: {
-  type: "qc" | "mending";
+  type: "qc" | "mending" | "final_inspection";
   nomor_mc: string;
   design_id: string;
   potongan_ke: string | number;
@@ -133,7 +133,7 @@ export async function upsertTimerSession(params: {
 }
 
 export async function deleteTimerSession(
-  type: "qc" | "mending",
+  type: "qc" | "mending" | "final_inspection",
   nomor_mc: string,
   design_id: string,
   potongan_ke: string | number,
@@ -161,7 +161,7 @@ export async function deleteTimerSession(
   }
 }
 
-export async function getActiveTimerSessions(type: "qc" | "mending") {
+export async function getActiveTimerSessions(type: "qc" | "mending" | "final_inspection") {
   try {
     const supabase = await createClient();
 
