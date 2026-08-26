@@ -1,12 +1,168 @@
-export const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = {
-  A: ["L1/L2/L3 Benang timbul putus", "Benang lolos", "Bolong corak", "Benang narik/Kendor", "Benang Nyilang", "Perbaikan/Beset benang Dasar", "Benang Kejepit/Jebol/Kusut", "Jalur benang"],
-  B: ["Jarum pattern patah/bengkok", "Ganti Jacquard", "Ganti jarum Compoun Nedle, pattern", "Ngampul", "Ganti dari scaloop ke non scaloop atau sebaliknya", "Ngegaris/Stopline", "Keluar Jarum", "Ganti String bar", "Ganti PBO", "Pressan As beam kendor", "Tensi tensioner"],
-  C: ["Loading design/Ganti Design", "Perbaikan corak/revisi", "Salah ganti design", "Error design", "Proofing/PCB", "Ganti Pattern Disk", "Ganti pick"],
-  D: ["Ganti benang dasar L1/L2", "Salah ganti benang dasar", "Ganti benang Pattern Linner", "Ganti benang Pattern Heavy", "Ganti benang Pattern Shadow", "Ganti benang pattern keseluruhan (L,H,S)", "salah ganti benang pattern", "Ngelancarin", "Over Cone/Rewind", "Tunggu benang dasar dari warping", "Tunggu benang (benang belum datang)"],
-  E: ["Error Servo Drive", "Ganti motor servo", "Sensor Benang/Laser Stop", "Perbaikan Eletrik lainnya", "Konsleting", "Perbaikan listrik"],
-  F: ["Perbaikan cilynder Angin", "Ganti Bellow", "Perbaikan gear/Take Up Roll", "Ganti rantai/pertensi", "Ganti Black grip roll", "Ganti Oli", "Pelumasan/greace pada mesin", "Ganti Vanbelt", "Perawatan Panel Listrik", "Servis Overhaul"],
-  G: ["Hari Libur", "Tidak ada order", "Tunggu info", "Demo", "Bencana/gempa/banjir", "Istirahat selama buka puasa", "Tunggu Sparepart", "Mati Listrik"],
+export interface ProblemDetailGroup {
+  groupName: string;
+  items: string[];
+}
+
+export const GROUPED_PROBLEM_DETAILS: Record<string, ProblemDetailGroup[]> = {
+  A: [
+    {
+      groupName: "Putus & Kerusakan Benang",
+      items: [
+        "L1/L2/L3 Benang timbul putus",
+        "Benang lolos",
+        "Benang Kejepit/Jebol/Kusut",
+        "Perbaikan/Beset benang Dasar",
+      ],
+    },
+    {
+      groupName: "Tegangan & Jalur Benang",
+      items: [
+        "Benang narik/Kendor",
+        "Benang Nyilang",
+        "Jalur benang",
+      ],
+    },
+    {
+      groupName: "Cacat Corak",
+      items: ["Bolong corak"],
+    },
+  ],
+  B: [
+    {
+      groupName: "Jarum & Jacquard",
+      items: [
+        "Jarum pattern patah/bengkok",
+        "Ganti Jacquard",
+        "Ganti jarum Compoun Nedle, pattern",
+        "Ngampul",
+        "Keluar Jarum",
+      ],
+    },
+    {
+      groupName: "Mekanisme & Komponen",
+      items: [
+        "Ganti dari scaloop ke non scaloop atau sebaliknya",
+        "Ngegaris/Stopline",
+        "Ganti String bar",
+        "Ganti PBO",
+        "Pressan As beam kendor",
+        "Tensi tensioner",
+      ],
+    },
+  ],
+  C: [
+    {
+      groupName: "Ganti & Revisi Design",
+      items: [
+        "Loading design/Ganti Design",
+        "Perbaikan corak/revisi",
+        "Salah ganti design",
+        "Error design",
+      ],
+    },
+    {
+      groupName: "Setting & Hardware",
+      items: [
+        "Proofing/PCB",
+        "Ganti Pattern Disk",
+        "Ganti pick",
+      ],
+    },
+  ],
+  D: [
+    {
+      groupName: "Benang Dasar (L1/L2)",
+      items: [
+        "Ganti benang dasar L1/L2",
+        "Salah ganti benang dasar",
+        "Tunggu benang dasar dari warping",
+      ],
+    },
+    {
+      groupName: "Benang Pattern (L/H/S)",
+      items: [
+        "Ganti benang Pattern Linner",
+        "Ganti benang Pattern Heavy",
+        "Ganti benang Pattern Shadow",
+        "Ganti benang pattern keseluruhan (L,H,S)",
+        "salah ganti benang pattern",
+      ],
+    },
+    {
+      groupName: "Suplai & Persiapan Benang",
+      items: [
+        "Ngelancarin",
+        "Over Cone/Rewind",
+        "Tunggu benang (benang belum datang)",
+      ],
+    },
+  ],
+  E: [
+    {
+      groupName: "Motor & Driver",
+      items: [
+        "Error Servo Drive",
+        "Ganti motor servo",
+      ],
+    },
+    {
+      groupName: "Sensor & Kelistrikan",
+      items: [
+        "Sensor Benang/Laser Stop",
+        "Perbaikan Eletrik lainnya",
+        "Konsleting",
+        "Perbaikan listrik",
+      ],
+    },
+  ],
+  F: [
+    {
+      groupName: "Pneumatik & Mekanik",
+      items: [
+        "Perbaikan cilynder Angin",
+        "Ganti Bellow",
+        "Perbaikan gear/Take Up Roll",
+        "Ganti rantai/pertensi",
+        "Ganti Black grip roll",
+        "Ganti Vanbelt",
+      ],
+    },
+    {
+      groupName: "Maintenance & Servis",
+      items: [
+        "Ganti Oli",
+        "Pelumasan/greace pada mesin",
+        "Perawatan Panel Listrik",
+        "Servis Overhaul",
+      ],
+    },
+  ],
+  G: [
+    {
+      groupName: "Operasional & Pabrik",
+      items: [
+        "Hari Libur",
+        "Tidak ada order",
+        "Tunggu info",
+        "Demo",
+        "Bencana/gempa/banjir",
+        "Istirahat selama buka puasa",
+        "Mati Listrik",
+      ],
+    },
+    {
+      groupName: "Material & Logistik",
+      items: ["Tunggu Sparepart"],
+    },
+  ],
 };
+
+export const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = Object.fromEntries(
+  Object.entries(GROUPED_PROBLEM_DETAILS).map(([cat, groups]) => [
+    cat,
+    groups.flatMap((g) => g.items),
+  ])
+);
 
 export const REGISTERED_MACHINES = [
   "R1",

@@ -49,20 +49,10 @@ import {
   deleteTimerSession,
   getActiveTimerSessions,
 } from "@/actions/timer-actions";
-import { REGISTERED_MACHINES } from "@/lib/constants";
+import { REGISTERED_MACHINES, GROUPED_PROBLEM_DETAILS, DEFAULT_PROBLEM_DETAILS, PROBLEM_DETAILS } from "@/lib/constants";
 import MeterMendingTable from "./components/MeterMendingTable";
 import PanelMendingTable from "./components/PanelMendingTable";
 import { formatDefectLinesWithNumbering, getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
-
-const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = {
-  A: ["L1/L2/L3 Benang timbul putus", "Benang lolos", "Bolong corak", "Benang narik/Kendor", "Benang Nyilang", "Perbaikan/Beset benang Dasar", "Benang Kejepit/Jebol/Kusut", "Jalur benang"],
-  B: ["Jarum pattern patah/bengkok", "Ganti Jacquard", "Ganti jarum Compoun Nedle, pattern", "Ngampul", "Ganti dari scaloop ke non scaloop atau sebaliknya", "Ngegaris/Stopline", "Keluar Jarum", "Ganti String bar", "Ganti PBO", "Pressan As beam kendor", "Tensi tensioner"],
-  C: ["Loading design/Ganti Design", "Perbaikan corak/revisi", "Salah ganti design", "Error design", "Proofing/PCB", "Ganti Pattern Disk", "Ganti pick"],
-  D: ["Ganti benang dasar L1/L2", "Salah ganti benang dasar", "Ganti benang Pattern Linner", "Ganti benang Pattern Heavy", "Ganti benang Pattern Shadow", "Ganti benang pattern keseluruhan (L,H,S)", "salah ganti benang pattern", "Ngelancarin", "Over Cone/Rewind", "Tunggu benang dasar dari warping", "Tunggu benang (benang belum datang)"],
-  E: ["Error Servo Drive", "Ganti motor servo", "Sensor Benang/Laser Stop", "Perbaikan Eletrik lainnya", "Konsleting", "Perbaikan listrik"],
-  F: ["Perbaikan cilynder Angin", "Ganti Bellow", "Perbaikan gear/Take Up Roll", "Ganti rantai/pertensi", "Ganti Black grip roll", "Ganti Oli", "Pelumasan/greace pada mesin", "Ganti Vanbelt", "Perawatan Panel Listrik", "Servis Overhaul"],
-  G: ["Hari Libur", "Tidak ada order", "Tunggu info", "Demo", "Bencana/gempa/banjir", "Istirahat selama buka puasa"]
-};
 
 const DEFAULT_PROBLEM_CATEGORIES = [
   { id: "A", name: "Cacat Kain / Benang" },
@@ -177,6 +167,7 @@ export default function MendingPage() {
 
   const [problemCategories, setProblemCategories] = useState(DEFAULT_PROBLEM_CATEGORIES);
   const [problemDetailsMap, setProblemDetailsMap] = useState<Record<string, string[]>>(DEFAULT_PROBLEM_DETAILS);
+  const [dynamicGroupMapping, setDynamicGroupMapping] = useState<Record<string, { groupName: string; items: string[] }[]>>(GROUPED_PROBLEM_DETAILS);
 
   useEffect(() => {
     // Parallelize metadata fetching on page load
@@ -192,8 +183,13 @@ export default function MendingPage() {
         }));
         setProblemCategories(mapped);
       }
-      if (groupRes?.success && groupRes.grouped && Object.keys(groupRes.grouped).length > 0) {
-        setProblemDetailsMap(groupRes.grouped);
+      if (groupRes?.success) {
+        if (groupRes.grouped && Object.keys(groupRes.grouped).length > 0) {
+          setProblemDetailsMap(groupRes.grouped);
+        }
+        if (groupRes.groupMapping) {
+          setDynamicGroupMapping(groupRes.groupMapping);
+        }
       }
     }).catch((e) => console.error("Error loading parallel metadata:", e));
   }, []);
@@ -2075,61 +2071,98 @@ export default function MendingPage() {
                       </label>
 
                       {selectedCategories.includes(cat.id) && problemDetailsMap[cat.id] && (
-                        <div className="pl-4 pr-2 py-2 border-l-2 border-sky-200 ml-2 animate-in slide-in-from-top-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">
-                            Pilih Detail Masalah
-                          </label>
-                          <div className="grid grid-cols-2 gap-2">
-                            {problemDetailsMap[cat.id].map((detail) => (
-                              <label key={detail} className="cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedDetails[cat.id]?.includes(detail) || false}
-                                  onChange={(e) => {
-                                    const current = selectedDetails[cat.id] || [];
-                                    if (e.target.checked) {
-                                      setSelectedDetails((prev) => ({
-                                        ...prev,
-                                        [cat.id]: [...current, detail],
-                                      }));
-                                    } else {
-                                      setSelectedDetails((prev) => ({
-                                        ...prev,
-                                        [cat.id]: current.filter((d) => d !== detail),
-                                      }));
-                                    }
-                                  }}
-                                  className="peer sr-only"
-                                />
-                                <div className="p-2 rounded-lg border border-slate-200 text-[10px] font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center">
-                                  {detail}
-                                </div>
-                              </label>
-                            ))}
-
-                            {(selectedDetails[cat.id] || [])
-                              .filter((d) => !(problemDetailsMap[cat.id] || []).includes(d))
-                              .map((customDetail) => (
-                                <div key={customDetail} className="relative flex items-center">
-                                  <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
-                                    <span className="truncate">{customDetail}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedDetails((prev) => ({
-                                          ...prev,
-                                          [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
-                                        }));
-                                      }}
-                                      className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
-                                      title="Hapus detail manual"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
+                        <div className="pl-3.5 pr-2 py-3 border-l-2 border-sky-300 ml-2 space-y-3 bg-slate-50/50 rounded-r-xl mt-1.5 animate-in slide-in-from-top-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                              Pilih Detail Masalah
+                            </label>
+                            <span className="text-[10px] text-sky-600 font-bold">
+                              {(selectedDetails[cat.id] || []).length} dipilih
+                            </span>
                           </div>
+
+                          {(() => {
+                            const predefinedGroups = dynamicGroupMapping[cat.id] || GROUPED_PROBLEM_DETAILS[cat.id] || [];
+                            const activeGroups = predefinedGroups.filter((g) => g.items && g.items.length > 0);
+                            const allKnownItems = new Set(activeGroups.flatMap((g) => g.items));
+                            const customInputDetails = (selectedDetails[cat.id] || []).filter((d) => !allKnownItems.has(d));
+
+                            return (
+                              <div className="space-y-2.5">
+                                {activeGroups.map((group, gIdx) => (
+                                  <div key={gIdx} className="space-y-1">
+                                    <div className="flex items-center gap-1.5 pt-1 first:pt-0">
+                                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-sky-800 bg-sky-100/90 px-1.5 py-0.5 rounded border border-sky-200/70 shadow-2xs">
+                                        {group.groupName}
+                                      </span>
+                                      <div className="flex-1 h-px bg-slate-200/80" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                      {group.items.map((detail) => (
+                                        <label key={detail} className="cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={selectedDetails[cat.id]?.includes(detail) || false}
+                                            onChange={(e) => {
+                                              const current = selectedDetails[cat.id] || [];
+                                              if (e.target.checked) {
+                                                setSelectedDetails((prev) => ({
+                                                  ...prev,
+                                                  [cat.id]: [...current, detail],
+                                                }));
+                                              } else {
+                                                setSelectedDetails((prev) => ({
+                                                  ...prev,
+                                                  [cat.id]: current.filter((d) => d !== detail),
+                                                }));
+                                              }
+                                            }}
+                                            className="peer sr-only"
+                                          />
+                                          <div className="p-2 rounded-lg border border-slate-200 bg-white text-[10px] font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center shadow-2xs">
+                                            {detail}
+                                          </div>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+
+                                {customInputDetails.length > 0 && (
+                                  <div className="space-y-1 pt-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 shadow-2xs">
+                                        Input Manual
+                                      </span>
+                                      <div className="flex-1 h-px bg-slate-200/80" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                      {customInputDetails.map((customDetail) => (
+                                        <div key={customDetail} className="relative flex items-center">
+                                          <div className="flex-1 p-2 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
+                                            <span className="truncate">{customDetail}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSelectedDetails((prev) => ({
+                                                  ...prev,
+                                                  [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
+                                                }));
+                                              }}
+                                              className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
+                                              title="Hapus detail manual"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {cat.id === "G" && (
                             <div className="mt-3 pt-3 border-t border-sky-100">

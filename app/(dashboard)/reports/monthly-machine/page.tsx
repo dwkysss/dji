@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getMonthlyMachineReport, MonthlyMachineReportData } from "@/actions/report-actions";
 import { getMachineStatuses } from "@/actions/dashboard-actions";
-import { FileSpreadsheet, Loader2, Calendar, Monitor, AlertCircle, ArrowLeft, CloudUpload, X, Info, CheckCircle2 } from "lucide-react";
+import { FileSpreadsheet, Loader2, Calendar, Monitor, AlertCircle, ArrowLeft, CloudUpload, X, Info, CheckCircle2, RotateCw } from "lucide-react";
 import Link from "next/link";
 
 // Helper to format seconds as HH:MM:SS
@@ -17,6 +17,17 @@ const formatHHMMSS = (totalSec: number) => {
     .join(":");
 };
 
+interface ReportCacheEntry {
+  data: MonthlyMachineReportData[];
+  isMeterMachine: boolean;
+  timestamp: number;
+}
+
+// Global in-memory cache surviving navigation within SPA
+const reportMemoryCache = new Map<string, ReportCacheEntry>();
+let machinesListMemoryCache: string[] | null = null;
+const CACHE_KEY_PREFIX = "mm_report_cache_";
+
 export default function MonthlyMachineReportPage() {
   const [machines, setMachines] = useState<string[]>([]);
   const [selectedMachine, setSelectedMachine] = useState<string>("");
@@ -25,10 +36,13 @@ export default function MonthlyMachineReportPage() {
   
   const [reportData, setReportData] = useState<MonthlyMachineReportData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isBackgroundUpdating, setIsBackgroundUpdating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMeterMachine, setIsMeterMachine] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; title: string; message: string } | null>(null);
+
+  const activeRequestRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (toast) {
@@ -45,47 +59,136 @@ export default function MonthlyMachineReportPage() {
   });
 
   useEffect(() => {
-    // Fetch available machines
+    // 1. Check in-memory machines
+    if (machinesListMemoryCache && machinesListMemoryCache.length > 0) {
+      setMachines(machinesListMemoryCache);
+      setSelectedMachine(prev => prev || machinesListMemoryCache![0]);
+      return;
+    }
+
+    // 2. Check session storage
+    try {
+      const stored = sessionStorage.getItem("mm_machines_list");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          machinesListMemoryCache = parsed;
+          setMachines(parsed);
+          setSelectedMachine(prev => prev || parsed[0]);
+        }
+      }
+    } catch (_) {}
+
+    // 3. Fetch from server
     const fetchMachines = async () => {
       const res = await getMachineStatuses();
       if (res.success && res.data) {
-        const mcList = res.data.map(m => m.mesin_id).sort();
+        const mcList = res.data.map((m: any) => m.mesin_id).sort();
+        machinesListMemoryCache = mcList;
+        try {
+          sessionStorage.setItem("mm_machines_list", JSON.stringify(mcList));
+        } catch (_) {}
         setMachines(mcList);
-        if (mcList.length > 0) {
-          setSelectedMachine(mcList[0]);
-        }
+        setSelectedMachine(prev => prev || mcList[0]);
       } else {
-        // Fallback
-        setMachines(["R1", "R2", "R3B", "R1C", "R2C", "R11", "R12", "R16", "T1C", "T2A"]);
-        setSelectedMachine("R1");
+        const fallback = ["R1", "R2", "R3B", "R1C", "R2C", "R11", "R12", "R16", "T1C", "T2A"];
+        machinesListMemoryCache = fallback;
+        setMachines(fallback);
+        setSelectedMachine(prev => prev || "R1");
       }
     };
     fetchMachines();
   }, []);
 
-  useEffect(() => {
-    if (selectedMachine && selectedMonth && selectedYear) {
-      loadReportData();
-    }
-  }, [selectedMachine, selectedMonth, selectedYear]);
+  const loadReportData = async (forceFresh = false) => {
+    if (!selectedMachine || !selectedMonth || !selectedYear) return;
+    const cacheKey = `${selectedMachine}_${selectedMonth}_${selectedYear}`;
+    activeRequestRef.current = cacheKey;
 
-  const loadReportData = async () => {
-    setIsLoading(true);
+    let hasCachedData = false;
+
+    // A. Check in-memory cache
+    const memEntry = reportMemoryCache.get(cacheKey);
+    if (memEntry && !forceFresh) {
+      setReportData(memEntry.data);
+      setIsMeterMachine(memEntry.isMeterMachine);
+      hasCachedData = true;
+
+      // If cache is fresh (< 2 minutes old), don't trigger background fetch unless forceFresh
+      const isVeryFresh = Date.now() - memEntry.timestamp < 120000;
+      if (isVeryFresh) {
+        setIsLoading(false);
+        setIsBackgroundUpdating(false);
+        return;
+      }
+    }
+
+    // B. Check sessionStorage cache
+    if (!hasCachedData && !forceFresh) {
+      try {
+        const raw = sessionStorage.getItem(CACHE_KEY_PREFIX + cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.data)) {
+            reportMemoryCache.set(cacheKey, parsed);
+            setReportData(parsed.data);
+            setIsMeterMachine(parsed.isMeterMachine || false);
+            hasCachedData = true;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // C. Set loading indicators
+    if (!hasCachedData) {
+      setIsLoading(true);
+    } else {
+      setIsBackgroundUpdating(true);
+    }
+
     setError(null);
+
     try {
       const res = await getMonthlyMachineReport(selectedMonth, selectedYear, selectedMachine);
+      
+      // Ensure response matches currently active request
+      if (activeRequestRef.current !== cacheKey) return;
+
       if (res.success && res.data) {
+        const entry: ReportCacheEntry = {
+          data: res.data,
+          isMeterMachine: res.isMeterMachine || false,
+          timestamp: Date.now(),
+        };
+        reportMemoryCache.set(cacheKey, entry);
+        try {
+          sessionStorage.setItem(CACHE_KEY_PREFIX + cacheKey, JSON.stringify(entry));
+        } catch (_) {}
+
         setReportData(res.data);
         setIsMeterMachine(res.isMeterMachine || false);
       } else {
-        setError(res.error || "Gagal mengambil laporan.");
+        if (!hasCachedData) {
+          setError(res.error || "Gagal mengambil laporan.");
+        }
       }
     } catch (err: any) {
-      setError(err.message);
+      if (activeRequestRef.current === cacheKey && !hasCachedData) {
+        setError(err.message);
+      }
     } finally {
-      setIsLoading(false);
+      if (activeRequestRef.current === cacheKey) {
+        setIsLoading(false);
+        setIsBackgroundUpdating(false);
+      }
     }
   };
+
+  useEffect(() => {
+    if (selectedMachine && selectedMonth && selectedYear) {
+      loadReportData(false);
+    }
+  }, [selectedMachine, selectedMonth, selectedYear]);
 
 
   const syncToGoogleSheets = async () => {
@@ -388,12 +491,12 @@ export default function MonthlyMachineReportPage() {
             </div>
             
             <button 
-              onClick={loadReportData}
+              onClick={() => loadReportData(true)}
               disabled={isLoading}
-              className="bg-sky-600 hover:bg-sky-700 text-white p-2.5 rounded-xl shadow-md transition-all flex items-center justify-center min-w-[44px]"
-              title="Tampilkan Data"
+              className="bg-sky-600 hover:bg-sky-700 active:scale-95 text-white p-2.5 rounded-xl shadow-md transition-all flex items-center justify-center min-w-[44px] cursor-pointer"
+              title="Refresh / Muat Ulang Data Terbaru"
             >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Monitor className="w-5 h-5" />}
+              <RotateCw className={`w-5 h-5 ${isLoading || isBackgroundUpdating ? "animate-spin" : ""}`} />
             </button>
             <button
               onClick={syncToGoogleSheets}

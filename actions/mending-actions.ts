@@ -1034,7 +1034,7 @@ export async function getMendingReportDetailByPotongan(nomor_mc: string, design_
               operators(nama_operator), groups(nama_grup)
             ),
             qc_items:qc_inspection_items (
-              batch:qc_inspection_batches (berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi, elapsed_seconds, pause_seconds, keterangan_qc)
+              batch:qc_inspection_batches (berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi, elapsed_seconds, pause_seconds)
             ),
             mending_items:mending_items (
               hasil_mending,
@@ -1052,7 +1052,7 @@ export async function getMendingReportDetailByPotongan(nomor_mc: string, design_
     // 2. Fallback query from qc_inspection_batches for this cut
     const { data: allQcBatches } = await supabase
       .from("qc_inspection_batches")
-      .select("id, nomor_mc, potongan_ke, pcs_index, berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi, elapsed_seconds, pause_seconds, keterangan_qc")
+      .select("id, nomor_mc, potongan_ke, pcs_index, berat_kain, start_inspect, finish_inspect, petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3, tanggal_inspeksi, elapsed_seconds, pause_seconds")
       .eq("nomor_mc", nomor_mc)
       .eq("potongan_ke", potongan_ke);
 

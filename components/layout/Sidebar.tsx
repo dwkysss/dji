@@ -36,6 +36,7 @@ import {
   Tag,
   Trophy,
   UserCheck,
+  Package,
 } from "lucide-react";
 
 const MACHINE_INPUT_TYPES: Record<string, string> = {
@@ -246,6 +247,18 @@ export default function Sidebar() {
       ],
     },
     {
+      label: "Packing",
+      groupIcon: Package,
+      items: [
+        {
+          name: "Antrian & Tracking Packing",
+          href: "/packing",
+          icon: Package,
+          roles: ["admin", "mending", "inspeksi", "manager"],
+        },
+      ],
+    },
+    {
       label: "Laporan",
       groupIcon: FileSpreadsheet,
       items: [
@@ -280,6 +293,18 @@ export default function Sidebar() {
           roles: ["admin", "manager"],
         },
         {
+          name: "Master Detail Masalah",
+          href: "/problem-details",
+          icon: ListFilter,
+          roles: ["admin", "manager", "kepala_shift", "inspeksi", "mending"],
+        },
+        {
+          name: "Parameter & Aturan Mesin",
+          href: "/machine-config",
+          icon: SlidersHorizontal,
+          roles: ["admin", "manager", "kepala_shift"],
+        },
+        {
           name: "Chatbot AI",
           href: "/chatbot",
           icon: MessageSquare,
@@ -290,12 +315,6 @@ export default function Sidebar() {
           href: "/users",
           icon: Users,
           roles: ["admin"],
-        },
-        {
-          name: "Parameter & Aturan Mesin",
-          href: "/machine-config",
-          icon: SlidersHorizontal,
-          roles: ["admin", "manager", "kepala_shift"],
         },
         {
           name: "Set Pengumuman",
@@ -319,12 +338,6 @@ export default function Sidebar() {
           name: "Master Data",
           href: "/master-data",
           icon: FileSpreadsheet,
-          roles: ["admin", "manager"],
-        },
-        {
-          name: "Detail Masalah",
-          href: "/problem-details",
-          icon: ListFilter,
           roles: ["admin", "manager"],
         },
         {

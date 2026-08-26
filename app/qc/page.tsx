@@ -91,7 +91,7 @@ const DEFAULT_PROBLEM_CATEGORIES = [
   { id: "G", name: "Kode G: Faktor Eksternal dan Non-Teknis" },
 ];
 
-import { DEFAULT_PROBLEM_DETAILS, REGISTERED_MACHINES, PROBLEM_DETAILS } from "@/lib/constants";
+import { DEFAULT_PROBLEM_DETAILS, REGISTERED_MACHINES, PROBLEM_DETAILS, GROUPED_PROBLEM_DETAILS } from "@/lib/constants";
 
 const cleanMeterVal = (val: any) => {
   if (val === null || val === undefined) return "";
@@ -214,6 +214,7 @@ export default function QCPage() {
 
   const [problemCategories, setProblemCategories] = useState(DEFAULT_PROBLEM_CATEGORIES);
   const [problemDetailsMap, setProblemDetailsMap] = useState<Record<string, string[]>>(DEFAULT_PROBLEM_DETAILS);
+  const [dynamicGroupMapping, setDynamicGroupMapping] = useState<Record<string, { groupName: string; items: string[] }[]>>(GROUPED_PROBLEM_DETAILS);
   const [selectedDetailForEdit, setSelectedDetailForEdit] = useState<any | null>(null);
   const [isEditDetailModalOpen, setIsEditDetailModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add_qc" | "edit">("add_qc");
@@ -244,8 +245,13 @@ export default function QCPage() {
         }));
         setProblemCategories(mapped);
       }
-      if (groupRes?.success && groupRes.grouped && Object.keys(groupRes.grouped).length > 0) {
-        setProblemDetailsMap(groupRes.grouped);
+      if (groupRes?.success) {
+        if (groupRes.grouped && Object.keys(groupRes.grouped).length > 0) {
+          setProblemDetailsMap(groupRes.grouped);
+        }
+        if (groupRes.groupMapping) {
+          setDynamicGroupMapping(groupRes.groupMapping);
+        }
       }
       setIsLoadingFilters(false);
     }).catch((e) => console.error("Error loading parallel metadata:", e));
@@ -2109,61 +2115,98 @@ export default function QCPage() {
                           </label>
 
                           {selectedCategories.includes(cat.id) && problemDetailsMap[cat.id] && (
-                            <div className="pl-4 pr-2 py-2 border-l-2 border-sky-200 ml-2 animate-in slide-in-from-top-2">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">
-                                Pilih Detail Masalah
-                              </label>
-                              <div className="grid grid-cols-2 gap-2">
-                                 {problemDetailsMap[cat.id].map((detail) => (
-                                  <label key={detail} className="cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedDetails[cat.id]?.includes(detail) || false}
-                                      onChange={(e) => {
-                                        const current = selectedDetails[cat.id] || [];
-                                        if (e.target.checked) {
-                                          setSelectedDetails((prev) => ({
-                                            ...prev,
-                                            [cat.id]: [...current, detail],
-                                          }));
-                                        } else {
-                                          setSelectedDetails((prev) => ({
-                                            ...prev,
-                                            [cat.id]: current.filter((d) => d !== detail),
-                                          }));
-                                        }
-                                      }}
-                                      className="peer sr-only"
-                                    />
-                                    <div className="p-2 rounded-lg border border-slate-200 text-[10px] font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center">
-                                      {detail}
-                                    </div>
-                                  </label>
-                                ))}
-
-                                {(selectedDetails[cat.id] || [])
-                                  .filter((d) => !(problemDetailsMap[cat.id] || []).includes(d))
-                                  .map((customDetail) => (
-                                    <div key={customDetail} className="relative flex items-center">
-                                      <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
-                                        <span className="truncate">{customDetail}</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setSelectedDetails((prev) => ({
-                                              ...prev,
-                                              [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
-                                            }));
-                                          }}
-                                          className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
-                                          title="Hapus detail manual"
-                                        >
-                                          <X className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ))}
+                            <div className="pl-3.5 pr-2 py-3 border-l-2 border-sky-300 ml-2 space-y-3 bg-slate-50/50 rounded-r-xl mt-1.5 animate-in slide-in-from-top-2">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                                  Pilih Detail Masalah
+                                </label>
+                                <span className="text-[10px] text-sky-600 font-bold">
+                                  {(selectedDetails[cat.id] || []).length} dipilih
+                                </span>
                               </div>
+
+                              {(() => {
+                                const predefinedGroups = dynamicGroupMapping[cat.id] || GROUPED_PROBLEM_DETAILS[cat.id] || [];
+                                const activeGroups = predefinedGroups.filter((g) => g.items && g.items.length > 0);
+                                const allKnownItems = new Set(activeGroups.flatMap((g) => g.items));
+                                const customInputDetails = (selectedDetails[cat.id] || []).filter((d) => !allKnownItems.has(d));
+
+                                return (
+                                  <div className="space-y-2.5">
+                                    {activeGroups.map((group, gIdx) => (
+                                      <div key={gIdx} className="space-y-1">
+                                        <div className="flex items-center gap-1.5 pt-1 first:pt-0">
+                                          <span className="text-[9px] font-extrabold uppercase tracking-wider text-sky-800 bg-sky-100/90 px-1.5 py-0.5 rounded border border-sky-200/70 shadow-2xs">
+                                            {group.groupName}
+                                          </span>
+                                          <div className="flex-1 h-px bg-slate-200/80" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                          {group.items.map((detail) => (
+                                            <label key={detail} className="cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={selectedDetails[cat.id]?.includes(detail) || false}
+                                                onChange={(e) => {
+                                                  const current = selectedDetails[cat.id] || [];
+                                                  if (e.target.checked) {
+                                                    setSelectedDetails((prev) => ({
+                                                      ...prev,
+                                                      [cat.id]: [...current, detail],
+                                                    }));
+                                                  } else {
+                                                    setSelectedDetails((prev) => ({
+                                                      ...prev,
+                                                      [cat.id]: current.filter((d) => d !== detail),
+                                                    }));
+                                                  }
+                                                }}
+                                                className="peer sr-only"
+                                              />
+                                              <div className="p-2 rounded-lg border border-slate-200 bg-white text-[10px] font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center shadow-2xs">
+                                                {detail}
+                                              </div>
+                                            </label>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+
+                                    {customInputDetails.length > 0 && (
+                                      <div className="space-y-1 pt-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 shadow-2xs">
+                                            Input Manual
+                                          </span>
+                                          <div className="flex-1 h-px bg-slate-200/80" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                          {customInputDetails.map((customDetail) => (
+                                            <div key={customDetail} className="relative flex items-center">
+                                              <div className="flex-1 p-2 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
+                                                <span className="truncate">{customDetail}</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setSelectedDetails((prev) => ({
+                                                      ...prev,
+                                                      [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
+                                                    }));
+                                                  }}
+                                                  className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
+                                                  title="Hapus detail manual"
+                                                >
+                                                  <X className="w-3 h-3" />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
 
                               {cat.id === "G" && (
                                 <div className="mt-3 pt-3 border-t border-sky-100">
@@ -2201,8 +2244,8 @@ export default function QCPage() {
                                   </div>
                                 </div>
                               )}
-                             </div>
-                           )}
+                            </div>
+                          )}
                          </div>
                        ))}
                     </div>

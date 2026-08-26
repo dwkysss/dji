@@ -20,73 +20,8 @@ const PROBLEM_CATEGORIES = [
   { id: "G", name: "Kode G: Faktor Eksternal dan Non-Teknis" },
 ];
 
-const PROBLEM_DETAILS: Record<string, string[]> = {
-  A: [
-    "L1/L2/L3 Benang timbul putus",
-    "Benang lolos",
-    "Bolong corak",
-    "Benang narik/Kendor",
-    "Benang Nyilang",
-    "Perbaikan/Beset benang Dasar",
-    "Benang Kejepit/Jebol/Kusut",
-    "Jalur benang",
-  ],
-  B: [
-    "Jarum pattern patah/bengkok",
-    "Ganti Jacquard",
-    "Ganti jarum Compoun Nedle, pattern",
-    "Ngampul",
-    "Ganti dari scaloop ke non scaloop atau sebaliknya",
-    "Ngegaris/Stopline",
-    "Keluar Jarum",
-    "Ganti String bar",
-    "Ganti PBO",
-    "Pressan As beam kendor",
-    "Tensi tensioner",
-  ],
-  C: [
-    "Loading design/Ganti Design",
-    "Perbaikan corak/revisi",
-    "Salah ganti design",
-    "Error design",
-    "Proofing/PCB",
-    "Ganti Tali Jacquard",
-  ],
-  D: [
-    "Ganti Benang dasar (Matiin/Naikin Beam)",
-    "Ganti Tali/Benang Timbul",
-    "Ganti benang sambungan",
-    "Beam Habis",
-    "Cek stok benang",
-  ],
-  E: [
-    "Masalah Listrik Utama mati",
-    "Perbaikan Inverter/dinamo",
-    "Korsleting (Jalur Putus)",
-    "Perbaikan Sensor/limit switch",
-    "Perbaikan panel kontrol",
-  ],
-  F: [
-    "Ganti Oli",
-    "Perbaikan as patah",
-    "Perbaikan gear",
-    "Pembersihan mesin",
-    "Perbaikan Roller",
-    "Ganti Bearing",
-    "Ganti Panbel",
-    "Perbaikan/ganti rantai",
-  ],
-  G: [
-    "Istirahat",
-    "Izin/sakit",
-    "Tunggu material (benang/sparepart)",
-    "Ganti Operator (Oplos Shift)",
-    "Breafing",
-    "Masalah Listrik Pabrik/Mati lampu",
-    "Bencana alam (Banjir, Gempa, dll)",
-  ],
-};
-
+import { GROUPED_PROBLEM_DETAILS, PROBLEM_DETAILS } from "@/lib/constants";
+import { getProblemGroupMapping } from "@/actions/problem-detail-actions";
 import { useAuth } from "@/lib/auth-context";
 
 interface DowntimeTrackerProps {
@@ -171,6 +106,15 @@ export default function DowntimeTracker({
   const [namaPenanganan, setNamaPenanganan] = useState<string>("");
   const [unresolvedDowntime, setUnresolvedDowntime] = useState<any>(null);
   const [isSavingMechanic, setIsSavingMechanic] = useState(false);
+  const [dynamicGroupMapping, setDynamicGroupMapping] = useState<Record<string, { groupName: string; items: string[] }[]>>(GROUPED_PROBLEM_DETAILS);
+
+  useEffect(() => {
+    getProblemGroupMapping().then((res) => {
+      if (res.success && res.mapping) {
+        setDynamicGroupMapping(res.mapping);
+      }
+    }).catch(() => {});
+  }, []);
 
   const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([
     "L1/L2/L3 Benang timbul putus",
@@ -2007,61 +1951,103 @@ export default function DowntimeTracker({
                       </label>
 
                       {selectedCategories.includes(cat.id) && (dynamicProblemDetails[cat.id] || PROBLEM_DETAILS[cat.id]) && (
-                        <div className="pl-4 pr-2 py-2 border-l-2 border-sky-200 ml-2 animate-in slide-in-from-top-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Pilih Detail Masalah</label>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {(dynamicProblemDetails[cat.id] || PROBLEM_DETAILS[cat.id] || []).map((detail) => (
-                              <label key={detail} className="cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  name={`detail-${cat.id}`}
-                                  value={detail}
-                                  checked={selectedDetails[cat.id]?.includes(detail) || false}
-                                  onChange={(e) => {
-                                    const current = selectedDetails[cat.id] || [];
-                                    if (e.target.checked) {
-                                      setSelectedDetails((prev) => ({
-                                        ...prev,
-                                        [cat.id]: [...current, detail],
-                                      }));
-                                    } else {
-                                      setSelectedDetails((prev) => ({
-                                        ...prev,
-                                        [cat.id]: current.filter((d) => d !== detail),
-                                      }));
-                                    }
-                                  }}
-                                  className="peer sr-only"
-                                />
-                                <div className="p-2.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-550 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center">
-                                  {detail}
-                                </div>
-                              </label>
-                            ))}
-
-                            {(selectedDetails[cat.id] || [])
-                              .filter((d) => !(dynamicProblemDetails[cat.id] || PROBLEM_DETAILS[cat.id] || []).includes(d))
-                              .map((customDetail) => (
-                                <div key={customDetail} className="relative flex items-center">
-                                  <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-xs font-semibold flex items-center justify-between shadow-xs">
-                                    <span className="truncate">{customDetail}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedDetails((prev) => ({
-                                          ...prev,
-                                          [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
-                                        }));
-                                      }}
-                                      className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
-                                      title="Hapus detail manual"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
+                        <div className="pl-3.5 pr-2 py-3 border-l-2 border-sky-300 ml-2 space-y-3.5 bg-slate-50/50 rounded-r-xl mt-1.5 animate-in slide-in-from-top-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                              Pilih Detail Masalah
+                            </label>
+                            <span className="text-[10px] text-sky-600 font-bold">
+                              {(selectedDetails[cat.id] || []).length} dipilih
+                            </span>
                           </div>
+
+                          {(() => {
+                            const predefinedGroups = dynamicGroupMapping[cat.id] || GROUPED_PROBLEM_DETAILS[cat.id] || [];
+                            // Only display groups that have items
+                            const activeGroups = predefinedGroups.filter((g) => g.items && g.items.length > 0);
+                            const allKnownItems = new Set(activeGroups.flatMap((g) => g.items));
+                            
+                            // User-typed custom details (not part of known items)
+                            const customInputDetails = (selectedDetails[cat.id] || []).filter((d) => !allKnownItems.has(d));
+
+                            return (
+                              <div className="space-y-3">
+                                {activeGroups.map((group, gIdx) => (
+                                  <div key={gIdx} className="space-y-1.5">
+                                    <div className="flex items-center gap-2 pt-1 first:pt-0">
+                                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded border border-sky-200/70 shadow-2xs">
+                                        {group.groupName}
+                                      </span>
+                                      <div className="flex-1 h-px bg-slate-200/80" />
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {group.items.map((detail) => (
+                                        <label key={detail} className="cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            name={`detail-${cat.id}`}
+                                            value={detail}
+                                            checked={selectedDetails[cat.id]?.includes(detail) || false}
+                                            onChange={(e) => {
+                                              const current = selectedDetails[cat.id] || [];
+                                              if (e.target.checked) {
+                                                setSelectedDetails((prev) => ({
+                                                  ...prev,
+                                                  [cat.id]: [...current, detail],
+                                                }));
+                                              } else {
+                                                setSelectedDetails((prev) => ({
+                                                  ...prev,
+                                                  [cat.id]: current.filter((d) => d !== detail),
+                                                }));
+                                              }
+                                            }}
+                                            className="peer sr-only"
+                                          />
+                                          <div className="p-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center shadow-2xs">
+                                            {detail}
+                                          </div>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+
+                                {customInputDetails.length > 0 && (
+                                  <div className="space-y-1.5 pt-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-200 shadow-2xs">
+                                        Input Manual
+                                      </span>
+                                      <div className="flex-1 h-px bg-slate-200/80" />
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {customInputDetails.map((customDetail) => (
+                                        <div key={customDetail} className="relative flex items-center">
+                                          <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-xs font-semibold flex items-center justify-between shadow-xs">
+                                            <span className="truncate">{customDetail}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSelectedDetails((prev) => ({
+                                                  ...prev,
+                                                  [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
+                                                }));
+                                              }}
+                                              className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
+                                              title="Hapus detail manual"
+                                            >
+                                              <X className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {cat.id === "G" && (
                             <div className="mt-3 pt-3 border-t border-sky-100">
@@ -2109,95 +2095,93 @@ export default function DowntimeTracker({
 
                             const isMissing = isRequired && (!inputBloks[cat.id] || inputBloks[cat.id]?.trim() === "");
 
-                            return (() => {
-                              const currentBlokVal = inputBloks[cat.id] || "";
-                              const blockList = currentBlokVal
-                                ? currentBlokVal.split(",").map((s) => s.trim())
-                                : [""];
+                            const currentBlokVal = inputBloks[cat.id] || "";
+                            const blockList = currentBlokVal
+                              ? currentBlokVal.split(",").map((s) => s.trim())
+                              : [""];
 
-                              const updateBlockList = (newList: string[]) => {
-                                setBlockValidationError(null);
-                                const joined = newList
-                                  .map((s) => s.replace(/[^0-9\-,\s]/g, ""))
-                                  .join(", ");
-                                setInputBloks((prev) => ({ ...prev, [cat.id]: joined }));
-                              };
+                            const updateBlockList = (newList: string[]) => {
+                              setBlockValidationError(null);
+                              const joined = newList
+                                .map((s) => s.replace(/[^0-9\-,\s]/g, ""))
+                                .join(", ");
+                              setInputBloks((prev) => ({ ...prev, [cat.id]: joined }));
+                            };
 
-                              return (
-                                <div className={`mt-3 p-3 rounded-xl border transition-all ${isMissing
-                                  ? "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
-                                  : "bg-sky-50 border-sky-100"
-                                  }`}>
-                                  <label className="text-[10px] font-extrabold uppercase mb-1.5 flex items-center justify-between">
-                                    <span className="flex items-center gap-1.5 text-slate-800">
-                                      <Box className="w-3.5 h-3.5 text-[#0070bc]" />
-                                      Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
+                            return (
+                              <div className={`mt-3 p-3 rounded-xl border transition-all ${isMissing
+                                ? "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
+                                : "bg-sky-50 border-sky-100"
+                                }`}>
+                                <label className="text-[10px] font-extrabold uppercase mb-1.5 flex items-center justify-between">
+                                  <span className="flex items-center gap-1.5 text-slate-800">
+                                    <Box className="w-3.5 h-3.5 text-[#0070bc]" />
+                                    Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
+                                  </span>
+                                  {isRequired ? (
+                                    <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                      Wajib Diisi
                                     </span>
-                                    {isRequired ? (
-                                      <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                        Wajib Diisi
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-400 font-bold text-[9px]">Opsional</span>
-                                    )}
-                                  </label>
+                                  ) : (
+                                    <span className="text-slate-400 font-bold text-[9px]">Opsional</span>
+                                  )}
+                                </label>
 
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    {blockList.map((itemVal, bIdx) => (
-                                      <div key={bIdx} className="flex items-center gap-1">
-                                        <input
-                                          type="text"
-                                          inputMode="numeric"
-                                          maxLength={2}
-                                          value={itemVal}
-                                          onChange={(e) => {
-                                            const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
-                                            const nextList = [...blockList];
-                                            nextList[bIdx] = val;
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {blockList.map((itemVal, bIdx) => (
+                                    <div key={bIdx} className="flex items-center gap-1">
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={2}
+                                        value={itemVal}
+                                        onChange={(e) => {
+                                          const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
+                                          const nextList = [...blockList];
+                                          nextList[bIdx] = val;
+                                          updateBlockList(nextList);
+                                        }}
+                                        placeholder={bIdx === 0 ? "Blok (15)" : `Blok ${bIdx + 1}`}
+                                        className={`w-28 h-9 px-3 rounded-lg border text-center font-bold text-xs text-slate-800 placeholder:font-medium placeholder:text-slate-400 bg-white ${isMissing
+                                          ? "border-rose-400 focus:ring-2 focus:ring-rose-500"
+                                          : "border-sky-200 focus:ring-2 focus:ring-sky-500"
+                                          }`}
+                                      />
+                                      {blockList.length > 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const nextList = blockList.filter((_, i) => i !== bIdx);
                                             updateBlockList(nextList);
                                           }}
-                                          placeholder={bIdx === 0 ? "Blok (15)" : `Blok ${bIdx + 1}`}
-                                          className={`w-28 h-9 px-3 rounded-lg border text-center font-bold text-xs text-slate-800 placeholder:font-medium placeholder:text-slate-400 bg-white ${isMissing
-                                            ? "border-rose-400 focus:ring-2 focus:ring-rose-500"
-                                            : "border-sky-200 focus:ring-2 focus:ring-sky-500"
-                                            }`}
-                                        />
-                                        {blockList.length > 1 && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const nextList = blockList.filter((_, i) => i !== bIdx);
-                                              updateBlockList(nextList);
-                                            }}
-                                            className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition-colors shrink-0"
-                                            title="Hapus blok"
-                                          >
-                                            <X className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    ))}
+                                          className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition-colors shrink-0"
+                                          title="Hapus blok"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
 
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        updateBlockList([...blockList, ""]);
-                                      }}
-                                      className="w-9 h-9 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
-                                      title="Tambah Blok"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                    </button>
-                                  </div>
-
-                                  {isMissing && (
-                                    <p className="text-[10px] font-bold text-rose-600 mt-1.5">
-                                      Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
-                                    </p>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateBlockList([...blockList, ""]);
+                                    }}
+                                    className="w-9 h-9 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+                                    title="Tambah Blok"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </button>
                                 </div>
-                              );
-                            })();
+
+                                {isMissing && (
+                                  <p className="text-[10px] font-bold text-rose-600 mt-1.5">
+                                    Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
+                                  </p>
+                                )}
+                              </div>
+                            );
                           })()}
                         </div>
                       )}
