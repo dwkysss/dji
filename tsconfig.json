@@ -27,7 +27,6 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
   "exclude": ["node_modules", "test_jsx.tsx", "recovered.ts", "proxy.ts", "app/qc/page_tmp1.tsx", "app/qc/page_tmp2.tsx"]

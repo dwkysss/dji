@@ -486,12 +486,18 @@ export async function getMonthlyMachineReport(
     if (!dtError && dtData) {
       dtData.forEach((row: any) => {
         const header = row.production_headers;
-        if (!header || !header.tgl) return;
+        if (!header || (!header.tgl && !header.tanggal_jam)) return;
 
-        const dateObj = new Date(header.tgl);
-        const day = dateObj.getDate();
+        const ts = header.tanggal_jam || header.tgl;
+        const shiftDateStr = getShiftDate(ts);
+        const [yStr, mStr, dStr] = shiftDateStr.split("-");
+        const headerYear = parseInt(yStr);
+        const headerMonth = parseInt(mStr);
+        const day = parseInt(dStr);
+
+        if (headerMonth !== month || headerYear !== year) return;
+
         const groupName = header.groups?.nama_grup || "A";
-
         const reportDay = reportMap.get(day);
         if (!reportDay) return;
 
@@ -514,7 +520,7 @@ export async function getMonthlyMachineReport(
       // Fetch the headers directly to get total_downtime_detik safely.
       const { data: mechHeaders } = await supabase
         .from("production_headers")
-        .select("id, tgl, total_downtime_detik, groups(nama_grup)")
+        .select("id, tgl, tanggal_jam, total_downtime_detik, groups(nama_grup)")
         .eq("nomor_mc", machineId)
         .eq("panel_no", "Downtime Mekanik (Direct)")
         .gte("tgl", startDate)
@@ -522,8 +528,16 @@ export async function getMonthlyMachineReport(
         
       if (mechHeaders) {
         mechHeaders.forEach((h: any) => {
-          if (!h.tgl) return;
-          const day = new Date(h.tgl).getDate();
+          if (!h.tgl && !h.tanggal_jam) return;
+          const ts = h.tanggal_jam || h.tgl;
+          const shiftDateStr = getShiftDate(ts);
+          const [yStr, mStr, dStr] = shiftDateStr.split("-");
+          const headerYear = parseInt(yStr);
+          const headerMonth = parseInt(mStr);
+          const day = parseInt(dStr);
+
+          if (headerMonth !== month || headerYear !== year) return;
+
           const groupName = h.groups?.nama_grup || "A";
           const reportDay = reportMap.get(day);
           if (reportDay && reportDay.teamData[groupName]) {

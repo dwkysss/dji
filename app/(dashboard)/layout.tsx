@@ -2,6 +2,7 @@
 
 import React from "react";
 import Sidebar from "@/components/layout/Sidebar";
+import AutoSyncScheduler from "@/components/AutoSyncScheduler";
 
 export default function DashboardLayout({
   children,
@@ -10,6 +11,9 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="min-h-screen bg-[var(--background)] text-slate-800 flex flex-col lg:flex-row">
+      {/* Background Auto-Sync Scheduler for Real-time Execution */}
+      <AutoSyncScheduler />
+
       {/* Sidebar Navigation */}
       <Sidebar />
 

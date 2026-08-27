@@ -203,7 +203,7 @@ export async function getMachineStatuses(): Promise<{ success: boolean; data?: M
       }
     });
 
-    const ALL_MACHINES = ["R1", "R2", "R3B", "R1C", "R2C", "R11", "R12", "R16", "T1C", "T2A", "Warping D6", "Winding"];
+    const ALL_MACHINES = ["R1", "R2", "R1C", "R2C", "R3B", "R11", "R12", "R16", "T1C", "T2A"];
     
     const results: MachineStatus[] = ALL_MACHINES.map((mesin_id) => {
       const row = latestPerMachine.get(mesin_id);

@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { getMonthlyMachineReport, MonthlyMachineReportData } from "@/actions/report-actions";
 import { getMachineStatuses } from "@/actions/dashboard-actions";
-import { FileSpreadsheet, Loader2, Calendar, Monitor, AlertCircle, ArrowLeft, CloudUpload, X, Info, CheckCircle2, RotateCw } from "lucide-react";
+import { getGoogleSheetEndpoint, sendPayloadToGoogleSheet, syncAllMonthlyMachines, getAutoSyncScheduleSettings, updateAutoSyncScheduleSettings } from "@/actions/google-sheet-actions";
+import { FileSpreadsheet, Loader2, Calendar, Monitor, AlertCircle, ArrowLeft, CloudUpload, X, Info, CheckCircle2, RotateCw, Zap, Check, Clock, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 // Helper to format seconds as HH:MM:SS
@@ -51,12 +52,80 @@ export default function MonthlyMachineReportPage() {
     }
   }, [toast]);
 
+  // Modal State for Sync Confirmation (Single Machine)
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [syncSafeMode, setSyncSafeMode] = useState(true);
+
+  // Selective Date Scope Filter (All Month vs Specific Days)
+  const [syncScope, setSyncScope] = useState<"all" | "range">("all");
+  const [syncStartDay, setSyncStartDay] = useState(26);
+  const [syncEndDay, setSyncEndDay] = useState(27);
+
+  // Modal State for Sync All Machines (Jam 9 Pagi / On-Demand)
+  const [isSyncAllModalOpen, setIsSyncAllModalOpen] = useState(false);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [syncAllResults, setSyncAllResults] = useState<any[] | null>(null);
+
+  // Auto-Sync Schedule Settings State (Langsung di Halaman Laporan)
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleTime, setScheduleTime] = useState("09:00");
+  const [scheduleEnabled, setScheduleEnabled] = useState(true);
+  const [scheduleSafeMode, setScheduleSafeMode] = useState(true);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
   // Modal State for Keterangan
   const [modalData, setModalData] = useState<{ isOpen: boolean; title: string; contentObj: Record<string, string[]> | null }>({
     isOpen: false,
     title: "",
     contentObj: null,
   });
+
+  // Load schedule settings on mount
+  useEffect(() => {
+    getAutoSyncScheduleSettings()
+      .then((res) => {
+        if (res.success) {
+          setScheduleTime(res.time);
+          setScheduleEnabled(res.enabled);
+          setScheduleSafeMode(res.safeMode);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSaveScheduleSetting = async () => {
+    setIsSavingSchedule(true);
+    try {
+      const res = await updateAutoSyncScheduleSettings({
+        time: scheduleTime,
+        enabled: scheduleEnabled,
+        safeMode: scheduleSafeMode,
+      });
+
+      if (res.success) {
+        setIsScheduleModalOpen(false);
+        setToast({
+          type: "success",
+          title: "Jadwal Auto-Sync Tersimpan",
+          message: `Jadwal sinkronisasi otomatis harian berhasil disetel ke pukul ${scheduleTime} WIB!`,
+        });
+      } else {
+        setToast({
+          type: "error",
+          title: "Gagal Menyimpan Jadwal",
+          message: res.error || "Gagal menyimpan konfigurasi jadwal.",
+        });
+      }
+    } catch (err: any) {
+      setToast({
+        type: "error",
+        title: "Gagal Menyimpan Jadwal",
+        message: err.message || "Terjadi kesalahan sistem.",
+      });
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
 
   useEffect(() => {
     // 1. Check in-memory machines
@@ -82,8 +151,14 @@ export default function MonthlyMachineReportPage() {
     // 3. Fetch from server
     const fetchMachines = async () => {
       const res = await getMachineStatuses();
+      const fallback = ["R1", "R2", "R1C", "R2C", "R3B", "R11", "R12", "R16", "T1C", "T2A"];
       if (res.success && res.data) {
-        const mcList = res.data.map((m: any) => m.mesin_id).sort();
+        const orderMap = new Map(fallback.map((m, idx) => [m, idx]));
+        const mcList = res.data.map((m: any) => m.mesin_id).sort((a: string, b: string) => {
+          const idxA = orderMap.has(a) ? orderMap.get(a)! : 999;
+          const idxB = orderMap.has(b) ? orderMap.get(b)! : 999;
+          return idxA - idxB;
+        });
         machinesListMemoryCache = mcList;
         try {
           sessionStorage.setItem("mm_machines_list", JSON.stringify(mcList));
@@ -91,7 +166,6 @@ export default function MonthlyMachineReportPage() {
         setMachines(mcList);
         setSelectedMachine(prev => prev || mcList[0]);
       } else {
-        const fallback = ["R1", "R2", "R3B", "R1C", "R2C", "R11", "R12", "R16", "T1C", "T2A"];
         machinesListMemoryCache = fallback;
         setMachines(fallback);
         setSelectedMachine(prev => prev || "R1");
@@ -194,12 +268,13 @@ export default function MonthlyMachineReportPage() {
   const syncToGoogleSheets = async () => {
     setIsSyncing(true);
     try {
-      const sheetUrl = process.env.NEXT_PUBLIC_REPORT_GOOGLE_SHEET_URL;
+      const endpoint = await getGoogleSheetEndpoint("monthly_machine");
+      const sheetUrl = endpoint.url;
       if (!sheetUrl) {
         setToast({
           type: "error",
           title: "Konfigurasi URL Belum Ada",
-          message: "URL Google Sheets belum diatur di .env (NEXT_PUBLIC_REPORT_GOOGLE_SHEET_URL)",
+          message: "URL Google Sheets belum diatur di menu Admin > Integrasi Google Sheets atau di .env",
         });
         return;
       }
@@ -281,24 +356,79 @@ export default function MonthlyMachineReportPage() {
         });
       });
 
-      const response = await fetch(sheetUrl, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ 
-          action: "sync_monthly_report", 
-          machine: selectedMachine,
-          sheetName: selectedMachine,
-          month: selectedMonth,
-          year: selectedYear,
-          data: wsData 
-        }),
+      const monthNames = [
+        "", "Januari", "Februari", "Maret", "APRIL", "Mei", "Juni", 
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+      ];
+      const targetSheetName = `${monthNames[selectedMonth] || "Agustus"} ${selectedYear}`;
+
+      const structuredItems = reportData.map((dayData) => {
+        const teamsToRender = dayData.orderedTeams || [
+          { teamName: "A", data: dayData.teamData["A"] },
+          { teamName: "B", data: dayData.teamData["B"] },
+          { teamName: "C", data: dayData.teamData["C"] },
+        ];
+
+        return {
+          tanggal: dayData.tanggal,
+          teams: teamsToRender.map((teamObj) => {
+            const td = teamObj.data;
+            let ketString = "";
+            if (td.keterangan_per_kategori) {
+              ketString = Object.entries(td.keterangan_per_kategori)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([kat, details]) => {
+                  const counts: Record<string, number> = {};
+                  (details as string[]).forEach((d) => {
+                    const key = d?.trim() || "Detail umum";
+                    counts[key] = (counts[key] || 0) + 1;
+                  });
+                  const formatted = Object.entries(counts).map(([d, cnt]) => cnt > 1 ? `${d} (${cnt}x)` : d);
+                  return formatted.length > 0 ? `[${kat}] ${formatted.join(", ")}` : `[${kat}]`;
+                }).join(" | ");
+            }
+
+            return {
+              team: teamObj.teamName,
+              desain: td.desain || "",
+              keterangan: ketString,
+              courses: td.courses || "",
+              rpm: td.rpm || "",
+              eff_100: td.eff_100 || 0,
+              operator_name: td.operator_name || "",
+              hasil_produksi: td.hasil_produksi || 0,
+              jumlah_cacat: td.jumlah_cacat || 0,
+              kode_tindakan: td.kode_tindakan || {},
+              downtime_detik: td.downtime_detik || 0,
+              downtime_formatted: formatHHMMSS(td.downtime_detik || 0),
+            };
+          }),
+        };
       });
 
-      if (!response.ok) throw new Error("Gagal terhubung ke Google Sheets API.");
+      const syncResult = await sendPayloadToGoogleSheet("monthly_machine", {
+        action: "sync_monthly_report", 
+        machine: selectedMachine,
+        sheetName: targetSheetName,
+        month: selectedMonth,
+        year: selectedYear,
+        isMeterMachine: isMeterMachine,
+        safeMode: syncSafeMode,
+        startDay: syncScope === "range" ? syncStartDay : undefined,
+        endDay: syncScope === "range" ? syncEndDay : undefined,
+        items: structuredItems,
+        data: wsData 
+      });
+
+      if (!syncResult.success) {
+        throw new Error(syncResult.error || "Gagal sinkronisasi data ke Google Sheets.");
+      }
+
+      setIsSyncModalOpen(false);
       setToast({
         type: "success",
-        title: "Sinkronisasi Berhasil",
-        message: `Sukses sinkronisasi laporan ${selectedMachine} ke Google Sheets!`,
+        title: "Sinkronisasi Selesai",
+        message: syncResult.message || `Sukses sinkronisasi laporan ${selectedMachine} ke sheet ${targetSheetName}!`,
       });
     } catch (err: any) {
       setToast({
@@ -308,6 +438,42 @@ export default function MonthlyMachineReportPage() {
       });
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const executeSyncAll = async () => {
+    setIsSyncingAll(true);
+    setSyncAllResults(null);
+    try {
+      const res = await syncAllMonthlyMachines({
+        month: selectedMonth,
+        year: selectedYear,
+        safeMode: syncSafeMode,
+        startDay: syncScope === "range" ? syncStartDay : undefined,
+        endDay: syncScope === "range" ? syncEndDay : undefined,
+      });
+      setSyncAllResults(res.results);
+      if (res.success) {
+        setToast({
+          type: "success",
+          title: "Sync Seluruh Mesin Selesai",
+          message: res.message,
+        });
+      } else {
+        setToast({
+          type: "error",
+          title: "Sebagian Sync Gagal",
+          message: res.message,
+        });
+      }
+    } catch (err: any) {
+      setToast({
+        type: "error",
+        title: "Gagal Menjalankan Sinkronisasi",
+        message: err.message || "Terjadi kesalahan saat memproses seluruh mesin.",
+      });
+    } finally {
+      setIsSyncingAll(false);
     }
   };
 
@@ -498,14 +664,52 @@ export default function MonthlyMachineReportPage() {
             >
               <RotateCw className={`w-5 h-5 ${isLoading || isBackgroundUpdating ? "animate-spin" : ""}`} />
             </button>
+
+            {/* Quick Auto-Sync Schedule Badge & Trigger */}
             <button
-              onClick={syncToGoogleSheets}
-              disabled={isSyncing || reportData.length === 0}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 px-4 rounded-xl shadow-md transition-all flex items-center gap-2 font-bold text-sm disabled:opacity-50"
-              title="Sync ke Google Sheets"
+              type="button"
+              onClick={() => setIsScheduleModalOpen(true)}
+              className={`p-2 px-3.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs ${
+                scheduleEnabled 
+                  ? "bg-amber-50/80 border-amber-300 text-amber-900 hover:bg-amber-100" 
+                  : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200"
+              }`}
+              title="Klik untuk mengatur jam sinkronisasi otomatis harian"
             >
-              {isSyncing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CloudUpload className="w-5 h-5" />}
+              <div className="relative">
+                <Clock className={`w-4 h-4 ${scheduleEnabled ? "text-amber-600" : "text-slate-400"}`} />
+                {scheduleEnabled && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="hidden xl:inline">Auto-Sync:</span>
+                <span className="font-black font-mono text-amber-950">{scheduleTime}</span>
+                <span className="text-[10px] text-amber-700 font-semibold">WIB</span>
+              </div>
+              <Settings className="w-3.5 h-3.5 text-amber-700/60 ml-0.5" />
+            </button>
+
+            <button
+              onClick={() => setIsSyncModalOpen(true)}
+              disabled={isLoading || reportData.length === 0}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 px-4 rounded-xl shadow-md transition-all flex items-center gap-2 font-bold text-sm disabled:opacity-50 cursor-pointer"
+              title="Sync Mesin Ini ke Google Sheets"
+            >
+              <CloudUpload className="w-5 h-5" />
               <span className="hidden lg:inline">Sync ke Sheet</span>
+            </button>
+            <button
+              onClick={() => {
+                setSyncAllResults(null);
+                setIsSyncAllModalOpen(true);
+              }}
+              disabled={isLoading}
+              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white p-2.5 px-4 rounded-xl shadow-md transition-all flex items-center gap-2 font-bold text-sm disabled:opacity-50 cursor-pointer"
+              title="Sync Seluruh 10 Mesin Sekaligus (Simulasi / Manual Jam 9 Pagi)"
+            >
+              <Zap className="w-5 h-5" />
+              <span className="hidden md:inline">Sync Semua Mesin</span>
             </button>
             <button
               onClick={exportToExcel}
@@ -733,6 +937,543 @@ export default function MonthlyMachineReportPage() {
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Sinkronisasi Google Sheets */}
+      {isSyncModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-[28px] max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-100 flex flex-col gap-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <CloudUpload className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-800">
+                    Sinkronkan ke Google Sheets
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold">
+                    Mesin {selectedMachine} • {months.find(m => m.value === selectedMonth)?.label} {selectedYear}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSyncModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-bold">Target Sheet:</span>
+                  <span className="font-black text-slate-800">{months.find(m => m.value === selectedMonth)?.label} {selectedYear}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-bold">Target Kolom Mesin:</span>
+                  <span className="font-black text-slate-800">Mesin {selectedMachine}</span>
+                </div>
+              </div>
+
+              {/* Date Scope Filter */}
+              <div className="space-y-2 pt-1">
+                <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider block">
+                  Cakupan Tanggal / Baris yang Disinkronkan:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div 
+                    onClick={() => setSyncScope("all")}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                      syncScope === "all" ? "bg-indigo-50 border-indigo-500 shadow-2xs" : "bg-white border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="syncScopeSingle"
+                        checked={syncScope === "all"}
+                        onChange={() => setSyncScope("all")}
+                        className="text-indigo-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800">Semua Tanggal (1 s.d. 31)</span>
+                    </div>
+                  </div>
+
+                  <div 
+                    onClick={() => setSyncScope("range")}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                      syncScope === "range" ? "bg-indigo-50 border-indigo-500 shadow-2xs" : "bg-white border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="syncScopeSingle"
+                        checked={syncScope === "range"}
+                        onChange={() => setSyncScope("range")}
+                        className="text-indigo-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800">Pilih Tanggal Tertentu</span>
+                    </div>
+                  </div>
+                </div>
+
+                {syncScope === "range" && (
+                  <div className="p-3.5 bg-indigo-50/60 rounded-2xl border border-indigo-200/80 flex items-center gap-3 animate-fadeIn">
+                    <span className="text-xs font-bold text-indigo-900 shrink-0">Tanggal:</span>
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={syncStartDay}
+                        onChange={(e) => setSyncStartDay(Math.min(31, Math.max(1, parseInt(e.target.value) || 1)))}
+                        className="w-16 h-9 px-2.5 text-center font-black text-xs rounded-xl bg-white border border-indigo-300 text-slate-800 focus:outline-indigo-600 shadow-2xs"
+                      />
+                      <span className="text-xs font-bold text-slate-400">s/d</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={syncEndDay}
+                        onChange={(e) => setSyncEndDay(Math.min(31, Math.max(1, parseInt(e.target.value) || 1)))}
+                        className="w-16 h-9 px-2.5 text-center font-black text-xs rounded-xl bg-white border border-indigo-300 text-slate-800 focus:outline-indigo-600 shadow-2xs"
+                      />
+                    </div>
+                    <span className="text-[11px] text-indigo-700 font-semibold hidden sm:inline">
+                      (Hanya baris tgl {syncStartDay} - {syncEndDay} yang diupdate)
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Mode Selection */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider block">
+                  Pilih Mode Pengisian Data:
+                </label>
+
+                <div 
+                  onClick={() => setSyncSafeMode(true)}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                    syncSafeMode ? "bg-emerald-50 border-emerald-500 shadow-xs" : "bg-white border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="syncMode"
+                    checked={syncSafeMode}
+                    onChange={() => setSyncSafeMode(true)}
+                    className="mt-0.5 text-emerald-600"
+                  />
+                  <div>
+                    <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      🛡️ Mode Aman (Hanya Isi yang Masih Kosong)
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                      Data manual yang sudah ada di sheet tidak akan ditimpa atau diubah sama sekali.
+                    </p>
+                  </div>
+                </div>
+
+                <div 
+                  onClick={() => setSyncSafeMode(false)}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                    !syncSafeMode ? "bg-amber-50 border-amber-500 shadow-xs" : "bg-white border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="syncMode"
+                    checked={!syncSafeMode}
+                    onChange={() => setSyncSafeMode(false)}
+                    className="mt-0.5 text-amber-600"
+                  />
+                  <div>
+                    <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      🔄 Mode Perbarui Semua (Timpa dengan Data Web)
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                      Mengisi baris mesin ini dengan data produksi terbaru dari web.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setIsSyncModalOpen(false)}
+                disabled={isSyncing}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={syncToGoogleSheets}
+                disabled={isSyncing}
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSyncing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CloudUpload className="w-4 h-4" />
+                )}
+                Mulai Sinkronkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SYNC SELURUH MESIN (JAM 9 PAGI / ON-DEMAND) */}
+      {isSyncAllModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-xl w-full p-6 sm:p-7 flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-200">
+                  <Zap className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base sm:text-lg">
+                    Sinkronisasi Seluruh Mesin
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-500">
+                    Otomatisasi Laporan {months.find(m => m.value === selectedMonth)?.label} {selectedYear}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSyncingAll && setIsSyncAllModalOpen(false)}
+                disabled={isSyncingAll}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="space-y-4">
+              <div className="bg-amber-50/80 border border-amber-200/80 p-4 rounded-2xl flex items-start gap-3">
+                <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-900 leading-relaxed font-medium">
+                  Fitur ini akan menyinkronkan <strong>seluruh 10 mesin aktif</strong> (R1, R2, R1C, R2C, R3B, R11, R12, R16, T1C, T2A) ke Google Sheets secara berurutan. Ini adalah alur yang sama persis dengan yang berjalan pada <strong>Jadwal Otomatis Pukul 09:00 WIB</strong>.
+                </div>
+              </div>
+
+              {/* Date Scope Filter */}
+              <div className="space-y-2 pt-1">
+                <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider block">
+                  Cakupan Tanggal / Baris:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div 
+                    onClick={() => setSyncScope("all")}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                      syncScope === "all" ? "bg-amber-50 border-amber-500 shadow-2xs" : "bg-white border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="syncScopeAll"
+                        checked={syncScope === "all"}
+                        onChange={() => setSyncScope("all")}
+                        className="text-amber-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800">Semua Tanggal (1 s.d. 31)</span>
+                    </div>
+                  </div>
+
+                  <div 
+                    onClick={() => setSyncScope("range")}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                      syncScope === "range" ? "bg-amber-50 border-amber-500 shadow-2xs" : "bg-white border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="syncScopeAll"
+                        checked={syncScope === "range"}
+                        onChange={() => setSyncScope("range")}
+                        className="text-amber-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800">Pilih Tanggal Tertentu</span>
+                    </div>
+                  </div>
+                </div>
+
+                {syncScope === "range" && (
+                  <div className="p-3.5 bg-amber-50/70 rounded-2xl border border-amber-200 flex items-center gap-3 animate-fadeIn">
+                    <span className="text-xs font-bold text-amber-900 shrink-0">Tanggal:</span>
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={syncStartDay}
+                        onChange={(e) => setSyncStartDay(Math.min(31, Math.max(1, parseInt(e.target.value) || 1)))}
+                        className="w-16 h-9 px-2.5 text-center font-black text-xs rounded-xl bg-white border border-amber-300 text-slate-800 focus:outline-amber-600 shadow-2xs"
+                      />
+                      <span className="text-xs font-bold text-slate-400">s/d</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={syncEndDay}
+                        onChange={(e) => setSyncEndDay(Math.min(31, Math.max(1, parseInt(e.target.value) || 1)))}
+                        className="w-16 h-9 px-2.5 text-center font-black text-xs rounded-xl bg-white border border-amber-300 text-slate-800 focus:outline-amber-600 shadow-2xs"
+                      />
+                    </div>
+                    <span className="text-[11px] text-amber-800 font-semibold hidden sm:inline">
+                      (Hanya baris tgl {syncStartDay} - {syncEndDay} di 10 mesin yang diupdate)
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Mode Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div 
+                  onClick={() => setSyncSafeMode(true)}
+                  className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col gap-1.5 ${
+                    syncSafeMode 
+                      ? "border-emerald-500 bg-emerald-50/50 shadow-sm" 
+                      : "border-slate-200 hover:border-slate-300 bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-xs text-slate-800 flex items-center gap-1.5">
+                      🛡️ Mode Aman (Default)
+                    </span>
+                    {syncSafeMode && <Check className="w-4 h-4 text-emerald-600" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    Hanya mengisi baris/shift yang masih kosong. Data manual Anda tidak akan ditimpa.
+                  </p>
+                </div>
+
+                <div 
+                  onClick={() => setSyncSafeMode(false)}
+                  className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col gap-1.5 ${
+                    !syncSafeMode 
+                      ? "border-amber-500 bg-amber-50/50 shadow-sm" 
+                      : "border-slate-200 hover:border-slate-300 bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-xs text-slate-800 flex items-center gap-1.5">
+                      🔄 Perbarui Semua
+                    </span>
+                    {!syncSafeMode && <Check className="w-4 h-4 text-amber-600" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    Menimpa dan memperbarui seluruh data 1 bulan penuh pada semua mesin dari web.
+                  </p>
+                </div>
+              </div>
+
+              {/* Real-time Checklist of 10 Machines */}
+              <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50">
+                <div className="text-xs font-bold text-slate-700 mb-2.5 flex items-center justify-between">
+                  <span>Daftar 10 Mesin Target:</span>
+                  <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-black">10 Mesin</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {machines.map((m) => {
+                    const mResult = syncAllResults?.find((r: any) => r.machine === m);
+                    const isSuccess = mResult && mResult.success;
+                    const isFailed = mResult && !mResult.success;
+                    return (
+                      <div 
+                        key={m}
+                        className={`px-2.5 py-1.5 rounded-xl border text-xs font-black flex items-center justify-between transition-all ${
+                          isSuccess
+                            ? "bg-emerald-100 border-emerald-300 text-emerald-800"
+                            : isFailed
+                            ? "bg-rose-100 border-rose-300 text-rose-800"
+                            : isSyncingAll
+                            ? "bg-amber-50 border-amber-200 text-amber-700 animate-pulse"
+                            : "bg-white border-slate-200 text-slate-700"
+                        }`}
+                      >
+                        <span>{m}</span>
+                        {isSuccess && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                        {isFailed && <AlertCircle className="w-3.5 h-3.5 text-rose-600" />}
+                        {!mResult && isSyncingAll && <Loader2 className="w-3 h-3 animate-spin text-amber-600" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setIsSyncAllModalOpen(false)}
+                disabled={isSyncingAll}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+              >
+                Tutup
+              </button>
+
+              <button
+                type="button"
+                onClick={executeSyncAll}
+                disabled={isSyncingAll}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-amber-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSyncingAll ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Menyinkronkan 10 Mesin...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4" />
+                    <span>Mulai Sync Semua Mesin</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PENGATURAN JADWAL AUTO-SYNC HARIAN */}
+      {isScheduleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-6 sm:p-7 flex flex-col gap-5">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-200">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base sm:text-lg">
+                    Jadwal Auto-Sync Laporan
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-500">
+                    Otomatisasi Laporan Bulanan Mesin (WIB)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSavingSchedule && setIsScheduleModalOpen(false)}
+                disabled={isSavingSchedule}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="space-y-4">
+              {/* Status Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-slate-800">
+                    Status Sinkronisasi Otomatis
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    {scheduleEnabled ? "Otomatis berjalan setiap hari" : "Auto-sync sedang dinonaktifkan"}
+                  </span>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={scheduleEnabled}
+                    onChange={(e) => setScheduleEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600 relative"></div>
+                </label>
+              </div>
+
+              {/* Time Picker */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  Waktu Eksekusi Harian (Format Jam WIB)
+                </label>
+                <input
+                  type="time"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  className="h-12 px-4 rounded-2xl bg-white border-2 border-amber-200 text-sm font-black text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none w-full transition-all shadow-2xs"
+                />
+              </div>
+
+              {/* Mode Selection */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  Mode Eksekusi Data
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleSafeMode(true)}
+                    className={`h-11 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      scheduleSafeMode 
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-800 shadow-2xs" 
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    🛡️ Mode Aman
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleSafeMode(false)}
+                    className={`h-11 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      !scheduleSafeMode 
+                        ? "border-amber-500 bg-amber-50 text-amber-800 shadow-2xs" 
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    🔄 Timpa Semua
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(false)}
+                disabled={isSavingSchedule}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveScheduleSetting}
+                disabled={isSavingSchedule}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-amber-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSavingSchedule ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
+                Simpan Jadwal
               </button>
             </div>
           </div>

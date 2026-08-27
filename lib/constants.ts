@@ -167,19 +167,14 @@ export const DEFAULT_PROBLEM_DETAILS: Record<string, string[]> = Object.fromEntr
 export const REGISTERED_MACHINES = [
   "R1",
   "R2",
-  "R3",
-  "R6",
+  "R1C",
+  "R2C",
+  "R3B",
   "R11",
   "R12",
   "R16",
   "T1C",
   "T2A",
-  "R1C",
-  "R2C",
-  "R3B",
-  "R5B",
-  "Warping D6",
-  "Winding",
 ];
 
 export const PROBLEM_DETAILS = DEFAULT_PROBLEM_DETAILS;

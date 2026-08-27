@@ -305,6 +305,12 @@ export default function Sidebar() {
           roles: ["admin", "manager", "kepala_shift"],
         },
         {
+          name: "Integrasi Google Sheets",
+          href: "/google-sheets-config",
+          icon: FileSpreadsheet,
+          roles: ["admin", "manager"],
+        },
+        {
           name: "Chatbot AI",
           href: "/chatbot",
           icon: MessageSquare,
