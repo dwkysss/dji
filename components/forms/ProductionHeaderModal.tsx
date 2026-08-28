@@ -3,6 +3,7 @@ import { X, Save, Settings2, Trash2, Plus, Minus, Lock } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { UseFormRegister, FieldErrors, UseFormWatch } from "react-hook-form";
 import { ProductionFormInput } from "@/lib/schemas";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 
 interface ProductionHeaderModalProps {
   isOpen: boolean;
@@ -166,7 +167,7 @@ export default function ProductionHeaderModal({
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Nomor Mesin</label>
                 <select {...register("nomorMc")} className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all">
                   <option value="">-- Pilih --</option>
-                  {["R1", "R2", "R3B", "R1C", "R2C", "R11", "R12", "R16", "T1C", "T2A", "Warping D6", "Winding"].map(mc => (
+                  {REGISTERED_MACHINES.map(mc => (
                     <option key={mc} value={mc}>{mc}</option>
                   ))}
                 </select>

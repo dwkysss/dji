@@ -5,19 +5,34 @@ import { Clock, Zap, CheckCircle2 } from "lucide-react";
 
 export default function AutoSyncScheduler() {
   const [notification, setNotification] = useState<{ message: string; time: string; count?: number } | null>(null);
-  const [scheduleState, setScheduleState] = useState<{ time: string; enabled: boolean; safeMode: boolean } | null>(null);
+  const [monthlyScheduleState, setMonthlyScheduleState] = useState<{ time: string; enabled: boolean; safeMode: boolean } | null>(null);
+  const [potongScheduleState, setPotongScheduleState] = useState<{ time: string; enabled: boolean; safeMode: boolean } | null>(null);
   const isSyncingRef = useRef(false);
   const lastSyncedKeyRef = useRef<string>("");
 
   // 1. Fetch schedule config on mount and every 30 seconds
-  const fetchConfig = async () => {
+  const fetchConfigs = async () => {
     try {
-      const res = await fetch("/api/sync/schedule-info", { cache: "no-store" });
-      if (res.ok) {
-        const json = await res.json();
+      // Monthly Machine Schedule
+      const resMonthly = await fetch("/api/sync/schedule-info", { cache: "no-store" });
+      if (resMonthly.ok) {
+        const json = await resMonthly.json();
         if (json && json.success) {
-          setScheduleState({
+          setMonthlyScheduleState({
             time: (json.time || "09:00").trim(),
+            enabled: json.enabled !== false,
+            safeMode: json.safeMode !== false,
+          });
+        }
+      }
+
+      // Potong Kain Schedule
+      const resPotong = await fetch("/api/sync/potong-kain-schedule-info", { cache: "no-store" });
+      if (resPotong.ok) {
+        const json = await resPotong.json();
+        if (json && json.success) {
+          setPotongScheduleState({
+            time: (json.time || "17:00").trim(),
             enabled: json.enabled !== false,
             safeMode: json.safeMode !== false,
           });
@@ -29,59 +44,80 @@ export default function AutoSyncScheduler() {
   };
 
   useEffect(() => {
-    fetchConfig();
-    const configInterval = setInterval(fetchConfig, 30000);
+    fetchConfigs();
+    const configInterval = setInterval(fetchConfigs, 30000);
     return () => clearInterval(configInterval);
   }, []);
 
   // 2. Heartbeat check every 5 seconds
   useEffect(() => {
     const heartbeatInterval = setInterval(async () => {
-      if (isSyncingRef.current || !scheduleState || !scheduleState.enabled || !scheduleState.time) {
-        return;
-      }
+      if (isSyncingRef.current) return;
 
-      // Get local time in HH:MM format
       const now = new Date();
       const hours = String(now.getHours()).padStart(2, "0");
       const minutes = String(now.getMinutes()).padStart(2, "0");
       const currentTime = `${hours}:${minutes}`;
       const todayDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
 
-      const syncKey = `${todayDate}_${currentTime}`;
+      // Check Monthly Machine Schedule
+      if (monthlyScheduleState?.enabled && monthlyScheduleState.time === currentTime) {
+        const syncKeyMonthly = `monthly_${todayDate}_${currentTime}`;
+        if (lastSyncedKeyRef.current !== syncKeyMonthly) {
+          lastSyncedKeyRef.current = syncKeyMonthly;
+          isSyncingRef.current = true;
 
-      // Check if current time matches scheduled time
-      if (currentTime === scheduleState.time && lastSyncedKeyRef.current !== syncKey) {
-        lastSyncedKeyRef.current = syncKey;
-        isSyncingRef.current = true;
+          console.log(`[Auto-Sync Localhost] ⏰ [Laporan Bulanan] Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi...`);
+          try {
+            const res = await fetch("/api/cron/sync-monthly-machine", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+            });
+            const data = await res.json();
+            setNotification({
+              message: data.message || `Laporan Bulanan Mesin berhasil disinkronkan (${currentTime} WIB).`,
+              time: currentTime,
+            });
+            setTimeout(() => setNotification(null), 10000);
+          } catch (err) {
+            console.error("[Auto-Sync Monthly Error]:", err);
+          } finally {
+            isSyncingRef.current = false;
+          }
+          return;
+        }
+      }
 
-        console.log(`[Auto-Sync Localhost] ⏰ Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi otomatis seluruh mesin ke Google Sheets...`);
+      // Check Potong Kain Schedule
+      if (potongScheduleState?.enabled && potongScheduleState.time === currentTime) {
+        const syncKeyPotong = `potong_${todayDate}_${currentTime}`;
+        if (lastSyncedKeyRef.current !== syncKeyPotong) {
+          lastSyncedKeyRef.current = syncKeyPotong;
+          isSyncingRef.current = true;
 
-        try {
-          const res = await fetch("/api/cron/sync-monthly-machine", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-
-          const data = await res.json();
-          console.log("[Auto-Sync Localhost] ✅ Hasil Auto-Sync:", data);
-
-          setNotification({
-            message: data.message || `Sinkronisasi otomatis seluruh mesin berhasil pada pukul ${currentTime} WIB.`,
-            time: currentTime,
-          });
-
-          setTimeout(() => setNotification(null), 10000);
-        } catch (err: any) {
-          console.error("[Auto-Sync Localhost Error]:", err);
-        } finally {
-          isSyncingRef.current = false;
+          console.log(`[Auto-Sync Localhost] ⏰ [Potong Kain] Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi...`);
+          try {
+            const res = await fetch("/api/cron/sync-potong-kain", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+            });
+            const data = await res.json();
+            setNotification({
+              message: data.message || `Laporan Potong Kain berhasil disinkronkan (${currentTime} WIB).`,
+              time: currentTime,
+            });
+            setTimeout(() => setNotification(null), 10000);
+          } catch (err) {
+            console.error("[Auto-Sync Potong Kain Error]:", err);
+          } finally {
+            isSyncingRef.current = false;
+          }
         }
       }
     }, 5000);
 
     return () => clearInterval(heartbeatInterval);
-  }, [scheduleState]);
+  }, [monthlyScheduleState, potongScheduleState]);
 
   if (!notification) return null;
 

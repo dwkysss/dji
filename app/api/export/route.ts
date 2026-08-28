@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, getAuthenticatedUser } from "@/lib/supabase/server";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 import * as xlsx from "xlsx";
 
 export async function GET(req: NextRequest) {
@@ -65,8 +66,8 @@ export async function GET(req: NextRequest) {
     
     // Default machines from sample if DB is empty for them, or just use DB machines
     // Let's combine standard ones with what's in DB
-    const standardMachines = ["R1", "R2", "R3", "R6", "R11", "R12", "R16", "T1C", "T2A", "STM", "S2A", "R1C", "S1A", "R2C", "R3B", "R5B"];
-    const activeMachines = Array.from(new Set([...standardMachines, ...allMachines])).sort();
+    const standardMachines = REGISTERED_MACHINES;
+    const activeMachines = REGISTERED_MACHINES;
 
     // Create the Workbook and Worksheet
     const wb = xlsx.utils.book_new();

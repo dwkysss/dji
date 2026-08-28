@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 
 export interface MachineConfig {
   nomor_mc: string;
@@ -8,21 +9,16 @@ export interface MachineConfig {
   input_type: "PANEL" | "METER";
 }
 
-const STANDARD_MACHINES = [
-  "R1", "R2", "R3", "R6", "R11", "R12", "R16", "T1C", "T2A", "STM", 
-  "S2A", "R1C", "S1A", "R2C", "R3B", "R5B", "Warping D6", "Winding"
-];
+const STANDARD_MACHINES = REGISTERED_MACHINES;
 
 const DEFAULT_MACHINES: Record<string, number> = {
-  R1: 1, R2: 1, R3: 1, R6: 1, R11: 1, R12: 1, R16: 1,
-  T1C: 1, T2A: 1, STM: 1, S2A: 1, R1C: 1, S1A: 1, R2C: 1, R3B: 1, R5B: 1,
-  "Warping D6": 1, Winding: 1,
+  R1: 1, R2: 1, R1C: 1, R2C: 1, R3B: 1, R11: 1, R12: 1, R16: 1, T1C: 1, T2A: 1,
 };
 
 const DEFAULT_INPUT_TYPES: Record<string, "PANEL" | "METER"> = {
-  T2A: "METER",
-  "Warping D6": "METER",
-  Winding: "METER",
+  R11: "METER",
+  R12: "METER",
+  R16: "METER",
 };
 
 export async function getMachineConfigs(): Promise<{ success: boolean; data: MachineConfig[]; error?: string }> {

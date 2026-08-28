@@ -280,6 +280,12 @@ export default function Sidebar() {
           icon: FileSpreadsheet,
           roles: ["admin", "manager", "inspeksi", "mending"],
         },
+        {
+          name: "Laporan Harian Inspect & Mending",
+          href: "/reports/daily-inspect-mending",
+          icon: FileSpreadsheet,
+          roles: ["admin", "manager", "inspeksi", "mending", "kepala_shift"],
+        },
       ],
     },
     {

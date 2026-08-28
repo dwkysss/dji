@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import {
   searchEmployeeHistory,
 } from "@/actions/employee-actions";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import {
   Search,
@@ -456,20 +457,7 @@ export default function EmployeeHistoryPage() {
                 className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full"
               >
                 <option value="">-- Pilih Mesin --</option>
-                {[
-                  "R1",
-                  "R2",
-                  "R3B",
-                  "R1C",
-                  "R2C",
-                  "R11",
-                  "R12",
-                  "R16",
-                  "T1C",
-                  "T2A",
-                  "Warping D6",
-                  "Winding",
-                ].map((mc) => (
+                {REGISTERED_MACHINES.map((mc) => (
                   <option key={mc} value={mc}>
                     {mc}
                   </option>

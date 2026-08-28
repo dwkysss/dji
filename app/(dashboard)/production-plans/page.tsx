@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { getAllProductionPlans, deleteProductionPlan, upsertProductionPlan, getRecentPlansByMachine } from "@/actions/plan-actions";
 import { getMachineConfigs } from "@/actions/machine-config-actions";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 import { FileSpreadsheet, Plus, Edit, Trash2, RefreshCw, X, Save } from "lucide-react";
 
 export default function ProductionPlansPage() {
@@ -315,7 +316,7 @@ export default function ProductionPlansPage() {
                     className="h-10 px-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none uppercase font-bold"
                   >
                     <option value="">-- Pilih --</option>
-                    {["R1", "R2", "R3B", "R1C", "R2C", "R11", "R12", "R16", "T1C", "T2A", "Warping D6", "Winding"].map(mc => (
+                    {REGISTERED_MACHINES.map(mc => (
                       <option key={mc} value={mc}>{mc}</option>
                     ))}
                   </select>

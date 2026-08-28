@@ -17,12 +17,12 @@ export type ConnectionStatus = "terputus" | "menghubungkan" | "terhubung";
 // Pemetaan Mesin ke Target Host ESP32 & Channel (M1/M2)
 export const MACHINE_ESP32_MAP: Record<string, { host: string; channel: "M1" | "M2" }> = {
   "R1": { host: "esp32-r1.local", channel: "M1" },
-  "R11": { host: "esp32-r1.local", channel: "M2" },
   "R2": { host: "esp32-r2.local", channel: "M1" },
+  "R1C": { host: "esp32-r1c.local", channel: "M1" },
+  "R2C": { host: "esp32-r2c.local", channel: "M1" },
+  "R3B": { host: "esp32-r3b.local", channel: "M1" },
+  "R11": { host: "esp32-r1.local", channel: "M2" },
   "R12": { host: "esp32-r2.local", channel: "M2" },
-  "R3": { host: "esp32-r3.local", channel: "M1" },
-  "R13": { host: "esp32-r3.local", channel: "M2" },
-  "R6": { host: "esp32-r6.local", channel: "M1" },
   "R16": { host: "esp32-r6.local", channel: "M2" },
   "T1C": { host: "esp32-t1c.local", channel: "M1" },
   "T2A": { host: "esp32-t2a.local", channel: "M1" },

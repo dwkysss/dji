@@ -1,11 +1,24 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import LoginForm from "@/components/forms/LoginForm";
+import { AlertTriangle } from "lucide-react";
 
 export default function LoginPage() {
   const [time, setTime] = useState("");
   const [date, setDate] = useState("");
+  const searchParams = useSearchParams();
+  const sessionExpired = searchParams.get("session_expired") === "1";
+
+  // Bersihkan cache user lama di localStorage jika sesi kedaluwarsa/rusak
+  useEffect(() => {
+    if (sessionExpired) {
+      try {
+        localStorage.removeItem("dji_cached_user");
+      } catch (e) {}
+    }
+  }, [sessionExpired]);
 
   // Update clock every second
   useEffect(() => {
@@ -49,6 +62,21 @@ export default function LoginPage() {
         }}
       />
 
+      {/* Session Expired Banner */}
+      {sessionExpired && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4">
+          <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-300 shadow-lg shadow-amber-100 animate-fadeIn">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="text-xs font-black text-amber-900">Sesi Berakhir / Cookie Rusak</div>
+              <div className="text-[11px] font-medium text-amber-700 mt-0.5 leading-relaxed">
+                Sesi Anda telah habis atau cookie browser bermasalah. Silakan masuk kembali untuk melanjutkan.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Bar: Digital Clock & Date */}
       <header className="w-full max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 z-10">
         <div className="flex items-center gap-3">
@@ -85,3 +113,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

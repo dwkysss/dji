@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { searchMendingHistory } from "@/actions/mending-actions";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 import {
   Search,
   Loader2,
@@ -290,20 +291,7 @@ export default function MendingHistoryPage() {
                 className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full"
               >
                 <option value="">-- Semua Mesin --</option>
-                {[
-                  "R1",
-                  "R2",
-                  "R3B",
-                  "R1C",
-                  "R2C",
-                  "R11",
-                  "R12",
-                  "R16",
-                  "T1C",
-                  "T2A",
-                  "Warping D6",
-                  "Winding",
-                ].map((mc) => (
+                {REGISTERED_MACHINES.map((mc) => (
                   <option key={mc} value={mc}>
                     {mc}
                   </option>

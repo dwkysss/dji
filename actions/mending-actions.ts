@@ -923,21 +923,25 @@ export async function getMendingReportOptions() {
     const finalData = finalRes.data || [];
     const headerData = headersRes.data || [];
     
-    const registeredMachines = [
-      "R1", "R2", "R3", "R6", "R11", "R12", "R16",
-      "T1C", "T2A", "R1C", "R2C", "R3B", "R5B",
-      "Warping D6", "Winding"
-    ];
+    const { REGISTERED_MACHINES } = await import("@/lib/constants");
 
     const allMesins = [
-      ...registeredMachines,
+      ...REGISTERED_MACHINES,
       ...finalData.map((d: any) => d.nomor_mc),
       ...headerData.map((d: any) => d.nomor_mc)
     ].filter(Boolean);
 
-    const mesins = Array.from(new Set(allMesins)).sort((a: any, b: any) => 
-      String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
-    );
+    const orderMap: Record<string, number> = {};
+    REGISTERED_MACHINES.forEach((mc, idx) => {
+      orderMap[mc] = idx;
+    });
+
+    const mesins = Array.from(new Set(allMesins)).sort((a: any, b: any) => {
+      const idxA = orderMap[a] !== undefined ? orderMap[a] : 999;
+      const idxB = orderMap[b] !== undefined ? orderMap[b] : 999;
+      if (idxA !== idxB) return idxA - idxB;
+      return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+    });
     const potongans = Array.from(new Set(finalData.map((d: any) => d.potongan_ke).filter(Boolean)));
     const designs = Array.from(new Set(finalData.map((d: any) => d.design_id).filter(Boolean)));
     

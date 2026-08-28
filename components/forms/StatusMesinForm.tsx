@@ -17,8 +17,9 @@ import {
 } from "lucide-react";
 import { submitStatusMesin, StatusMesinInput } from "@/actions/status-actions";
 import { useAuth } from "@/lib/auth-context";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 
-const MESIN_OPTIONS = ["R1", "R2", "R3B", "R1C", "R2C", "R11", "R12", "R16", "T1C", "T2A", "Warping D6", "Winding"];
+const MESIN_OPTIONS = REGISTERED_MACHINES;
 
 const FALLBACK_GROUPS = [
   { id: 1, name: "A" },
