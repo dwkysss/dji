@@ -3,6 +3,7 @@ export interface OfflinePayload {
   type: "employee" | "continuous" | "qc";
   timestamp: string;
   data: any; // payload form yang gagal terkirim
+  retryCount?: number;
 }
 
 const DB_NAME = "dji_offline_db";
@@ -45,6 +46,7 @@ export async function addPendingPayload(type: "employee" | "continuous" | "qc", 
       type,
       timestamp: new Date().toISOString(),
       data,
+      retryCount: 0,
     };
 
     const request = store.add(payload);
@@ -74,6 +76,18 @@ export async function getAllPendingPayloads(): Promise<OfflinePayload[]> {
   }
 }
 
+export async function updatePendingPayload(payload: OfflinePayload): Promise<void> {
+  const db = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put(payload);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject("Gagal mengupdate antrean offline.");
+  });
+}
+
 export async function removePendingPayload(id: string): Promise<void> {
   const db = await openOfflineDB();
   return new Promise((resolve, reject) => {
@@ -83,5 +97,17 @@ export async function removePendingPayload(id: string): Promise<void> {
 
     request.onsuccess = () => resolve();
     request.onerror = () => reject("Gagal menghapus antrean offline.");
+  });
+}
+
+export async function clearAllPendingPayloads(): Promise<void> {
+  const db = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.clear();
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject("Gagal mengosongkan antrean offline.");
   });
 }

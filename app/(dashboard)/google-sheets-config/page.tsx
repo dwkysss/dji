@@ -5,9 +5,6 @@ import {
   getGoogleSheetConfigs, 
   updateGoogleSheetConfig, 
   GoogleSheetConfigItem,
-  getAutoSyncScheduleSettings,
-  updateAutoSyncScheduleSettings,
-  syncAllMonthlyMachines
 } from "@/actions/google-sheet-actions";
 import { 
   FileSpreadsheet, 
@@ -18,23 +15,12 @@ import {
   Loader2, 
   RefreshCw,
   Sliders,
-  Clock,
-  Zap,
-  ShieldCheck,
-  Check
 } from "lucide-react";
 
 export default function GoogleSheetsConfigPage() {
   const [configs, setConfigs] = useState<GoogleSheetConfigItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
-
-  // Auto-Sync Schedule States
-  const [scheduleTime, setScheduleTime] = useState("09:00");
-  const [scheduleEnabled, setScheduleEnabled] = useState(true);
-  const [scheduleSafeMode, setScheduleSafeMode] = useState(true);
-  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
-  const [isTestingSchedule, setIsTestingSchedule] = useState(false);
 
   // Form states per item
   const [formData, setFormData] = useState<Record<string, {
@@ -47,27 +33,20 @@ export default function GoogleSheetsConfigPage() {
 
   useEffect(() => {
     fetchConfigs();
-    fetchSchedule();
   }, []);
-
-  const fetchSchedule = async () => {
-    try {
-      const res = await getAutoSyncScheduleSettings();
-      if (res.success) {
-        setScheduleTime(res.time);
-        setScheduleEnabled(res.enabled);
-        setScheduleSafeMode(res.safeMode);
-      }
-    } catch (_) {}
-  };
 
   const fetchConfigs = async () => {
     setIsLoading(true);
     try {
       const res = await getGoogleSheetConfigs();
       if (res.success && res.data) {
-        // Filter out auto_sync_schedule from general report cards
-        const reportConfigs = res.data.filter(c => c.id !== "auto_sync_schedule");
+        // Filter out internal schedule & sync key IDs from general report cards
+        const reportConfigs = res.data.filter(
+          (c) =>
+            !c.id.startsWith("schedule_") &&
+            !c.id.startsWith("sync_keys_") &&
+            c.id !== "auto_sync_schedule"
+        );
         setConfigs(reportConfigs);
         const initialForm: Record<string, any> = {};
         reportConfigs.forEach((item) => {
@@ -131,63 +110,6 @@ export default function GoogleSheetsConfigPage() {
     }
   };
 
-  const handleSaveSchedule = async () => {
-    setIsSavingSchedule(true);
-    try {
-      const res = await updateAutoSyncScheduleSettings({
-        time: scheduleTime,
-        enabled: scheduleEnabled,
-        safeMode: scheduleSafeMode,
-      });
-
-      if (res.success) {
-        setToast({
-          type: "success",
-          message: `Jadwal Auto-Sync berhasil disimpan! (Setiap hari pukul ${scheduleTime} WIB)`,
-        });
-        setTimeout(() => setToast(null), 4500);
-      } else {
-        setToast({
-          type: "error",
-          message: res.error || "Gagal menyimpan jadwal auto-sync.",
-        });
-      }
-    } catch (err: any) {
-      setToast({
-        type: "error",
-        message: err.message || "Terjadi kesalahan saat menyimpan jadwal.",
-      });
-    } finally {
-      setIsSavingSchedule(false);
-    }
-  };
-
-  const handleTestAutoSync = async () => {
-    setIsTestingSchedule(true);
-    try {
-      const res = await syncAllMonthlyMachines(undefined, undefined, scheduleSafeMode);
-      if (res.success) {
-        setToast({
-          type: "success",
-          message: `Test Auto-Sync Berhasil: ${res.message}`,
-        });
-        setTimeout(() => setToast(null), 5000);
-      } else {
-        setToast({
-          type: "error",
-          message: res.message || "Gagal melakukan test auto-sync.",
-        });
-      }
-    } catch (err: any) {
-      setToast({
-        type: "error",
-        message: err.message || "Terjadi kesalahan saat menjalankan test auto-sync.",
-      });
-    } finally {
-      setIsTestingSchedule(false);
-    }
-  };
-
   return (
     <div className="w-full max-w-[1400px] mx-auto pb-24 animate-fadeIn">
       {/* Toast Notification */}
@@ -220,7 +142,7 @@ export default function GoogleSheetsConfigPage() {
               </span>
             </div>
             <p className="text-sm font-semibold text-slate-500 mt-0.5">
-              Kelola jadwal sinkronisasi otomatis harian dan endpoint Google Apps Script untuk masing-masing laporan.
+              Kelola endpoint URL Google Apps Script dan Spreadsheet ID untuk masing-masing laporan.
             </p>
           </div>
         </div>
@@ -228,7 +150,7 @@ export default function GoogleSheetsConfigPage() {
         <div className="flex items-center gap-3 self-start md:self-auto">
           <button
             type="button"
-            onClick={() => { fetchConfigs(); fetchSchedule(); }}
+            onClick={() => fetchConfigs()}
             disabled={isLoading}
             className="p-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-all cursor-pointer shadow-2xs"
             title="Refresh Data"
@@ -238,121 +160,13 @@ export default function GoogleSheetsConfigPage() {
         </div>
       </div>
 
-      {/* ⏰ JADWAL AUTO-SYNC HARIAN CARD */}
-      <div className="mb-8 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent bg-white p-6 sm:p-8 rounded-[28px] border-2 border-amber-200 shadow-sm flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-amber-100 pb-5">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-200 shrink-0">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black text-slate-800">
-                  Jadwal Otomatis Harian (Auto-Sync Cron)
-                </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 uppercase">
-                  Waktu WIB
-                </span>
-              </div>
-              <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                Sistem akan menyinkronkan seluruh 10 mesin secara otomatis pada jam yang Anda tentukan setiap hari.
-              </p>
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer select-none self-start sm:self-auto">
-            <span className="text-xs font-bold text-slate-700">
-              {scheduleEnabled ? "Auto-Sync Aktif" : "Auto-Sync Nonaktif"}
-            </span>
-            <input
-              type="checkbox"
-              checked={scheduleEnabled}
-              onChange={(e) => setScheduleEnabled(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600 relative"></div>
-          </label>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-center">
-          {/* Jam Eksekusi */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-amber-600" />
-              Pilih Waktu Eksekusi Harian (WIB)
-            </label>
-            <input
-              type="time"
-              value={scheduleTime}
-              onChange={(e) => setScheduleTime(e.target.value)}
-              className="h-12 px-4 rounded-2xl bg-white border-2 border-amber-200 text-sm font-black text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none w-full transition-all shadow-xs"
-            />
-          </div>
-
-          {/* Mode Keamanan */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              Mode Eksekusi
-            </label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setScheduleSafeMode(true)}
-                className={`flex-1 h-12 rounded-2xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  scheduleSafeMode 
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xs" 
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                }`}
-              >
-                🛡️ Mode Aman
-              </button>
-              <button
-                type="button"
-                onClick={() => setScheduleSafeMode(false)}
-                className={`flex-1 h-12 rounded-2xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  !scheduleSafeMode 
-                    ? "border-amber-500 bg-amber-50 text-amber-800 shadow-xs" 
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                }`}
-              >
-                🔄 Timpa Semua
-              </button>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-5 md:pt-0 self-end md:self-center">
-            <button
-              type="button"
-              onClick={handleSaveSchedule}
-              disabled={isSavingSchedule}
-              className="flex-1 h-12 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-black text-xs shadow-md shadow-amber-200 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-            >
-              {isSavingSchedule ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Simpan Jadwal
-            </button>
-            <button
-              type="button"
-              onClick={handleTestAutoSync}
-              disabled={isTestingSchedule}
-              className="h-12 px-4 rounded-2xl border-2 border-amber-300 hover:bg-amber-100 text-amber-900 font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
-              title="Jalankan simulasi auto-sync 10 mesin sekarang"
-            >
-              {isTestingSchedule ? <Loader2 className="w-4 h-4 animate-spin text-amber-700" /> : <Zap className="w-4 h-4 text-amber-600" />}
-              <span className="hidden sm:inline">Uji Sekarang</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* CONFIGURATION LIST */}
       <div className="mb-4">
         <h2 className="text-lg font-black text-slate-800 tracking-tight mb-1">
           Daftar Endpoint Google Apps Script per Laporan
         </h2>
         <p className="text-xs font-semibold text-slate-400">
-          Masukkan Web App URL yang Anda dapatkan setelah melakukan Deploy di Google Apps Script masing-masing file sheet.
+          Masukkan Web App URL yang Anda dapatkan setelah melakukan Deploy di Google Apps Script masing-masing file spreadsheet.
         </p>
       </div>
 
@@ -413,14 +227,14 @@ export default function GoogleSheetsConfigPage() {
                   <div className="lg:col-span-8 space-y-1.5">
                     <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                       <LinkIcon className="w-3.5 h-3.5 text-emerald-600" />
-                      URL Google Apps Script (Web App Endpoint)
+                      <span>URL Google Apps Script ({cfg.report_name})</span>
                     </label>
                     <input
                       type="url"
                       value={form.web_app_url}
                       onChange={(e) => handleFieldChange(cfg.id, "web_app_url", e.target.value)}
-                      placeholder="https://script.google.com/macros/s/.../exec"
-                      className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-800 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none w-full transition-all shadow-inner"
+                      placeholder={`https://script.google.com/macros/s/.../exec (${cfg.report_name})`}
+                      className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-800 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 outline-hidden w-full transition-all shadow-inner"
                     />
                   </div>
 
@@ -435,25 +249,34 @@ export default function GoogleSheetsConfigPage() {
                       value={form.spreadsheet_id}
                       onChange={(e) => handleFieldChange(cfg.id, "spreadsheet_id", e.target.value)}
                       placeholder="Contoh: 1Vtbz1xCpJQpeNE..."
-                      className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-800 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none w-full transition-all shadow-inner"
+                      className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-800 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 outline-hidden w-full transition-all shadow-inner"
                     />
                   </div>
                 </div>
 
                 {/* Card Actions */}
-                <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-                  <div className="text-[11px] text-slate-400 font-semibold">
-                    Kunci Laporan: <code className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-bold">{cfg.id}</code>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <div className="text-[11px] font-mono font-bold text-slate-400">
+                    Kunci Laporan: <span className="bg-slate-100 px-2 py-0.5 rounded-md text-slate-600">{cfg.id}</span>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => handleSaveConfig(cfg.id)}
                     disabled={isSaving}
-                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs shadow-md shadow-emerald-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                    className="h-10 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                    Simpan Perubahan
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Menyimpan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Simpan Perubahan</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

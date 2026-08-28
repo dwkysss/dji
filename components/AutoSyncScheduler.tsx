@@ -7,6 +7,7 @@ export default function AutoSyncScheduler() {
   const [notification, setNotification] = useState<{ message: string; time: string; count?: number } | null>(null);
   const [monthlyScheduleState, setMonthlyScheduleState] = useState<{ time: string; enabled: boolean; safeMode: boolean } | null>(null);
   const [potongScheduleState, setPotongScheduleState] = useState<{ time: string; enabled: boolean; safeMode: boolean } | null>(null);
+  const [dailyScheduleState, setDailyScheduleState] = useState<{ time: string; enabled: boolean } | null>(null);
   const isSyncingRef = useRef(false);
   const lastSyncedKeyRef = useRef<string>("");
 
@@ -35,6 +36,18 @@ export default function AutoSyncScheduler() {
             time: (json.time || "17:00").trim(),
             enabled: json.enabled !== false,
             safeMode: json.safeMode !== false,
+          });
+        }
+      }
+
+      // Daily Inspect & Mending Schedule
+      const resDaily = await fetch("/api/sync/daily-inspect-mending-schedule-info", { cache: "no-store" });
+      if (resDaily.ok) {
+        const json = await resDaily.json();
+        if (json && json.success) {
+          setDailyScheduleState({
+            time: (json.time || "17:30").trim(),
+            enabled: json.enabled !== false,
           });
         }
       }
@@ -112,12 +125,41 @@ export default function AutoSyncScheduler() {
           } finally {
             isSyncingRef.current = false;
           }
+          return;
+        }
+      }
+
+      // Check Daily Inspect & Mending Schedule
+      if (dailyScheduleState?.enabled && dailyScheduleState.time === currentTime) {
+        const syncKeyDaily = `daily_${todayDate}_${currentTime}`;
+        if (lastSyncedKeyRef.current !== syncKeyDaily) {
+          lastSyncedKeyRef.current = syncKeyDaily;
+          isSyncingRef.current = true;
+
+          console.log(`[Auto-Sync Localhost] ⏰ [Inspect & Mending] Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi...`);
+          try {
+            const res = await fetch("/api/cron/sync-daily-inspect-mending", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+            });
+            const data = await res.json();
+            setNotification({
+              message: data.message || `Laporan Harian Inspect & Mending berhasil disinkronkan (${currentTime} WIB).`,
+              time: currentTime,
+            });
+            setTimeout(() => setNotification(null), 10000);
+          } catch (err) {
+            console.error("[Auto-Sync Daily Inspect Mending Error]:", err);
+          } finally {
+            isSyncingRef.current = false;
+          }
+          return;
         }
       }
     }, 5000);
 
     return () => clearInterval(heartbeatInterval);
-  }, [monthlyScheduleState, potongScheduleState]);
+  }, [monthlyScheduleState, potongScheduleState, dailyScheduleState]);
 
   if (!notification) return null;
 

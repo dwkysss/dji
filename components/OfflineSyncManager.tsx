@@ -1,11 +1,17 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { getAllPendingPayloads, removePendingPayload, OfflinePayload } from "@/lib/offline-store";
+import { 
+  getAllPendingPayloads, 
+  removePendingPayload, 
+  updatePendingPayload,
+  clearAllPendingPayloads,
+  OfflinePayload 
+} from "@/lib/offline-store";
 import { createProductionReport } from "@/actions/employee-actions";
 import { submitContinuousReport } from "@/actions/continuous-actions";
 import { submitQCInspection } from "@/actions/qc-actions";
-import { WifiOff, RefreshCw, CheckCircle2 } from "lucide-react";
+import { WifiOff, RefreshCw, CheckCircle2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 export default function OfflineSyncManager() {
@@ -39,18 +45,10 @@ export default function OfflineSyncManager() {
       }
     }, 15000); // 15 detik
 
-    // Set interval to automatically sync failed sheet data
-    const sheetSyncInterval = setInterval(() => {
-      if (navigator.onLine && isLoggedIn) {
-        autoSyncSheets();
-      }
-    }, 30000); // 30 detik
-
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       clearInterval(interval);
-      clearInterval(sheetSyncInterval);
     };
   }, [isSyncing, isLoggedIn]);
 
@@ -66,15 +64,6 @@ export default function OfflineSyncManager() {
     }
   };
 
-  const autoSyncSheets = async () => {
-    try {
-      // Dinihilkan sementara sesuai request untuk mematikan fitur sync
-      // await fetch("/api/sync/auto", { method: "POST" });
-    } catch (e) {
-      console.error("Auto sync sheets error", e);
-    }
-  };
-
   const processQueue = async () => {
     if (isSyncing) return;
     setIsSyncing(true);
@@ -82,6 +71,7 @@ export default function OfflineSyncManager() {
     try {
       const payloads = await getAllPendingPayloads();
       if (payloads.length === 0) {
+        setPendingCount(0);
         setIsSyncing(false);
         return;
       }
@@ -100,12 +90,40 @@ export default function OfflineSyncManager() {
             result = await submitQCInspection(item.data);
           }
 
-          if (result.success) {
+          const errStr = String(result?.error || "").toLowerCase();
+          const isAlreadySaved = 
+            errStr.includes("sudah ada") || 
+            errStr.includes("already exists") || 
+            errStr.includes("duplicate") || 
+            errStr.includes("duplikat");
+
+          if (result?.success || isAlreadySaved) {
             await removePendingPayload(item.id);
             successCount++;
+          } else {
+            // Jika gagal, catat retry count
+            const currentRetries = (item.retryCount || 0) + 1;
+            if (currentRetries >= 3) {
+              console.warn(`[OfflineSync] Payload ${item.id} gagal setelah 3 percobaan (${result?.error}). Dihapus dari antrean lokal.`);
+              await removePendingPayload(item.id);
+            } else {
+              await updatePendingPayload({
+                ...item,
+                retryCount: currentRetries,
+              });
+            }
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Gagal sync payload", item.id, err);
+          const currentRetries = (item.retryCount || 0) + 1;
+          if (currentRetries >= 3) {
+            await removePendingPayload(item.id);
+          } else {
+            await updatePendingPayload({
+              ...item,
+              retryCount: currentRetries,
+            });
+          }
         }
       }
 
@@ -122,6 +140,17 @@ export default function OfflineSyncManager() {
     }
   };
 
+  const handleClearQueue = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await clearAllPendingPayloads();
+      setPendingCount(0);
+      setIsSyncing(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   if (!isOffline && pendingCount === 0 && !isSyncing && !showSuccessMsg) {
     return null;
   }
@@ -131,28 +160,37 @@ export default function OfflineSyncManager() {
       {isOffline && (
         <div className="flex items-center gap-2 bg-rose-500 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
           <WifiOff className="w-4 h-4" />
-          Offline Mode
+          <span>Offline Mode</span>
           {pendingCount > 0 && (
-            <span className="bg-white text-rose-600 px-2 rounded-full text-xs ml-1">
+            <span className="bg-white text-rose-600 px-2 rounded-full text-xs ml-1 font-bold">
               {pendingCount} Antrean
             </span>
           )}
         </div>
       )}
 
-      {isSyncing && (
-        <div className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
-          <RefreshCw className="w-4 h-4 animate-spin" />
-          Menyinkronkan {pendingCount} data...
+      {isSyncing && !isOffline && (
+        <div className="flex items-center gap-2.5 bg-amber-500 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
+          <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
+          <span>Menyinkronkan {pendingCount} data...</span>
+          <button
+            type="button"
+            onClick={handleClearQueue}
+            className="ml-1 p-1 hover:bg-amber-600 rounded-full transition-colors cursor-pointer"
+            title="Tutup & bersihkan antrean tertahan"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
       {showSuccessMsg && !isSyncing && !isOffline && (
         <div className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
           <CheckCircle2 className="w-4 h-4" />
-          Sinkronisasi Offline Selesai
+          <span>Sinkronisasi Offline Selesai</span>
         </div>
       )}
     </div>
   );
 }
+

@@ -88,21 +88,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // Silent auto-login jika cookie hilang/expired tapi remembered credentials ada di browser
+    const silentAutoLogin = async (): Promise<boolean> => {
+      try {
+        const manualLogout = sessionStorage.getItem("dji_manual_logout");
+        if (manualLogout === "1") return false;
+
+        const savedNip = localStorage.getItem("dji_remembered_nip");
+        const savedPwdEnc = localStorage.getItem("dji_remembered_pwd");
+
+        if (savedNip && savedPwdEnc) {
+          const { resolveLoginEmail } = await import("@/actions/user-actions");
+          const decodedPwd = atob(savedPwdEnc);
+          const email = await resolveLoginEmail(savedNip);
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password: decodedPwd,
+          });
+
+          if (!error && data?.session) {
+            await fetchUser(data.session);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn("Silent auto-login fallback warning:", e);
+      }
+      return false;
+    };
+
     // Check initial session with fallback timeout
-    const sessionTimeout = setTimeout(() => {
-      setIsLoading(false);
+    const sessionTimeout = setTimeout(async () => {
+      const autoLoggedIn = await silentAutoLogin();
+      if (!autoLoggedIn) {
+        setIsLoading(false);
+      }
     }, 4000);
 
     supabase.auth
       .getSession()
-      .then(({ data: { session } }) => {
+      .then(async ({ data: { session } }) => {
         clearTimeout(sessionTimeout);
-        fetchUser(session);
+        if (session) {
+          fetchUser(session);
+        } else {
+          const autoLoggedIn = await silentAutoLogin();
+          if (!autoLoggedIn) {
+            fetchUser(null);
+          }
+        }
       })
-      .catch((err) => {
+      .catch(async (err) => {
         clearTimeout(sessionTimeout);
         console.warn("Auth getSession network fetch failed:", err);
-        fetchUser(null);
+        const autoLoggedIn = await silentAutoLogin();
+        if (!autoLoggedIn) {
+          fetchUser(null);
+        }
       });
 
     // Listen for auth changes
@@ -198,6 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       localStorage.removeItem("dji_cached_user");
+      sessionStorage.setItem("dji_manual_logout", "1");
     } catch (e) {}
     await supabase.auth.signOut();
   };

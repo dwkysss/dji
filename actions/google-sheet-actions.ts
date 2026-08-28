@@ -179,7 +179,7 @@ export async function sendPayloadToGoogleSheet(
     if (resJson && resJson.success === false) {
       return {
         success: false,
-        error: resJson.error || "Gagal sinkronisasi data ke Google Sheets",
+        error: resJson.error || resJson.message || "Gagal sinkronisasi data ke Google Sheets",
       };
     }
 
@@ -863,4 +863,149 @@ export async function resetPotongKainSyncStatus(
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Sinkronisasi data Laporan Harian Inspect & Mending ke Google Sheets
+ * Tab target: HASIL INSPECT DAN MENDING HARIAN 2026 (seluruh mesin gabung)
+ */
+export async function syncDailyInspectMendingToGoogleSheet(
+  rows: any[],
+  sheetName: string = "HASIL INSPECT DAN MENDING HARIAN 2026"
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+  appendedCount?: number;
+  updatedCount?: number;
+  total?: number;
+}> {
+  try {
+    if (!rows || rows.length === 0) {
+      return { success: false, error: "Tidak ada data baris yang dipilih untuk disinkronkan." };
+    }
+
+    const payload = {
+      reportType: "daily_inspect_mending",
+      sheetName,
+      rows,
+    };
+
+    const res = await sendPayloadToGoogleSheet("daily_inspect_mending", payload);
+    return res;
+  } catch (err: any) {
+    return { success: false, error: err.message || "Gagal sinkronisasi ke Google Sheets" };
+  }
+}
+
+/**
+ * Mengambil pengaturan jadwal sinkronisasi otomatis Laporan Harian Inspect & Mending
+ */
+export async function getDailyInspectMendingScheduleSettings(): Promise<{
+  success: boolean;
+  time: string;
+  enabled: boolean;
+  error?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("google_sheet_configs")
+      .select("web_app_url, is_active, description")
+      .eq("id", "schedule_daily_inspect_mending")
+      .single();
+
+    if (error || !data) {
+      return {
+        success: true,
+        time: "17:30",
+        enabled: true,
+      };
+    }
+
+    return {
+      success: true,
+      time: data.web_app_url || "17:30",
+      enabled: data.is_active !== false,
+    };
+  } catch (err: any) {
+    return {
+      success: true,
+      time: "17:30",
+      enabled: true,
+    };
+  }
+}
+
+/**
+ * Menyimpan pengaturan jadwal sinkronisasi otomatis Laporan Harian Inspect & Mending
+ */
+export async function updateDailyInspectMendingScheduleSettings(payload: {
+  time: string;
+  enabled: boolean;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("google_sheet_configs")
+      .upsert({
+        id: "schedule_daily_inspect_mending",
+        report_name: "Jadwal Auto-Sync Laporan Harian Inspect & Mending",
+        web_app_url: payload.time.trim(),
+        is_active: payload.enabled,
+        description: `Waktu auto-sync harian: ${payload.time} WIB`,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Gagal menyimpan jadwal inspect & mending" };
+  }
+}
+
+/**
+ * Otomatis sinkronisasi seluruh data Harian Inspect & Mending (Bulan Berjalan) ke Google Sheets
+ */
+export async function syncAllDailyInspectMending(): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+  appendedCount?: number;
+  updatedCount?: number;
+  total?: number;
+}> {
+  try {
+    const { getDailyInspectMendingReport } = await import("@/actions/daily-inspect-mending-actions");
+    
+    // Ambil data bulan ini untuk disinkronkan ke Google Sheet
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
+    const todayStr = today.toISOString().split("T")[0];
+
+    const reportRes = await getDailyInspectMendingReport({
+      machine: "ALL",
+      dateFrom: startOfMonth,
+      dateTo: todayStr,
+      dateField: "tgl_inspect",
+    });
+
+    if (!reportRes.success || !reportRes.data || reportRes.data.length === 0) {
+      return {
+        success: true,
+        message: "Tidak ada data inspect & mending bulan ini yang perlu disinkronkan.",
+        total: 0,
+      };
+    }
+
+    const syncRes = await syncDailyInspectMendingToGoogleSheet(reportRes.data);
+    return syncRes;
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || "Gagal auto-sync laporan harian inspect & mending.",
+    };
+  }
+}
+
+
 
