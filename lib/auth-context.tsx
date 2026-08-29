@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Silent auto-login jika cookie hilang/expired tapi remembered credentials ada di browser
     const silentAutoLogin = async (): Promise<boolean> => {
       try {
-        const manualLogout = sessionStorage.getItem("dji_manual_logout");
+        const manualLogout = localStorage.getItem("dji_manual_logout");
         if (manualLogout === "1") return false;
 
         const savedNip = localStorage.getItem("dji_remembered_nip");
@@ -195,6 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsLoading(false);
           try {
             localStorage.removeItem("dji_cached_user");
+            localStorage.setItem("dji_manual_logout", "1");
           } catch (e) {}
           window.location.href = "/login";
         }
@@ -232,6 +233,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: error.message };
     }
     
+    try {
+      localStorage.removeItem("dji_manual_logout");
+    } catch (e) {}
+
     // session will be picked up by onAuthStateChange listener
     return { success: true };
   };
@@ -240,7 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       localStorage.removeItem("dji_cached_user");
-      sessionStorage.setItem("dji_manual_logout", "1");
+      localStorage.setItem("dji_manual_logout", "1");
     } catch (e) {}
     await supabase.auth.signOut();
   };

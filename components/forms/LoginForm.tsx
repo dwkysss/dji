@@ -20,7 +20,7 @@ export default function LoginForm() {
       const savedNip = localStorage.getItem("dji_remembered_nip");
       const savedPwdEnc = localStorage.getItem("dji_remembered_pwd");
       const savedRemember = localStorage.getItem("dji_remember_me");
-      const manualLogout = sessionStorage.getItem("dji_manual_logout");
+      const manualLogout = localStorage.getItem("dji_manual_logout");
 
       if (savedRemember === "false") {
         setRememberMe(false);
@@ -31,16 +31,13 @@ export default function LoginForm() {
         setNip(savedNip);
         setPassword(decodedPwd);
 
-        // Jika bukan karena klik tombol "Keluar" (misal tablet baru dibuka, refresh, atau session expired)
-        // Jalankan AUTO LOGIN otomatis dalam 400ms!
-        if (!manualLogout) {
+        // Hanya jalankan AUTO LOGIN jika BUKAN karena pengguna sengaja menekan tombol "Logout"
+        // (misal tablet baru dibuka, refresh, atau session expired)
+        if (manualLogout !== "1") {
           setIsAutoLoggingIn(true);
           autoLoginTimerRef.current = setTimeout(() => {
             performLogin(savedNip, decodedPwd, true);
           }, 400);
-        } else {
-          // Bersihkan penanda manual logout untuk kunjungan berikutnya
-          sessionStorage.removeItem("dji_manual_logout");
         }
       }
     } catch (e) {
@@ -57,6 +54,9 @@ export default function LoginForm() {
       clearTimeout(autoLoginTimerRef.current);
     }
     setIsAutoLoggingIn(false);
+    try {
+      localStorage.setItem("dji_manual_logout", "1");
+    } catch (e) {}
   };
 
   const performLogin = async (inputNip: string, inputPwd: string, isAuto = false) => {
@@ -88,6 +88,9 @@ export default function LoginForm() {
           setError(result.error || "Gagal masuk.");
         }
       } else {
+        // Hapus flag manual logout saat login berhasil
+        localStorage.removeItem("dji_manual_logout");
+
         // Simpan / update remembered credentials
         if (rememberMe) {
           localStorage.setItem("dji_remembered_nip", cleanNip);
@@ -108,6 +111,9 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     cancelAutoLogin();
+    try {
+      localStorage.removeItem("dji_manual_logout");
+    } catch (e) {}
     await performLogin(nip, password);
   };
 
