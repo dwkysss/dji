@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/sync-monthly-machine",
-      "schedule": "0 2 * * *"
+      "schedule": "10 0 * * *"
     },
     {
       "path": "/api/cron/sync-potong-kain",

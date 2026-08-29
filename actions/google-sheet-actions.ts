@@ -327,24 +327,15 @@ export async function syncAllMonthlyMachines(
   ];
   const targetSheetName = `${monthNames[targetMonth]} ${targetYear}`;
 
-  const results: Array<{
-    machine: string;
-    success: boolean;
-    updatedCount?: number;
-    skippedCount?: number;
-    error?: string;
-  }> = [];
-
-  for (const mc of REGISTERED_MACHINES) {
+  const syncSingleMachine = async (mc: string) => {
     try {
       const rep = await getMonthlyMachineReport(targetMonth, targetYear, mc);
       if (!rep.success || !rep.data) {
-        results.push({
+        return {
           machine: mc,
           success: false,
           error: rep.error || "Gagal mengambil data laporan dari database",
-        });
-        continue;
+        };
       }
 
       const structuredItems = rep.data.map((dayData: any) => {
@@ -432,20 +423,35 @@ export async function syncAllMonthlyMachines(
         items: structuredItems,
       });
 
-      results.push({
+      return {
         machine: mc,
         success: syncRes.success,
         updatedCount: syncRes.updatedCount,
         skippedCount: syncRes.skippedCount,
         error: syncRes.error,
-      });
+      };
     } catch (err: any) {
-      results.push({
+      return {
         machine: mc,
         success: false,
         error: err.message || "Error saat memproses sinkronisasi",
-      });
+      };
     }
+  };
+
+  const results: Array<{
+    machine: string;
+    success: boolean;
+    updatedCount?: number;
+    skippedCount?: number;
+    error?: string;
+  }> = [];
+
+  const chunkSize = 5;
+  for (let i = 0; i < REGISTERED_MACHINES.length; i += chunkSize) {
+    const chunk = REGISTERED_MACHINES.slice(i, i + chunkSize);
+    const chunkResults = await Promise.all(chunk.map((mc) => syncSingleMachine(mc)));
+    results.push(...chunkResults);
   }
 
   const successfulCount = results.filter(r => r.success).length;

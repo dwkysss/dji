@@ -1420,6 +1420,27 @@ export default function MonthlyMachineReportPage() {
                   onChange={(e) => setScheduleTime(e.target.value)}
                   className="h-12 px-4 rounded-2xl bg-white border-2 border-amber-200 text-sm font-black text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none w-full transition-all shadow-2xs"
                 />
+                
+                {/* Auto Timezone Sync Info (WIB <-> Vercel UTC) */}
+                {(() => {
+                  const [hStr, mStr] = (scheduleTime || "07:10").split(":");
+                  const h = parseInt(hStr || "7", 10);
+                  const m = parseInt(mStr || "10", 10);
+                  const utcH = ((h - 7 + 24) % 24).toString().padStart(2, "0");
+                  const utcM = m.toString().padStart(2, "0");
+                  return (
+                    <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50/70 border border-amber-200 text-[11px] font-semibold text-amber-900 mt-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-amber-700">Waktu WIB:</span>
+                        <span className="font-black font-mono">{scheduleTime} WIB</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-600">
+                        <span>Vercel Cron (UTC):</span>
+                        <span className="font-black font-mono text-slate-800">{utcH}:{utcM} UTC</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Mode Selection */}

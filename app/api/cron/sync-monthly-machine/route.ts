@@ -9,6 +9,7 @@ import { syncAllMonthlyMachines, getAutoSyncScheduleSettings } from "@/actions/g
  */
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300; // 5 menit timeout untuk Vercel / serverless
 
 export async function GET(request: NextRequest) {
   return handleSync(request);
