@@ -123,7 +123,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
           tanggal_inspeksi, start_inspect, finish_inspect,
           petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3,
           pause_seconds, elapsed_seconds
-        `);
+        `)
+        .limit(50000);
       if (params.machine && params.machine !== "ALL") q = q.eq("nomor_mc", params.machine);
       if (params.dateFrom) q = q.gte("tanggal_inspeksi", params.dateFrom);
       if (params.dateTo) q = q.lte("tanggal_inspeksi", params.dateTo);
@@ -143,7 +144,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
             total_panel, mending_grade_a, mending_grade_b, mending_grade_bs,
             pause_seconds, elapsed_seconds
           `)
-          .in("potongan_ke", relevantPots);
+          .in("potongan_ke", relevantPots)
+          .limit(50000);
         let fQ = supabase
           .from("final_inspection_batches")
           .select(`
@@ -153,7 +155,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
             total_panel, final_grade_a, final_grade_b, final_grade_bs, keterangan_final,
             pause_seconds, elapsed_seconds
           `)
-          .in("potongan_ke", relevantPots);
+          .in("potongan_ke", relevantPots)
+          .limit(50000);
 
         if (params.machine && params.machine !== "ALL") {
           mQ = mQ.eq("nomor_mc", params.machine);
@@ -172,7 +175,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
           tanggal_mending, start_mending, finish_mending, petugas_mending,
           total_panel, mending_grade_a, mending_grade_b, mending_grade_bs,
           pause_seconds, elapsed_seconds
-        `);
+        `)
+        .limit(50000);
       if (params.machine && params.machine !== "ALL") q = q.eq("nomor_mc", params.machine);
       if (params.dateFrom) q = q.gte("tanggal_mending", params.dateFrom);
       if (params.dateTo) q = q.lte("tanggal_mending", params.dateTo);
@@ -191,7 +195,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
             petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3,
             pause_seconds, elapsed_seconds
           `)
-          .in("potongan_ke", relevantPots);
+          .in("potongan_ke", relevantPots)
+          .limit(50000);
         let fQ = supabase
           .from("final_inspection_batches")
           .select(`
@@ -201,7 +206,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
             total_panel, final_grade_a, final_grade_b, final_grade_bs, keterangan_final,
             pause_seconds, elapsed_seconds
           `)
-          .in("potongan_ke", relevantPots);
+          .in("potongan_ke", relevantPots)
+          .limit(50000);
 
         if (params.machine && params.machine !== "ALL") {
           qcQ = qcQ.eq("nomor_mc", params.machine);
@@ -221,7 +227,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
           petugas_final, petugas_final_2, petugas_final_3,
           total_panel, final_grade_a, final_grade_b, final_grade_bs, keterangan_final,
           pause_seconds, elapsed_seconds
-        `);
+        `)
+        .limit(50000);
       if (params.machine && params.machine !== "ALL") q = q.eq("nomor_mc", params.machine);
       if (params.dateFrom) q = q.gte("tanggal_final", params.dateFrom);
       if (params.dateTo) q = q.lte("tanggal_final", params.dateTo);
@@ -240,7 +247,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
             petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3,
             pause_seconds, elapsed_seconds
           `)
-          .in("potongan_ke", relevantPots);
+          .in("potongan_ke", relevantPots)
+          .limit(50000);
         let mQ = supabase
           .from("mending_batches")
           .select(`
@@ -249,7 +257,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
             total_panel, mending_grade_a, mending_grade_b, mending_grade_bs,
             pause_seconds, elapsed_seconds
           `)
-          .in("potongan_ke", relevantPots);
+          .in("potongan_ke", relevantPots)
+          .limit(50000);
 
         if (params.machine && params.machine !== "ALL") {
           qcQ = qcQ.eq("nomor_mc", params.machine);
@@ -269,7 +278,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
           tanggal_inspeksi, start_inspect, finish_inspect,
           petugas_inspeksi, petugas_inspeksi_2, petugas_inspeksi_3,
           pause_seconds, elapsed_seconds
-        `);
+        `)
+        .limit(50000);
       let mendingQuery = supabase
         .from("mending_batches")
         .select(`
@@ -277,7 +287,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
           tanggal_mending, start_mending, finish_mending, petugas_mending,
           total_panel, mending_grade_a, mending_grade_b, mending_grade_bs,
           pause_seconds, elapsed_seconds
-        `);
+        `)
+        .limit(50000);
       let finalQuery = supabase
         .from("final_inspection_batches")
         .select(`
@@ -286,7 +297,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
           petugas_final, petugas_final_2, petugas_final_3,
           total_panel, final_grade_a, final_grade_b, final_grade_bs, keterangan_final,
           pause_seconds, elapsed_seconds
-        `);
+        `)
+        .limit(50000);
 
       if (params.machine && params.machine !== "ALL") {
         qcQuery = qcQuery.eq("nomor_mc", params.machine);
@@ -425,14 +437,13 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
     }
 
     // D. Ambil Data Potong Kain SPESIFIK untuk potongan yang sudah terdata di rowsMap
-    // Ini mencegah batasan default 1000 baris Supabase memotong data potongan yang lama/baru
+    // Menggunakan CHUNK_SIZE = 15 dan .limit(50000) agar tidak terpotong batasan default 1000 baris Supabase
     const neededPotongan = Array.from(
       new Set(Array.from(rowsMap.values()).map((r) => r.potongan_ke).filter(Boolean))
     );
 
     if (neededPotongan.length > 0) {
-      // Chunk neededPotongan per 100 item agar URL Supabase tidak terlalu panjang
-      const CHUNK_SIZE = 100;
+      const CHUNK_SIZE = 15;
       const chunks: number[][] = [];
       for (let i = 0; i < neededPotongan.length; i += CHUNK_SIZE) {
         chunks.push(neededPotongan.slice(i, i + CHUNK_SIZE));
@@ -448,7 +459,8 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
               pcs_index, meter_kain, jml_hasil_produksi
             )
           `)
-          .in("potongan_ke", chunk);
+          .in("potongan_ke", chunk)
+          .limit(50000);
 
         if (params.machine && params.machine !== "ALL") {
           q = q.eq("nomor_mc", params.machine);
@@ -486,8 +498,9 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
           const existingRow = rowsMap.get(key);
           if (!existingRow) return;
 
-          // Isi tanggal potong (gunakan tanggal_potong, fallback ke tgl)
-          const cutDate = h.tanggal_potong || h.tgl || "";
+          // Isi tanggal potong (gunakan tanggal_potong, fallback ke tgl, bersihkan format ISO jika ada)
+          const rawCutDate = h.tanggal_potong || h.tgl || "";
+          const cutDate = rawCutDate.includes("T") ? rawCutDate.split("T")[0] : rawCutDate;
           if (cutDate && !existingRow.tgl_potong) {
             existingRow.tgl_potong = cutDate;
           }

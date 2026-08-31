@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { getMonthlyMachineReport, MonthlyMachineReportData } from "@/actions/report-actions";
 import { getMachineStatuses } from "@/actions/dashboard-actions";
 import { getGoogleSheetEndpoint, sendPayloadToGoogleSheet, syncAllMonthlyMachines, getAutoSyncScheduleSettings, updateAutoSyncScheduleSettings } from "@/actions/google-sheet-actions";
-import { FileSpreadsheet, Loader2, Calendar, Monitor, AlertCircle, ArrowLeft, CloudUpload, X, Info, CheckCircle2, RotateCw, Zap, Check, Clock, Settings, ShieldCheck } from "lucide-react";
+import { FileSpreadsheet, Loader2, Calendar, Monitor, AlertCircle, ArrowLeft, CloudUpload, X, Info, CheckCircle2, RotateCw, Zap, Check, Clock, Settings, ShieldCheck, BarChart3 } from "lucide-react";
 import Link from "next/link";
 
 // Helper to format seconds as HH:MM:SS
@@ -28,6 +29,143 @@ interface ReportCacheEntry {
 const reportMemoryCache = new Map<string, ReportCacheEntry>();
 let machinesListMemoryCache: string[] | null = null;
 const CACHE_KEY_PREFIX = "mm_report_cache_";
+
+// Reusable Info Formula Tooltip dengan React Portal (tidak akan pernah terpotong oleh overflow/tabel)
+function FormulaTooltip({
+  title,
+  formula,
+  example,
+  className = "",
+  dark = false,
+  position,
+}: {
+  title: string;
+  formula: string;
+  example?: string;
+  className?: string;
+  dark?: boolean;
+  position?: "top" | "bottom";
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const updatePosition = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const tooltipWidth = 224; // w-56
+    const tooltipHeight = 110;
+
+    // Tentukan penempatan atas atau bawah
+    const spaceAbove = rect.top;
+    const placeAbove =
+      position === "top"
+        ? true
+        : position === "bottom"
+        ? false
+        : spaceAbove >= tooltipHeight + 15;
+
+    const top = placeAbove ? rect.top - 8 : rect.bottom + 8;
+
+    // Rata tengah terhadap ikon, dibatasi agar tidak keluar layar
+    let left = rect.left + rect.width / 2;
+    const minLeft = tooltipWidth / 2 + 12;
+    const maxLeft = window.innerWidth - tooltipWidth / 2 - 12;
+    left = Math.max(minLeft, Math.min(maxLeft, left));
+
+    setCoords({ top, left, placeAbove });
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    updatePosition();
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [isOpen]);
+
+  return (
+    <div
+      className={`relative inline-flex items-center ml-1 ${className}`}
+      onMouseEnter={() => {
+        updatePosition();
+        setIsOpen(true);
+      }}
+      onMouseLeave={() => setIsOpen(false)}
+      onClick={(e) => {
+        e.stopPropagation();
+        updatePosition();
+        setIsOpen(!isOpen);
+      }}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        title="Klik/Arahkan untuk melihat penjelasan rumus"
+        aria-label="Info Rumus"
+        className={`p-0.5 rounded-full transition-colors cursor-pointer focus:outline-hidden ${
+          dark
+            ? "text-slate-400 hover:text-amber-300 hover:bg-slate-700/60"
+            : "text-slate-400 hover:text-sky-600 hover:bg-sky-50"
+        }`}
+      >
+        <Info className="w-3 h-3 shrink-0" />
+      </button>
+
+      {mounted &&
+        isOpen &&
+        coords &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+              transform: coords.placeAbove ? "translate(-50%, -100%)" : "translate(-50%, 0)",
+            }}
+            className="z-[9999] w-56 p-2.5 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700 text-left text-xs pointer-events-none animate-fadeIn"
+          >
+            {/* Judul */}
+            <div className="font-bold text-amber-300 mb-1.5 text-[11px] uppercase tracking-wide leading-tight">
+              {title}
+            </div>
+
+            {/* Rumus / Formula Box */}
+            <div className="text-[11px] text-sky-200 font-mono bg-slate-800 px-2 py-1.5 rounded-md border border-slate-700 mb-1.5 whitespace-normal break-words font-semibold leading-snug">
+              {formula}
+            </div>
+
+            {/* Keterangan Tambahan */}
+            {example && (
+              <div className="text-[10px] text-slate-300 leading-normal font-normal whitespace-normal">
+                <span className="font-semibold text-slate-400">Ket: </span>
+                {example}
+              </div>
+            )}
+
+            {/* Panah Segitiga */}
+            {coords.placeAbove ? (
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+            ) : (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900" />
+            )}
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
 
 export default function MonthlyMachineReportPage() {
   const [machines, setMachines] = useState<string[]>([]);
@@ -65,12 +203,14 @@ export default function MonthlyMachineReportPage() {
   const [isSyncAllModalOpen, setIsSyncAllModalOpen] = useState(false);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [syncAllResults, setSyncAllResults] = useState<any[] | null>(null);
+  const [syncTargetMachines, setSyncTargetMachines] = useState<string[]>([]);
 
   // Auto-Sync Schedule Settings State (Langsung di Halaman Laporan)
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleTime, setScheduleTime] = useState("09:00");
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
   const [scheduleSafeMode, setScheduleSafeMode] = useState(true);
+  const [scheduleMachines, setScheduleMachines] = useState<string[]>([]);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
   // Modal State for Keterangan
@@ -88,6 +228,9 @@ export default function MonthlyMachineReportPage() {
           setScheduleTime(res.time);
           setScheduleEnabled(res.enabled);
           setScheduleSafeMode(res.safeMode);
+          if (res.machines && res.machines.length > 0) {
+            setScheduleMachines(res.machines);
+          }
         }
       })
       .catch(() => {});
@@ -100,6 +243,7 @@ export default function MonthlyMachineReportPage() {
         time: scheduleTime,
         enabled: scheduleEnabled,
         safeMode: scheduleSafeMode,
+        machines: scheduleMachines.length > 0 ? scheduleMachines : undefined,
       });
 
       if (res.success) {
@@ -107,7 +251,7 @@ export default function MonthlyMachineReportPage() {
         setToast({
           type: "success",
           title: "Jadwal Auto-Sync Tersimpan",
-          message: `Jadwal sinkronisasi otomatis harian berhasil disetel ke pukul ${scheduleTime} WIB!`,
+          message: `Jadwal sinkronisasi otomatis harian (${scheduleMachines.length} mesin) berhasil disetel ke pukul ${scheduleTime} WIB!`,
         });
       } else {
         setToast({
@@ -451,6 +595,7 @@ export default function MonthlyMachineReportPage() {
         safeMode: syncSafeMode,
         startDay: syncScope === "range" ? syncStartDay : undefined,
         endDay: syncScope === "range" ? syncEndDay : undefined,
+        machines: syncTargetMachines.length > 0 ? syncTargetMachines : undefined,
       });
       setSyncAllResults(res.results);
       if (res.success) {
@@ -559,7 +704,107 @@ export default function MonthlyMachineReportPage() {
           wsData.push(row);
         });
       });
-      
+      // --- REKAPITULASI TOTAL ROWS IN EXCEL ---
+      const totalRow = [
+        "TOTAL",
+        "",
+        "",
+        "",
+        "",
+        summaryMetrics.totalEff100,
+        "",
+        "TOTAL",
+        summaryMetrics.totalHasilProduksi,
+        summaryMetrics.totalEfisiensi.toFixed(2) + "%",
+        summaryMetrics.totalJumlahCacat,
+        summaryMetrics.totalPersenCacat.toFixed(2) + "%",
+        summaryMetrics.kodeTotals["A"] || 0,
+        summaryMetrics.kodeTotals["B"] || 0,
+        summaryMetrics.kodeTotals["C"] || 0,
+        summaryMetrics.kodeTotals["D"] || 0,
+        summaryMetrics.kodeTotals["E"] || 0,
+        summaryMetrics.kodeTotals["F"] || 0,
+        summaryMetrics.kodeTotals["G"] || 0,
+        summaryMetrics.kodeTotals["H"] || 0,
+        formatHHMMSS(summaryMetrics.totalDowntimeDetik),
+        summaryMetrics.overallWaktuEfektif.toFixed(2) + "%"
+      ];
+      wsData.push(totalRow);
+
+      const opportunityRow = [
+        "Opportunity",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "EFF %",
+        "",
+        summaryMetrics.totalEfisiensi.toFixed(2) + "%",
+        "",
+        summaryMetrics.totalPersenCacat.toFixed(2) + "%",
+        summaryMetrics.kodePercentages["A"].toFixed(2) + "%",
+        summaryMetrics.kodePercentages["B"].toFixed(2) + "%",
+        summaryMetrics.kodePercentages["C"].toFixed(2) + "%",
+        summaryMetrics.kodePercentages["D"].toFixed(2) + "%",
+        summaryMetrics.kodePercentages["E"].toFixed(2) + "%",
+        summaryMetrics.kodePercentages["F"].toFixed(2) + "%",
+        summaryMetrics.kodePercentages["G"].toFixed(2) + "%",
+        summaryMetrics.kodePercentages["H"].toFixed(2) + "%",
+        summaryMetrics.downtimeRate.toFixed(2) + "%",
+        ""
+      ];
+      wsData.push(opportunityRow);
+
+      // Empty spacing rows
+      wsData.push([]);
+      wsData.push([]);
+
+      // Section Header: SUMMARY PER SHIFT & PER TEAM
+      wsData.push([
+        "REKAPITULASI PER SHIFT", "", "", 
+        "REKAPITULASI PER TEAM", "", "", "", 
+        "MASALAH PRODUKSI (KODE TINDAKAN)", "", "", "", "", "", "", "", ""
+      ]);
+      wsData.push([
+        "Shift", "HASIL PRODUKSI", "% Hasil",
+        "Team", "HASIL PRODUKSI", "Eff Team", "Cacat/Team", "% Hasil",
+        "Team", "A", "B", "C", "D", "E", "F", "G", "H", "TOTAL"
+      ]);
+
+      // Row 1: Shift 1, Team A, Masalah Team A
+      const teamAProblemTotal = summaryMetrics.kodeTindakanList.reduce((acc: number, k: string) => acc + (summaryMetrics.masalahProduksiMatrix["A"][k] || 0), 0);
+      wsData.push([
+        "Shift 1", summaryMetrics.shiftBreakdown[0].hasilProduksi, summaryMetrics.shiftBreakdown[0].persenHasil.toFixed(2) + "%",
+        "A", summaryMetrics.teamBreakdown["A"].hasilProduksi, summaryMetrics.teamBreakdown["A"].effTeam.toFixed(2) + "%", summaryMetrics.teamBreakdown["A"].cacatPerTeam.toFixed(2) + "%", summaryMetrics.teamBreakdown["A"].persenHasil.toFixed(2) + "%",
+        "A", ...summaryMetrics.kodeTindakanList.map((k: string) => summaryMetrics.masalahProduksiMatrix["A"][k] || 0), teamAProblemTotal
+      ]);
+
+      // Row 2: Shift 2, Team B, Masalah Team B
+      const teamBProblemTotal = summaryMetrics.kodeTindakanList.reduce((acc: number, k: string) => acc + (summaryMetrics.masalahProduksiMatrix["B"][k] || 0), 0);
+      wsData.push([
+        "Shift 2", summaryMetrics.shiftBreakdown[1].hasilProduksi, summaryMetrics.shiftBreakdown[1].persenHasil.toFixed(2) + "%",
+        "B", summaryMetrics.teamBreakdown["B"].hasilProduksi, summaryMetrics.teamBreakdown["B"].effTeam.toFixed(2) + "%", summaryMetrics.teamBreakdown["B"].cacatPerTeam.toFixed(2) + "%", summaryMetrics.teamBreakdown["B"].persenHasil.toFixed(2) + "%",
+        "B", ...summaryMetrics.kodeTindakanList.map((k: string) => summaryMetrics.masalahProduksiMatrix["B"][k] || 0), teamBProblemTotal
+      ]);
+
+      // Row 3: Shift 3, Team C, Masalah Team C
+      const teamCProblemTotal = summaryMetrics.kodeTindakanList.reduce((acc: number, k: string) => acc + (summaryMetrics.masalahProduksiMatrix["C"][k] || 0), 0);
+      wsData.push([
+        "Shift 3", summaryMetrics.shiftBreakdown[2].hasilProduksi, summaryMetrics.shiftBreakdown[2].persenHasil.toFixed(2) + "%",
+        "C", summaryMetrics.teamBreakdown["C"].hasilProduksi, summaryMetrics.teamBreakdown["C"].effTeam.toFixed(2) + "%", summaryMetrics.teamBreakdown["C"].cacatPerTeam.toFixed(2) + "%", summaryMetrics.teamBreakdown["C"].persenHasil.toFixed(2) + "%",
+        "C", ...summaryMetrics.kodeTindakanList.map((k: string) => summaryMetrics.masalahProduksiMatrix["C"][k] || 0), teamCProblemTotal
+      ]);
+
+      // Row 4: TOTAL
+      const totalAllProblems = summaryMetrics.kodeTindakanList.reduce((acc: number, k: string) => acc + (summaryMetrics.kodeTotals[k] || 0), 0);
+      wsData.push([
+        "TOTAL", summaryMetrics.totalHasilProduksi, "100.00%",
+        "TOTAL", summaryMetrics.totalHasilProduksi, summaryMetrics.totalEfisiensi.toFixed(2) + "%", summaryMetrics.totalPersenCacat.toFixed(2) + "%", "100.00%",
+        "TOTAL", ...summaryMetrics.kodeTindakanList.map((k: string) => summaryMetrics.kodeTotals[k] || 0), totalAllProblems
+      ]);
+
       const ws = XLSX.utils.aoa_to_sheet(wsData);
       
       const colWidths = [
@@ -591,6 +836,178 @@ export default function MonthlyMachineReportPage() {
       XLSX.writeFile(wb, fileName);
     });
   };
+
+  const summaryMetrics = useMemo(() => {
+    let totalEff100 = 0;
+    let totalHasilProduksi = 0;
+    let totalJumlahCacat = 0;
+    let totalDowntimeDetik = 0;
+
+    const kodeTindakanList = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    const kodeTotals: Record<string, number> = {};
+    kodeTindakanList.forEach((k) => {
+      kodeTotals[k] = 0;
+    });
+
+    const shiftBreakdown = [
+      { shiftName: "Shift 1", shiftIndex: 0, hasilProduksi: 0, persenHasil: 0 },
+      { shiftName: "Shift 2", shiftIndex: 1, hasilProduksi: 0, persenHasil: 0 },
+      { shiftName: "Shift 3", shiftIndex: 2, hasilProduksi: 0, persenHasil: 0 },
+    ];
+
+    const teamBreakdown: Record<
+      string,
+      {
+        hasilProduksi: number;
+        targetEff100: number;
+        jumlahCacat: number;
+        effTeam: number;
+        cacatPerTeam: number;
+        persenHasil: number;
+      }
+    > = {
+      A: { hasilProduksi: 0, targetEff100: 0, jumlahCacat: 0, effTeam: 0, cacatPerTeam: 0, persenHasil: 0 },
+      B: { hasilProduksi: 0, targetEff100: 0, jumlahCacat: 0, effTeam: 0, cacatPerTeam: 0, persenHasil: 0 },
+      C: { hasilProduksi: 0, targetEff100: 0, jumlahCacat: 0, effTeam: 0, cacatPerTeam: 0, persenHasil: 0 },
+    };
+
+    const masalahProduksiMatrix: Record<string, Record<string, number>> = {
+      A: {},
+      B: {},
+      C: {},
+    };
+    ["A", "B", "C"].forEach((t) => {
+      kodeTindakanList.forEach((k) => {
+        masalahProduksiMatrix[t][k] = 0;
+      });
+    });
+
+    // Hitung jumlah hari aktif produksi (hari yang memiliki data/operator)
+    const activeDaysCount =
+      reportData.filter((d) =>
+        Object.values(d.teamData).some(
+          (td) =>
+            (td.hasil_produksi && td.hasil_produksi > 0) ||
+            (td.eff_100 && td.eff_100 > 0) ||
+            (td.operator_name && td.operator_name.trim() !== "")
+        )
+      ).length || reportData.length || 1;
+
+    let sumAllShiftPercentages = 0;
+    const teamShiftPercentages: Record<string, number> = { A: 0, B: 0, C: 0 };
+    let sumAllShiftCacatPercentages = 0;
+    const teamCacatPercentages: Record<string, number> = { A: 0, B: 0, C: 0 };
+
+    reportData.forEach((dayData) => {
+      const teamsToRender = dayData.orderedTeams || [
+        { teamName: "A", data: dayData.teamData["A"] },
+        { teamName: "B", data: dayData.teamData["B"] },
+        { teamName: "C", data: dayData.teamData["C"] },
+      ];
+
+      teamsToRender.forEach((teamObj, sIdx) => {
+        const teamName = teamObj.teamName;
+        const td = teamObj.data;
+        if (!td) return;
+
+        const prod = Number(td.hasil_produksi) || 0;
+        const eff100 = Number(td.eff_100) || 0;
+        const cacat = Number(td.jumlah_cacat) || 0;
+        const dt = Number(td.downtime_detik) || 0;
+
+        // Persentase shift dari 100% (Kolom J di sheet)
+        const shiftP100 = prod > 0 && eff100 > 0 ? (prod / eff100) * 100 : 0;
+        sumAllShiftPercentages += shiftP100;
+        if (teamShiftPercentages[teamName] !== undefined) {
+          teamShiftPercentages[teamName] += shiftP100;
+        }
+
+        // Persentase cacat shift (Kolom L di sheet)
+        const shiftPCacat = prod > 0 && cacat > 0 ? (cacat / prod) * 100 : 0;
+        sumAllShiftCacatPercentages += shiftPCacat;
+        if (teamCacatPercentages[teamName] !== undefined) {
+          teamCacatPercentages[teamName] += shiftPCacat;
+        }
+
+        totalHasilProduksi += prod;
+        totalEff100 += eff100;
+        totalJumlahCacat += cacat;
+        totalDowntimeDetik += dt;
+
+        if (sIdx >= 0 && sIdx < 3) {
+          shiftBreakdown[sIdx].hasilProduksi += prod;
+        }
+
+        if (teamBreakdown[teamName]) {
+          teamBreakdown[teamName].hasilProduksi += prod;
+          teamBreakdown[teamName].targetEff100 += eff100;
+          teamBreakdown[teamName].jumlahCacat += cacat;
+        }
+
+        kodeTindakanList.forEach((k) => {
+          const val = Number(td.kode_tindakan[k]) || 0;
+          kodeTotals[k] += val;
+          if (masalahProduksiMatrix[teamName]) {
+            masalahProduksiMatrix[teamName][k] += val;
+          }
+        });
+      });
+    });
+
+    // Sesuai rumus Google Sheet Cell J98: =SUM(J5:J97) / JUMLAH_HARI / 3
+    const totalEfisiensi = activeDaysCount > 0 ? sumAllShiftPercentages / (activeDaysCount * 3) : 0;
+    // Sesuai rumus Google Sheet Cell L98: =SUM(L5:L97) / JUMLAH_HARI / 3
+    const totalPersenCacat = activeDaysCount > 0 ? sumAllShiftCacatPercentages / (activeDaysCount * 3) : 0;
+
+    shiftBreakdown.forEach((s) => {
+      s.persenHasil = totalHasilProduksi > 0 ? (s.hasilProduksi / totalHasilProduksi) * 100 : 0;
+    });
+
+    ["A", "B", "C"].forEach((t) => {
+      const tb = teamBreakdown[t];
+      // Sesuai rumus Google Sheet: =SUM(J_Tim) / JUMLAH_HARI
+      tb.effTeam = activeDaysCount > 0 ? teamShiftPercentages[t] / activeDaysCount : 0;
+      // Sesuai rumus Google Sheet: =SUM(L_Tim) / JUMLAH_HARI
+      tb.cacatPerTeam = activeDaysCount > 0 ? teamCacatPercentages[t] / activeDaysCount : 0;
+      tb.persenHasil = totalHasilProduksi > 0 ? (tb.hasilProduksi / totalHasilProduksi) * 100 : 0;
+    });
+
+    const totalMinutesInMonth = activeDaysCount * 24 * 60; // Jumlah Hari x 24 Jam x 60 Menit
+
+    const kodePercentages: Record<string, number> = {};
+    kodeTindakanList.forEach((k) => {
+      // Sesuai rumus Google Sheet Cell M99: =M98 / (JUMLAH_HARI * 24 * 60)
+      kodePercentages[k] = totalMinutesInMonth > 0 ? (kodeTotals[k] / totalMinutesInMonth) * 100 : 0;
+    });
+
+    const totalOperatingSeconds = activeDaysCount * 24 * 3600;
+    const overallWaktuEfektif =
+      totalOperatingSeconds > 0
+        ? Math.max(0, ((totalOperatingSeconds - totalDowntimeDetik) / totalOperatingSeconds) * 100)
+        : 0;
+
+    // Sesuai rumus Google Sheet untuk Downtime / Total Menit
+    const downtimeRate =
+      totalMinutesInMonth > 0 ? ((totalDowntimeDetik / 60) / totalMinutesInMonth) * 100 : 0;
+
+    return {
+      activeDaysCount,
+      totalEff100,
+      totalHasilProduksi,
+      totalJumlahCacat,
+      totalDowntimeDetik,
+      totalEfisiensi,
+      totalPersenCacat,
+      overallWaktuEfektif,
+      downtimeRate,
+      kodeTotals,
+      kodePercentages,
+      shiftBreakdown,
+      teamBreakdown,
+      masalahProduksiMatrix,
+      kodeTindakanList,
+    };
+  }, [reportData]);
 
 
   const months = [
@@ -702,11 +1119,12 @@ export default function MonthlyMachineReportPage() {
             <button
               onClick={() => {
                 setSyncAllResults(null);
+                setSyncTargetMachines(machines.length > 0 ? [...machines] : ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "T1C", "T2A"]);
                 setIsSyncAllModalOpen(true);
               }}
               disabled={isLoading}
               className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white p-2.5 px-4 rounded-xl shadow-md transition-all flex items-center gap-2 font-bold text-sm disabled:opacity-50 cursor-pointer"
-              title="Sync Seluruh 10 Mesin Sekaligus (Simulasi / Manual Jam 9 Pagi)"
+              title="Sync Mesin Terpilih / Seluruh Mesin Sekaligus"
             >
               <Zap className="w-5 h-5" />
               <span className="hidden md:inline">Sync Semua Mesin</span>
@@ -765,16 +1183,41 @@ export default function MonthlyMachineReportPage() {
                   <th className="border border-slate-300 p-2 min-w-[120px]">Keterangan</th>
                   <th className="border border-slate-300 p-2 min-w-[70px]">{isMeterMachine ? "Pick" : "Courses"}</th>
                   <th className="border border-slate-300 p-2 min-w-[60px]">RPM</th>
-                  <th className="border border-slate-300 p-2 min-w-[60px]">Eff 100%</th>
+                  <th className="border border-slate-300 p-2 min-w-[60px]">
+                    <div className="inline-flex items-center justify-center">
+                      Eff 100%
+                      <FormulaTooltip position="bottom" title="Target Kapasitas 100%" formula="(RPM x 480 menit) / Courses" example="Target kapasitas jika mesin beroperasi 100% tanpa henti selama 8 jam" />
+                    </div>
+                  </th>
                   <th className="border border-slate-300 p-2 min-w-[50px] bg-sky-50">Team</th>
                   <th className="border border-slate-300 p-2 min-w-[120px]">Nama Operator</th>
-                  <th className="border border-slate-300 p-2 min-w-[70px]">Hasil Produksi</th>
-                  <th className="border border-slate-300 p-2 min-w-[80px]">Persentase dari 100%</th>
+                  <th className="border border-slate-300 p-2 min-w-[70px]">
+                    <div className="inline-flex items-center justify-center">
+                      Hasil Produksi
+                      <FormulaTooltip position="bottom" title="Hasil Produksi" formula="Panel murni yang dihasilkan (tidak termasuk panel BS)" />
+                    </div>
+                  </th>
+                  <th className="border border-slate-300 p-2 min-w-[80px]">
+                    <div className="inline-flex items-center justify-center">
+                      Persentase dari 100%
+                      <FormulaTooltip position="bottom" title="Persentase dari 100%" formula="(Hasil Produksi / Eff 100%) x 100%" example="Contoh: (38 / 65) x 100% = 58.46%" />
+                    </div>
+                  </th>
                   <th className="border border-slate-300 p-2 min-w-[70px]">Jumlah Cacat</th>
-                  <th className="border border-slate-300 p-2 min-w-[80px]">Persentase Cacat</th>
+                  <th className="border border-slate-300 p-2 min-w-[80px]">
+                    <div className="inline-flex items-center justify-center">
+                      Persentase Cacat
+                      <FormulaTooltip position="bottom" title="Persentase Cacat" formula="(Jumlah Cacat / Hasil Produksi) x 100%" example="Contoh: (13 / 38) x 100% = 34.21%" />
+                    </div>
+                  </th>
                   <th colSpan={8} className="border border-slate-300 p-1 bg-amber-50">Kode Tindakan</th>
                   <th className="border border-slate-300 p-2 min-w-[100px]">Downtime (HH:MM:SS)</th>
-                  <th className="border border-slate-300 p-2 min-w-[90px]">Persentase Waktu Efektif</th>
+                  <th className="border border-slate-300 p-2 min-w-[90px]">
+                    <div className="inline-flex items-center justify-center">
+                      Persentase Waktu Efektif
+                      <FormulaTooltip position="bottom" title="Persentase Waktu Efektif" formula="((28.800s - Downtime) / 28.800s) x 100%" example="Persentase mesin aktif beroperasi selama 8 jam shift" />
+                    </div>
+                  </th>
                 </tr>
                 <tr className="bg-slate-100/60 text-[10px] font-bold text-slate-600 text-center">
                   <th colSpan={12} className="border border-slate-300"></th>
@@ -873,8 +1316,324 @@ export default function MonthlyMachineReportPage() {
                   </tr>
                 )}
               </tbody>
+
+              {/* TFOOT: BARIS REKAP TOTAL & OPPORTUNITY */}
+              {reportData.length > 0 && !isLoading && (
+                <tfoot className="font-black text-[11px] border-t-2 border-slate-400 shadow-md select-none">
+                  {/* Baris 1: TOTAL */}
+                  <tr className="bg-slate-800 text-white">
+                    <td colSpan={3} className="border border-slate-700 p-2.5 text-center font-black sticky left-0 bg-slate-900 z-10 text-xs tracking-wider">
+                      TOTAL
+                    </td>
+                    <td className="border border-slate-700 p-1.5 text-center text-slate-400">-</td>
+                    <td className="border border-slate-700 p-1.5 text-center text-slate-400">-</td>
+                    <td className="border border-slate-700 p-1.5 text-center bg-slate-700/80 font-mono text-amber-300 font-black whitespace-nowrap">
+                      <span>{summaryMetrics.totalEff100.toLocaleString("id-ID")}</span>
+                      <FormulaTooltip dark title="Total Target Eff 100%" formula="SUM(Eff 100% Seluruh Shift)" example="Total akumulasi target kapasitas seluruh shift yang beroperasi" />
+                    </td>
+                    <td className="border border-slate-700 p-1.5 text-center text-slate-400">-</td>
+                    <td className="border border-slate-700 p-1.5 text-center text-slate-300 font-black tracking-wide">TOTAL</td>
+                    <td className="border border-slate-700 p-1.5 text-center bg-sky-900/90 font-mono text-white text-xs font-black whitespace-nowrap">
+                      <span>{summaryMetrics.totalHasilProduksi.toLocaleString("id-ID")}</span>
+                      <FormulaTooltip dark title="Total Hasil Produksi" formula="SUM(Hasil Produksi Seluruh Shift)" example="Total seluruh hasil panel/meter bersih dalam sebulan" />
+                    </td>
+                    <td className="border border-slate-700 p-1.5 text-center bg-amber-400 text-slate-950 font-black text-xs whitespace-nowrap">
+                      <span>{summaryMetrics.totalEfisiensi.toFixed(2)}%</span>
+                      <FormulaTooltip dark title="Total Efisiensi Mesin" formula="SUM(Persentase dari 100%) / (Jumlah Hari x 3 Shift)" example="Rata-rata persentase efisiensi shift selama hari kerja aktif" />
+                    </td>
+                    <td className="border border-slate-700 p-1.5 text-center bg-rose-900/80 font-mono text-rose-200 font-black whitespace-nowrap">
+                      <span>{summaryMetrics.totalJumlahCacat.toLocaleString("id-ID")}</span>
+                      <FormulaTooltip dark title="Total Jumlah Cacat" formula="SUM(Jumlah Cacat Seluruh Shift)" example="Akumulasi seluruh temuan cacat produksi sebulan" />
+                    </td>
+                    <td className="border border-slate-700 p-1.5 text-center text-rose-300 font-mono font-black whitespace-nowrap">
+                      <span>{summaryMetrics.totalPersenCacat.toFixed(2)}%</span>
+                      <FormulaTooltip dark title="Total Persentase Cacat" formula="SUM(Persentase Cacat) / (Jumlah Hari x 3 Shift)" example="Rata-rata persentase cacat shift selama hari kerja aktif" />
+                    </td>
+                    {summaryMetrics.kodeTindakanList.map((k: string) => (
+                      <td key={k} className="border border-slate-700 p-1 text-center font-mono text-slate-200 bg-slate-800/90 whitespace-nowrap">
+                        {summaryMetrics.kodeTotals[k] || 0}
+                      </td>
+                    ))}
+                    <td className="border border-slate-700 p-1.5 text-center text-orange-300 font-mono whitespace-nowrap">
+                      {formatHHMMSS(summaryMetrics.totalDowntimeDetik)}
+                    </td>
+                    <td className="border border-slate-700 p-1.5 text-center font-black text-emerald-300 whitespace-nowrap">
+                      <span>{summaryMetrics.overallWaktuEfektif.toFixed(2)}%</span>
+                      <FormulaTooltip dark title="Total Waktu Efektif" formula="((Total Waktu Operasi - Total Downtime) / Total Waktu Operasi) x 100%" example="Persentase efisiensi jam operasional mesin terhadap downtime sebulan" />
+                    </td>
+                  </tr>
+
+                  {/* Baris 2: OPPORTUNITY & % MASALAH */}
+                  <tr className="bg-amber-100 text-amber-950 font-black">
+                    <td colSpan={3} className="border border-amber-300 p-2 text-center sticky left-0 bg-amber-200 z-10 text-xs uppercase tracking-wider text-amber-900">
+                      Opportunity
+                    </td>
+                    <td className="border border-amber-300 p-1 text-center text-slate-400">-</td>
+                    <td className="border border-amber-300 p-1 text-center text-slate-400">-</td>
+                    <td className="border border-amber-300 p-1 text-center text-slate-400">-</td>
+                    <td className="border border-amber-300 p-1 text-center text-slate-400">-</td>
+                    <td className="border border-amber-300 p-1 text-center text-amber-800 text-[10px] font-black uppercase">EFF %</td>
+                    <td className="border border-amber-300 p-1 text-center text-slate-400">-</td>
+                    <td className="border border-amber-400 p-1 text-center bg-amber-300 text-amber-950 font-black text-xs whitespace-nowrap">
+                      <span>{summaryMetrics.totalEfisiensi.toFixed(2)}%</span>
+                      <FormulaTooltip title="Opportunity Efisiensi (EFF %)" formula="SUM(Persentase dari 100%) / (Jumlah Hari x 3 Shift)" example="Peluang pencapaian kapasitas mesin yang terealisasi" />
+                    </td>
+                    <td className="border border-amber-300 p-1 text-center text-slate-400">-</td>
+                    <td className="border border-amber-300 p-1 text-center text-slate-400">-</td>
+                    {summaryMetrics.kodeTindakanList.map((k: string) => (
+                      <td key={k} className="border border-amber-300 p-1 text-center font-mono text-[10px] text-slate-800 whitespace-nowrap">
+                        <span>{summaryMetrics.kodePercentages[k].toFixed(2)}%</span>
+                        {summaryMetrics.kodeTotals[k] > 0 && (
+                          <FormulaTooltip
+                            title={`Opportunity Kode ${k}`}
+                            formula={`Total Kode ${k} / (Jumlah Hari x 24 Jam x 60 Menit)`}
+                            example={`Peluang kejadian masalah Kode ${k} per total menit sebulan`}
+                          />
+                        )}
+                      </td>
+                    ))}
+                    <td className="border border-amber-300 p-1 text-center text-[10px] text-amber-900 font-mono whitespace-nowrap">
+                      <span>{summaryMetrics.downtimeRate.toFixed(2)}%</span>
+                      <FormulaTooltip
+                        title="Opportunity Downtime"
+                        formula="Total Downtime Menit / (Jumlah Hari x 24 Jam x 60 Menit)"
+                        example="Rasio durasi downtime terhadap total waktu operasional sebulan"
+                      />
+                    </td>
+                    <td className="border border-amber-300 p-1 text-center text-slate-400">-</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
+
+          {/* 3 SUMMARY BREAKDOWN TABLES (PER SHIFT, PER TEAM, MASALAH PRODUKSI) */}
+          {reportData.length > 0 && !isLoading && (
+            <div className="p-6 bg-slate-50/70 border-t border-slate-200 space-y-6">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-sm shadow-2xs">
+                  <BarChart3 className="w-4 h-4 text-slate-700" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 tracking-wide">
+                    Rekapitulasi & Analisis Performa Mesin ({selectedMachine})
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Statistik akumulasi produksi per shift, efisiensi tim, dan matriks sebaran masalah produksi.
+                  </p>
+                </div>
+              </div>
+
+              {/* BARIS 1: REKAP SHIFT & REKAP TEAM */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
+                {/* 1. REKAPITULASI PER SHIFT */}
+                <div className="md:col-span-5 lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-2xs p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="pb-2.5 mb-2.5 border-b border-slate-200">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Rekapitulasi per Shift
+                      </h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 text-[10px] font-bold text-slate-700 uppercase">
+                            <th className="border border-slate-300 p-2 text-left">Shift</th>
+                            <th className="border border-slate-300 p-2 text-center">Hasil Produksi</th>
+                            <th className="border border-slate-300 p-2 text-center">
+                              <div className="inline-flex items-center justify-center">
+                                % Hasil
+                                <FormulaTooltip title="% Kontribusi Shift" formula="(Hasil Produksi Shift / Total Hasil Produksi) x 100%" example="Porsi kontribusi hasil shift tersebut terhadap total produksi sebulan" />
+                              </div>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 font-medium text-slate-800">
+                          {summaryMetrics.shiftBreakdown.map((s: any) => (
+                            <tr key={s.shiftName} className="hover:bg-slate-50 transition-colors">
+                              <td className="border border-slate-300 p-2 font-semibold text-slate-800">{s.shiftName}</td>
+                              <td className="border border-slate-300 p-2 text-center font-mono text-slate-900 font-semibold">
+                                {s.hasilProduksi.toLocaleString("id-ID")}
+                              </td>
+                              <td className="border border-slate-300 p-2 text-center font-mono text-slate-900 font-semibold whitespace-nowrap">
+                                <span>{s.persenHasil.toFixed(2)}%</span>
+                                <FormulaTooltip title={`Kontribusi ${s.shiftName}`} formula={`(${s.hasilProduksi} / ${summaryMetrics.totalHasilProduksi}) x 100% = ${s.persenHasil.toFixed(2)}%`} />
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="bg-slate-800 text-white font-bold">
+                            <td className="border border-slate-700 p-2 font-bold">TOTAL</td>
+                            <td className="border border-slate-700 p-2 text-center font-mono text-amber-300 font-bold">
+                              {summaryMetrics.totalHasilProduksi.toLocaleString("id-ID")}
+                            </td>
+                            <td className="border border-slate-700 p-2 text-center font-mono font-bold">100.00%</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. REKAPITULASI PER TEAM */}
+                <div className="md:col-span-7 lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-2xs p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="pb-2.5 mb-2.5 border-b border-slate-200">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Rekapitulasi & Efisiensi per Team
+                      </h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 text-[10px] font-bold text-slate-700 uppercase text-center">
+                            <th className="border border-slate-300 p-2 w-14">Team</th>
+                            <th className="border border-slate-300 p-2">Hasil Prod</th>
+                            <th className="border border-slate-300 p-2">
+                              <div className="inline-flex items-center justify-center">
+                                Eff Team
+                                <FormulaTooltip title="Efisiensi per Team" formula="SUM(Persentase dari 100% Tim) / Jumlah Hari" example="Rata-rata persentase efisiensi shift yang dijalankan oleh tim tersebut" />
+                              </div>
+                            </th>
+                            <th className="border border-slate-300 p-2">
+                              <div className="inline-flex items-center justify-center">
+                                Cacat/Team
+                                <FormulaTooltip title="Persentase Cacat per Team" formula="SUM(Persentase Cacat Tim) / Jumlah Hari" example="Rata-rata persentase cacat shift yang dijalankan oleh tim tersebut" />
+                              </div>
+                            </th>
+                            <th className="border border-slate-300 p-2">
+                              <div className="inline-flex items-center justify-center">
+                                % Hasil
+                                <FormulaTooltip title="% Hasil Kontribusi Tim" formula="(Hasil Produksi Tim / Total Hasil Produksi) x 100%" example="Kontribusi volume produksi tim terhadap total keseluruhan" />
+                              </div>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 font-medium text-slate-900">
+                          {(["A", "B", "C"] as const).map((t) => {
+                            const tb = summaryMetrics.teamBreakdown[t];
+                            return (
+                              <tr key={t} className="hover:bg-slate-50 transition-colors">
+                                <td className="border border-slate-300 p-2 text-center font-bold text-slate-900 bg-white">
+                                  {t}
+                                </td>
+                                <td className="border border-slate-300 p-2 text-center font-mono font-semibold text-slate-900 bg-white">
+                                  {tb.hasilProduksi.toLocaleString("id-ID")}
+                                </td>
+                                {/* Eff Team - biru kehijauan lembut */}
+                                <td className="border border-slate-300 p-2 text-center font-mono font-semibold text-emerald-900 bg-emerald-50 whitespace-nowrap">
+                                  <span>{tb.effTeam.toFixed(2)}%</span>
+                                  <FormulaTooltip title={`Eff Team ${t}`} formula={`SUM(Persentase dari 100% Tim ${t}) / Jumlah Hari Aktif`} example={`Rata-rata efisiensi shift Team ${t}`} />
+                                </td>
+                                {/* Cacat/Team - merah sangat lembut */}
+                                <td className="border border-slate-300 p-2 text-center font-mono font-semibold text-rose-800 bg-rose-50 whitespace-nowrap">
+                                  <span>{tb.cacatPerTeam.toFixed(2)}%</span>
+                                  <FormulaTooltip title={`Cacat Team ${t}`} formula={`SUM(Persentase Cacat Tim ${t}) / Jumlah Hari Aktif`} example={`Rata-rata persentase cacat shift Team ${t}`} />
+                                </td>
+                                {/* % Hasil - kuning amber lembut */}
+                                <td className="border border-slate-300 p-2 text-center font-mono font-semibold text-amber-900 bg-amber-50 whitespace-nowrap">
+                                  <span>{tb.persenHasil.toFixed(2)}%</span>
+                                  <FormulaTooltip title={`Kontribusi Team ${t}`} formula={`(Hasil Produksi Tim ${t} / Total Hasil Produksi) x 100%`} example={`Porsi produksi Team ${t} terhadap total sebulan`} />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          <tr className="bg-slate-800 text-white font-bold text-center">
+                            <td className="border border-slate-700 p-2 font-bold">TOTAL</td>
+                            <td className="border border-slate-700 p-2 font-mono text-amber-300 font-bold">
+                              {summaryMetrics.totalHasilProduksi.toLocaleString("id-ID")}
+                            </td>
+                            <td className="border border-slate-700 p-2 font-mono text-white font-bold whitespace-nowrap">
+                              <span>{summaryMetrics.totalEfisiensi.toFixed(2)}%</span>
+                              <FormulaTooltip dark title="Rata-rata Efisiensi Tim" formula="(Eff Tim A + Eff Tim B + Eff Tim C) / 3" example="Rata-rata efisiensi dari ketiga tim" />
+                            </td>
+                            <td className="border border-slate-700 p-2 font-mono text-white font-bold whitespace-nowrap">
+                              <span>{summaryMetrics.totalPersenCacat.toFixed(2)}%</span>
+                              <FormulaTooltip dark title="Total Rasio Cacat" formula="(Total Jumlah Cacat / Total Hasil Produksi) x 100%" example="Persentase total cacat terhadap total produksi" />
+                            </td>
+                            <td className="border border-slate-700 p-2 font-mono font-bold">100.00%</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* BARIS 2: MATRIKS MASALAH PRODUKSI (FULL WIDTH) */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-4 overflow-hidden">
+                <div className="pb-2.5 mb-2.5 border-b border-slate-200">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Masalah Produksi (Kode Tindakan)
+                  </h4>
+                </div>
+                <div className="overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-xs border-collapse min-w-[600px]">
+                    <thead>
+                      <tr className="bg-slate-100 text-[10px] font-bold text-slate-700 uppercase text-center">
+                        <th className="border border-slate-300 p-2 w-16">Team</th>
+                        {summaryMetrics.kodeTindakanList.map((k: string) => (
+                          <th key={k} className="border border-slate-300 p-2 text-slate-700 font-bold">
+                            Kode {k}
+                          </th>
+                        ))}
+                        <th className="border border-slate-300 p-2 w-20 bg-slate-100 text-slate-800 font-bold">
+                          <div className="inline-flex items-center justify-center">
+                            TOTAL
+                            <FormulaTooltip title="Total Masalah per Tim" formula="SUM(Kejadian Masalah Kode A s.d. H)" />
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 font-medium text-slate-800">
+                      {(["A", "B", "C"] as const).map((t) => {
+                        const rowTotal = summaryMetrics.kodeTindakanList.reduce(
+                          (acc: number, k: string) => acc + (summaryMetrics.masalahProduksiMatrix[t][k] || 0),
+                          0
+                        );
+                        return (
+                          <tr key={t} className="hover:bg-slate-50 text-center transition-colors">
+                            <td className="border border-slate-300 p-2 font-bold text-slate-800 bg-slate-50">
+                              {t}
+                            </td>
+                            {summaryMetrics.kodeTindakanList.map((k: string) => {
+                              const val = summaryMetrics.masalahProduksiMatrix[t][k] || 0;
+                              return (
+                                <td
+                                  key={k}
+                                  className={`border border-slate-300 p-2 font-mono text-center ${
+                                    val > 0 ? "font-bold text-amber-800 bg-amber-50" : "text-slate-300 font-normal"
+                                  }`}
+                                >
+                                  {val > 0 ? val : "—"}
+                                </td>
+                              );
+                            })}
+                            <td className="border border-slate-300 p-2 font-mono font-bold text-slate-900 bg-slate-50">
+                              {rowTotal}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-slate-800 text-white font-bold text-center">
+                        <td className="border border-slate-700 p-2 font-bold">TOTAL</td>
+                        {summaryMetrics.kodeTindakanList.map((k: string) => (
+                          <td key={k} className="border border-slate-700 p-2 font-mono text-amber-300 font-bold">
+                            {summaryMetrics.kodeTotals[k] || 0}
+                          </td>
+                        ))}
+                        <td className="border border-slate-700 p-2 font-mono text-amber-400 bg-slate-900 font-bold">
+                          {summaryMetrics.kodeTindakanList.reduce(
+                            (acc: number, k: string) => acc + (summaryMetrics.kodeTotals[k] || 0),
+                            0
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1287,37 +2046,87 @@ export default function MonthlyMachineReportPage() {
                 </div>
               </div>
 
-              {/* Real-time Checklist of 10 Machines */}
-              <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50">
-                <div className="text-xs font-bold text-slate-700 mb-2.5 flex items-center justify-between">
-                  <span>Daftar 10 Mesin Target:</span>
-                  <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-black">10 Mesin</span>
+              {/* Interactive Machine Selection Grid */}
+              <div className="space-y-2.5 border border-slate-100 rounded-2xl p-4 bg-slate-50">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Monitor className="w-3.5 h-3.5 text-[#0070bc]" />
+                    Pilih Mesin yang Disinkronkan
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={isSyncingAll}
+                      onClick={() => setSyncTargetMachines([...machines])}
+                      className="text-[10px] font-bold text-[#0070bc] hover:underline cursor-pointer disabled:opacity-50"
+                    >
+                      Pilih Semua
+                    </button>
+                    <span className="text-slate-300">·</span>
+                    <button
+                      type="button"
+                      disabled={isSyncingAll}
+                      onClick={() => setSyncTargetMachines([])}
+                      className="text-[10px] font-bold text-slate-400 hover:underline cursor-pointer disabled:opacity-50"
+                    >
+                      Kosongkan
+                    </button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
                   {machines.map((m) => {
+                    const isSelected = syncTargetMachines.includes(m);
                     const mResult = syncAllResults?.find((r: any) => r.machine === m);
                     const isSuccess = mResult && mResult.success;
                     const isFailed = mResult && !mResult.success;
+                    const isRunningThis = isSyncingAll && isSelected && !mResult;
+
                     return (
-                      <div 
+                      <button
                         key={m}
-                        className={`px-2.5 py-1.5 rounded-xl border text-xs font-black flex items-center justify-between transition-all ${
+                        type="button"
+                        disabled={isSyncingAll}
+                        onClick={() => {
+                          setSyncTargetMachines((prev) =>
+                            isSelected ? prev.filter((item) => item !== m) : [...prev, m]
+                          );
+                        }}
+                        className={`h-9 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-between gap-1 cursor-pointer relative border ${
                           isSuccess
                             ? "bg-emerald-100 border-emerald-300 text-emerald-800"
                             : isFailed
                             ? "bg-rose-100 border-rose-300 text-rose-800"
-                            : isSyncingAll
-                            ? "bg-amber-50 border-amber-200 text-amber-700 animate-pulse"
-                            : "bg-white border-slate-200 text-slate-700"
+                            : isRunningThis
+                            ? "bg-amber-100 border-amber-300 text-amber-800 animate-pulse"
+                            : isSelected
+                            ? "bg-[#0070bc] border-[#0070bc] text-white shadow-sm shadow-[#0070bc]/30"
+                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:border-slate-300"
                         }`}
                       >
                         <span>{m}</span>
-                        {isSuccess && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-                        {isFailed && <AlertCircle className="w-3.5 h-3.5 text-rose-600" />}
-                        {!mResult && isSyncingAll && <Loader2 className="w-3 h-3 animate-spin text-amber-600" />}
-                      </div>
+                        {isSuccess && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                        {isFailed && <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+                        {isRunningThis && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600 shrink-0" />}
+                        {!mResult && !isSyncingAll && isSelected && (
+                          <Check className="w-3 h-3 text-white shrink-0" />
+                        )}
+                      </button>
                     );
                   })}
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] text-slate-500 font-bold">
+                    {syncTargetMachines.length === 0
+                      ? "⚠️ Pilih minimal 1 mesin untuk memulai sinkronisasi"
+                      : `${syncTargetMachines.length} dari ${machines.length} mesin dipilih`}
+                  </span>
+                  {syncTargetMachines.length > 0 && (
+                    <span className="text-[10px] font-black text-[#0070bc] max-w-[200px] truncate text-right">
+                      {syncTargetMachines.join(", ")}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1336,18 +2145,18 @@ export default function MonthlyMachineReportPage() {
               <button
                 type="button"
                 onClick={executeSyncAll}
-                disabled={isSyncingAll}
+                disabled={isSyncingAll || syncTargetMachines.length === 0}
                 className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-amber-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isSyncingAll ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Menyinkronkan 10 Mesin...</span>
+                    <span>Menyinkronkan {syncTargetMachines.length} Mesin...</span>
                   </>
                 ) : (
                   <>
                     <Zap className="w-4 h-4" />
-                    <span>Mulai Sync Semua Mesin</span>
+                    <span>Mulai Sync ({syncTargetMachines.length} Mesin)</span>
                   </>
                 )}
               </button>
@@ -1441,6 +2250,66 @@ export default function MonthlyMachineReportPage() {
                     </div>
                   );
                 })()}
+              </div>
+
+              {/* Machine Selection for Auto-Sync */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Monitor className="w-3.5 h-3.5 text-[#0070bc]" />
+                    Mesin yang Disinkronkan Otomatis
+                  </label>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMachines(machines.length > 0 ? [...machines] : ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "T1C", "T2A"])}
+                      className="text-[10px] font-bold text-[#0070bc] hover:underline cursor-pointer"
+                    >
+                      Pilih Semua
+                    </button>
+                    <span className="text-slate-300">·</span>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMachines([])}
+                      className="text-[10px] font-bold text-slate-400 hover:underline cursor-pointer"
+                    >
+                      Kosongkan
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                  {(machines.length > 0 ? machines : ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "T1C", "T2A"]).map((mc) => {
+                    const isSelected = scheduleMachines.includes(mc);
+                    return (
+                      <button
+                        key={mc}
+                        type="button"
+                        onClick={() => {
+                          setScheduleMachines((prev) =>
+                            isSelected ? prev.filter((m) => m !== mc) : [...prev, mc]
+                          );
+                        }}
+                        className={`h-9 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer relative border ${
+                          isSelected
+                            ? "bg-[#0070bc] border-[#0070bc] text-white shadow-sm shadow-[#0070bc]/30"
+                            : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200"
+                        }`}
+                      >
+                        {isSelected && (
+                          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full flex items-center justify-center">
+                            <Check className="w-2 h-2 text-white" />
+                          </span>
+                        )}
+                        {mc}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  {scheduleMachines.length === 0
+                    ? "⚠️ Tidak ada mesin dipilih — auto-sync tidak akan memproses mesin apapun"
+                    : `${scheduleMachines.length} dari ${machines.length || 13} mesin akan otomatis disinkronkan`}
+                </p>
               </div>
 
               {/* Mode Selection */}

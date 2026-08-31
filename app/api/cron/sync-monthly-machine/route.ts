@@ -57,6 +57,7 @@ async function handleSync(request: NextRequest) {
       safeMode,
       startDay,
       endDay,
+      machines: scheduleSettings.machines,
     });
     const durationMs = Date.now() - startTime;
 

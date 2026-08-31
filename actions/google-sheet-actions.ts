@@ -206,6 +206,7 @@ export async function getAutoSyncScheduleSettings(): Promise<{
   time: string;
   enabled: boolean;
   safeMode: boolean;
+  machines?: string[];
   error?: string;
 }> {
   try {
@@ -222,7 +223,16 @@ export async function getAutoSyncScheduleSettings(): Promise<{
         time: "09:00",
         enabled: true,
         safeMode: true,
+        machines: undefined,
       };
+    }
+
+    let parsedMachines: string[] | undefined;
+    if (data.description) {
+      const match = data.description.match(/machines=([A-Za-z0-9_,]+)/);
+      if (match && match[1]) {
+        parsedMachines = match[1].split(",").map((m: string) => m.trim()).filter(Boolean);
+      }
     }
 
     return {
@@ -230,6 +240,7 @@ export async function getAutoSyncScheduleSettings(): Promise<{
       time: data.web_app_url || "09:00",
       enabled: data.is_active !== false,
       safeMode: !data.description?.includes("safeMode=false"),
+      machines: parsedMachines,
     };
   } catch (err: any) {
     return {
@@ -248,9 +259,11 @@ export async function updateAutoSyncScheduleSettings(payload: {
   time: string;
   enabled: boolean;
   safeMode: boolean;
+  machines?: string[];
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
+    const machinesStr = payload.machines && payload.machines.length > 0 ? ` (machines=${payload.machines.join(",")})` : "";
     const { error } = await supabase
       .from("google_sheet_configs")
       .upsert({
@@ -258,7 +271,7 @@ export async function updateAutoSyncScheduleSettings(payload: {
         report_name: "Jadwal Otomatis Harian (Cron)",
         web_app_url: payload.time.trim(),
         is_active: payload.enabled,
-        description: `Waktu auto-sync harian: ${payload.time} WIB (safeMode=${payload.safeMode})`,
+        description: `Waktu auto-sync harian: ${payload.time} WIB (safeMode=${payload.safeMode})${machinesStr}`,
         updated_at: new Date().toISOString(),
       });
 
@@ -272,7 +285,7 @@ export async function updateAutoSyncScheduleSettings(payload: {
 }
 
 /**
- * Sinkronisasi seluruh mesin aktif secara bersamaan
+* Sinkronisasi seluruh mesin aktif secara bersamaan
  * Mendukung filter tanggal tertentu (startDay s.d. endDay) dan mode aman
  */
 export async function syncAllMonthlyMachines(
@@ -283,6 +296,7 @@ export async function syncAllMonthlyMachines(
     startDay?: number;
     endDay?: number;
     targetDays?: number[];
+    machines?: string[];
   },
   year?: number,
   safeMode = true,
@@ -339,7 +353,7 @@ export async function syncAllMonthlyMachines(
       }
 
       const structuredItems = rep.data.map((dayData: any) => {
-        const teamsToRender = [
+        const teamsToRender = dayData.orderedTeams || [
           { teamName: "A", data: dayData.teamData ? dayData.teamData["A"] : null },
           { teamName: "B", data: dayData.teamData ? dayData.teamData["B"] : null },
           { teamName: "C", data: dayData.teamData ? dayData.teamData["C"] : null },
@@ -347,7 +361,7 @@ export async function syncAllMonthlyMachines(
 
         return {
           tanggal: dayData.tanggal,
-          teams: teamsToRender.map((teamObj) => {
+          teams: teamsToRender.map((teamObj: any) => {
             const td = teamObj.data;
             if (!td) {
               return {
@@ -447,9 +461,13 @@ export async function syncAllMonthlyMachines(
     error?: string;
   }> = [];
 
+  const machinesToSync = (typeof monthOrOptions === "object" && monthOrOptions?.machines && monthOrOptions.machines.length > 0)
+    ? monthOrOptions.machines
+    : REGISTERED_MACHINES;
+
   const chunkSize = 5;
-  for (let i = 0; i < REGISTERED_MACHINES.length; i += chunkSize) {
-    const chunk = REGISTERED_MACHINES.slice(i, i + chunkSize);
+  for (let i = 0; i < machinesToSync.length; i += chunkSize) {
+    const chunk = machinesToSync.slice(i, i + chunkSize);
     const chunkResults = await Promise.all(chunk.map((mc) => syncSingleMachine(mc)));
     results.push(...chunkResults);
   }
@@ -457,7 +475,7 @@ export async function syncAllMonthlyMachines(
   const successfulCount = results.filter(r => r.success).length;
   return {
     success: successfulCount > 0,
-    message: `Selesai sinkronisasi: ${successfulCount} dari ${REGISTERED_MACHINES.length} mesin berhasil disinkronkan ke sheet '${targetSheetName}'.`,
+    message: `Selesai sinkronisasi: ${successfulCount} dari ${machinesToSync.length} mesin berhasil disinkronkan ke sheet '${targetSheetName}'.`,
     results,
   };
 }

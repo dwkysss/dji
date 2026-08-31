@@ -37,6 +37,7 @@ import {
   Trophy,
   UserCheck,
   Package,
+  TableProperties,
 } from "lucide-react";
 
 const MACHINE_INPUT_TYPES: Record<string, string> = {
@@ -140,6 +141,18 @@ export default function Sidebar() {
           name: "Kinerja Shift Bulanan",
           href: "/shift-performance",
           icon: Trophy,
+          roles: ["admin", "manager", "kepala_shift"],
+        },
+        {
+          name: "Rekap Mesin Bulanan",
+          href: "/shift-performance/machine-matrix",
+          icon: TableProperties,
+          roles: ["admin", "manager", "kepala_shift"],
+        },
+        {
+          name: "Master Detail Masalah",
+          href: "/problem-details",
+          icon: ListFilter,
           roles: ["admin", "manager", "kepala_shift"],
         },
         {

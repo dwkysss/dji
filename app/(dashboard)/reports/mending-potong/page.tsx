@@ -558,9 +558,12 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
   }, [processedData]);
 
   const isMultiPcs = useMemo(() => {
-    // Mesin Multi-PCS di Google Sheet: R3B, R11, R12, R16, T1C, T2A
-    return ["R3B", "R11", "R12", "R16", "T1C", "T2A"].includes(filters.nomor_mc);
-  }, [filters.nomor_mc]);
+    // 1. Cek apakah ada data yang memiliki pcsKe > 1 di dataset saat ini
+    const hasMultiplePcsInData = processedData.some((r: any) => Number(r.pcsKe) > 1);
+    // 2. Daftar mesin yang terkonfigurasi Multi-PCS: R1C, R2C, R3B, R11, R12, R16, T1C, T2A
+    const isKnownMultiPcsMachine = ["R1C", "R2C", "R3B", "R11", "R12", "R16", "T1C", "T2A"].includes(filters.nomor_mc);
+    return hasMultiplePcsInData || isKnownMultiPcsMachine;
+  }, [filters.nomor_mc, processedData]);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
