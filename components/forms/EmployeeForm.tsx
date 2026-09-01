@@ -1362,7 +1362,10 @@ export default function EmployeeForm({
             </div>
           </div>
           <a
-            href="/input-meter"
+            href="/input-meter?mode=meter"
+            onClick={() => {
+              localStorage.setItem("last_input_route", "/input-meter");
+            }}
             className="flex-1 flex items-center justify-center py-3.5 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-white/60 transition-all cursor-pointer"
           >
             <div className="flex items-center gap-2.5 opacity-70 hover:opacity-100 transition-opacity">
@@ -2215,6 +2218,7 @@ export default function EmployeeForm({
         onClose={() => setIsHistoryDrawerOpen(false)}
         currentNomorMc={watchNomorMc}
         currentPotonganKe={watchPotonganKe}
+        panelType="PANEL"
       />
     </div>
   );

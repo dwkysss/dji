@@ -15,6 +15,7 @@ interface ContinuousHistoryDrawerProps {
   onClose: () => void;
   currentNomorMc?: string;
   currentPotonganKe?: string | number;
+  panelType?: "PANEL" | "METERAN" | "ALL";
 }
 
 export default function ContinuousHistoryDrawer({
@@ -22,6 +23,7 @@ export default function ContinuousHistoryDrawer({
   onClose,
   currentNomorMc,
   currentPotonganKe,
+  panelType = "ALL",
 }: ContinuousHistoryDrawerProps) {
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,7 @@ export default function ContinuousHistoryDrawer({
     try {
       const mcQuery = filterMcOnly ? currentNomorMc : undefined;
       const potQuery = (filterMcOnly && filterPotonganOnly) ? currentPotonganKe : undefined;
-      const res = await getRecentShiftInputHistory(mcQuery, 50, "ALL", potQuery);
+      const res = await getRecentShiftInputHistory(mcQuery, 50, panelType, potQuery);
 
       if (res.success && res.data) {
         setHistoryItems(res.data);
@@ -279,7 +281,7 @@ export default function ContinuousHistoryDrawer({
               const sortedPcsKeys = Object.keys(pcsGroups).sort((a, b) => parseInt(a) - parseInt(b));
               if (sortedPcsKeys.length === 0) return null;
 
-              const isMeterReport = historyItems.some((p: any) => p.panel_no === "METERAN");
+              const isMeterReport = panelType === "METERAN" || (panelType === "ALL" && historyItems.some((p: any) => p.panel_no === "METERAN"));
 
               return (
                 <div className="w-full overflow-x-auto pb-4 custom-scrollbar bg-slate-50/50 p-2 sm:p-3 rounded-xl border border-slate-200">
@@ -313,7 +315,7 @@ export default function ContinuousHistoryDrawer({
                           {isMeterReport ? (
                             <MeterHistoryTable panels={panels} pcsKey={pcsKey} />
                           ) : (
-                            <PanelHistoryTable panels={panels} pcsKey={pcsKey} />
+                            <PanelHistoryTable panels={panels} pcsKey={pcsKey} onRefresh={fetchHistory} />
                           )}
                         </div>
                       );

@@ -49,6 +49,7 @@ import {
 import { useRouter } from "next/navigation";
 import HeaderSummaryCard from "./HeaderSummaryCard";
 import dynamic from "next/dynamic";
+import WifiDowntimeTrigger from "./WifiDowntimeTrigger";
 
 // Dynamic imports: code-split heavy components to reduce initial JS bundle
 const ProductionHeaderModal = dynamic(() => import("./ProductionHeaderModal"), {
@@ -391,6 +392,13 @@ export default function ContinuousForm({
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
   const [activeInfo, setActiveInfo] = useState<string | null>(null);
   const [showReportCardInfo, setShowReportCardInfo] = useState(false);
+
+  // Timer Controls State untuk menghubungkan WifiDowntimeTrigger dengan DowntimeTracker
+  const [timerControls, setTimerControls] = useState<{
+    isTimerRunning: boolean;
+    onStartTimer: (source?: any) => void;
+    onStopTimer: (source?: any) => void;
+  } | null>(null);
 
   const handleCancelAdvancedActions = () => {
     setIsLastRoll(false);
@@ -954,9 +962,23 @@ export default function ContinuousForm({
     }
   }, [watchMeterAwal, watchMeterAkhir, watchNomorMc, setValue]);
 
+
   useEffect(() => {
     if (watchJenisLaporan === "Selesai Istirahat") {
       refreshAutomaticMeterStart();
+      setBackupOperator((prev) => {
+        if (!prev) {
+          return localStorage.getItem("dji_last_backup_operator") || "";
+        }
+        return prev;
+      });
+    } else if (watchJenisLaporan === "Mulai Istirahat") {
+      setBackupOperator((prev) => {
+        if (!prev) {
+          return localStorage.getItem("dji_last_backup_operator") || "";
+        }
+        return prev;
+      });
     }
   }, [watchJenisLaporan]);
 
@@ -1221,10 +1243,10 @@ export default function ContinuousForm({
     data.designName = getDesignName(data.designId);
     data.created_by_name = user?.fullName || null;
 
-    if (data.jenisLaporan === "Mulai Istirahat") {
+    if (data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat") {
       if (!backupOperator) {
         setIsSubmitting(false);
-        setErrorMsg("Wajib memilih Operator Backup yang menjaga mesin saat Mulai Istirahat.");
+        setErrorMsg(`Wajib memilih Operator Backup yang menjaga mesin saat ${data.jenisLaporan}.`);
         return;
       }
       data.backupOperator = backupOperator;
@@ -1502,6 +1524,8 @@ export default function ContinuousForm({
       nextJenisLaporan = "Selesai Istirahat";
     } else if (nextJenisLaporan === "Selesai Istirahat") {
       nextJenisLaporan = "";
+      localStorage.removeItem("dji_last_backup_operator");
+      setBackupOperator("");
     }
 
     const submittedMeterAkhir = successData?.meterAkhir;
@@ -1653,7 +1677,10 @@ export default function ContinuousForm({
           className="flex w-full bg-slate-100/80 p-1.5 rounded-2xl mb-8 border border-slate-200/60 shadow-inner"
         >
           <a
-            href="/input"
+            href="/input?mode=panel"
+            onClick={() => {
+              localStorage.setItem("last_input_route", "/input");
+            }}
             className="flex-1 flex items-center justify-center py-3.5 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-white/60 transition-all cursor-pointer"
           >
             <div className="flex items-center gap-2.5 opacity-70 hover:opacity-100 transition-opacity">
@@ -1742,8 +1769,7 @@ export default function ContinuousForm({
         <div className="mb-6 p-4 bg-yellow-50/50 border border-yellow-200 text-yellow-800 rounded-xl flex items-start gap-3 text-sm animate-fadeIn shadow-sm">
           <AlertTriangle className="w-5 h-5 shrink-0 text-yellow-500" strokeWidth={2} />
           <div>
-            <strong className="block font-bold mb-1">Perhatian Saat Mengedit Data</strong>
-            Form ini mengedit <b>seluruh laporan (termasuk PCS/potongan lain)</b>. Jangan menekan tombol "Hapus" pada potongan lain kecuali Anda benar-benar ingin menghapusnya secara permanen dari laporan. Tambahkan/edit masalah langsung melalui tombol <b>Tambah Masalah</b>.
+            <strong className="block font-bold mb-1">Hati-Hati Saat Mengedit Data!</strong>
           </div>
         </div>
       )}
@@ -1754,99 +1780,180 @@ export default function ContinuousForm({
         className="space-y-4"
       >
         <div className="bg-white border border-slate-200 shadow-sm rounded-[20px] p-3 sm:p-4 lg:p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-[3fr_2fr] gap-3 sm:gap-4 lg:gap-5 items-stretch">
-            <div data-tour="meter-header-summary" className="w-full h-full">
-              <HeaderSummaryCard
-                operatorName={getOperatorName(watch("operatorId"))}
-                shiftName={activeShiftName}
-                nomorMc={watch("nomorMc") || ""}
-                design={watch("designId") || ""}
-                statusMatching={watch("statusMatching") || ""}
-                potonganKe={watch("potonganKe")}
-                onEdit={() => {
-                  setIsHeaderModalOpen(true);
-                  setHighlightPotonganKe(false);
-                  setHighlightOperator(false);
-                }}
-                showEditButton
-                showEditButtonPlacement="bottom"
-              />
-            </div>
-
-            <ProductionHeaderModal
-              isOpen={isHeaderModalOpen}
-              onClose={() => {
-                setIsHeaderModalOpen(false);
-                setHighlightPotonganKe(false);
-                setHighlightOperator(false);
-              }}
-              register={register}
-              errors={errors}
-              watch={watch}
-              groups={groups}
-              operators={activeOperators}
-              activeShiftName={activeShiftName}
-              onClearHeader={handleClearHeader}
-              highlightPotonganKe={highlightPotonganKe}
-              highlightOperator={highlightOperator}
-              pcsCount={fields.length}
-              onChangePcsCount={handleChangePcsCount}
-            />
-
-            {/* Tombol Pemicu Pop-up Meteran */}
-            <div
-              data-tour="meter-final-report"
-              className="w-full min-h-full p-3 sm:p-4 lg:p-6 bg-emerald-50/80 border-2 border-emerald-200 rounded-2xl relative shadow-md flex flex-col justify-center"
-            >
-              <button
-                type="button"
-                onClick={() => setShowReportCardInfo((prev) => !prev)}
-                className={`absolute top-2.5 right-2.5 transition-colors z-20 cursor-pointer p-0.5 rounded-full ${showReportCardInfo
-                  ? "text-emerald-900"
-                  : "text-emerald-600/80 hover:text-emerald-800"
-                  }`}
-                title="Info Laporan"
-              >
-                <Info className="w-4 h-4" />
-              </button>
-
-              {showReportCardInfo && (
-                <div className="absolute top-10 left-2.5 right-2.5 p-3 bg-slate-900 text-white text-[11px] font-medium leading-relaxed rounded-xl z-30 shadow-xl border border-slate-700 animate-fadeIn">
-                  {watch("nomorMc") === "T2A"
-                    ? "Gunakan tombol di bawah untuk melaporkan meter produksi."
-                    : "Gunakan tombol di bawah jika ingin istirahat, jika beres potongan atau shift selesai."}
-                </div>
-              )}
-
-              <div className="absolute -top-3.5 lg:-top-4 left-1/2 -translate-x-1/2 bg-emerald-600 px-3 lg:px-5 py-1 lg:py-1.5 text-[9px] lg:text-[11px] font-black text-white uppercase tracking-widest border-2 border-white rounded-full shadow-md whitespace-nowrap">
-                {watch("nomorMc") === "T2A"
-                  ? "Laporan Meter"
-                  : "Laporan Hasil"}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 items-start">
+            {/* Kolom Kiri: Info Header & Info Laporan Meter */}
+            <div className="flex flex-col gap-3 sm:gap-4 lg:gap-5 self-start sm:min-h-[345px]">
+              <div data-tour="meter-header-summary" className="w-full">
+                <HeaderSummaryCard
+                  operatorName={getOperatorName(watch("operatorId"))}
+                  shiftName={activeShiftName}
+                  nomorMc={watch("nomorMc") || ""}
+                  design={watch("designId") || ""}
+                  statusMatching={watch("statusMatching") || ""}
+                  potonganKe={watch("potonganKe")}
+                  onEdit={() => {
+                    setIsHeaderModalOpen(true);
+                    setHighlightPotonganKe(false);
+                    setHighlightOperator(false);
+                  }}
+                  showEditButton
+                  showEditButtonPlacement="bottom"
+                />
               </div>
 
-              <div className="mt-3 flex flex-col items-center justify-center text-center gap-4">
-                <div>
-                  <h4 className="text-sm sm:text-base lg:text-lg font-black text-emerald-900">
-                    {watch("nomorMc") === "T2A"
-                      ? "Laporan Meter"
-                      : "Laporan Istirahat dan Shift"}
-                  </h4>
-                </div>
+              {/* Tombol Pemicu Pop-up Meteran (Sejajar dengan Card Nomor Panel pada form panel) */}
+              <div
+                data-tour="meter-final-report"
+                className="w-full p-4 sm:p-5 bg-emerald-50/80 border-2 border-emerald-200 rounded-3xl relative shadow-sm flex flex-col justify-center min-h-[140px]"
+              >
                 <button
                   type="button"
-                  onClick={async () => {
-                    await refreshAutomaticMeterStart();
-                    setIsMeterModalOpen(true);
-                  }}
-                  className="w-full max-w-xs px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
+                  onClick={() => setShowReportCardInfo((prev) => !prev)}
+                  className={`absolute top-2.5 right-2.5 transition-colors z-20 cursor-pointer p-0.5 rounded-full ${showReportCardInfo
+                    ? "text-emerald-900"
+                    : "text-emerald-600/80 hover:text-emerald-800"
+                    }`}
+                  title="Info Laporan"
                 >
-                  <FileText className="w-5 h-5" />
-                  {watch("nomorMc") === "T2A"
-                    ? "Lapor Meter"
-                    : "Lapor Meter Terakhir"}
+                  <Info className="w-4 h-4" />
                 </button>
+
+                {showReportCardInfo && (
+                  <div className="absolute top-10 left-2.5 right-2.5 p-3 bg-slate-900 text-white text-[11px] font-medium leading-relaxed rounded-xl z-30 shadow-xl border border-slate-700 animate-fadeIn">
+                    {watch("nomorMc") === "T2A"
+                      ? "Gunakan tombol di bawah untuk melaporkan meter produksi."
+                      : "Gunakan tombol di bawah jika ingin istirahat, jika beres potongan atau shift selesai."}
+                  </div>
+                )}
+
+                <div className="absolute -top-3.5 lg:-top-4 left-1/2 -translate-x-1/2 bg-emerald-600 px-3 lg:px-5 py-1 lg:py-1.5 text-[9px] lg:text-[11px] font-black text-white uppercase tracking-widest border-2 border-white rounded-full shadow-md whitespace-nowrap">
+                  {watch("nomorMc") === "T2A"
+                    ? "Laporan Meter"
+                    : "Laporan Hasil"}
+                </div>
+
+                <div className="mt-1.5 flex flex-col items-center justify-center text-center gap-3">
+                  <div>
+                    <h4 className="text-sm font-black text-emerald-950 tracking-tight">
+                      {watch("nomorMc") === "T2A"
+                        ? "Pelaporan Meter Produksi"
+                        : "Pelaporan Akhir Meter"}
+                    </h4>
+                    {watch("nomorMc") !== "T2A" && (
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap mt-2">
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100/90 text-emerald-900 border border-emerald-300 shadow-2xs">
+                          Oper Shift
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100/90 text-emerald-900 border border-emerald-300 shadow-2xs">
+                          Meter Istirahat
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100/90 text-emerald-900 border border-emerald-300 shadow-2xs">
+                          Masuk Istirahat
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await refreshAutomaticMeterStart();
+                      setIsMeterModalOpen(true);
+                    }}
+                    className="w-full max-w-xs px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-95 text-white text-sm font-black rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2.5 cursor-pointer"
+                  >
+                    <FileText className="w-5 h-5" />
+                    <span>
+                      {watch("nomorMc") === "T2A"
+                        ? "Lapor Meter"
+                        : "Lapor Meter Terakhir"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Banner Wi-Fi Trigger ESP32 (Disimpan tepat di bawah Card Laporan Hasil) */}
+              {!isEdit && timerControls && (
+                <div className="w-full">
+                  <WifiDowntimeTrigger
+                    selectedMachineCode={watch("nomorMc")}
+                    onStartTimer={timerControls.onStartTimer}
+                    onStopTimer={timerControls.onStopTimer}
+                    isTimerRunning={timerControls.isTimerRunning}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Kolom Kanan: Downtime Tracker (Timer & Blok) */}
+            <div className="flex flex-col w-full self-start">
+              <div data-tour="downtime" className="w-full">
+                <input type="hidden" {...register("totalDowntime")} />
+                <DowntimeTracker
+                  control={control}
+                  setValue={setValue}
+                  watch={watch}
+                  showBlockInput={true}
+                  showMeterInput={true}
+                  defaultMeter={defaultMeter}
+                  defaultPcsIndex={defaultPcsIndex}
+                  operators={activeOperators}
+                  currentOperatorName={getOperatorName(watch("operatorId"))}
+                  isEdit={isEdit}
+                  onRegisterTimerControls={setTimerControls}
+                  isPanelType={false}
+                  viewMode="timer_only"
+                  onAutoSubmit={() => {
+                    handleSubmit(onSubmit, onInvalid)();
+                  }}
+                />
               </div>
             </div>
+          </div>
+
+          {/* Section Merentang Penuh (Full Width): Antrean & Riwayat Kendala Mesin */}
+          <div className="w-full mt-4">
+            <DowntimeTracker
+              control={control}
+              setValue={setValue}
+              watch={watch}
+              showBlockInput={true}
+              showMeterInput={true}
+              defaultMeter={defaultMeter}
+              defaultPcsIndex={defaultPcsIndex}
+              operators={activeOperators}
+              currentOperatorName={getOperatorName(watch("operatorId"))}
+              isEdit={isEdit}
+              isPanelType={false}
+              viewMode="events_only"
+              onAutoSubmit={() => {
+                handleSubmit(onSubmit, onInvalid)();
+              }}
+            />
+
+            {/* Tombol Kirim Titik Cacat Manual jika ada data di riwayat berhenti */}
+            {(() => {
+              const dtEvents = watch("downtimeEvents") || [];
+              const hasResolvedEvents = dtEvents.some((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
+              if (!hasResolvedEvents) return null;
+
+              return (
+                <div className="w-full mt-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => handleSubmit(onSubmit, onInvalid)()}
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-sky-600 to-[#0070bc] hover:from-sky-700 hover:to-[#005a96] active:scale-95 text-white text-xs font-black rounded-xl shadow-md shadow-sky-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isSubmitting ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    <span>Kirim Titik Cacat ({dtEvents.length} Kejadian)</span>
+                  </button>
+                </div>
+              );
+            })()}
           </div>
 
           {/* ARRAY OF PCS (HIDDEN) - use actual pcsIndex from field data, not sequential position */}
@@ -1860,25 +1967,6 @@ export default function ContinuousForm({
                 defaultValue={field.pcsIndex || (index + 1)}
               />
             ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col w-full mb-6">
-          <div data-tour="downtime" className="w-full">
-            <input type="hidden" {...register("totalDowntime")} />
-            <DowntimeTracker
-              control={control}
-              setValue={setValue}
-              watch={watch}
-              showBlockInput={true}
-              showMeterInput={true}
-              defaultMeter={defaultMeter}
-              defaultPcsIndex={defaultPcsIndex}
-              operators={activeOperators}
-              currentOperatorName={getOperatorName(watch("operatorId"))}
-              isEdit={isEdit}
-              isPanelType={false}
-            />
           </div>
         </div>
 
@@ -2384,14 +2472,19 @@ export default function ContinuousForm({
                       </button>
                     </div>
 
-                    {watchJenisLaporan === "Mulai Istirahat" && (
+                    {(watchJenisLaporan === "Mulai Istirahat" || watchJenisLaporan === "Selesai Istirahat") && (
                       <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
                         <label className="text-[10px] font-black text-amber-800 uppercase block mb-1">
                           Siapa yang menjaga mesin (Backup)?
                         </label>
                         <select
                           value={backupOperator}
-                          onChange={(e) => setBackupOperator(e.target.value)}
+                          onChange={(e) => {
+                            setBackupOperator(e.target.value);
+                            if (e.target.value) {
+                              localStorage.setItem("dji_last_backup_operator", e.target.value);
+                            }
+                          }}
                           className="w-full h-10 px-3 rounded-lg border border-amber-300 text-sm font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-amber-400 outline-none"
                         >
                           <option value="">-- Pilih Operator --</option>
@@ -2766,12 +2859,34 @@ export default function ContinuousForm({
         </div>
       )}
 
+      {/* MODAL UBAH HEADER */}
+      <ProductionHeaderModal
+        isOpen={isHeaderModalOpen}
+        onClose={() => {
+          setIsHeaderModalOpen(false);
+          setHighlightPotonganKe(false);
+          setHighlightOperator(false);
+        }}
+        register={register}
+        errors={errors}
+        watch={watch}
+        groups={groups}
+        operators={activeOperators.length > 0 ? activeOperators : operators}
+        activeShiftName={activeShiftName}
+        onClearHeader={handleClearHeader}
+        highlightPotonganKe={highlightPotonganKe}
+        highlightOperator={highlightOperator}
+        pcsCount={fields.length}
+        onChangePcsCount={handleChangePcsCount}
+      />
+
       {/* SLIDE-OVER DRAWER RIWAYAT SHIFT */}
       <ContinuousHistoryDrawer
         isOpen={isHistoryDrawerOpen}
         onClose={() => setIsHistoryDrawerOpen(false)}
         currentNomorMc={watch("nomorMc")}
         currentPotonganKe={watch("potonganKe")}
+        panelType="METERAN"
       />
     </div>
   );

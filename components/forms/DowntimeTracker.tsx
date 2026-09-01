@@ -42,6 +42,7 @@ interface DowntimeTrackerProps {
   }) => void;
   isPanelType?: boolean;
   viewMode?: "all" | "timer_only" | "events_only";
+  onAutoSubmit?: () => void;
 }
 
 export default function DowntimeTracker({
@@ -58,6 +59,7 @@ export default function DowntimeTracker({
   onRegisterTimerControls,
   isPanelType = false,
   viewMode = "all",
+  onAutoSubmit,
 }: DowntimeTrackerProps) {
   const { user } = useAuth();
   const isKepalaShiftOrAdmin = user?.role === "kepala_shift" || user?.role === "admin" || user?.role === "manager";
@@ -89,6 +91,7 @@ export default function DowntimeTracker({
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
+  const [showGagalCacatModal, setShowGagalCacatModal] = useState(false);
   const [tempDuration, setTempDuration] = useState(0);
   const accumulatedSecRef = useRef<number>(0);
   const activeTimerStartRef = useRef<number | null>(null);
@@ -96,6 +99,7 @@ export default function DowntimeTracker({
   const [selectedDetails, setSelectedDetails] = useState<Record<string, string[]>>({});
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
   const [inputMeters, setInputMeters] = useState<Record<string, string>>({});
+  const [singleMeterInput, setSingleMeterInput] = useState<string>("");
   const [selectedPcsKeList, setSelectedPcsKeList] = useState<string[]>([]);
   const [selectedUnclassifiedIds, setSelectedUnclassifiedIds] = useState<string[]>([]);
   const [batchClassifyIds, setBatchClassifyIds] = useState<string[]>([]);
@@ -684,13 +688,93 @@ export default function DowntimeTracker({
     setNamaPenanganan("");
   };
 
+  const handleOpenGagalCacatModal = (index: number, fallbackEvent?: any) => {
+    const currentList = watch("downtimeEvents") || fields || [];
+    const targetEvent = currentList[index] || fields[index] || fallbackEvent;
+    if (!targetEvent) return;
+
+    setEditingIndex(index);
+    setTempDuration(targetEvent.durasiDetik || 0);
+    setTargetPanelNo(String(watch("panelNo") || "1"));
+    accumulatedSecRef.current = targetEvent.durasiDetik || 0;
+    setCurrentTimerSource(targetEvent.triggerSource || "Manual");
+    setDikerjakanOleh("Operator");
+    setNamaPenanganan("");
+    setIsUnblockingBlock(false);
+
+    // Default: kosong jika multi-PCS, kecuali mengedit event yang sudah punya pcsKe
+    if (targetEvent.pcsKe && targetEvent.pcsKe !== "Semua") {
+      const existingPcs = targetEvent.pcsKe.split(",").map((s: string) => s.trim());
+      setSelectedPcsKeList(existingPcs);
+    } else if (pcsKeys.length === 1) {
+      setSelectedPcsKeList([...pcsKeys]);
+    } else {
+      setSelectedPcsKeList([]);
+    }
+
+    // Parse existing meters
+    const initialMeters: Record<string, string> = {};
+    const rawMeter = targetEvent.meter || targetEvent.problems?.[0]?.meter || "";
+    if (rawMeter) {
+      if (rawMeter.includes("PCS")) {
+        rawMeter.split(",").forEach((m: string) => {
+          const match = m.match(/PCS (\d+):\s*(.+)/);
+          if (match) {
+            initialMeters[match[1]] = match[2].trim();
+          }
+        });
+      } else {
+        pcsKeys.forEach((k) => {
+          initialMeters[k] = rawMeter.trim();
+        });
+      }
+    }
+    setInputMeters(initialMeters);
+    setShowGagalCacatModal(true);
+    setShowModal(false);
+  };
+
+  const handleOpenBatchGagalCacatModal = () => {
+    if (selectedUnclassifiedIds.length === 0) return;
+    setBatchClassifyIds([...selectedUnclassifiedIds]);
+    setEditingIndex(null);
+    setTargetPanelNo(String(watch("panelNo") || "1"));
+
+    const currentList = watch("downtimeEvents") || fields || [];
+    const totalSelectedSec = selectedUnclassifiedIds.reduce((sum: number, id: string) => {
+      const item = currentList.find((e: any, idx: number) => (e.id || `evt-${idx}`) === id);
+      return sum + (item?.durasiDetik || 0);
+    }, 0);
+
+    setTempDuration(totalSelectedSec);
+    setCurrentTimerSource("Manual");
+    setDikerjakanOleh("Operator");
+    setNamaPenanganan("");
+    setIsUnblockingBlock(false);
+    if (pcsKeys.length === 1) {
+      setSelectedPcsKeList([...pcsKeys]);
+    } else {
+      setSelectedPcsKeList([]);
+    }
+    setInputMeters({});
+    setShowGagalCacatModal(true);
+    setShowModal(false);
+  };
+
   const handleResolveSensorGlitch = (index: number) => {
+    // Jika ada lebih dari 1 PCS atau butuh input posisi meter, buka modal khusus Gagal Cacat
+    if (pcsKeys.length > 1 || showMeterInput) {
+      handleOpenGagalCacatModal(index);
+      return;
+    }
+
     const currentList = watch("downtimeEvents") || fields || [];
     const targetEvent = currentList[index] || fields[index];
     if (!targetEvent) return;
 
     const updatedEvent = {
       ...targetEvent,
+      pcsKe: "1",
       isResolved: true,
       isSensorGlitch: true,
       problems: [
@@ -725,13 +809,34 @@ export default function DowntimeTracker({
     setNamaPenanganan("");
     setIsUnblockingBlock(false);
 
-    if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
-      setSelectedPcsKeList([defaultPcsIndex]);
+    // Default: kosong jika multi-PCS, kecuali mengedit event yang sudah punya pcsKe
+    if (targetEvent.pcsKe && targetEvent.pcsKe !== "Semua") {
+      const existingPcs = targetEvent.pcsKe.split(",").map((s: string) => s.trim());
+      setSelectedPcsKeList(existingPcs);
     } else if (pcsKeys.length === 1) {
       setSelectedPcsKeList([...pcsKeys]);
     } else {
       setSelectedPcsKeList([]);
     }
+
+    // Parse existing meters
+    const initialMeters: Record<string, string> = {};
+    const rawMeter = targetEvent.meter || targetEvent.problems?.[0]?.meter || "";
+    if (rawMeter) {
+      if (rawMeter.includes("PCS")) {
+        rawMeter.split(",").forEach((m: string) => {
+          const match = m.match(/PCS (\d+):\s*(.+)/);
+          if (match) {
+            initialMeters[match[1]] = match[2].trim();
+          }
+        });
+      } else {
+        pcsKeys.forEach((k) => {
+          initialMeters[k] = rawMeter.trim();
+        });
+      }
+    }
+    setInputMeters(initialMeters);
 
     setShowModal(true);
   };
@@ -762,6 +867,13 @@ export default function DowntimeTracker({
 
   const handleBatchResolveSensorGlitch = () => {
     if (selectedUnclassifiedIds.length === 0) return;
+
+    // Jika ada lebih dari 1 PCS atau butuh input posisi meter, buka modal batch Gagal Cacat
+    if (pcsKeys.length > 1 || showMeterInput) {
+      handleOpenBatchGagalCacatModal();
+      return;
+    }
+
     const currentList = watch("downtimeEvents") || fields || [];
     const updatedList = [...currentList];
 
@@ -770,6 +882,7 @@ export default function DowntimeTracker({
       if (index !== -1) {
         updatedList[index] = {
           ...updatedList[index],
+          pcsKe: "1",
           isResolved: true,
           isSensorGlitch: true,
           problems: [
@@ -785,6 +898,12 @@ export default function DowntimeTracker({
 
     setSelectedUnclassifiedIds([]);
     updateFormDowntimeEvents(updatedList);
+
+    if (onAutoSubmit && !isPanelType && !isEdit) {
+      setTimeout(() => {
+        onAutoSubmit();
+      }, 50);
+    }
   };
 
   const handleOpenBatchClassifyModal = () => {
@@ -822,9 +941,25 @@ export default function DowntimeTracker({
 
 
   const handleSaveNonDefectStop = () => {
+    if (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) {
+      alert("Wajib memilih minimal 1 PCS!");
+      return;
+    }
+    if (showMeterInput && hasMissingMeter) {
+      alert("Wajib mengisi nilai meter untuk setiap PCS yang dipilih!");
+      return;
+    }
+
     const pcsKeStr = dikerjakanOleh === "Operator"
       ? (selectedPcsKeList.length === pcsCount ? "Semua" : (selectedPcsKeList.length > 0 ? selectedPcsKeList.join(", ") : "Semua"))
       : "Semua";
+
+    const meterStr = pcsKeys.length === 1
+      ? inputMeters[pcsKeys[0]]?.trim()
+      : Object.entries(inputMeters)
+        .filter(([k, v]) => selectedPcsKeList.includes(k) && v.trim() !== "")
+        .map(([pcs, val]) => `PCS ${pcs}: ${val.trim()}`)
+        .join(", ");
 
     const dikerjakanGabungan = currentOperatorName || "Operator";
 
@@ -832,6 +967,7 @@ export default function DowntimeTracker({
       {
         kategori: "G",
         details: ["Gagal Cacat"],
+        meter: dikerjakanOleh === "Operator" && meterStr ? meterStr : undefined,
       },
     ];
 
@@ -842,6 +978,7 @@ export default function DowntimeTracker({
       id: targetObj?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       durasiDetik: tempDuration,
       pcsKe: pcsKeStr,
+      meter: meterStr || undefined,
       dikerjakanOleh: dikerjakanGabungan,
       problems: nonDefectProblems,
       triggerSource: targetObj?.triggerSource || currentTimerSource,
@@ -892,6 +1029,7 @@ export default function DowntimeTracker({
       }
 
       handleCloseModal();
+      setShowGagalCacatModal(false);
       setDeferredToast(`Downtime (Gagal Cacat) berhasil dialokasikan untuk Panel ${targetPanelNo}. Data akan otomatis dimuat saat Anda menginput Panel ${targetPanelNo}.`);
       setIsTimerRunning(false);
       setTimerStartRef(null);
@@ -910,6 +1048,7 @@ export default function DowntimeTracker({
           return {
             ...e,
             pcsKe: pcsKeStr,
+            meter: meterStr || undefined,
             dikerjakanOleh: dikerjakanGabungan,
             problems: nonDefectProblems,
             isResolved: true,
@@ -932,6 +1071,13 @@ export default function DowntimeTracker({
 
     updateFormDowntimeEvents(updatedList);
     handleCloseModal();
+    setShowGagalCacatModal(false);
+
+    if (onAutoSubmit && !isPanelType && !isEdit) {
+      setTimeout(() => {
+        onAutoSubmit();
+      }, 50);
+    }
 
     setEditingIndex(null);
     setShowModal(false);
@@ -990,7 +1136,7 @@ export default function DowntimeTracker({
         kategori: catId,
         details: details,
         blok: inputBloks[catId]?.trim() !== "" ? inputBloks[catId]?.trim() : undefined,
-        meter: dikerjakanOleh === "Operator" ? (meterStr || undefined) : undefined,
+        meter: dikerjakanOleh === "Operator" && meterStr ? meterStr : undefined,
       };
     });
 
@@ -1206,6 +1352,12 @@ export default function DowntimeTracker({
     updateFormDowntimeEvents(updatedList);
     handleCloseModal();
 
+    if (onAutoSubmit && !isPanelType && !isEdit) {
+      setTimeout(() => {
+        onAutoSubmit();
+      }, 50);
+    }
+
     if (activeBlock) {
       localStorage.removeItem(`dji_machine_block_${targetMc}`);
       setActiveBlock(null);
@@ -1238,10 +1390,10 @@ export default function DowntimeTracker({
   };
 
   return (
-    <div className={showMeterInput ? "grid grid-cols-1 sm:grid-cols-2 gap-4 items-start" : "flex flex-col gap-3 sm:gap-4 lg:gap-5 w-full self-start"}>
+    <div className="flex flex-col gap-3 sm:gap-4 lg:gap-5 w-full self-start">
       {viewMode !== "events_only" && (
         <>
-          {/* 1. SEKSI BLOCK MESIN & BLUETOOTH TRIGGER */}
+          {/* 1. SEKSI BLOCK MESIN */}
           <div className="flex flex-col gap-3 w-full">
             {!activeBlock ? (
               <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between">
@@ -1387,18 +1539,6 @@ export default function DowntimeTracker({
                 </div>
               </div>
             )}
-
-            {/* Banner Wi-Fi Trigger ESP32 (Sejajar di bawah Card Block Mesin pada Mode Meter) */}
-            {!isEdit && showMeterInput && (
-              <div className="w-full">
-                <WifiDowntimeTrigger
-                  selectedMachineCode={watch("nomorMc")}
-                  onStartTimer={handleStartTimer}
-                  onStopTimer={handleStopTimer}
-                  isTimerRunning={isTimerRunning}
-                />
-              </div>
-            )}
           </div>
 
           {/* 2. CARD DOWNTIME UTAMA (KHUSUS TIMER & KONTROL MESIN) */}
@@ -1521,7 +1661,7 @@ export default function DowntimeTracker({
                                 <span>ESP32 Wi-Fi Terhubung</span>
                               </div>
                               <p className="text-[10px] text-emerald-600/90 font-medium leading-tight">
-                                Sensor kabel Mesin R11 belum terhubung ke GPIO. Gunakan tombol manual di bawah.
+                                Sensor kabel Mesin R11 belum terhubung. Gunakan tombol manual di bawah.
                               </p>
                             </div>
                             <button
@@ -1780,10 +1920,8 @@ export default function DowntimeTracker({
                                     }
                                     return null;
                                   }
-
                                   const pcsArray = event.pcsKe.split(",").map((s: string) => s.trim());
                                   const meterMap: Record<string, string> = {};
-
                                   if (meterStr) {
                                     if (meterStr.includes("PCS")) {
                                       meterStr.split(",").forEach((m: string) => {
@@ -1793,10 +1931,11 @@ export default function DowntimeTracker({
                                         }
                                       });
                                     } else {
-                                      meterMap[pcsArray[0]] = meterStr;
+                                      pcsArray.forEach((pcs: string) => {
+                                        meterMap[pcs] = meterStr;
+                                      });
                                     }
                                   }
-
                                   return pcsArray.map((pcs: string) => (
                                     <span key={pcs} className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100/80 px-1.5 py-0.5 rounded">
                                       PCS {pcs} {meterMap[pcs] ? `(${meterMap[pcs]}m)` : ""}
@@ -2088,9 +2227,6 @@ export default function DowntimeTracker({
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1 block">
                     Masalah terjadi pada PCS ke-berapa?
                   </label>
-                  <p className="text-[9px] text-slate-400 font-semibold mb-3">
-                    Ketuk untuk memilih/melepas pilihan PCS. Masalah harus terjadi minimal pada 1 PCS.
-                  </p>
                   <div className={`grid gap-2 w-full ${pcsCount === 2 ? "grid-cols-2" :
                     pcsCount === 3 ? "grid-cols-3" :
                       pcsCount === 4 ? "grid-cols-4" :
@@ -2107,7 +2243,6 @@ export default function DowntimeTracker({
                             onClick={() => {
                               setSelectedPcsKeList((prev) => {
                                 if (prev.includes(pcsKey)) {
-                                  // Hapus meter input juga jika unselect
                                   setInputMeters((m) => {
                                     const next = { ...m };
                                     delete next[pcsKey];
@@ -2119,12 +2254,12 @@ export default function DowntimeTracker({
                                 }
                               });
                             }}
-                            className={`w-full h-12 flex items-center justify-center rounded-xl text-xs font-black transition-all border shadow-sm ${isSelected
+                            className={`w-full h-11 flex items-center justify-center rounded-xl text-xs font-black transition-all border shadow-sm cursor-pointer active:scale-95 ${isSelected
                               ? "bg-sky-500 border-sky-500 text-white"
                               : "bg-white border-slate-200 text-slate-650 hover:bg-slate-50"
                               }`}
                           >
-                            {pcsKey}
+                            PCS {pcsKey}
                           </button>
                           {showMeterInput && isSelected && (
                             <input
@@ -2159,7 +2294,7 @@ export default function DowntimeTracker({
               )}
 
               {dikerjakanOleh === "Operator" && !isUnblockingBlock && showMeterInput && pcsKeys.length === 1 && (
-                <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn ${!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
+                <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn mt-4 ${!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
                   ? "bg-rose-50/70 border-rose-300"
                   : "bg-emerald-50 border-emerald-200/60"
                   }`}>
@@ -2167,9 +2302,6 @@ export default function DowntimeTracker({
                     <Box className="w-4 h-4 text-emerald-600" />
                     Posisi Letak Meter <span className="text-rose-500 font-black">* (Wajib Diisi)</span>
                   </label>
-                  <p className="text-[9px] text-slate-500 font-semibold mb-3">
-                    Isi dengan angka desimal, misal 15.5 atau 20
-                  </p>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -2178,11 +2310,8 @@ export default function DowntimeTracker({
                       const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
                       setInputMeters(prev => ({ ...prev, [pcsKeys[0]]: val }));
                     }}
-                    placeholder="Contoh: 15.5"
-                    className={`w-full h-11 px-4 rounded-xl border focus:outline-none focus:ring-2 text-sm font-bold text-slate-700 placeholder:font-medium placeholder:text-slate-400 bg-white shadow-inner transition-all ${!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
-                      ? "border-rose-400 focus:ring-rose-500"
-                      : "border-emerald-300 focus:ring-emerald-500"
-                      }`}
+                    placeholder="Contoh: 12.5"
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm font-bold font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                   />
                   {(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (
                     <p className="text-[10px] font-bold text-rose-600 mt-2 flex items-center gap-1 animate-pulse">
@@ -2250,46 +2379,147 @@ export default function DowntimeTracker({
 
                             return (
                               <div className="space-y-3">
-                                {activeGroups.map((group, gIdx) => (
-                                  <div key={gIdx} className="space-y-1.5">
-                                    <div className="flex items-center gap-2 pt-1 first:pt-0">
-                                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded border border-sky-200/70 shadow-2xs">
-                                        {group.groupName}
-                                      </span>
-                                      <div className="flex-1 h-px bg-slate-200/80" />
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                      {group.items.map((detail) => (
-                                        <label key={detail} className="cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            name={`detail-${cat.id}`}
-                                            value={detail}
-                                            checked={selectedDetails[cat.id]?.includes(detail) || false}
-                                            onChange={(e) => {
-                                              const current = selectedDetails[cat.id] || [];
-                                              if (e.target.checked) {
-                                                setSelectedDetails((prev) => ({
-                                                  ...prev,
-                                                  [cat.id]: [...current, detail],
-                                                }));
-                                              } else {
-                                                setSelectedDetails((prev) => ({
-                                                  ...prev,
-                                                  [cat.id]: current.filter((d) => d !== detail),
-                                                }));
-                                              }
-                                            }}
-                                            className="peer sr-only"
-                                          />
-                                          <div className="p-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center shadow-2xs">
-                                            {detail}
+                                {activeGroups.map((group, gIdx) => {
+                                  const selectedInThisGroup = group.items.filter((item) => selectedDetails[cat.id]?.includes(item));
+                                  const hasSelectedInThisGroup = selectedInThisGroup.length > 0;
+
+                                  return (
+                                    <div key={gIdx} className="space-y-1.5">
+                                      <div className="flex items-center gap-2 pt-1 first:pt-0">
+                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded border border-sky-200/70 shadow-2xs">
+                                          {group.groupName}
+                                        </span>
+                                        <div className="flex-1 h-px bg-slate-200/80" />
+                                      </div>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {group.items.map((detail) => (
+                                          <label key={detail} className="cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              name={`detail-${cat.id}`}
+                                              value={detail}
+                                              checked={selectedDetails[cat.id]?.includes(detail) || false}
+                                              onChange={(e) => {
+                                                const current = selectedDetails[cat.id] || [];
+                                                if (e.target.checked) {
+                                                  setSelectedDetails((prev) => ({
+                                                    ...prev,
+                                                    [cat.id]: [...current, detail],
+                                                  }));
+                                                } else {
+                                                  setSelectedDetails((prev) => ({
+                                                    ...prev,
+                                                    [cat.id]: current.filter((d) => d !== detail),
+                                                  }));
+                                                }
+                                              }}
+                                              className="peer sr-only"
+                                            />
+                                            <div className="p-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center shadow-2xs">
+                                              {detail}
+                                            </div>
+                                          </label>
+                                        ))}
+                                      </div>
+
+                                      {/* Tampilkan Input Nomor Blok Tepat di Bawah Sub-Grup Masalah yang Dipilih */}
+                                      {showBlockInput !== false && hasSelectedInThisGroup && (() => {
+                                        const reqDetails = selectedInThisGroup.filter((d) => requiredBlockDefects.includes(d));
+                                        const isRequired = reqDetails.length > 0;
+
+                                        const isMissing = isRequired && (!inputBloks[cat.id] || inputBloks[cat.id]?.trim() === "");
+
+                                        const currentBlokVal = inputBloks[cat.id] || "";
+                                        const blockList = currentBlokVal
+                                          ? currentBlokVal.split(",").map((s) => s.trim())
+                                          : [""];
+
+                                        const updateBlockList = (newList: string[]) => {
+                                          setBlockValidationError(null);
+                                          const joined = newList
+                                            .map((s) => s.replace(/[^0-9\-,\s]/g, ""))
+                                            .join(", ");
+                                          setInputBloks((prev) => ({ ...prev, [cat.id]: joined }));
+                                        };
+
+                                        return (
+                                          <div className={`mt-2 p-3 rounded-xl border transition-all animate-fadeIn ${isMissing
+                                            ? "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
+                                            : "bg-sky-50 border-sky-100"
+                                            }`}>
+                                            <label className="text-[10px] font-extrabold uppercase mb-1.5 flex items-center justify-between">
+                                              <span className="flex items-center gap-1.5 text-slate-800">
+                                                <Box className="w-3.5 h-3.5 text-[#0070bc]" />
+                                                Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
+                                              </span>
+                                              {isRequired ? (
+                                                <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                  Wajib Diisi
+                                                </span>
+                                              ) : (
+                                                <span className="text-slate-400 font-bold text-[9px]">Opsional</span>
+                                              )}
+                                            </label>
+
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              {blockList.map((itemVal, bIdx) => (
+                                                <div key={bIdx} className="flex items-center gap-1">
+                                                  <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    maxLength={2}
+                                                    value={itemVal}
+                                                    onChange={(e) => {
+                                                      const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
+                                                      const nextList = [...blockList];
+                                                      nextList[bIdx] = val;
+                                                      updateBlockList(nextList);
+                                                    }}
+                                                    placeholder={bIdx === 0 ? "Blok (15)" : `Blok ${bIdx + 1}`}
+                                                    className={`w-28 h-9 px-3 rounded-lg border text-center font-bold text-xs text-slate-800 placeholder:font-medium placeholder:text-slate-400 bg-white ${isMissing
+                                                      ? "border-rose-400 focus:ring-2 focus:ring-rose-500"
+                                                      : "border-sky-200 focus:ring-2 focus:ring-sky-500"
+                                                      }`}
+                                                  />
+                                                  {blockList.length > 1 && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const nextList = blockList.filter((_, i) => i !== bIdx);
+                                                        updateBlockList(nextList);
+                                                      }}
+                                                      className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition-colors shrink-0"
+                                                      title="Hapus blok"
+                                                    >
+                                                      <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              ))}
+
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  updateBlockList([...blockList, ""]);
+                                                }}
+                                                className="w-9 h-9 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+                                                title="Tambah Blok"
+                                              >
+                                                <Plus className="w-4 h-4" />
+                                              </button>
+                                            </div>
+
+                                            {isMissing && (
+                                              <p className="text-[10px] font-bold text-rose-600 mt-1.5">
+                                                Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
+                                              </p>
+                                            )}
                                           </div>
-                                        </label>
-                                      ))}
+                                        );
+                                      })()}
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
 
                                 {customInputDetails.length > 0 && (
                                   <div className="space-y-1.5 pt-1">
@@ -2363,104 +2593,6 @@ export default function DowntimeTracker({
                               </div>
                             </div>
                           )}
-
-                          {showBlockInput !== false && (() => {
-                            const details = selectedDetails[cat.id] || [];
-                            const reqDetails = details.filter((d) => requiredBlockDefects.includes(d));
-                            const isRequired = reqDetails.length > 0;
-
-                            if (!isRequired || details.length === 0) return null;
-
-                            const isMissing = isRequired && (!inputBloks[cat.id] || inputBloks[cat.id]?.trim() === "");
-
-                            const currentBlokVal = inputBloks[cat.id] || "";
-                            const blockList = currentBlokVal
-                              ? currentBlokVal.split(",").map((s) => s.trim())
-                              : [""];
-
-                            const updateBlockList = (newList: string[]) => {
-                              setBlockValidationError(null);
-                              const joined = newList
-                                .map((s) => s.replace(/[^0-9\-,\s]/g, ""))
-                                .join(", ");
-                              setInputBloks((prev) => ({ ...prev, [cat.id]: joined }));
-                            };
-
-                            return (
-                              <div className={`mt-3 p-3 rounded-xl border transition-all ${isMissing
-                                ? "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
-                                : "bg-sky-50 border-sky-100"
-                                }`}>
-                                <label className="text-[10px] font-extrabold uppercase mb-1.5 flex items-center justify-between">
-                                  <span className="flex items-center gap-1.5 text-slate-800">
-                                    <Box className="w-3.5 h-3.5 text-[#0070bc]" />
-                                    Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
-                                  </span>
-                                  {isRequired ? (
-                                    <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                      Wajib Diisi
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-400 font-bold text-[9px]">Opsional</span>
-                                  )}
-                                </label>
-
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {blockList.map((itemVal, bIdx) => (
-                                    <div key={bIdx} className="flex items-center gap-1">
-                                      <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        maxLength={2}
-                                        value={itemVal}
-                                        onChange={(e) => {
-                                          const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
-                                          const nextList = [...blockList];
-                                          nextList[bIdx] = val;
-                                          updateBlockList(nextList);
-                                        }}
-                                        placeholder={bIdx === 0 ? "Blok (15)" : `Blok ${bIdx + 1}`}
-                                        className={`w-28 h-9 px-3 rounded-lg border text-center font-bold text-xs text-slate-800 placeholder:font-medium placeholder:text-slate-400 bg-white ${isMissing
-                                          ? "border-rose-400 focus:ring-2 focus:ring-rose-500"
-                                          : "border-sky-200 focus:ring-2 focus:ring-sky-500"
-                                          }`}
-                                      />
-                                      {blockList.length > 1 && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const nextList = blockList.filter((_, i) => i !== bIdx);
-                                            updateBlockList(nextList);
-                                          }}
-                                          className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition-colors shrink-0"
-                                          title="Hapus blok"
-                                        >
-                                          <X className="w-3.5 h-3.5" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  ))}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      updateBlockList([...blockList, ""]);
-                                    }}
-                                    className="w-9 h-9 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
-                                    title="Tambah Blok"
-                                  >
-                                    <Plus className="w-4 h-4" />
-                                  </button>
-                                </div>
-
-                                {isMissing && (
-                                  <p className="text-[10px] font-bold text-rose-600 mt-1.5">
-                                    Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })()}
                         </div>
                       )}
                     </div>
@@ -2715,6 +2847,181 @@ export default function DowntimeTracker({
                   <span>Ya, Batalkan Timer</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Khusus Gagal Cacat (Hanya Pilihan PCS & Input Meter) */}
+      {showGagalCacatModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden animate-scaleUp">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center shrink-0 shadow-xs">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-sm sm:text-base">
+                    Catat Gagal Cacat
+                  </h3>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Durasi:
+                    </span>
+                    <span className="font-mono font-black text-xs text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-lg border border-emerald-200/60">
+                      {formatTimer(tempDuration)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGagalCacatModal(false);
+                  setEditingIndex(null);
+                  setBatchClassifyIds([]);
+                }}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4">
+              <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-start gap-2.5 shadow-2xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-emerald-900 font-semibold leading-relaxed">
+                  Mesin berhenti namun <strong>tidak ada cacat kain</strong>.
+                </p>
+              </div>
+
+              {/* Pilihan PCS & Input Meter di bawah PCS */}
+              {pcsCount > 1 && (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+                  <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block">
+                    Pilih PCS:
+                  </label>
+                  <p className="text-[9px] text-slate-400 font-semibold mb-2">
+                    Ketuk untuk memilih nomor PCS:
+                  </p>
+                  <div className={`grid gap-2 w-full ${pcsCount === 2 ? "grid-cols-2" : pcsCount === 3 ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-4"}`}>
+                    {pcsKeys.map((pcsKey) => {
+                      const isSelected = selectedPcsKeList.includes(pcsKey);
+                      const isMeterEmpty = isSelected && showMeterInput && (!inputMeters[pcsKey] || inputMeters[pcsKey].trim() === "");
+                      return (
+                        <div key={pcsKey} className="flex flex-col gap-1.5 w-full">
+                          <button
+                            key={pcsKey}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPcsKeList((prev) => {
+                                if (prev.includes(pcsKey)) {
+                                  setInputMeters((m) => {
+                                    const next = { ...m };
+                                    delete next[pcsKey];
+                                    return next;
+                                  });
+                                  return prev.filter((x) => x !== pcsKey);
+                                } else {
+                                  return [...prev, pcsKey];
+                                }
+                              });
+                            }}
+                            className={`w-full h-11 flex items-center justify-center rounded-xl text-xs font-black transition-all border shadow-xs cursor-pointer active:scale-95 ${isSelected
+                              ? "bg-emerald-600 border-emerald-600 text-white shadow-emerald-600/20"
+                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                              }`}
+                          >
+                            PCS {pcsKey}
+                          </button>
+                          {showMeterInput && isSelected && (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={inputMeters[pcsKey] || ""}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+                                setInputMeters((prev) => ({ ...prev, [pcsKey]: val }));
+                              }}
+                              placeholder="Meter..."
+                              className={`w-full h-8 px-2 text-center rounded-lg border text-[10px] font-bold font-mono transition-all animate-fadeIn ${isMeterEmpty
+                                ? "border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500 text-rose-700 bg-rose-50 placeholder:text-rose-300"
+                                : "border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-emerald-50"
+                                }`}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {selectedPcsKeList.length === 0 ? (
+                    <p className="text-[10px] text-rose-500 font-bold mt-1 animate-pulse">
+                      * Wajib memilih minimal 1 PCS!
+                    </p>
+                  ) : showMeterInput && selectedPcsKeList.some((k) => !inputMeters[k] || inputMeters[k].trim() === "") ? (
+                    <p className="text-[10px] text-rose-500 font-bold mt-1 animate-pulse">
+                      * Wajib mengisi nilai meter untuk setiap PCS yang dipilih!
+                    </p>
+                  ) : null}
+                </div>
+              )}
+
+              {/* Jika hanya 1 PCS dan showMeterInput */}
+              {pcsCount === 1 && showMeterInput && (
+                <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn ${!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
+                  ? "bg-rose-50/70 border-rose-300"
+                  : "bg-emerald-50 border-emerald-200/60"
+                  }`}>
+                  <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
+                    <Box className="w-4 h-4 text-emerald-600" />
+                    Posisi Letak Meter <span className="text-rose-500 font-black">* (Wajib Diisi)</span>
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={inputMeters[pcsKeys[0]] || ""}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+                      setInputMeters((prev) => ({ ...prev, [pcsKeys[0]]: val }));
+                    }}
+                    placeholder="Contoh: 12.5"
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm font-bold font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                  />
+                  {(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (
+                    <p className="text-[10px] font-bold text-rose-600 mt-2 flex items-center gap-1 animate-pulse">
+                      Nilai meter wajib diisi sebelum menyimpan!
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGagalCacatModal(false);
+                  setEditingIndex(null);
+                  setBatchClassifyIds([]);
+                }}
+                className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleSaveNonDefectStop();
+                }}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Simpan Gagal Cacat</span>
+              </button>
             </div>
           </div>
         </div>

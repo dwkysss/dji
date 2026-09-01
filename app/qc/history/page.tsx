@@ -323,16 +323,6 @@ export default function QCHistoryPage() {
         >
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <ClipboardList className="w-5 h-5 text-emerald-600" />
-              Hasil Pencarian
-            </h2>
-            <div className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">
-              {groupedData.length} Data Ditemukan
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-[#0070bc]" />
               Daftar Riwayat Inspeksi QC
             </h2>

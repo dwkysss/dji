@@ -193,22 +193,42 @@ export default function MeterHistoryTable({
       const kats = katsRaw ? (Array.isArray(katsRaw) ? katsRaw : katsRaw.split(",").map((s: string) => s.trim())) : [];
       
       if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
+        const groupedMap = new Map<string, Set<string>>();
+        const orderList: string[] = [];
+
         item.production_defects.forEach((defect: any) => {
-          const k = defect.kategori;
-          const d = defect.detail;
-          const b = defect.blok;
-          
-          let lineStr = "";
-          if (k && d) lineStr = `${k} - ${d}`;
-          else if (k) lineStr = k;
-          else if (d) lineStr = d;
-          
-          if (b) lineStr += ` (Blok ${b})`;
-          
-          if (lineStr) cacatLines.push(lineStr);
+          if ((defect.kategori || "").toUpperCase().includes("ISTIRAHAT") || (defect.detail || "").toUpperCase().includes("ISTIRAHAT")) return;
+          const k = defect.kategori || "";
+          const det = defect.detail || "";
+          const key = k && det ? `${k} - ${det}` : (k || det);
+          if (!key) return;
+
+          if (!groupedMap.has(key)) {
+            groupedMap.set(key, new Set<string>());
+            orderList.push(key);
+          }
+
+          if (defect.blok) {
+            const cleanB = String(defect.blok).replace(/blok\s*/gi, "").trim();
+            if (cleanB) {
+              cleanB.split(",").forEach((bStr) => {
+                const trimmed = bStr.trim();
+                if (trimmed) groupedMap.get(key)!.add(trimmed);
+              });
+            }
+          }
+
           if (defect.meter) defectMeterStr = defect.meter;
         });
-        
+
+        cacatLines = orderList.map((key) => {
+          const blocks = Array.from(groupedMap.get(key) || []);
+          if (blocks.length > 0) {
+            return `${key} (Blok ${blocks.join(", ")})`;
+          }
+          return key;
+        });
+
         let ketCacat = item.keterangan_cacat || "";
         const hasTambahanQC = ketCacat.includes("[TAMBAHAN QC]");
         if (hasTambahanQC) {
@@ -558,6 +578,7 @@ export default function MeterHistoryTable({
 
       if (!isPlaceholder) {
         items.push({
+          ...item,
           id: item.id || `item-${idx}-${Math.random()}`,
           isStartRow: false,
           isMeter: true,
@@ -718,15 +739,24 @@ export default function MeterHistoryTable({
               hasRealError = true;
             }
           }
-          if ((item.keterangan_cacat || "").includes("[TAMBAHAN QC]")) {
+          if ((item.keterangan_cacat || "").includes("[TAMBAHAN QC]") || item.hasTambahanQC) {
             hasRealError = true;
+          }
+
+          // Fallback check dari cacatDisplay jika terdapat temuan cacat riil
+          if (!hasRealError && item.cacatDisplay && item.cacatDisplay !== "-" && item.cacatDisplay !== "START" && item.cacatDisplay !== "FINISH" && !item.hasIstirahat) {
+            const upper = item.cacatDisplay.toUpperCase();
+            if (!upper.includes("GAGAL CACAT") && !upper.includes("ISTIRAHAT")) {
+              hasRealError = true;
+            }
           }
 
           const isGagalCacatOnly = (
             (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
             (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT") ||
             (item.kategori_masalah || "").toUpperCase() === "G" ||
-            (item.production_defects && item.production_defects.some((d: any) => (d.detail || "").toUpperCase().includes("GAGAL CACAT") || (d.kategori || "").toUpperCase() === "G"))
+            (item.production_defects && item.production_defects.some((d: any) => (d.detail || "").toUpperCase().includes("GAGAL CACAT") || (d.kategori || "").toUpperCase() === "G")) ||
+            (item.cacatDisplay && item.cacatDisplay.toUpperCase().includes("GAGAL CACAT"))
           ) && !hasRealError;
 
           const hasMeterDefect = hasRealError;
@@ -787,7 +817,7 @@ export default function MeterHistoryTable({
                 {item.jamStr || "-"}
               </td>
               <td className={`px-1 py-1.5 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100 font-medium text-slate-700`}>
-                {item.grpStr || (item.showGrp ? item.grpStr : "")}
+                {item.showGrp ? item.grpStr : ""}
               </td>
               <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${(item.hasIstirahat && !item.showOpr) ? "italic font-bold text-slate-500" : "font-medium text-slate-700"}`}>
                 {item.showOpr ? item.oprStr : (item.hasIstirahat ? "Istirahat" : "")}

@@ -84,11 +84,16 @@ export default function Sidebar() {
   useEffect(() => {
     const checkInputRoute = () => {
       try {
+        const lastRoute = localStorage.getItem("last_input_route");
+        if (lastRoute && (lastRoute === "/input-meter" || lastRoute === "/input")) {
+          setInputRoute(lastRoute);
+          return;
+        }
         const saved = localStorage.getItem("dji_form_header");
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed.nomorMc) {
-            const isMeter = MACHINE_INPUT_TYPES[parsed.nomorMc.toUpperCase()] === "METER";
+            const isMeter = MACHINE_INPUT_TYPES[parsed.nomorMc.toUpperCase()] === "METER" || parsed.isMeter || parsed.inputType === "METER" || parsed.nomorMc.toUpperCase() === "T2A";
             setInputRoute(isMeter ? "/input-meter" : "/input");
             return;
           }
@@ -104,7 +109,7 @@ export default function Sidebar() {
       window.removeEventListener("storage", checkInputRoute);
       window.removeEventListener("focus", checkInputRoute);
     };
-  }, []);
+  }, [pathname]);
 
   if (!user) return null;
 

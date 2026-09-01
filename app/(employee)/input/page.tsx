@@ -1,13 +1,16 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { HelpCircle, Info } from "lucide-react";
 import EmployeeForm from "@/components/forms/EmployeeForm";
 import { useAuth } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
 
-export default function EmployeeInputPage() {
+function InputContent() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [isDbConnected, setIsDbConnected] = useState(
     Boolean(
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -17,8 +20,16 @@ export default function EmployeeInputPage() {
   const [showHeaderInfo, setShowHeaderInfo] = useState(false);
 
   useEffect(() => {
+    const isExplicitPanel = searchParams.get("mode") === "panel";
+    if (!isExplicitPanel) {
+      const lastRoute = localStorage.getItem("last_input_route");
+      if (lastRoute === "/input-meter") {
+        router.replace("/input-meter");
+        return;
+      }
+    }
     localStorage.setItem("last_input_route", "/input");
-  }, []);
+  }, [searchParams, router]);
 
   return (
     <div className="flex-1 flex flex-col items-center py-8 px-4 w-full">
@@ -85,5 +96,13 @@ export default function EmployeeInputPage() {
         <EmployeeForm />
       </div>
     </div>
+  );
+}
+
+export default function EmployeeInputPage() {
+  return (
+    <Suspense fallback={null}>
+      <InputContent />
+    </Suspense>
   );
 }

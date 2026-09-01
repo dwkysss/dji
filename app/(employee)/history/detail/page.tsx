@@ -32,47 +32,47 @@ function HistoryDetailContent() {
   const [isSubmittingMarkCut, setIsSubmittingMarkCut] = useState(false);
   const [markCutError, setMarkCutError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchDetail = React.useCallback(async () => {
     if (!nomor_mc || !potongan_ke) {
       setErrorMsg("Parameter tidak lengkap.");
       setIsLoading(false);
       return;
     }
 
-    const fetchDetail = async () => {
-      setIsLoading(true);
-      try {
-        const res = await searchEmployeeHistory({
-          nomor_mc: nomor_mc,
-          design_id: design_id || undefined,
-          potongan_ke: potongan_ke,
-          includeDetails: true,
-        });
+    setIsLoading(true);
+    try {
+      const res = await searchEmployeeHistory({
+        nomor_mc: nomor_mc,
+        design_id: design_id || undefined,
+        potongan_ke: potongan_ke,
+        includeDetails: true,
+      });
 
-        if (res.success && res.data && res.data.length > 0) {
-          const batch = res.data.find(
-            (b: any) =>
-              String(b.nomor_mc || "").trim().toUpperCase() === String(nomor_mc || "").trim().toUpperCase() &&
-              b.potongan_ke == potongan_ke
-          );
+      if (res.success && res.data && res.data.length > 0) {
+        const batch = res.data.find(
+          (b: any) =>
+            String(b.nomor_mc || "").trim().toUpperCase() === String(nomor_mc || "").trim().toUpperCase() &&
+            b.potongan_ke == potongan_ke
+        );
 
-          if (batch) {
-            setDetailData(batch);
-          } else {
-            setDetailData(res.data[0]);
-          }
+        if (batch) {
+          setDetailData(batch);
         } else {
-          setErrorMsg("Data tidak ditemukan.");
+          setDetailData(res.data[0]);
         }
-      } catch (err: any) {
-        setErrorMsg("Terjadi kesalahan jaringan.");
-      } finally {
-        setIsLoading(false);
+      } else {
+        setErrorMsg("Data tidak ditemukan.");
       }
-    };
+    } catch (err: any) {
+      setErrorMsg("Terjadi kesalahan jaringan.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [nomor_mc, design_id, potongan_ke]);
 
+  useEffect(() => {
     fetchDetail();
-  }, [nomor_mc, design_id, potongan_ke, tgl]);
+  }, [fetchDetail, tgl]);
 
   const formatDurationNice = (totalSec: number | string) => {
     const sec = typeof totalSec === "string" ? parseInt(totalSec) || 0 : totalSec || 0;
@@ -418,7 +418,7 @@ function HistoryDetailContent() {
                           {isMeter ? (
                             <MeterHistoryTable panels={panels} pcsKey={pcsKey} />
                           ) : (
-                            <PanelHistoryTable panels={panels} pcsKey={pcsKey} />
+                            <PanelHistoryTable panels={panels} pcsKey={pcsKey} onRefresh={fetchDetail} />
                           )}
                       </div>
                     );

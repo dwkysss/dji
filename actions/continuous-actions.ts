@@ -1132,7 +1132,7 @@ export async function getRecentShiftInputHistory(
     if (panelType === "METERAN") {
       query = query.eq("panel_no", "METERAN");
     } else if (panelType === "PANEL") {
-      query = query.or("panel_no.neq.METERAN,panel_no.is.null");
+      query = query.neq("panel_no", "METERAN");
     }
 
     if (potonganKe && !isNaN(parseInt(potonganKe.toString()))) {
@@ -1159,5 +1159,151 @@ export async function getRecentShiftInputHistory(
   } catch (err: any) {
     console.error("Failed to get shift input history:", err);
     return { success: false, data: [], error: err.message };
+  }
+}
+
+export async function updateInstantPanelDefectStatus(params: {
+  headerId: string;
+  detailId?: string | null;
+  pcsIndex: number;
+  targetStatus: "NORMAL" | "DEFECT";
+  defectData?: {
+    kategori: string;
+    detail: string;
+    blok?: string | null;
+  };
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createAdminClient();
+    const { headerId, detailId, pcsIndex, targetStatus, defectData } = params;
+
+    if (!headerId) {
+      return { success: false, error: "Header ID tidak ditemukan" };
+    }
+
+    if (targetStatus === "DEFECT") {
+      if (!defectData || !defectData.kategori) {
+        return { success: false, error: "Data kategori cacat wajib diisi" };
+      }
+
+      let targetDetailId = detailId;
+
+      // Cek apakah production_detail sudah ada
+      if (!targetDetailId) {
+        const { data: existingDetails } = await supabase
+          .from("production_details")
+          .select("id")
+          .eq("header_id", headerId)
+          .eq("pcs_index", pcsIndex)
+          .limit(1);
+
+        if (existingDetails && existingDetails.length > 0) {
+          targetDetailId = existingDetails[0].id;
+        }
+      }
+
+      const kategoriVal = defectData.kategori.trim();
+      const detailVal = defectData.detail.trim();
+      const blokVal = defectData.blok ? defectData.blok.trim() : null;
+      const keteranganVal = blokVal ? `Blok ${blokVal}` : (detailVal || null);
+
+      if (targetDetailId) {
+        const { error: updateError } = await supabase
+          .from("production_details")
+          .update({
+            indikator_stop: true,
+            kategori_masalah: kategoriVal,
+            detail_masalah: detailVal,
+            keterangan_cacat: keteranganVal,
+          })
+          .eq("id", targetDetailId);
+
+        if (updateError) throw updateError;
+
+        await supabase
+          .from("production_defects")
+          .delete()
+          .eq("production_detail_id", targetDetailId);
+
+        const rawBlocks = blokVal ? blokVal.split(",").map(b => b.replace(/blok\s*/gi, "").trim()).filter(Boolean) : [];
+        if (rawBlocks.length > 0) {
+          const rows = rawBlocks.map(b => ({
+            production_detail_id: targetDetailId,
+            kategori: kategoriVal,
+            detail: detailVal,
+            blok: b,
+          }));
+          await supabase.from("production_defects").insert(rows);
+        } else {
+          await supabase.from("production_defects").insert({
+            production_detail_id: targetDetailId,
+            kategori: kategoriVal,
+            detail: detailVal,
+            blok: null,
+          });
+        }
+      } else {
+        const newDetailId = `${headerId}-quick-${pcsIndex}-${Date.now().toString(36)}`;
+        const { error: insertError } = await supabase
+          .from("production_details")
+          .insert({
+            id: newDetailId,
+            header_id: headerId,
+            pcs_index: pcsIndex,
+            jml_hasil_produksi: 1,
+            indikator_stop: true,
+            kategori_masalah: kategoriVal,
+            detail_masalah: detailVal,
+            keterangan_cacat: keteranganVal,
+          });
+
+        if (insertError) throw insertError;
+
+        const rawBlocks = blokVal ? blokVal.split(",").map(b => b.replace(/blok\s*/gi, "").trim()).filter(Boolean) : [];
+        if (rawBlocks.length > 0) {
+          const rows = rawBlocks.map(b => ({
+            production_detail_id: newDetailId,
+            kategori: kategoriVal,
+            detail: detailVal,
+            blok: b,
+          }));
+          await supabase.from("production_defects").insert(rows);
+        } else {
+          await supabase.from("production_defects").insert({
+            production_detail_id: newDetailId,
+            kategori: kategoriVal,
+            detail: detailVal,
+            blok: null,
+          });
+        }
+      }
+    } else {
+      // Mengubah jadi NORMAL
+      if (detailId) {
+        await supabase
+          .from("production_defects")
+          .delete()
+          .eq("production_detail_id", detailId);
+
+        const { error: cleanError } = await supabase
+          .from("production_details")
+          .update({
+            indikator_stop: false,
+            kategori_masalah: null,
+            detail_masalah: null,
+            keterangan_cacat: null,
+            spesifik_masalah: null,
+          })
+          .eq("id", detailId);
+
+        if (cleanError) throw cleanError;
+      }
+    }
+
+    revalidatePath("/history");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error updateInstantPanelDefectStatus:", err);
+    return { success: false, error: err.message || "Gagal mengubah status cacat" };
   }
 }

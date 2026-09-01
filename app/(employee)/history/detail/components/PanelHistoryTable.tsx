@@ -1,10 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { Edit, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
+import QuickDefectModal, { QuickDefectData } from "@/components/forms/QuickDefectModal";
+import PinAuthModal from "@/components/PinAuthModal";
+import { updateInstantPanelDefectStatus } from "@/actions/continuous-actions";
 
 const formatWibTime = (dateVal?: string): string => {
   if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
@@ -49,6 +52,7 @@ export default function PanelHistoryTable({
   onToggleSelectDetail,
   onToggleSelectAll,
   onRequestBulkDelete,
+  onRefresh,
 }: {
   panels: any[];
   pcsKey: string;
@@ -58,7 +62,89 @@ export default function PanelHistoryTable({
   onToggleSelectDetail?: (id: string) => void;
   onToggleSelectAll?: (ids: string[]) => void;
   onRequestBulkDelete?: () => void;
+  onRefresh?: () => void;
 }) {
+  const [quickDefectModal, setQuickDefectModal] = useState<{
+    isOpen: boolean;
+    headerId: string;
+    detailId?: string | null;
+    panelNo: string;
+    pcsIndex: number;
+  } | null>(null);
+
+  const [pinAuthModal, setPinAuthModal] = useState<{
+    isOpen: boolean;
+    headerId: string;
+    detailId: string;
+    panelNo: string;
+    pcsIndex: number;
+  } | null>(null);
+
+  const [confirmNormalModal, setConfirmNormalModal] = useState<{
+    headerId: string;
+    detailId: string;
+    panelNo: string;
+    pcsIndex: number;
+  } | null>(null);
+
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  const handleSaveQuickDefect = async (defectData: QuickDefectData) => {
+    if (!quickDefectModal) return;
+    try {
+      const res = await updateInstantPanelDefectStatus({
+        headerId: quickDefectModal.headerId,
+        detailId: quickDefectModal.detailId,
+        pcsIndex: quickDefectModal.pcsIndex,
+        targetStatus: "DEFECT",
+        defectData: defectData,
+      });
+
+      if (!res.success) {
+        throw new Error(res.error || "Gagal memperbarui status cacat");
+      }
+
+      setQuickDefectModal(null);
+      if (onRefresh) onRefresh();
+    } catch (e: any) {
+      alert(e.message || "Terjadi kesalahan saat menyimpan data");
+    }
+  };
+
+  const handlePinAuthSuccess = () => {
+    if (!pinAuthModal) return;
+    setConfirmNormalModal({
+      headerId: pinAuthModal.headerId,
+      detailId: pinAuthModal.detailId,
+      panelNo: pinAuthModal.panelNo,
+      pcsIndex: pinAuthModal.pcsIndex,
+    });
+    setPinAuthModal(null);
+  };
+
+  const handleConfirmResetToNormal = async () => {
+    if (!confirmNormalModal) return;
+    setIsUpdatingStatus(true);
+    try {
+      const res = await updateInstantPanelDefectStatus({
+        headerId: confirmNormalModal.headerId,
+        detailId: confirmNormalModal.detailId,
+        pcsIndex: confirmNormalModal.pcsIndex,
+        targetStatus: "NORMAL",
+      });
+
+      if (!res.success) {
+        throw new Error(res.error || "Gagal mengubah status menjadi normal");
+      }
+
+      setConfirmNormalModal(null);
+      if (onRefresh) onRefresh();
+    } catch (e: any) {
+      alert(e.message || "Terjadi kesalahan saat mengubah status");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
   const header = panels[0] || {};
   const actualDowntimeRecords = downtimeRecords || panels.flatMap(p => p.downtime_records || []);
 
@@ -275,7 +361,8 @@ export default function PanelHistoryTable({
     selectableIds.some((id) => selectedDetailIds?.includes(id)) && !isAllSelected;
 
   return (
-    <table className="w-full text-left border-collapse text-xs">
+    <>
+      <table className="w-full text-left border-collapse text-xs">
       <thead>
         <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
           {onToggleSelectDetail && (
@@ -720,13 +807,45 @@ export default function PanelHistoryTable({
               <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(hasIstirahat && !item.showOpr) ? "italic font-bold text-slate-500 text-center" : "font-medium text-slate-700"}`}>
                 {item.showOpr ? (item.oprStr || "-") : (hasIstirahat ? "Istirahat" : "")}
               </td>
-              <td className="px-1 py-1 text-center border-r border-slate-100 font-bold text-sm">
+              <td className="px-1 py-1 text-center border-r border-slate-100 font-bold text-sm select-none">
                 {isDeleted ? (
                   <span className="text-slate-400 font-bold">-</span>
+                ) : (String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR")) ? (
+                  <span className="text-rose-600 font-black">X</span>
                 ) : hasRealError ? (
-                  <span className="text-rose-600">X</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPinAuthModal({
+                        isOpen: true,
+                        headerId: item.production_headers?.id,
+                        detailId: detail.id,
+                        panelNo: cleanPanelNo,
+                        pcsIndex: parseInt(pcsKey.replace(/[^0-9]/g, "") || "1"),
+                      });
+                    }}
+                    className="w-6 h-6 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 inline-flex items-center justify-center font-black transition-all cursor-pointer active:scale-90 hover:shadow-xs"
+                    title="Status Cacat (X). Klik untuk ubah ke Normal (Perlu PIN Supervisor)"
+                  >
+                    X
+                  </button>
                 ) : (
-                  <span className="text-emerald-600">✓</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickDefectModal({
+                        isOpen: true,
+                        headerId: item.production_headers?.id,
+                        detailId: detail.id || null,
+                        panelNo: cleanPanelNo,
+                        pcsIndex: parseInt(pcsKey.replace(/[^0-9]/g, "") || "1"),
+                      });
+                    }}
+                    className="w-6 h-6 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200/80 inline-flex items-center justify-center font-black transition-all cursor-pointer active:scale-90 hover:shadow-xs"
+                    title="Status Normal (✓). Klik untuk lapor cacat cepat pada panel ini"
+                  >
+                    ✓
+                  </button>
                 )}
               </td>
               <td className={`px-2 py-1 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100`}>
@@ -857,5 +976,78 @@ export default function PanelHistoryTable({
         })}
       </tbody>
     </table>
+
+    {/* Quick Defect Modal (Ubah ✔ -> ❌) */}
+    {quickDefectModal && (
+      <QuickDefectModal
+        isOpen={quickDefectModal.isOpen}
+        onClose={() => setQuickDefectModal(null)}
+        onSave={handleSaveQuickDefect}
+        panelNo={quickDefectModal.panelNo}
+        pcsIndex={quickDefectModal.pcsIndex}
+      />
+    )}
+
+    {/* PIN Auth Modal (Otorisasi Supervisor Ubah ❌ -> ✔) */}
+    {pinAuthModal && (
+      <PinAuthModal
+        isOpen={pinAuthModal.isOpen}
+        onClose={() => setPinAuthModal(null)}
+        onSuccess={handlePinAuthSuccess}
+        title="Otorisasi Ubah Status Normal"
+        description={`Masukkan PIN Supervisor/Admin untuk menghapus catatan cacat pada Panel ${pinAuthModal.panelNo}.`}
+      />
+    )}
+
+    {/* Confirmation Dialog Ubah ❌ -> ✔ */}
+    {confirmNormalModal && (
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn"
+        onClick={() => setConfirmNormalModal(null)}
+      >
+        <div
+          className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 flex flex-col gap-4 animate-scaleIn"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black shrink-0">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-800">
+                Ubah Menjadi Normal (✔)?
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">
+                Panel {confirmNormalModal.panelNo} (PCS {confirmNormalModal.pcsIndex})
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-600 leading-relaxed bg-emerald-50/60 p-3 rounded-xl border border-emerald-100">
+            Apakah Anda yakin ingin menghapus seluruh catatan cacat pada panel ini dan mengubah statusnya menjadi <strong>Normal (✔)</strong>?
+          </p>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              disabled={isUpdatingStatus}
+              onClick={() => setConfirmNormalModal(null)}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={isUpdatingStatus}
+              onClick={handleConfirmResetToNormal}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              {isUpdatingStatus ? "Memproses..." : "Ya, Jadikan Normal"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
