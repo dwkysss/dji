@@ -1100,9 +1100,9 @@ export default function DowntimeTracker({
       {viewMode !== "events_only" && (
         <>
           {/* 1. SEKSI BLOCK MESIN & BLUETOOTH TRIGGER */}
-          <div className="flex flex-col gap-4 w-full">
+          <div className="flex flex-col gap-3 w-full">
             {!activeBlock ? (
-              <div className={`bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between ${showMeterInput ? "min-h-[195px]" : "min-h-[156px]"}`}>
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
@@ -1148,7 +1148,7 @@ export default function DowntimeTracker({
                 <button
                   type="button"
                   onClick={handleInitiateBlock}
-                  className="flex items-center justify-center gap-2 w-full h-11 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-slate-800/20 active:scale-[0.98] cursor-pointer"
+                  className="flex items-center justify-center gap-2 w-full h-11 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-slate-800/20 active:scale-[0.98] cursor-pointer mt-4"
                 >
                   <Lock className="w-4 h-4" /> Block Mesin
                 </button>
@@ -1245,6 +1245,18 @@ export default function DowntimeTracker({
                 </div>
               </div>
             )}
+
+            {/* Banner Wi-Fi Trigger ESP32 (Sejajar di bawah Card Block Mesin pada Mode Meter) */}
+            {!isEdit && showMeterInput && (
+              <div className="w-full">
+                <WifiDowntimeTrigger
+                  selectedMachineCode={watch("nomorMc")}
+                  onStartTimer={handleStartTimer}
+                  onStopTimer={handleStopTimer}
+                  isTimerRunning={isTimerRunning}
+                />
+              </div>
+            )}
           </div>
 
           {/* 2. CARD DOWNTIME UTAMA (KHUSUS TIMER & KONTROL MESIN) */}
@@ -1338,15 +1350,44 @@ export default function DowntimeTracker({
                       </button>
                     </>
                   ) : isWifiConnected ? (
-                    <div className="flex flex-col items-center justify-center p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center gap-1.5">
-                      <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>ESP32 Wi-Fi Terhubung</span>
-                      </div>
-                      <p className="text-[10px] text-emerald-600/90 font-medium leading-tight">
-                        Timer downtime dikontrol otomatis oleh sensor mesin.
-                      </p>
-                    </div>
+                    (() => {
+                      const currentMc = String(watch("nomorMc") || "").trim().toUpperCase();
+                      const isR11 = currentMc === "R11" || currentMc.endsWith("11") || currentMc.includes("R11");
+                      if (isR11) {
+                        return (
+                          <div className="flex flex-col gap-2.5">
+                            <div className="flex flex-col items-center justify-center p-2.5 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center gap-1">
+                              <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>ESP32 Wi-Fi Terhubung</span>
+                              </div>
+                              <p className="text-[10px] text-emerald-600/90 font-medium leading-tight">
+                                Sensor kabel Mesin R11 belum terhubung ke GPIO. Gunakan tombol manual di bawah.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleStartTimer}
+                              className="flex items-center justify-center gap-2 w-full h-11 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                            >
+                              <AlertTriangle className="w-4 h-4 fill-current" />
+                              Mulai Manual
+                            </button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex flex-col items-center justify-center p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center gap-1.5">
+                          <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>ESP32 Wi-Fi Terhubung</span>
+                          </div>
+                          <p className="text-[10px] text-emerald-600/90 font-medium leading-tight">
+                            Timer downtime dikontrol otomatis oleh sensor mesin.
+                          </p>
+                        </div>
+                      );
+                    })()
                   ) : (
                     <button
                       type="button"
