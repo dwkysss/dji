@@ -108,12 +108,16 @@ export default function DowntimeTracker({
   const [isSavingMechanic, setIsSavingMechanic] = useState(false);
   const [dynamicGroupMapping, setDynamicGroupMapping] = useState<Record<string, { groupName: string; items: string[] }[]>>(GROUPED_PROBLEM_DETAILS);
 
+  // Khusus Form Panel: State alokasi nomor panel jika operator terlambat submit
+  const [targetPanelNo, setTargetPanelNo] = useState<string>("1");
+  const [deferredToast, setDeferredToast] = useState<string | null>(null);
+
   useEffect(() => {
     getProblemGroupMapping().then((res) => {
       if (res.success && res.mapping) {
         setDynamicGroupMapping(res.mapping);
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([
@@ -538,7 +542,7 @@ export default function DowntimeTracker({
 
     const startTimeStr = new Date(startTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const newUnclassifiedEvent: any = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       durasiDetik: finalDuration,
       pcsKe: "Semua",
       dikerjakanOleh: currentOperatorName || "Operator",
@@ -604,10 +608,40 @@ export default function DowntimeTracker({
     }
   }, [showModal, defaultMeter, pcsKeysJoined]);
 
+  // Khusus Form Panel: Pemuatan otomatis data downtime yang sebelumnya dialokasikan untuk panel ini
+  useEffect(() => {
+    if (!isPanelType || isEdit) return;
+    const curPanel = String(watch("panelNo") || "").trim();
+    const curMc = String(watch("nomorMc") || "").trim().toUpperCase();
+    const curPot = String(watch("potonganKe") || "").trim();
+    if (!curPanel || !curMc) return;
+
+    const storageKey = `dji_deferred_downtime_${curMc}_${curPot}_${curPanel}`;
+    const savedStr = localStorage.getItem(storageKey);
+    if (savedStr) {
+      try {
+        const deferredEvents = JSON.parse(savedStr);
+        if (Array.isArray(deferredEvents) && deferredEvents.length > 0) {
+          const currentList = watch("downtimeEvents") || fields || [];
+          const existingIds = new Set(currentList.map((e: any) => e.id));
+          const newEvents = deferredEvents.filter((e: any) => !existingIds.has(e.id));
+          if (newEvents.length > 0) {
+            const merged = [...currentList, ...newEvents];
+            replace(merged);
+            updateFormDowntimeEvents(merged);
+            setDeferredToast(`Memuat ${newEvents.length} data downtime yang sebelumnya dialokasikan untuk Panel ${curPanel}`);
+          }
+        }
+        localStorage.removeItem(storageKey);
+      } catch (e) { }
+    }
+  }, [watch("panelNo"), watch("nomorMc"), watch("potonganKe"), isPanelType, isEdit]);
+
   const handleOpenModal = () => {
     setEditingIndex(null);
     accumulatedSecRef.current = 0;
     setTempDuration(0);
+    setTargetPanelNo(String(watch("panelNo") || "1"));
     setSelectedCategories([]);
     setSelectedDetails({});
     setInputBloks({});
@@ -680,6 +714,7 @@ export default function DowntimeTracker({
 
     setEditingIndex(index);
     setTempDuration(targetEvent.durasiDetik || 0);
+    setTargetPanelNo(String(watch("panelNo") || "1"));
     accumulatedSecRef.current = targetEvent.durasiDetik || 0;
     setCurrentTimerSource(targetEvent.triggerSource || "Manual");
     setSelectedCategories([]);
@@ -756,6 +791,7 @@ export default function DowntimeTracker({
     if (selectedUnclassifiedIds.length === 0) return;
     setBatchClassifyIds([...selectedUnclassifiedIds]);
     setEditingIndex(null);
+    setTargetPanelNo(String(watch("panelNo") || "1"));
 
     const currentList = watch("downtimeEvents") || fields || [];
     const totalSelectedSec = selectedUnclassifiedIds.reduce((sum: number, id: string) => {
@@ -803,7 +839,7 @@ export default function DowntimeTracker({
     const targetObj = editingIndex !== null ? currentList[editingIndex] : null;
 
     const finalEvent: any = {
-      id: targetObj?.id || Date.now().toString(),
+      id: targetObj?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       durasiDetik: tempDuration,
       pcsKe: pcsKeStr,
       dikerjakanOleh: dikerjakanGabungan,
@@ -812,6 +848,59 @@ export default function DowntimeTracker({
       isResolved: true,
       isSensorGlitch: true,
     };
+
+    // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda
+    const currentPanelNo = String(watch("panelNo") || "1").trim();
+    const isDeferredToOtherPanel = isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
+
+    if (isDeferredToOtherPanel) {
+      const curMc = String(watch("nomorMc") || "").trim().toUpperCase();
+      const curPot = String(watch("potonganKe") || "").trim();
+      const storageKey = `dji_deferred_downtime_${curMc}_${curPot}_${targetPanelNo.trim()}`;
+
+      try {
+        const existingStr = localStorage.getItem(storageKey);
+        const existingList = existingStr ? JSON.parse(existingStr) : [];
+        if (batchClassifyIds.length > 0) {
+          batchClassifyIds.forEach((targetId) => {
+            const item = currentList.find((e: any, idx: number) => (e.id || `evt-${idx}`) === targetId);
+            if (item) {
+              existingList.push({
+                ...item,
+                pcsKe: pcsKeStr,
+                dikerjakanOleh: dikerjakanGabungan,
+                problems: nonDefectProblems,
+                isResolved: true,
+                isSensorGlitch: true,
+              });
+            }
+          });
+        } else {
+          existingList.push(finalEvent);
+        }
+        localStorage.setItem(storageKey, JSON.stringify(existingList));
+      } catch (e) { }
+
+      if (batchClassifyIds.length > 0) {
+        const filtered = currentList.filter((e: any, idx: number) => !batchClassifyIds.includes(e.id || `evt-${idx}`));
+        replace(filtered);
+        updateFormDowntimeEvents(filtered);
+      } else if (editingIndex !== null) {
+        remove(editingIndex);
+        const filtered = currentList.filter((_: any, idx: number) => idx !== editingIndex);
+        updateFormDowntimeEvents(filtered);
+      }
+
+      handleCloseModal();
+      setDeferredToast(`Downtime (Gagal Cacat) berhasil dialokasikan untuk Panel ${targetPanelNo}. Data akan otomatis dimuat saat Anda menginput Panel ${targetPanelNo}.`);
+      setIsTimerRunning(false);
+      setTimerStartRef(null);
+      setLiveTimerSeconds(0);
+      accumulatedSecRef.current = 0;
+      setTempDuration(0);
+      localStorage.removeItem("dji_active_downtime_start");
+      return;
+    }
 
     let updatedList = [...currentList];
     if (batchClassifyIds.length > 0) {
@@ -921,7 +1010,7 @@ export default function DowntimeTracker({
     const targetObj = editingIndex !== null ? currentList[editingIndex] : null;
 
     let finalEvent: any = {
-      id: targetObj?.id || Date.now().toString(),
+      id: targetObj?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       durasiDetik: tempDuration,
       pcsKe: pcsKeStr,
       dikerjakanOleh: dikerjakanGabungan,
@@ -930,6 +1019,59 @@ export default function DowntimeTracker({
       triggerSource: targetObj?.triggerSource || currentTimerSource,
       isResolved: true,
     };
+
+    // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda
+    const currentPanelNo = String(watch("panelNo") || "1").trim();
+    const isDeferredToOtherPanel = isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
+
+    if (isDeferredToOtherPanel) {
+      const curMc = String(watch("nomorMc") || "").trim().toUpperCase();
+      const curPot = String(watch("potonganKe") || "").trim();
+      const storageKey = `dji_deferred_downtime_${curMc}_${curPot}_${targetPanelNo.trim()}`;
+
+      try {
+        const existingStr = localStorage.getItem(storageKey);
+        const existingList = existingStr ? JSON.parse(existingStr) : [];
+        if (batchClassifyIds.length > 0) {
+          batchClassifyIds.forEach((targetId) => {
+            const item = currentList.find((e: any, idx: number) => (e.id || `evt-${idx}`) === targetId);
+            if (item) {
+              existingList.push({
+                ...item,
+                pcsKe: pcsKeStr,
+                dikerjakanOleh: dikerjakanGabungan,
+                problems: problems,
+                isResolved: true,
+              });
+            }
+          });
+        } else {
+          existingList.push(finalEvent);
+        }
+        localStorage.setItem(storageKey, JSON.stringify(existingList));
+      } catch (e) { }
+
+      // Bersihkan event yang dialokasikan dari list form saat ini
+      if (batchClassifyIds.length > 0) {
+        const filtered = currentList.filter((e: any, idx: number) => !batchClassifyIds.includes(e.id || `evt-${idx}`));
+        replace(filtered);
+        updateFormDowntimeEvents(filtered);
+      } else if (editingIndex !== null) {
+        remove(editingIndex);
+        const filtered = currentList.filter((_: any, idx: number) => idx !== editingIndex);
+        updateFormDowntimeEvents(filtered);
+      }
+
+      handleCloseModal();
+      setDeferredToast(`Downtime berhasil dialokasikan untuk Panel ${targetPanelNo}. Data akan otomatis dimuat saat Anda menginput Panel ${targetPanelNo}.`);
+      setIsTimerRunning(false);
+      setTimerStartRef(null);
+      setLiveTimerSeconds(0);
+      accumulatedSecRef.current = 0;
+      setTempDuration(0);
+      localStorage.removeItem("dji_active_downtime_start");
+      return;
+    }
 
     if (dikerjakanOleh !== "Operator") {
       setIsSavingMechanic(true);
@@ -1293,6 +1435,23 @@ export default function DowntimeTracker({
               )}
             </div>
 
+            {/* Banner Notifikasi Alokasi Downtime Panel */}
+            {deferredToast && (
+              <div className="p-3 bg-sky-50 border border-sky-200 text-sky-900 rounded-2xl mb-4 flex items-center justify-between gap-2 text-xs font-bold animate-fadeIn shadow-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>{deferredToast}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDeferredToast(null)}
+                  className="p-1 text-sky-400 hover:text-sky-800 rounded-lg cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* Banner Masalah Lanjut Shift (jika ada) */}
             {unresolvedDowntime && !isTimerRunning && !isEdit && (
               <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-2xl mb-4 flex flex-col gap-3 animate-fadeIn">
@@ -1519,10 +1678,10 @@ export default function DowntimeTracker({
 
                         return (
                           <div
-                            key={eventId}
+                            key={`unclass-${eventId}-${index}`}
                             className={`flex flex-col p-2 border rounded-xl gap-1.5 transition-all min-w-0 ${isSelected
-                                ? "bg-amber-100/90 border-amber-400 ring-2 ring-amber-300/60 shadow-xs"
-                                : "bg-amber-50/50 border-amber-200/90 hover:bg-amber-100/50 shadow-2xs"
+                              ? "bg-amber-100/90 border-amber-400 ring-2 ring-amber-300/60 shadow-xs"
+                              : "bg-amber-50/50 border-amber-200/90 hover:bg-amber-100/50 shadow-2xs"
                               }`}
                           >
                             {/* Row 1: Checkbox + Duration + Time */}
@@ -1602,7 +1761,7 @@ export default function DowntimeTracker({
                         if (!isResolved) return null;
 
                         return (
-                          <div key={event.id || index} className="flex flex-row items-start justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl gap-2 shadow-2xs">
+                          <div key={`resolved-${event.id || 'evt'}-${index}`} className="flex flex-row items-start justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl gap-2 shadow-2xs">
                             <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-[10px] font-bold text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-xs font-mono">
@@ -1846,6 +2005,84 @@ export default function DowntimeTracker({
             </div>
 
             <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4 sm:space-y-5">
+              {/* Panel Allocation Selector (Khusus Form Input Panel & Bukan Edit) */}
+              {isPanelType && !isEdit && (
+                <div className="bg-sky-50/70 p-3 sm:p-3.5 rounded-2xl border border-sky-200/80 shadow-2xs animate-fadeIn">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className="text-[10px] font-black text-sky-950 uppercase tracking-wider flex items-center gap-1.5">
+                      <Box className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      Alokasi Nomor Panel
+                    </label>
+
+                  </div>
+                  <p className="text-[9.5px] text-sky-800 font-medium mb-2 leading-relaxed">
+                    Pilih nomor panel tempat masalah/berhenti ini terjadi di mesin fisik:
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {(() => {
+                      const curPanel = String(watch("panelNo") || "1");
+                      const curPanelNum = parseInt(curPanel) || 1;
+                      const nextPanelNum = curPanelNum + 1;
+                      const nextNextPanelNum = curPanelNum + 2;
+
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setTargetPanelNo(curPanel)}
+                            className={`py-2 px-2.5 rounded-xl text-xs font-black transition-all border flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 ${targetPanelNo === curPanel
+                              ? "bg-sky-600 text-white border-sky-600 shadow-xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-sky-50"
+                              }`}
+                          >
+                            <span>Panel {curPanel}</span>
+                            <span className={`text-[8.5px] font-extrabold ${targetPanelNo === curPanel ? "text-sky-100" : "text-slate-400"}`}>
+                              (Saat Ini)
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTargetPanelNo(String(nextPanelNum))}
+                            className={`py-2 px-2.5 rounded-xl text-xs font-black transition-all border flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 ${targetPanelNo === String(nextPanelNum)
+                              ? "bg-sky-600 text-white border-sky-600 shadow-xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-sky-50"
+                              }`}
+                          >
+                            <span>Panel {nextPanelNum}</span>
+                            <span className={`text-[8.5px] font-extrabold ${targetPanelNo === String(nextPanelNum) ? "text-sky-100" : "text-slate-400"}`}>
+                              (Berikutnya)
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTargetPanelNo(String(nextNextPanelNum))}
+                            className={`py-2 px-2.5 rounded-xl text-xs font-black transition-all border flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 ${targetPanelNo === String(nextNextPanelNum)
+                              ? "bg-sky-600 text-white border-sky-600 shadow-xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-sky-50"
+                              }`}
+                          >
+                            <span>Panel {nextNextPanelNum}</span>
+                            <span className={`text-[8.5px] font-extrabold ${targetPanelNo === String(nextNextPanelNum) ? "text-sky-100" : "text-slate-400"}`}>
+                              (Lanjutan)
+                            </span>
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  {targetPanelNo !== String(watch("panelNo") || "1") && (
+                    <div className="mt-2.5 p-2.5 bg-amber-50 border border-amber-200/90 rounded-xl text-[10px] text-amber-950 font-bold flex items-start gap-2 animate-fadeIn shadow-2xs">
+                      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <p className="leading-snug">
+                        Data downtime ini akan <strong>dialokasikan untuk Panel {targetPanelNo}</strong> dan tidak dimasukkan ke Panel {watch("panelNo") || "1"}. Form Panel {watch("panelNo") || "1"} tetap bersih/normal.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {dikerjakanOleh === "Operator" && !isUnblockingBlock && pcsCount > 1 && (
                 <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 shadow-inner mt-4">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1 block">
@@ -2007,7 +2244,7 @@ export default function DowntimeTracker({
                             // Only display groups that have items
                             const activeGroups = predefinedGroups.filter((g) => g.items && g.items.length > 0);
                             const allKnownItems = new Set(activeGroups.flatMap((g) => g.items));
-                            
+
                             // User-typed custom details (not part of known items)
                             const customInputDetails = (selectedDetails[cat.id] || []).filter((d) => !allKnownItems.has(d));
 
