@@ -168,11 +168,101 @@ export default function MeterHistoryTable({
         grp,
         tgl,
         jamStr,
+        rawJam,
         operatorStr,
         hasIstirahat,
         backupOp: h.operator_backup,
       };
     });
+
+    const getMeterNumericVal = (p: any) => {
+      const { item, isIstirahat } = p;
+      const h = item.production_headers || {};
+      const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
+
+      let defectMeterStr = "";
+      if (item.production_defects && Array.isArray(item.production_defects)) {
+        for (const defect of item.production_defects) {
+          if (defect.meter) {
+            defectMeterStr = defect.meter;
+            break;
+          }
+        }
+      }
+
+      let meterDisplay = "-";
+      if (isIstirahat || isFinishReport) {
+        if (h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "") {
+          meterDisplay = cleanMeterVal(h.meter_akhir);
+        } else if (h.meter_awal !== null && h.meter_awal !== undefined && String(h.meter_awal).trim() !== "") {
+          meterDisplay = cleanMeterVal(h.meter_awal);
+        } else if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+          meterDisplay = cleanMeterVal(item.meter_kain);
+        }
+      } else {
+        if (item.detail_masalah) {
+          const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+          if (meterMatch && meterMatch[1] && meterMatch[1].includes("-")) {
+            meterDisplay = cleanMeterVal(meterMatch[1]);
+          }
+        }
+        if (meterDisplay === "-") {
+          if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+            meterDisplay = cleanMeterVal(item.meter_kain);
+          } else if (defectMeterStr) {
+            meterDisplay = cleanMeterVal(defectMeterStr);
+          } else if (item.detail_masalah) {
+            const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+            if (meterMatch && meterMatch[1]) {
+              meterDisplay = cleanMeterVal(meterMatch[1]);
+            }
+          }
+        }
+
+        if (meterDisplay === "-") {
+          if (h.meter_akhir || h.meter_awal) {
+            meterDisplay = cleanMeterVal(h.meter_akhir || h.meter_awal);
+          }
+        }
+      }
+
+      const clean = cleanMeterVal(meterDisplay);
+      const firstPart = clean.split("-")[0].trim();
+      const num = parseFloat(firstPart);
+      return isNaN(num) ? 0 : num;
+    };
+
+    // Group processed items into operator shift segments
+    const shiftGroups: Array<{
+      operatorStr: string;
+      items: any[];
+    }> = [];
+
+    processed.forEach((p: any) => {
+      const currentShift = shiftGroups[shiftGroups.length - 1];
+      if (!currentShift || currentShift.operatorStr !== p.operatorStr) {
+        shiftGroups.push({
+          operatorStr: p.operatorStr,
+          items: [p],
+        });
+      } else {
+        currentShift.items.push(p);
+      }
+    });
+
+    // Sort items within each operator shift by meter ascending
+    shiftGroups.forEach((sg) => {
+      sg.items.sort((a, b) => {
+        const mA = getMeterNumericVal(a);
+        const mB = getMeterNumericVal(b);
+        if (mA !== mB) return mA - mB;
+        const rawJamA = String(a.rawJam || a.item.created_at || "");
+        const rawJamB = String(b.rawJam || b.item.created_at || "");
+        return rawJamA.localeCompare(rawJamB);
+      });
+    });
+
+    const sortedProcessed = shiftGroups.flatMap((sg) => sg.items);
 
     const items: any[] = [];
     let currentOpStartMeter: number | null = null;
@@ -182,7 +272,7 @@ export default function MeterHistoryTable({
     let isSameAsPrev = false;
     let lastOprString = "";
 
-    processed.forEach((p: any, idx: number) => {
+    sortedProcessed.forEach((p: any, idx: number) => {
       const { item, isIstirahat, isGradable, opr, grp, tgl, jamStr, operatorStr, hasIstirahat, backupOp } = p;
       const h = item.production_headers || {};
 
@@ -547,7 +637,7 @@ export default function MeterHistoryTable({
               }
             });
           } else {
-            const firstActiveIdx = processed.findIndex((pp: any) => {
+            const firstActiveIdx = sortedProcessed.findIndex((pp: any) => {
               const ppH = pp.item.production_headers || {};
               return ppH.id === h.id && !pp.isIstirahat;
             });
@@ -557,7 +647,7 @@ export default function MeterHistoryTable({
           }
         } else if (actualDowntimeRecords && actualDowntimeRecords.length > 0) {
           const headerRecords = actualDowntimeRecords.filter((r: any) => r.header_id === h.id);
-          const firstActiveIdx = processed.findIndex((pp: any) => {
+          const firstActiveIdx = sortedProcessed.findIndex((pp: any) => {
             const ppH = pp.item.production_headers || {};
             return ppH.id === h.id && !pp.isIstirahat;
           });

@@ -100,7 +100,7 @@ export default function ShiftHistoryPage() {
   const [perPage, setPerPage] = useState(20);
   const [sortBy, setSortBy] = useState<"time" | "downtime" | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
@@ -129,6 +129,7 @@ export default function ShiftHistoryPage() {
 
       // Auto-search on mount
       (async () => {
+        setIsLoading(true);
         try {
           const res = await searchEmployeeHistory({
             ...initialFilters,
@@ -146,6 +147,8 @@ export default function ShiftHistoryPage() {
           }
         } catch (err) {
           console.error("Auto-search failed", err);
+        } finally {
+          setIsLoading(false);
         }
       })();
 
@@ -399,8 +402,18 @@ export default function ShiftHistoryPage() {
 
       {/* Table Container */}
       <div>
-        {hasSearched ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        {isLoading ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-16 text-center flex flex-col items-center justify-center gap-3 animate-fadeIn">
+            <Loader2 className="w-8 h-8 text-[#0070bc] animate-spin" />
+            <h3 className="text-sm font-bold text-slate-800">
+              Memuat Riwayat Produksi...
+            </h3>
+            <p className="text-xs text-slate-400 max-w-sm">
+              Sedang mengambil data riwayat input dari server.
+            </p>
+          </div>
+        ) : hasSearched ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fadeIn">
             {data.length === 0 ? (
               <div className="p-10 flex flex-col items-center justify-center text-center">
                 <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-3">

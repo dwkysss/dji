@@ -32,7 +32,7 @@ export default function MeterHistoryTable({
       return clean.replace(/[a-zA-Z\s]+$/g, "").trim();
     };
 
-    detailsToDisplay.forEach((item: any, idx: number) => {
+    const filteredDetails = detailsToDisplay.filter((item: any) => {
       const h = item.production_headers || {};
       let hasRealDefects = false;
       if (item.production_defects && Array.isArray(item.production_defects)) {
@@ -60,8 +60,118 @@ export default function MeterHistoryTable({
       const hasDefect = !!item.kategori_masalah || !!item.detail_masalah || (item.keterangan_cacat && item.keterangan_cacat !== "START" && item.keterangan_cacat !== "FINISH" && !isIstirahat);
 
       if (!isIstirahat && !isFinishReport && !hasDefect && (item.meter_kain === null || item.meter_kain === undefined || String(item.meter_kain).trim() === "")) {
-        return;
+        return false;
       }
+      return true;
+    });
+
+    const getMeterNumericVal = (item: any) => {
+      const h = item.production_headers || {};
+      let defectMeterStr = "";
+      if (item.production_defects && Array.isArray(item.production_defects)) {
+        for (const defect of item.production_defects) {
+          if (defect.meter) {
+            defectMeterStr = defect.meter;
+            break;
+          }
+        }
+      }
+
+      let meterDisplay = "-";
+      if (item.detail_masalah) {
+        const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+        if (meterMatch && meterMatch[1] && meterMatch[1].includes("-")) {
+          meterDisplay = cleanMeterVal(meterMatch[1]);
+        }
+      }
+      if (meterDisplay === "-") {
+        if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
+          meterDisplay = cleanMeterVal(item.meter_kain);
+        } else if (defectMeterStr) {
+          meterDisplay = cleanMeterVal(defectMeterStr);
+        } else if (item.detail_masalah) {
+          const meterMatch = item.detail_masalah.match(/\(Titik:\s*([A-Za-z0-9\s.\-]+)\)/i);
+          if (meterMatch && meterMatch[1]) {
+            meterDisplay = cleanMeterVal(meterMatch[1]);
+          }
+        }
+      }
+      
+      if (meterDisplay === "-") {
+        if (h.meter_akhir || h.meter_awal) {
+          meterDisplay = cleanMeterVal(h.meter_akhir || h.meter_awal);
+        }
+      }
+
+      const clean = cleanMeterVal(meterDisplay);
+      const firstPart = clean.split("-")[0].trim();
+      const num = parseFloat(firstPart);
+      return isNaN(num) ? 0 : num;
+    };
+
+    // Group items by operator shift
+    const shiftGroups: Array<{
+      operatorStr: string;
+      items: any[];
+    }> = [];
+
+    filteredDetails.forEach((item: any) => {
+      const h = item.production_headers || {};
+      const opr = h.operators?.nama_operator || h.pic || "";
+      const grp = h.groups?.nama_grup || "";
+      const operatorStr = (grp ? `(${grp}) ` : '') + opr;
+
+      const currentShift = shiftGroups[shiftGroups.length - 1];
+      if (!currentShift || currentShift.operatorStr !== operatorStr) {
+        shiftGroups.push({
+          operatorStr,
+          items: [item],
+        });
+      } else {
+        currentShift.items.push(item);
+      }
+    });
+
+    // Sort each operator shift by meter ascending
+    shiftGroups.forEach((sg) => {
+      sg.items.sort((a, b) => {
+        const mA = getMeterNumericVal(a);
+        const mB = getMeterNumericVal(b);
+        if (mA !== mB) return mA - mB;
+        const rawJamA = String(a.production_headers?.tanggal_jam || a.production_headers?.created_at || a.created_at || "");
+        const rawJamB = String(b.production_headers?.tanggal_jam || b.production_headers?.created_at || b.created_at || "");
+        return rawJamA.localeCompare(rawJamB);
+      });
+    });
+
+    const sortedDetails = shiftGroups.flatMap((sg) => sg.items);
+
+    sortedDetails.forEach((item: any, idx: number) => {
+      const h = item.production_headers || {};
+      let hasRealDefects = false;
+      if (item.production_defects && Array.isArray(item.production_defects)) {
+        item.production_defects.forEach((d: any) => {
+          if (!((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT"))) {
+            hasRealDefects = true;
+          }
+        });
+      }
+      if (!item.production_defects || item.production_defects.length === 0) {
+        if (item.kategori_masalah && !item.kategori_masalah.toUpperCase().includes("ISTIRAHAT")) {
+          hasRealDefects = true;
+        }
+      }
+      const hasIstirahatRaw = (
+        (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
+        (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
+      );
+      const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
+      const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
+      const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
+      const hasDefect = !!item.kategori_masalah || !!item.detail_masalah || (item.keterangan_cacat && item.keterangan_cacat !== "START" && item.keterangan_cacat !== "FINISH" && !isIstirahat);
 
       const opr = h.operators?.nama_operator || h.pic || "";
       const grp = h.groups?.nama_grup || "";
