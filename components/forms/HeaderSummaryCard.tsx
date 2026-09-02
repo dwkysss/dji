@@ -216,7 +216,7 @@ function HeaderSummaryCard({
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Target PCS
+                Jumlah PCS
               </span>
               <span className="text-xl font-black text-amber-700 leading-tight truncate">
                 {pcsCount} Pcs

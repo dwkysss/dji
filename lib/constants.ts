@@ -6,25 +6,36 @@ export interface ProblemDetailGroup {
 export const GROUPED_PROBLEM_DETAILS: Record<string, ProblemDetailGroup[]> = {
   A: [
     {
-      groupName: "Putus & Kerusakan Benang",
+      groupName: "Benang Dasar",
       items: [
-        "L1/L2/L3 Benang timbul putus",
-        "Benang lolos",
-        "Benang Kejepit/Jebol/Kusut",
-        "Perbaikan/Beset benang Dasar",
+        "L1 Putus",
+        "Keluar Jarum L2/L3",
+        "L2/L3 Putus",
       ],
     },
     {
-      groupName: "Tegangan & Jalur Benang",
+      groupName: "Benang Timbul",
       items: [
-        "Benang narik/Kendor",
+        "Benang Narik/Kendor",
+        "Benang Timbul Putus",
+        "Keluar Jarum Timbul",
+      ],
+    },
+    {
+      groupName: "Lain-lain / Tambahan",
+      items: [
+        "Bolong Corak",
+        "Perbaikan Jalur Benang",
+        "Bolong Dasar",
+        "Perbaikan Meped",
+        "Perbaikan Bolong-bolong",
+        "Floating Keanyam",
         "Benang Nyilang",
-        "Jalur benang",
+        "Benang Kejepit/Jebol/Kusut",
+        "Perbaikan/Beset Benang Dasar",
+        "Benang Lolos",
+        "Perb/Ganti Tricplet",
       ],
-    },
-    {
-      groupName: "Cacat Corak",
-      items: ["Bolong corak"],
     },
   ],
   B: [

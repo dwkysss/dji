@@ -239,10 +239,12 @@ export async function getProblemGroupMapping(): Promise<{
           }
         });
 
-        cleanedGroups.push({
-          groupName: g.groupName,
-          items: validGroupItems,
-        });
+        if (validGroupItems.length > 0 || (rawMapping && rawMapping[cat])) {
+          cleanedGroups.push({
+            groupName: g.groupName,
+            items: validGroupItems,
+          });
+        }
       });
 
       // Any remaining unassigned active items go to "Lain-lain / Tambahan"

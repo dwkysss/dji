@@ -39,13 +39,13 @@ import {
 import { GROUPED_PROBLEM_DETAILS } from "@/lib/constants";
 
 const FALLBACK_CATEGORIES: ProblemCategoryItem[] = [
-  { kode: "A", label: "Benang Timbul/Lolos", description: "Masalah terkait benang timbul, benang lolos, & corak", color: "from-amber-500 to-orange-600" },
-  { kode: "B", label: "Jarum/Jacquard", description: "Kerusakan jarum, modul, tali jacquard & komputasi", color: "from-rose-500 to-pink-600" },
-  { kode: "C", label: "Design/Proofing", description: "Setting corak, ganti design, PCB & artikel", color: "from-sky-500 to-blue-600" },
-  { kode: "D", label: "Benang Dasar/Rewind", description: "Penggantian benang dasar & pattern keseluruhan", color: "from-emerald-500 to-teal-600" },
-  { kode: "E", label: "Servo/Elektrik", description: "Inverter, PLC, sensor & instalasi kelistrikan", color: "from-purple-500 to-violet-600" },
-  { kode: "F", label: "Cylinder/Mekanik", description: "Gearbox, cylinder, bearing, rem & pelumasan", color: "from-indigo-500 to-blue-700" },
-  { kode: "G", label: "Lain-lain/Libur", description: "Ganggauan utilitas eksternal, libur & instruksi", color: "from-slate-500 to-zinc-600" },
+  { kode: "A", label: "Masalah dan Perbaikan Benang", description: "Masalah terkait benang dasar, benang timbul, & perbaikan benang", color: "from-amber-500 to-orange-600" },
+  { kode: "B", label: "Perbaikan Jarum dan Element Rajutan (Mechanical)", description: "Kerusakan jarum, modul, tali jacquard & komputasi", color: "from-rose-500 to-pink-600" },
+  { kode: "C", label: "Pengaturan dan Design stup", description: "Setting corak, ganti design, PCB & artikel", color: "from-sky-500 to-blue-600" },
+  { kode: "D", label: "Bahan Baku dan penggantian Benang", description: "Penggantian benang dasar & pattern keseluruhan", color: "from-emerald-500 to-teal-600" },
+  { kode: "E", label: "Masalah Kelistrikan", description: "Inverter, PLC, sensor & instalasi kelistrikan", color: "from-purple-500 to-violet-600" },
+  { kode: "F", label: "Perawatan Mesin,Perbaikan Mekanik (maintenance)", description: "Gearbox, cylinder, bearing, rem & pelumasan", color: "from-indigo-500 to-blue-700" },
+  { kode: "G", label: "Faktor Eksternal dan Non-Teknis", description: "Ganggauan utilitas eksternal, libur & instruksi", color: "from-slate-500 to-zinc-600" },
   { kode: "H", label: "Mekanik Direct", description: "Perbaikan langsung oleh tim mekanik", color: "from-amber-600 to-yellow-600" },
 ];
 

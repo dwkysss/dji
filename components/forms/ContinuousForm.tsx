@@ -388,6 +388,7 @@ export default function ContinuousForm({
 
   // Pop-up Modal State
   const [isMeterModalOpen, setIsMeterModalOpen] = useState(false);
+  const [isLoadingMeterStart, setIsLoadingMeterStart] = useState(false);
   const [isLastRoll, setIsLastRoll] = useState(false);
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
   const [activeInfo, setActiveInfo] = useState<string | null>(null);
@@ -1107,9 +1108,11 @@ export default function ContinuousForm({
         if (plan.heavy) setValue("heavy", plan.heavy);
         if (plan.shadow) setValue("shadow", plan.shadow);
         if (plan.pinggiran) setValue("pinggiran", plan.pinggiran);
-        if (plan.rpm) setValue("rpm", plan.rpm);
         if (plan.pcs_count && typeof plan.pcs_count === "number") {
           handleChangePcsCount(plan.pcs_count, true);
+        }
+        if (plan.max_panel || plan.target_meter) {
+          setValue("targetMeter", String(plan.max_panel || plan.target_meter));
         }
       }
     }, 600); // Add 600ms delay mirip getLastPanelNoByPotongan
@@ -1855,18 +1858,38 @@ export default function ContinuousForm({
                   </div>
                   <button
                     type="button"
+                    disabled={isLoadingMeterStart}
                     onClick={async () => {
-                      await refreshAutomaticMeterStart();
-                      setIsMeterModalOpen(true);
+                      try {
+                        setIsLoadingMeterStart(true);
+                        await refreshAutomaticMeterStart();
+                        setIsMeterModalOpen(true);
+                      } catch (err) {
+                        console.error("Gagal memuat meter awal:", err);
+                        setIsMeterModalOpen(true);
+                      } finally {
+                        setIsLoadingMeterStart(false);
+                      }
                     }}
-                    className="w-full max-w-xs px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-95 text-white text-sm font-black rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2.5 cursor-pointer"
+                    className={`w-full max-w-xs px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-95 text-white text-sm font-black rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2.5 cursor-pointer ${
+                      isLoadingMeterStart ? "opacity-75 cursor-not-allowed pointer-events-none" : ""
+                    }`}
                   >
-                    <FileText className="w-5 h-5" />
-                    <span>
-                      {watch("nomorMc") === "T2A"
-                        ? "Lapor Meter"
-                        : "Lapor Meter Terakhir"}
-                    </span>
+                    {isLoadingMeterStart ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>Memuat Data Meter...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="w-5 h-5" />
+                        <span>
+                          {watch("nomorMc") === "T2A"
+                            ? "Lapor Meter"
+                            : "Lapor Meter Terakhir"}
+                        </span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

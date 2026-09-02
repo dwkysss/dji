@@ -14,6 +14,7 @@ export default function ProductionPlansPage() {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [recentPlans, setRecentPlans] = useState<any[]>([]);
+  const [machineConfigs, setMachineConfigs] = useState<Record<string, { default_pcs: number; input_type: "PANEL" | "METER" }>>({});
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -22,6 +23,18 @@ export default function ProductionPlansPage() {
   const [searchQuery, setSearchQuery] = useState("");
   
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+
+  useEffect(() => {
+    getMachineConfigs().then(res => {
+      if (res.success && res.data) {
+        const map: Record<string, { default_pcs: number; input_type: "PANEL" | "METER" }> = {};
+        res.data.forEach(m => {
+          map[m.nomor_mc.toUpperCase()] = { default_pcs: m.default_pcs, input_type: m.input_type };
+        });
+        setMachineConfigs(map);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (formData.nomor_mc && !formData.id) {
@@ -56,16 +69,32 @@ export default function ProductionPlansPage() {
     fetchPlans();
   }, [currentPage, perPage, searchQuery]);
 
+  const handleMachineChange = (mc: string) => {
+    const mcKey = mc.toUpperCase();
+    const detectedType = machineConfigs[mcKey]?.input_type || (mcKey.startsWith("R11") || mcKey.startsWith("R12") || mcKey.startsWith("R16") ? "METER" : "PANEL");
+    const defaultPcs = machineConfigs[mcKey]?.default_pcs || 1;
+    setFormData((prev: any) => ({
+      ...prev,
+      nomor_mc: mc,
+      input_type: prev.id ? prev.input_type || detectedType : detectedType,
+      pcs_count: prev.pcs_count || defaultPcs,
+    }));
+  };
+
   const handleOpenModal = (plan?: any) => {
     setErrorMsg(null);
     if (plan) {
+      const mcKey = String(plan.nomor_mc || "").toUpperCase();
+      const detectedType = plan.input_type || machineConfigs[mcKey]?.input_type || (mcKey.startsWith("R11") || mcKey.startsWith("R12") || mcKey.startsWith("R16") ? "METER" : "PANEL");
       setFormData({
         ...plan,
+        input_type: detectedType,
         max_panel: plan.max_panel !== undefined && plan.max_panel !== null ? plan.max_panel : "",
       });
     } else {
       setFormData({
         nomor_mc: "",
+        input_type: "PANEL",
         potongan_ke: "",
         max_panel: "",
         design_id: "",
@@ -192,8 +221,8 @@ export default function ProductionPlansPage() {
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Aksi</th>
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Mesin</th>
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Potongan</th>
-              <th className="px-3 py-2.5 font-bold text-emerald-700 uppercase tracking-wider">Max Panel</th>
-              <th className="px-3 py-2.5 font-bold text-blue-600 uppercase tracking-wider">Target PCS</th>
+              <th className="px-3 py-2.5 font-bold text-emerald-700 uppercase tracking-wider">Target Produksi</th>
+              <th className="px-3 py-2.5 font-bold text-blue-600 uppercase tracking-wider">Jumlah PCS</th>
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Design</th>
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Pick</th>
               <th className="px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider">Course</th>
@@ -214,19 +243,38 @@ export default function ProductionPlansPage() {
                   </button>
                 </td>
                 <td className="px-3 py-1.5">
-                  <span className="bg-slate-700 text-white px-2 py-0.5 rounded shadow-sm font-bold tracking-wide">{p.nomor_mc}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="bg-slate-700 text-white px-2 py-0.5 rounded shadow-sm font-bold tracking-wide">{p.nomor_mc}</span>
+                    {(() => {
+                      const mcKey = String(p.nomor_mc || "").toUpperCase();
+                      const isMeter = p.input_type === "METER" || machineConfigs[mcKey]?.input_type === "METER" || mcKey.startsWith("R11") || mcKey.startsWith("R12") || mcKey.startsWith("R16");
+                      return isMeter ? (
+                        <span className="text-[9px] font-black bg-teal-100 text-teal-800 border border-teal-300 px-1.5 py-0.5 rounded shadow-2xs">METER</span>
+                      ) : (
+                        <span className="text-[9px] font-black bg-sky-100 text-sky-800 border border-sky-300 px-1.5 py-0.5 rounded shadow-2xs">PANEL</span>
+                      );
+                    })()}
+                  </div>
                 </td>
                 <td className="px-3 py-1.5">
                   <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-bold">{p.potongan_ke}</span>
                 </td>
                 <td className="px-3 py-1.5">
-                  {p.max_panel ? (
-                    <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-bold shadow-xs">
-                      {p.max_panel} Panel
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 font-medium italic">-</span>
-                  )}
+                  {(() => {
+                    const mcKey = String(p.nomor_mc || "").toUpperCase();
+                    const isMeter = p.input_type === "METER" || machineConfigs[mcKey]?.input_type === "METER" || mcKey.startsWith("R11") || mcKey.startsWith("R12") || mcKey.startsWith("R16");
+                    const targetVal = p.target_meter || p.max_panel;
+                    if (!targetVal) return <span className="text-slate-400 font-medium italic">-</span>;
+                    return isMeter ? (
+                      <span className="bg-teal-100 text-teal-800 border border-teal-200 px-2 py-0.5 rounded font-bold shadow-xs">
+                        {targetVal} Meter
+                      </span>
+                    ) : (
+                      <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-bold shadow-xs">
+                        {targetVal} Panel
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-3 py-1.5">
                   <span className="bg-blue-100 text-blue-800 border border-blue-200 px-2 py-0.5 rounded font-bold">{p.pcs_count || 1} PCS</span>
@@ -303,16 +351,37 @@ export default function ProductionPlansPage() {
                 </div>
               )}
               
-              <div className="grid grid-cols-3 gap-4">
+              {/* Jenis Inputan Badge & Switch */}
+              <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-slate-800 uppercase">Jenis Inputan Mesin</span>
+                  <span className="text-[11px] text-slate-500 font-medium">Format pelaporan produksi: Panel atau Meteran</span>
+                </div>
+                <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, input_type: "PANEL" })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${formData.input_type !== "METER" ? "bg-sky-600 text-white shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
+                  >
+                    PANEL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, input_type: "METER" })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${formData.input_type === "METER" ? "bg-teal-600 text-white shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
+                  >
+                    METER
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-600 uppercase">Nomor Mesin *</label>
                   <select
                     required
                     value={formData.nomor_mc}
-                    onChange={(e) => {
-                      const mc = e.target.value;
-                      setFormData({ ...formData, nomor_mc: mc });
-                    }}
+                    onChange={(e) => handleMachineChange(e.target.value)}
                     className="h-10 px-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none uppercase font-bold"
                   >
                     <option value="">-- Pilih --</option>
@@ -333,16 +402,31 @@ export default function ProductionPlansPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-emerald-700 uppercase flex items-center justify-between">
-                    <span>Max Panel</span>
-                    <span className="text-[10px] text-slate-400 font-normal lowercase">target</span>
+                  <label className={`text-xs font-bold uppercase flex items-center justify-between ${formData.input_type === "METER" ? "text-teal-700" : "text-emerald-700"}`}>
+                    <span>{formData.input_type === "METER" ? "Target Meter" : "Max Panel"}</span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase">{formData.input_type === "METER" ? "meter" : "target"}</span>
                   </label>
                   <input
                     type="number"
                     value={formData.max_panel || ""}
                     onChange={(e) => setFormData({ ...formData, max_panel: e.target.value })}
-                    className="h-10 px-3 rounded-xl border border-emerald-300 focus:border-emerald-500 outline-none font-bold text-emerald-800 bg-emerald-50/40"
-                    placeholder="Contoh: 50"
+                    className={`h-10 px-3 rounded-xl border outline-none font-bold ${formData.input_type === "METER" ? "border-teal-300 focus:border-teal-500 text-teal-800 bg-teal-50/40 placeholder:text-teal-300" : "border-emerald-300 focus:border-emerald-500 text-emerald-800 bg-emerald-50/40 placeholder:text-emerald-300"}`}
+                    placeholder={formData.input_type === "METER" ? "Contoh: 250" : "Contoh: 50"}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-blue-700 uppercase flex items-center justify-between">
+                    <span>Jumlah PCS</span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase">1-6</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={6}
+                    value={formData.pcs_count || 1}
+                    onChange={(e) => setFormData({ ...formData, pcs_count: parseInt(e.target.value) || 1 })}
+                    className="h-10 px-3 rounded-xl border border-blue-300 focus:border-blue-500 outline-none font-bold text-blue-800 bg-blue-50/40"
+                    placeholder="1"
                   />
                 </div>
               </div>

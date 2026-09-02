@@ -6,6 +6,7 @@ import {
   saveMaxPanelConfig,
   deleteMaxPanelConfig,
   getAllMaxPanelConfigs,
+  upsertMachineConfig,
 } from "./machine-config-actions";
 
 export async function getProductionPlan(nomorMc: string, potonganKe: number) {
@@ -51,7 +52,7 @@ export async function getProductionPlan(nomorMc: string, potonganKe: number) {
 export async function upsertProductionPlan(data: any) {
   try {
     const supabase = await createClient();
-    const { max_panel, ...cleanPayload } = data;
+    const { max_panel, input_type, ...cleanPayload } = data;
 
     // Save max_panel config if provided
     if (max_panel !== undefined && data.nomor_mc && data.potongan_ke) {
@@ -60,6 +61,10 @@ export async function upsertProductionPlan(data: any) {
       } else {
         await deleteMaxPanelConfig(data.nomor_mc, data.potongan_ke);
       }
+    }
+
+    if (input_type && data.nomor_mc) {
+      await upsertMachineConfig(data.nomor_mc, data.pcs_count || 1, input_type);
     }
     
     // Check if plan already exists in production_plans
