@@ -680,6 +680,28 @@ export default function DashboardPage() {
       )
       .forEach((item) => {
         let itemCount = 1;
+
+        // 1. Cek rincian masalah riil dari detail_masalah
+        if (item.detail_masalah && item.detail_masalah.trim() !== "") {
+          const details = item.detail_masalah
+            .split(/[,|]/)
+            .map((d: string) => d.replace(/\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim())
+            .filter(
+              (d: string) =>
+                d !== "" &&
+                !d.toUpperCase().includes("GAGAL CACAT") &&
+                !d.toUpperCase().includes("ISTIRAHAT") &&
+                !d.toUpperCase().includes("START") &&
+                !d.toUpperCase().includes("FINISH") &&
+                !d.toUpperCase().includes("SISA") &&
+                !d.toUpperCase().includes("POTONGAN")
+            );
+          if (details.length > 0) {
+            itemCount = Math.max(itemCount, details.length);
+          }
+        }
+
+        // 2. Cek kategori masalah riil
         if (item.kategori_masalah && item.kategori_masalah.trim() !== "") {
           const cats = item
             .kategori_masalah.split(",")
@@ -688,6 +710,7 @@ export default function DashboardPage() {
           itemCount = Math.max(itemCount, cats.length);
         }
 
+        // 3. Cek titik blok
         const ket = (item as any).keterangan_cacat || (item as any).keterangan || "";
         if (ket && typeof ket === "string") {
           const blockMatches = ket.match(/Blok\s*\d+/gi);

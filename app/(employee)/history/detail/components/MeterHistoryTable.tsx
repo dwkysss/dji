@@ -74,10 +74,54 @@ export default function MeterHistoryTable({
     panels.forEach((p: any) => {
       const details = p.production_details || [];
       if (details.length === 0) {
-        list.push({
-          production_headers: p,
-          final_inspection_id: p.final_inspection_id || 1,
+        let dtEvents: any[] = [];
+        try {
+          dtEvents = typeof p.downtime_events === 'string' ? JSON.parse(p.downtime_events) : (p.downtime_events || []);
+        } catch (e) {}
+
+        const matchedEvents = dtEvents.filter(
+          (e: any) =>
+            !e.pcsKe ||
+            e.pcsKe === "Semua" ||
+            e.pcsKe.split(",").map((x: any) => x.trim()).includes(pcsKey)
+        );
+
+        const problemsForThisPcs: any[] = [];
+        matchedEvents.forEach((e: any) => {
+          if (e.problems && Array.isArray(e.problems)) {
+            e.problems.forEach((prob: any) => {
+              let meterVal = "";
+              if (prob.meter) {
+                const match = prob.meter.match(new RegExp(`PCS ${pcsKey}:\\s*([^,]+)`));
+                if (match) meterVal = match[1].trim();
+                else if (!prob.meter.includes("PCS")) meterVal = prob.meter.trim();
+              }
+              const detailText = Array.isArray(prob.details) ? prob.details.join(", ") : (prob.details || "");
+              problemsForThisPcs.push({
+                kategori_masalah: prob.kategori || e.kategori || "A",
+                detail_masalah: detailText + (meterVal ? ` (Titik: ${meterVal}m)` : ""),
+                keterangan_cacat: prob.blok ? `Blok ${prob.blok}` : null,
+                meter_kain: meterVal || null,
+                durasi_detik: e.durasiDetik,
+              });
+            });
+          }
         });
+
+        if (problemsForThisPcs.length > 0) {
+          problemsForThisPcs.forEach((prob) => {
+            list.push({
+              ...prob,
+              production_headers: p,
+              final_inspection_id: p.final_inspection_id || 1,
+            });
+          });
+        } else {
+          list.push({
+            production_headers: p,
+            final_inspection_id: p.final_inspection_id || 1,
+          });
+        }
       } else {
         details.forEach((d: any) => {
           list.push({
@@ -89,7 +133,7 @@ export default function MeterHistoryTable({
       }
     });
     return list;
-  }, [panels]);
+  }, [panels, pcsKey]);
 
   const displayItems = React.useMemo(() => {
     const filtered = detailsToDisplay.filter((item: any) => {

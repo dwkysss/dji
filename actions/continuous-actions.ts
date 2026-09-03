@@ -3,6 +3,7 @@
 import { continuousFormSchema, ContinuousFormInput } from "@/lib/schemas";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getShiftDate } from "@/lib/shift-utils";
 
 async function resolveAutomaticMeterStart(input: {
   nomorMc?: string | null;
@@ -279,7 +280,7 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
       hour12: false,
     });
     const tanggalJam = formatter.format(now);
-    const tgl = tanggalJam.split(" ")[0];
+    const tgl = getShiftDate(now);
 
     const rpmNum = validated.rpm ? parseInt(validated.rpm) : null;
     const potonganKeNum = validated.potonganKe

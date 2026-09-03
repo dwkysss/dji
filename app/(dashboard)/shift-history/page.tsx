@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { searchEmployeeHistory } from "@/actions/employee-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
+import { getShiftDate } from "@/lib/shift-utils";
 import {
   Search,
   Loader2,
@@ -124,6 +125,8 @@ export default function ShiftHistoryPage() {
             initialFilters.operator_ids = [];
           }
         } catch (e) {}
+      } else {
+        initialFilters.date = getShiftDate(new Date());
       }
       setFilters(initialFilters);
 

@@ -6,6 +6,7 @@ import {
   searchEmployeeHistory,
 } from "@/actions/employee-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
+import { getShiftDate } from "@/lib/shift-utils";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import {
   Search,
@@ -168,9 +169,7 @@ export default function EmployeeHistoryPage() {
   // Load from session storage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const today = new Date().toLocaleDateString("en-CA", {
-        timeZone: "Asia/Jakarta",
-      });
+      const today = getShiftDate(new Date());
       const cachedFilters = sessionStorage.getItem("dji_history_filters");
 
       let initialFilters = { ...filters };
@@ -182,6 +181,8 @@ export default function EmployeeHistoryPage() {
             initialFilters.operator_ids = [];
           }
         } catch (e) { }
+      } else {
+        initialFilters.date = today;
       }
       setFilters(initialFilters);
 

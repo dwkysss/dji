@@ -117,6 +117,8 @@ interface Transaction {
   panel_no?: number;
   posisi_meter?: number;
   kategori_masalah?: string;
+  detail_masalah?: string;
+  keterangan_cacat?: string;
 }
 
 const getNiceChartMax = (rawValue: number, minimum = 5) => {
@@ -578,7 +580,7 @@ export default function DashboardPage() {
         ? (totalDetikKerjaEfektif / totalDetikTersedia) * 100
         : 0;
 
-    // Total Masalah Umum (berdasarkan kemunculan kategori masalah, mengabaikan Gagal Cacat)
+    // Total Masalah Umum (berdasarkan kemunculan cacat, mengabaikan Gagal Cacat)
     let countMasalah = 0;
     gradeScoped
       .filter(
@@ -588,14 +590,36 @@ export default function DashboardPage() {
           hasRealDefect(item) &&
           item.status_qc === "Recheck" &&
           item.is_production &&
-          item.kategori_masalah,
+          (item.kategori_masalah || item.detail_masalah),
       )
       .forEach((item) => {
-        const cats = item
-          .kategori_masalah!.split(",")
-          .map((c) => c.trim())
-          .filter((c) => c !== "" && c !== "X" && c !== "G" && c !== "BS" && !c.toUpperCase().includes("ISTIRAHAT") && !c.toUpperCase().includes("GAGAL CACAT"));
-        countMasalah += cats.length;
+        let itemCount = 1;
+        if (item.detail_masalah && item.detail_masalah.trim() !== "") {
+          const details = item.detail_masalah
+            .split(/[,|]/)
+            .map((d: string) => d.replace(/\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim())
+            .filter(
+              (d: string) =>
+                d !== "" &&
+                !d.toUpperCase().includes("GAGAL CACAT") &&
+                !d.toUpperCase().includes("ISTIRAHAT") &&
+                !d.toUpperCase().includes("START") &&
+                !d.toUpperCase().includes("FINISH") &&
+                !d.toUpperCase().includes("SISA") &&
+                !d.toUpperCase().includes("POTONGAN")
+            );
+          if (details.length > 0) {
+            itemCount = Math.max(itemCount, details.length);
+          }
+        }
+        if (item.kategori_masalah && item.kategori_masalah.trim() !== "") {
+          const cats = item
+            .kategori_masalah.split(",")
+            .map((c) => c.trim())
+            .filter((c) => c !== "" && c !== "X" && c !== "G" && c !== "BS" && !c.toUpperCase().includes("ISTIRAHAT") && !c.toUpperCase().includes("GAGAL CACAT"));
+          itemCount = Math.max(itemCount, cats.length);
+        }
+        countMasalah += itemCount;
       });
 
     const countNolProduksi = gradeScoped.filter(

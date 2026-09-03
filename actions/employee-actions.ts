@@ -4,6 +4,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { productionFormSchema, ProductionFormInput } from "@/lib/schemas";
 import { crypto } from "next/dist/compiled/@edge-runtime/primitives/crypto";
 import { revalidatePath } from "next/cache";
+import { getShiftDate, parseAsWibDate } from "@/lib/shift-utils";
 
 // Helper untuk menghasilkan ID acak 8 karakter seperti di Excel (misal: e78cbacd)
 function generateExcelStyleId(): string {
@@ -956,7 +957,16 @@ export async function searchEmployeeHistory(filters: {
 
     // Removed created_by_name restriction to allow searching all history
 
-    if (filters.date) query = query.eq("tgl", filters.date);
+    if (filters.date) {
+      const d = parseAsWibDate(filters.date);
+      const nextD = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+      const nextDateStr = nextD.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+
+      const startWib = `${filters.date} 07:10:00`;
+      const endWib = `${nextDateStr} 07:09:59.999`;
+
+      query = query.or(`and(tanggal_jam.gte."${startWib}",tanggal_jam.lte."${endWib}"),tgl.eq."${filters.date}",tgl.eq."${nextDateStr}"`);
+    }
     if (filters.nomor_mc)
       query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
     if (filters.group_id)
@@ -1028,9 +1038,15 @@ export async function searchEmployeeHistory(filters: {
     const batchesMap = new Map<string, any>();
 
     (data || []).forEach((row: any) => {
+      const shiftDate = row.tanggal_jam ? getShiftDate(row.tanggal_jam) : (row.tgl ? getShiftDate(row.tgl) : "-");
+
+      if (filters.date && shiftDate !== filters.date) {
+        return;
+      }
+
       const mcNorm = (row.nomor_mc || "").trim().toUpperCase();
       const potNorm = row.potongan_ke || "";
-      const key = `${mcNorm}_${potNorm}`;
+      const key = `${mcNorm}_${potNorm}_${shiftDate}`;
 
       if (!batchesMap.has(key)) {
         batchesMap.set(key, {
@@ -1038,7 +1054,7 @@ export async function searchEmployeeHistory(filters: {
           nomor_mc: row.nomor_mc,
           design_id: row.design_id,
           potongan_ke: row.potongan_ke,
-          tgl: row.tgl,
+          tgl: shiftDate,
           tanggal_potong: row.tanggal_potong,
           no_order_barang: row.no_order_barang,
           no_customer: row.no_customer,
@@ -1136,7 +1152,7 @@ export async function searchEmployeeHistory(filters: {
       // update latest input time and date
       if (row.tanggal_jam >= batch.waktu_input_terakhir) {
         batch.waktu_input_terakhir = row.tanggal_jam;
-        if (row.tgl) batch.tgl = row.tgl;
+        batch.tgl = shiftDate;
       }
 
       batch.panels.push(row);

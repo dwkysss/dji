@@ -55,3 +55,13 @@ Maka kalo misal ada dua pcs atau roll, maka di halaman inspek dan mending akan a
 
 # Cara perhitungan di dashboard
 - Jika sebuah panel gagal cacat aja, maka jangan dihitung sebagai cacat
+
+# Aturan Perhitungan Hari Operasional Kerja (Cut-off Bukan Jam 12 Malam)
+- Perhitungan pergantian hari operasional kerja pabrik TIDAK berganti pada jam 12:00 malam (00:00 WIB), melainkan berganti pada pukul 07:10 WIB pagi (siklus 07:10 WIB hingga 07:10 WIB hari berikutnya).
+- Pembagian Shift Operasional:
+  - Shift 1 (Pagi): 07:10 - 15:10 WIB
+  - Shift 2 (Sore): 15:10 - 23:10 WIB
+  - Shift 3 (Malam): 23:10 - 07:10 WIB (melewati tengah malam)
+- Ketentuan Pergantian Tanggal:
+  - Seluruh data/transaksi produksi yang diinput antara pukul 00:00:00 hingga 07:09:59 WIB tetap dihitung dan diatribusikan ke tanggal operasional hari sebelumnya (karena masih merupakan bagian dari Shift 3 hari kemarin).
+  - Tanggal operasional baru baru mulai terhitung tepat pada pukul 07:10:00 WIB.
