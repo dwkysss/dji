@@ -137,6 +137,7 @@ function HistoryDetailContent() {
         </div>
 
         <div className="flex items-center gap-2">
+
           {(!detailData?.panels?.some((p: any) =>
             String(p.panel_no || "").toUpperCase().includes("BS AKHIR") ||
             String(p.panel_no || "").toUpperCase() === "BS AKHIR"

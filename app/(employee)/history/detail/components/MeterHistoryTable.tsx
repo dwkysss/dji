@@ -666,7 +666,12 @@ export default function MeterHistoryTable({
 
       const isPlaceholder = meterDisplay === "-" && !hasErrorDetail && !isIstirahat && !isFinishReport && !isStartRow;
 
-      if (!isPlaceholder) {
+      // Prevent duplicate FINISH rows for the same operator shift
+      const isDuplicateFinish = (cacatText === "FINISH") && items.some(
+        (it) => !it.isTotalRow && it.oprStr === opr && it.cacatDisplay === "FINISH"
+      );
+
+      if (!isPlaceholder && !isDuplicateFinish) {
         items.push({
           ...item,
           id: item.id || `item-${idx}-${Math.random()}`,

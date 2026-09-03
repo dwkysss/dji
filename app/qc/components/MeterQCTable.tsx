@@ -379,6 +379,9 @@ export default function MeterQCTable({
       const cacatText = isIstirahatOnly ? "-" : (isFinishReport && !hasErrorDetail ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
 
       const isPlaceholder = (meterDisplay === "-" && !hasErrorDetail && !isIstirahatOnly && !isFinishReport) || isStartMarker;
+      const isDuplicateFinish = (cacatText === "FINISH") && items.some(
+        (it) => !it.isTotalRow && it.oprStr === finalOprStr && it.cacatDisplay === "FINISH"
+      );
       let extractedBackupOp = h.operator_backup || "";
       if (!extractedBackupOp && item.keterangan_cacat) {
         const match = item.keterangan_cacat.match(/\(Backup:\s*([^)]+)\)/i);
@@ -387,7 +390,7 @@ export default function MeterQCTable({
         }
       }
 
-      if (!isPlaceholder) {
+      if (!isPlaceholder && !isDuplicateFinish) {
         const isGagalCacatOnly = (
           (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
           (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT") ||

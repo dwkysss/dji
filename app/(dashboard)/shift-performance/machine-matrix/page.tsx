@@ -28,6 +28,7 @@ import {
   CrossMachineReportSummary,
   MachineTeamMetric,
 } from "@/actions/cross-machine-actions";
+import MonthlyPerformanceCharts from "./components/MonthlyPerformanceCharts";
 
 const MONTH_NAMES = [
   "Januari",
@@ -50,22 +51,67 @@ export default function MachineMatrixPerformancePage() {
   const [selectedYear, setSelectedYear] = useState<number>(currentDate.getFullYear());
   const [reportData, setReportData] = useState<DualPeriodCrossMachineReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<"dual" | "current" | "previous">("dual");
+  const [displayMode, setDisplayMode] = useState<"BOTH" | "CHARTS" | "TABLES">("BOTH");
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (forceRefresh: boolean = false) => {
+    const cacheKey = `dji_machine_matrix_cache_v2_${selectedMonth}_${selectedYear}`;
+
+    // 1. If not forcing refresh, check cache first
+    if (!forceRefresh && typeof window !== "undefined") {
+      try {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          setReportData(parsed);
+          setIsLoading(false);
+
+          // Silent background re-fetch to keep data up to date
+          setIsRefreshing(true);
+          getDualPeriodMachineReport(selectedMonth, selectedYear)
+            .then((freshData) => {
+              if (freshData) {
+                setReportData(freshData);
+                sessionStorage.setItem(cacheKey, JSON.stringify(freshData));
+              }
+            })
+            .catch((e) => console.error("Silent background refresh error:", e))
+            .finally(() => setIsRefreshing(false));
+          return;
+        }
+      } catch (e) {
+        console.warn("Failed reading machine matrix cache:", e);
+      }
+    }
+
+    // 2. If no cache or forceRefresh is true, show loading and fetch
+    if (forceRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
       const data = await getDualPeriodMachineReport(selectedMonth, selectedYear);
       setReportData(data);
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(data));
+        } catch (e) { }
+      }
     } catch (err) {
       console.error("Gagal memuat data laporan matriks mesin:", err);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(false);
+    setSelectedWeekIndex(0);
   }, [selectedMonth, selectedYear]);
 
   // Export to Excel
@@ -134,30 +180,58 @@ export default function MachineMatrixPerformancePage() {
     const ws2 = xlsx.utils.aoa_to_sheet(ws2Data);
     xlsx.utils.book_append_sheet(wb, ws2, `${reportData.previousPeriod.monthName} ${reportData.previousPeriod.year}`);
 
+    // Weekly Sheets
+    if (reportData.currentWeeklySummaries && reportData.currentWeeklySummaries.length > 0) {
+      reportData.currentWeeklySummaries.forEach((w) => {
+        const wsData = generateSheetData(w, `Rekap ${w.weekLabel} ${w.monthName} ${w.year}`);
+        const ws = xlsx.utils.aoa_to_sheet(wsData);
+        xlsx.utils.book_append_sheet(wb, ws, `Minggu ${w.weekNumber} (${w.startDate}-${w.endDate})`);
+      });
+    }
+
     xlsx.writeFile(wb, `Laporan_Rekap_Mesin_${reportData.currentPeriod.monthName}_${reportData.currentPeriod.year}.xlsx`);
   };
 
-  const renderTable = (period: CrossMachineReportSummary, isCurrent: boolean) => {
+  const renderTable = (
+    period: CrossMachineReportSummary,
+    isCurrent: boolean,
+    customTitle?: string,
+    customBadge?: string,
+    variant: "sky" | "slate" | "indigo" = isCurrent ? "sky" : "slate"
+  ) => {
+    const bannerBg =
+      variant === "indigo"
+        ? "bg-indigo-50/90 border-indigo-200"
+        : isCurrent
+        ? "bg-sky-50/80 border-sky-200"
+        : "bg-slate-100/90 border-slate-200";
+
+    const dotBg =
+      variant === "indigo"
+        ? "bg-indigo-600"
+        : isCurrent
+        ? "bg-sky-600"
+        : "bg-slate-500";
+
+    const badgeStyle =
+      variant === "indigo"
+        ? "bg-indigo-100 text-indigo-800 border-indigo-300"
+        : isCurrent
+        ? "bg-sky-100 text-sky-800 border-sky-300"
+        : "bg-slate-200 text-slate-700 border-slate-300";
+
     return (
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col">
         {/* Table Header Banner */}
-        <div className={`px-5 py-3.5 border-b flex items-center justify-between ${
-          isCurrent ? "bg-sky-50/80 border-sky-200" : "bg-slate-100/90 border-slate-200"
-        }`}>
+        <div className={`px-5 py-3.5 border-b flex items-center justify-between ${bannerBg}`}>
           <div className="flex items-center gap-2.5">
-            <span className={`w-2.5 h-2.5 rounded-full ${isCurrent ? "bg-sky-600" : "bg-slate-500"}`}></span>
+            <span className={`w-2.5 h-2.5 rounded-full ${dotBg}`}></span>
             <h3 className="text-sm font-bold text-slate-800">
-              Periode {period.monthName} {period.year}
+              {customTitle || `Periode ${period.monthName} ${period.year}`}
             </h3>
-            {isCurrent ? (
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-sky-100 text-sky-800 border border-sky-300">
-                Bulan Terpilih
-              </span>
-            ) : (
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-200 text-slate-700 border border-slate-300">
-                Bulan Sebelumnya
-              </span>
-            )}
+            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${badgeStyle}`}>
+              {customBadge || (isCurrent ? "Bulan Terpilih" : "Bulan Sebelumnya")}
+            </span>
           </div>
           <div className="text-xs font-semibold text-slate-600">
             Total Produksi: <span className="font-bold text-slate-900 font-mono">{period.totalRow.hasilProduksi.total.toLocaleString("id-ID")}</span>
@@ -341,12 +415,12 @@ export default function MachineMatrixPerformancePage() {
 
           {/* Refresh Button */}
           <button
-            onClick={fetchData}
-            disabled={isLoading}
+            onClick={() => fetchData(true)}
+            disabled={isLoading || isRefreshing}
             className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-            title="Refresh Data"
+            title="Refresh Data Terbaru"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading || isRefreshing ? "animate-spin text-sky-600" : ""}`} />
           </button>
 
           {/* Excel Export */}
@@ -454,39 +528,80 @@ export default function MachineMatrixPerformancePage() {
         </div>
       )}
 
-      {/* View Mode Toggle Switcher */}
-      <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+      {/* Display Mode & Period View Controls */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+        {/* Left: Mode Switcher (Charts & Tables / Charts Only / Tables Only) */}
         <div className="flex items-center gap-2">
-          <SlidersHorizontal className="w-4 h-4 text-slate-500 ml-2" />
-          <span className="text-xs font-bold text-slate-700">Tampilan Periode:</span>
+          <span className="text-xs font-bold text-slate-700">Mode Tampilan:</span>
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => setDisplayMode("BOTH")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                displayMode === "BOTH" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              📊 Grafik & 📋 Tabel
+            </button>
+            <button
+              onClick={() => setDisplayMode("CHARTS")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                displayMode === "CHARTS" ? "bg-white text-sky-700 shadow-xs" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              📊 Grafik Saja
+            </button>
+            <button
+              onClick={() => setDisplayMode("TABLES")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                displayMode === "TABLES" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              📋 Tabel Saja
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-          <button
-            onClick={() => setViewMode("dual")}
-            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              viewMode === "dual" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            Kedua Periode (Bulan Ini & Bulan Lalu)
-          </button>
-          <button
-            onClick={() => setViewMode("current")}
-            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              viewMode === "current" ? "bg-white text-sky-800 shadow-xs" : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            {reportData?.currentPeriod.monthName || "Bulan Terpilih"} Saja
-          </button>
-          <button
-            onClick={() => setViewMode("previous")}
-            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              viewMode === "previous" ? "bg-white text-slate-800 shadow-xs" : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            {reportData?.previousPeriod.monthName || "Bulan Sebelumnya"} Saja
-          </button>
-        </div>
+
+        {/* Right: Period Switcher for Tables */}
+        {(displayMode === "BOTH" || displayMode === "TABLES") && (
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-xs font-bold text-slate-700">Periode Tabel:</span>
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                onClick={() => setViewMode("dual")}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                  viewMode === "dual" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Kedua Periode
+              </button>
+              <button
+                onClick={() => setViewMode("current")}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                  viewMode === "current" ? "bg-white text-sky-800 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {reportData?.currentPeriod.monthName || "Bulan Terpilih"} Saja
+              </button>
+              <button
+                onClick={() => setViewMode("previous")}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                  viewMode === "previous" ? "bg-white text-slate-800 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {reportData?.previousPeriod.monthName || "Bulan Sebelumnya"} Saja
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          MONTHLY PERFORMANCE CHARTS (3 CHARTS: OUTPUT, EFF, DEFECT)
+      ───────────────────────────────────────────────────────────── */}
+      {reportData && !isLoading && (displayMode === "BOTH" || displayMode === "CHARTS") && (
+        <MonthlyPerformanceCharts period={reportData.currentPeriod} />
+      )}
 
       {/* Tables Display */}
       {isLoading ? (
@@ -497,13 +612,126 @@ export default function MachineMatrixPerformancePage() {
       ) : reportData ? (
         <div className="space-y-6">
           {/* TABEL 1: PERIODE BULAN TERPILIH */}
-          {(viewMode === "dual" || viewMode === "current") && (
+          {(displayMode === "BOTH" || displayMode === "TABLES") && (viewMode === "dual" || viewMode === "current") && (
             renderTable(reportData.currentPeriod, true)
           )}
 
           {/* TABEL 2: PERIODE BULAN SEBELUMNYA */}
-          {(viewMode === "dual" || viewMode === "previous") && (
+          {(displayMode === "BOTH" || displayMode === "TABLES") && (viewMode === "dual" || viewMode === "previous") && (
             renderTable(reportData.previousPeriod, false)
+          )}
+
+          {/* ─────────────────────────────────────────────────────────────
+              WEEKLY DRILL-DOWN BREAKDOWN SECTION
+          ───────────────────────────────────────────────────────────── */}
+          {reportData.currentWeeklySummaries && reportData.currentWeeklySummaries.length > 0 && (
+            <div className="mt-12 pt-8 border-t-2 border-slate-200/90 space-y-6">
+              {/* Section Header with Tabs */}
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 uppercase tracking-wider mb-1">
+                    <Calendar className="w-4 h-4" />
+                    <span>Breakdown Mingguan (Weekly Drill-Down)</span>
+                  </div>
+                  <h2 className="text-lg font-black text-slate-900 tracking-tight">
+                    Rekap Performa Mesin per Minggu — {reportData.currentPeriod.monthName} {reportData.currentPeriod.year}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Evaluasi rincian hasil produksi, efisiensi tim, dan rasio cacat per siklus 7 hari di bulan terpilih.
+                  </p>
+                </div>
+
+                {/* Week Pills Selector */}
+                <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl self-start lg:self-auto">
+                  {reportData.currentWeeklySummaries.map((w, idx) => (
+                    <button
+                      key={w.weekNumber}
+                      onClick={() => setSelectedWeekIndex(idx)}
+                      className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        selectedWeekIndex === idx
+                          ? "bg-indigo-700 text-white shadow-sm"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                      }`}
+                    >
+                      Minggu {w.weekNumber}{" "}
+                      <span className="text-[10px] opacity-80 font-normal">
+                        ({w.startDate}-{w.endDate})
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Active Week Content */}
+              {(() => {
+                const activeWeek =
+                  reportData.currentWeeklySummaries[selectedWeekIndex] ||
+                  reportData.currentWeeklySummaries[0];
+                if (!activeWeek) return null;
+
+                return (
+                  <div className="space-y-4">
+                    {/* Active Week Mini Metric Summary */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Output Card */}
+                      <div className="bg-indigo-50/70 border border-indigo-100 p-4 rounded-2xl flex items-center justify-between">
+                        <div>
+                          <span className="text-[11px] font-bold text-indigo-700 uppercase">
+                            Output Minggu {activeWeek.weekNumber}
+                          </span>
+                          <div className="text-xl font-black text-slate-900 font-mono mt-0.5">
+                            {activeWeek.totalRow.hasilProduksi.total.toLocaleString("id-ID")}{" "}
+                            <span className="text-xs text-slate-400 font-sans">output</span>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold px-2.5 py-1 bg-white rounded-lg text-indigo-800 shadow-2xs border border-indigo-200">
+                          Tgl {activeWeek.startDate} - {activeWeek.endDate}
+                        </span>
+                      </div>
+
+                      {/* Efisiensi Card */}
+                      <div className="bg-emerald-50/70 border border-emerald-100 p-4 rounded-2xl flex items-center justify-between">
+                        <div>
+                          <span className="text-[11px] font-bold text-emerald-700 uppercase">
+                            Rata-rata Efisiensi
+                          </span>
+                          <div className="text-xl font-black text-emerald-800 font-mono mt-0.5">
+                            {activeWeek.totalRow.effTeam.avg.toFixed(2)}%
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold px-2.5 py-1 bg-white rounded-lg text-emerald-800 shadow-2xs border border-emerald-200">
+                          A: {activeWeek.totalRow.effTeam.A.toFixed(1)}% | B: {activeWeek.totalRow.effTeam.B.toFixed(1)}% | C: {activeWeek.totalRow.effTeam.C.toFixed(1)}%
+                        </span>
+                      </div>
+
+                      {/* Rasio Cacat Card */}
+                      <div className="bg-rose-50/70 border border-rose-100 p-4 rounded-2xl flex items-center justify-between">
+                        <div>
+                          <span className="text-[11px] font-bold text-rose-700 uppercase">
+                            Rata-rata Rasio Cacat
+                          </span>
+                          <div className="text-xl font-black text-rose-800 font-mono mt-0.5">
+                            {activeWeek.totalRow.cacatPerTeam.avg.toFixed(2)}%
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold px-2.5 py-1 bg-white rounded-lg text-rose-800 shadow-2xs border border-rose-200">
+                          A: {activeWeek.totalRow.cacatPerTeam.A.toFixed(1)}% | B: {activeWeek.totalRow.cacatPerTeam.B.toFixed(1)}% | C: {activeWeek.totalRow.cacatPerTeam.C.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Table for Active Week */}
+                    {renderTable(
+                      activeWeek,
+                      true,
+                      `Rekap ${activeWeek.weekLabel} — ${activeWeek.monthName} ${activeWeek.year}`,
+                      `Minggu ${activeWeek.weekNumber}`,
+                      "indigo"
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
           )}
         </div>
       ) : (

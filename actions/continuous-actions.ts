@@ -611,22 +611,56 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
         console.error("Gagal mendapatkan PIC nama:", err);
       }
 
-      const { error: insertHeaderError } = await supabase
-        .from("production_headers")
-        .insert(headerData);
+      // Check if this is a pure finish/meter update for an existing session to avoid inserting redundant duplicate headers
+      let targetHeaderId = headerId;
+      const isPureFinishReport = finishMeterNum !== null && finalDetailData.length === 0 && (!validated.downtimeEvents || validated.downtimeEvents.length === 0);
 
-      if (insertHeaderError) {
-        // Jika error kode 23505 (Unique Violation) berarti data ini sudah ada (duplikasi)
-        // Kita intercept dan biarkan sukses agar queue lokal klien dihapus
-        if (insertHeaderError.code === "23505") {
-          console.warn(
-            "Idempotency key duplicate detected. Returning success.",
-          );
-          return { success: true };
+      if (isPureFinishReport && headerData.nomor_mc && headerData.potongan_ke) {
+        const { data: existingFinish } = await supabase
+          .from("production_headers")
+          .select("id, meter_akhir")
+          .eq("nomor_mc", headerData.nomor_mc)
+          .eq("potongan_ke", headerData.potongan_ke)
+          .eq("tgl", headerData.tgl)
+          .order("tanggal_jam", { ascending: false })
+          .limit(1);
+
+        if (existingFinish && existingFinish.length > 0 && existingFinish[0].id) {
+          targetHeaderId = existingFinish[0].id;
+          await supabase
+            .from("production_headers")
+            .update({
+              meter_akhir: headerData.meter_akhir,
+              total_produksi_meter: headerData.total_produksi_meter,
+              tanggal_potong: headerData.tanggal_potong || undefined,
+              total_downtime_detik: headerData.total_downtime_detik,
+            })
+            .eq("id", targetHeaderId);
+        } else {
+          const { error: insertHeaderError } = await supabase
+            .from("production_headers")
+            .insert(headerData);
+
+          if (insertHeaderError) {
+            if (insertHeaderError.code === "23505") {
+              console.warn("Idempotency key duplicate detected. Returning success.");
+              return { success: true };
+            }
+            throw new Error("Failed to insert continuous header: " + insertHeaderError.message);
+          }
         }
-        throw new Error(
-          "Failed to insert continuous header: " + insertHeaderError.message,
-        );
+      } else {
+        const { error: insertHeaderError } = await supabase
+          .from("production_headers")
+          .insert(headerData);
+
+        if (insertHeaderError) {
+          if (insertHeaderError.code === "23505") {
+            console.warn("Idempotency key duplicate detected. Returning success.");
+            return { success: true };
+          }
+          throw new Error("Failed to insert continuous header: " + insertHeaderError.message);
+        }
       }
       if (finalDetailData.length > 0) {
         const { error: detailError } = await supabase
@@ -1307,3 +1341,98 @@ export async function updateInstantPanelDefectStatus(params: {
     return { success: false, error: err.message || "Gagal mengubah status cacat" };
   }
 }
+
+export async function cleanupDuplicateMeterFinishHeaders(params: {
+  nomorMc: string;
+  potonganKe: number;
+}): Promise<{ success: boolean; deletedHeadersCount?: number; error?: string }> {
+  try {
+    const supabase = await createAdminClient();
+
+    // 1. Fetch all headers for this machine and potongan
+    const { data: headers, error: headersError } = await supabase
+      .from("production_headers")
+      .select("*, production_details(*, production_defects(*)), downtime_records(*)")
+      .ilike("nomor_mc", params.nomorMc)
+      .eq("potongan_ke", params.potonganKe)
+      .order("tanggal_jam", { ascending: true });
+
+    if (headersError) throw headersError;
+    if (!headers || headers.length <= 1) {
+      return { success: true, deletedHeadersCount: 0 };
+    }
+
+    // 2. Identify pure finish headers (headers that have meter_akhir, no defects, and no downtime events)
+    const seenFinishKey = new Set<string>();
+    const headerIdsToDelete: string[] = [];
+    const detailIdsToDelete: string[] = [];
+
+    headers.forEach((h: any) => {
+      const details = h.production_details || [];
+      const downtimes = h.downtime_records || [];
+
+      const hasRealDefects = details.some((d: any) => {
+        const defects = d.production_defects || [];
+        return (
+          defects.length > 0 ||
+          (d.kategori_masalah && !d.kategori_masalah.includes("ISTIRAHAT")) ||
+          (d.detail_masalah && !d.detail_masalah.includes("ISTIRAHAT"))
+        );
+      });
+
+      const isIstirahat =
+        details.some(
+          (d: any) =>
+            (d.keterangan_cacat || "").includes("ISTIRAHAT") ||
+            (d.kategori_masalah || "").includes("ISTIRAHAT"),
+        ) ||
+        (h.operator_backup !== null &&
+          h.operator_backup !== undefined &&
+          String(h.operator_backup).trim() !== "");
+
+      const isFinish =
+        h.meter_akhir !== null &&
+        h.meter_akhir !== undefined &&
+        String(h.meter_akhir).trim() !== "";
+
+      // If it is a pure finish header without any defects or istirahat records
+      if (isFinish && !hasRealDefects && !isIstirahat && downtimes.length === 0) {
+        const oprKey = `${h.operator_id || h.pic || ""}_${h.group_id || ""}_${h.tgl || ""}_${h.meter_akhir}`;
+        if (seenFinishKey.has(oprKey)) {
+          // This is a redundant duplicate finish header!
+          headerIdsToDelete.push(h.id);
+          details.forEach((d: any) => detailIdsToDelete.push(d.id));
+        } else {
+          seenFinishKey.add(oprKey);
+        }
+      }
+    });
+
+    if (headerIdsToDelete.length > 0) {
+      // Delete child records first
+      if (detailIdsToDelete.length > 0) {
+        await supabase
+          .from("production_defects")
+          .delete()
+          .in("production_detail_id", detailIdsToDelete);
+
+        await supabase
+          .from("production_details")
+          .delete()
+          .in("id", detailIdsToDelete);
+      }
+
+      await supabase
+        .from("production_headers")
+        .delete()
+        .in("id", headerIdsToDelete);
+    }
+
+    revalidatePath("/history");
+    return { success: true, deletedHeadersCount: headerIdsToDelete.length };
+  } catch (err: any) {
+    console.error("Error cleanupDuplicateMeterFinishHeaders:", err);
+    return { success: false, error: err.message || "Gagal membersihkan data duplikat" };
+  }
+}
+

@@ -56,9 +56,17 @@ export interface CrossMachineReportSummary {
   };
 }
 
+export interface CrossMachineWeeklySummary extends CrossMachineReportSummary {
+  weekNumber: number;
+  weekLabel: string;
+  startDate: number;
+  endDate: number;
+}
+
 export interface DualPeriodCrossMachineReport {
   currentPeriod: CrossMachineReportSummary;
   previousPeriod: CrossMachineReportSummary;
+  currentWeeklySummaries: CrossMachineWeeklySummary[];
   kpiComparison: {
     totalProductionCurrent: number;
     totalProductionPrevious: number;
@@ -190,56 +198,11 @@ function computeMachineTeamMetrics(
   };
 }
 
-/**
- * Fetches and calculates cross-machine monthly performance matrix
- */
-export async function getCrossMachineMonthlyReport(
+function buildReportSummary(
   month: number,
-  year: number
-): Promise<CrossMachineReportSummary> {
-  // Determine machine list
-  let machineList = ORDERED_MACHINE_LIST;
-  try {
-    const res = await getMachineStatuses();
-    if (res?.success && res.data && res.data.length > 0) {
-      const activeIds = res.data.map((s: any) => s.nomor_mc).filter(Boolean);
-      // Merge with registered machines to ensure complete display
-      const mergedSet = new Set([...ORDERED_MACHINE_LIST, ...activeIds, ...REGISTERED_MACHINES]);
-      machineList = Array.from(mergedSet).sort((a, b) => {
-        const idxA = ORDERED_MACHINE_LIST.indexOf(a);
-        const idxB = ORDERED_MACHINE_LIST.indexOf(b);
-        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        if (idxA !== -1) return -1;
-        if (idxB !== -1) return 1;
-        return a.localeCompare(b);
-      });
-    }
-  } catch (err) {
-    console.error("Error fetching machine statuses for cross-machine report:", err);
-  }
-
-  // Fetch report data for all machines in parallel
-  const machinePromises = machineList.map(async (mId) => {
-    try {
-      const { data, isMeterMachine } = await getMonthlyMachineReport(month, year, mId);
-      return computeMachineTeamMetrics(mId, data || [], Boolean(isMeterMachine));
-    } catch (e) {
-      console.error(`Error calculating metrics for machine ${mId}:`, e);
-      return {
-        machineId: mId,
-        isMeterMachine: mId.startsWith("T") || mId.includes("M"),
-        activeDaysCount: 1,
-        hasData: false,
-        hasilProduksi: { A: 0, B: 0, C: 0, total: 0 },
-        effTeam: { A: 0, B: 0, C: 0, avg: 0 },
-        cacatPerTeam: { A: 0, B: 0, C: 0, avg: 0 },
-      };
-    }
-  });
-
-  const machines = await Promise.all(machinePromises);
-
-  // Compute Total / Average Row
+  year: number,
+  machines: MachineTeamMetric[]
+): CrossMachineReportSummary {
   const totalHasilA = machines.reduce((acc, m) => acc + m.hasilProduksi.A, 0);
   const totalHasilB = machines.reduce((acc, m) => acc + m.hasilProduksi.B, 0);
   const totalHasilC = machines.reduce((acc, m) => acc + m.hasilProduksi.C, 0);
@@ -288,7 +251,114 @@ export async function getCrossMachineMonthlyReport(
 }
 
 /**
- * Fetches dual-period report (selected month + previous month) with comparison KPIs
+ * Fetches and calculates cross-machine monthly and weekly performance matrices
+ */
+export async function getCrossMachineReportWithWeeks(
+  month: number,
+  year: number
+): Promise<{
+  monthlySummary: CrossMachineReportSummary;
+  weeklySummaries: CrossMachineWeeklySummary[];
+}> {
+  // Determine machine list
+  let machineList = ORDERED_MACHINE_LIST;
+  try {
+    const res = await getMachineStatuses();
+    if (res?.success && res.data && res.data.length > 0) {
+      const activeIds = res.data.map((s: any) => s.nomor_mc).filter(Boolean);
+      // Merge with registered machines to ensure complete display
+      const mergedSet = new Set([...ORDERED_MACHINE_LIST, ...activeIds, ...REGISTERED_MACHINES]);
+      machineList = Array.from(mergedSet).sort((a, b) => {
+        const idxA = ORDERED_MACHINE_LIST.indexOf(a);
+        const idxB = ORDERED_MACHINE_LIST.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.localeCompare(b);
+      });
+    }
+  } catch (err) {
+    console.error("Error fetching machine statuses for cross-machine report:", err);
+  }
+
+  // Fetch report data for all machines in parallel
+  const rawMachineReports = await Promise.all(
+    machineList.map(async (mId) => {
+      try {
+        const { data, isMeterMachine } = await getMonthlyMachineReport(month, year, mId);
+        return {
+          mId,
+          data: data || [],
+          isMeterMachine: Boolean(isMeterMachine),
+        };
+      } catch (e) {
+        console.error(`Error calculating metrics for machine ${mId}:`, e);
+        return {
+          mId,
+          data: [] as MonthlyMachineReportData[],
+          isMeterMachine: mId.startsWith("T") || mId.includes("M"),
+        };
+      }
+    })
+  );
+
+  // 1. Full Month Summary
+  const monthlyMachines = rawMachineReports.map(({ mId, data, isMeterMachine }) =>
+    computeMachineTeamMetrics(mId, data, isMeterMachine)
+  );
+  const monthlySummary = buildReportSummary(month, year, monthlyMachines);
+
+  // 2. Weekly Summaries
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const weekDefinitions = [
+    { weekNumber: 1, startDate: 1, endDate: 7 },
+    { weekNumber: 2, startDate: 8, endDate: 14 },
+    { weekNumber: 3, startDate: 15, endDate: 21 },
+    { weekNumber: 4, startDate: 22, endDate: 28 },
+  ];
+  if (daysInMonth >= 29) {
+    weekDefinitions.push({
+      weekNumber: 5,
+      startDate: 29,
+      endDate: daysInMonth,
+    });
+  }
+
+  const weeklySummaries: CrossMachineWeeklySummary[] = weekDefinitions.map((w) => {
+    const weekMachines = rawMachineReports.map(({ mId, data, isMeterMachine }) => {
+      const filteredDays = data.filter((d: any) => {
+        const dayNum = d.tanggal !== undefined ? d.tanggal : d.day;
+        return dayNum >= w.startDate && dayNum <= w.endDate;
+      });
+      return computeMachineTeamMetrics(mId, filteredDays, isMeterMachine);
+    });
+
+    const summary = buildReportSummary(month, year, weekMachines);
+    return {
+      ...summary,
+      weekNumber: w.weekNumber,
+      weekLabel: `Minggu ${w.weekNumber} (Tgl ${w.startDate} - ${w.endDate})`,
+      startDate: w.startDate,
+      endDate: w.endDate,
+    };
+  });
+
+  return { monthlySummary, weeklySummaries };
+}
+
+/**
+ * Fetches and calculates cross-machine monthly performance matrix
+ */
+export async function getCrossMachineMonthlyReport(
+  month: number,
+  year: number
+): Promise<CrossMachineReportSummary> {
+  const { monthlySummary } = await getCrossMachineReportWithWeeks(month, year);
+  return monthlySummary;
+}
+
+/**
+ * Fetches dual-period report (selected month + previous month) with weekly breakdown & comparison KPIs
  */
 export async function getDualPeriodMachineReport(
   month: number,
@@ -297,10 +367,14 @@ export async function getDualPeriodMachineReport(
   const prevMonth = month === 1 ? 12 : month - 1;
   const prevYear = month === 1 ? year - 1 : year;
 
-  const [currentPeriod, previousPeriod] = await Promise.all([
-    getCrossMachineMonthlyReport(month, year),
+  const [currentResult, previousSummary] = await Promise.all([
+    getCrossMachineReportWithWeeks(month, year),
     getCrossMachineMonthlyReport(prevMonth, prevYear),
   ]);
+
+  const currentPeriod = currentResult.monthlySummary;
+  const previousPeriod = previousSummary;
+  const currentWeeklySummaries = currentResult.weeklySummaries;
 
   const prodCur = currentPeriod.totalRow.hasilProduksi.total;
   const prodPrev = previousPeriod.totalRow.hasilProduksi.total;
@@ -318,6 +392,7 @@ export async function getDualPeriodMachineReport(
   return {
     currentPeriod,
     previousPeriod,
+    currentWeeklySummaries,
     kpiComparison: {
       totalProductionCurrent: prodCur,
       totalProductionPrevious: prodPrev,
