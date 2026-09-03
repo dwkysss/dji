@@ -539,7 +539,10 @@ export default function MeterHistoryTable({
           showTgl: true,
           showGrp: true,
           showOpr: true,
-          hasErrorDetail: false
+          hasErrorDetail: false,
+          db_id: h.id ? `header-${h.id}` : undefined,
+          header_id: h.id,
+          pcs_index: item.pcs_index,
         });
         globalRowCount += 1;
         const startMeterVal = parseFloat(cleanMeterVal(startMeter));
@@ -719,7 +722,7 @@ export default function MeterHistoryTable({
 
   const selectableIds = React.useMemo(() => {
     return displayItems
-      .filter((it: any) => !it.isTotalRow && !it.isStartRow && it.db_id && it.cacatDisplay !== "START")
+      .filter((it: any) => !it.isTotalRow && it.db_id)
       .map((it: any) => it.db_id);
   }, [displayItems]);
 
@@ -776,20 +779,35 @@ export default function MeterHistoryTable({
           }
 
           if (item.isStartRow) {
+            const isStartSelected = !!(selectedDetailIds && item.db_id && selectedDetailIds.includes(item.db_id));
+            const startRowBgClass = isStartSelected
+              ? "bg-rose-50/70 hover:bg-rose-100/60 border-y border-rose-200"
+              : "hover:bg-slate-50";
+
             return (
-              <tr key={item.id || index} className="hover:bg-slate-50 transition-colors">
+              <tr key={item.id || index} className={`${startRowBgClass} transition-colors`}>
                 {onToggleSelectDetail && (
-                  <td className="px-1 py-1.5 text-center text-xs text-slate-300 border-r border-slate-100 border-b border-slate-100">
-                    -
+                  <td className={`px-1 py-1.5 text-center text-xs border-r border-slate-100 border-b border-slate-100 ${isStartSelected ? "bg-rose-100/80" : ""}`}>
+                    {item.db_id ? (
+                      <input
+                        type="checkbox"
+                        checked={isStartSelected}
+                        onChange={() => onToggleSelectDetail(item.db_id)}
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                        title="Pilih Sesi Awal Operator Ini"
+                      />
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
                   </td>
                 )}
-                <td className="px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100">
+                <td className={`px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 ${isStartSelected ? "bg-rose-100/80" : ""}`}>
                   {item.displayNo}
                 </td>
                 <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100 border-b border-slate-100">
                   {item.tglStr}
                 </td>
-                <td className="px-1 py-1.5 text-slate-600 text-center font-mono text-[11px] whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
+                <td className="px-1 py-1.5 text-slate-600 text-center font-mono text-[11px] whitespace-nowrap border-r border-slate-100 border-b border-slate-100 font-bold">
                   {item.jamStr || "-"}
                 </td>
                 <td className="px-1 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100">
@@ -809,7 +827,36 @@ export default function MeterHistoryTable({
                 <td className="px-1 py-1.5 text-center text-[11px] font-medium text-slate-400 border-r border-slate-100 border-b border-slate-100">
                   -
                 </td>
-                <td className="px-1 py-1.5 text-center w-24 border-r border-slate-100 border-b border-slate-100">
+                <td className="px-1 py-1.5 text-center w-12 border-b border-slate-100">
+                  <div className="flex items-center justify-center gap-1">
+                    {setDetailToDelete && item.db_id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isStartSelected && onRequestBulkDelete) {
+                            onRequestBulkDelete();
+                          } else {
+                            setDetailToDelete({
+                              id: item.db_id,
+                              name: `Sesi Awal (${item.oprStr || "Operator"}) - ${item.meterDisplay || "0"} Meter`,
+                            });
+                          }
+                        }}
+                        className={`inline-flex items-center justify-center p-1.5 rounded transition-colors cursor-pointer ${
+                          isStartSelected
+                            ? "bg-rose-600 text-white hover:bg-rose-700 shadow-xs"
+                            : "hover:bg-rose-100 text-rose-600"
+                        }`}
+                        title={
+                          isStartSelected
+                            ? `Hapus ${selectedDetailIds?.length} data terpilih bersamaan`
+                            : "Hapus Sesi Awal Operator Ini"
+                        }
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             );

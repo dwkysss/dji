@@ -52,3 +52,6 @@ Maka kalo misal ada dua pcs atau roll, maka di halaman inspek dan mending akan a
 
 # Cara Penambahan Panel di halaman insepksi dan mending
 - ternyata ketika nambah panel itu si panel berikutnya ga otomatis bertambah, misalkan nambah di panel 2, nah itu biarin aja jadi ada dua si panelnya panel berikutnya ga otomatis bertambah. Tapi kasih lebel double dibawah panelnya.
+
+# Cara perhitungan di dashboard
+- Jika sebuah panel gagal cacat aja, maka jangan dihitung sebagai cacat

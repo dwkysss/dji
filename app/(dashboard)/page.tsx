@@ -23,7 +23,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { getRealProductionsData } from "@/actions/dashboard-actions";
-import { isBsAwalAkhir } from "@/lib/mending-grade-utils";
+import { isBsAwalAkhir, isPanelGagalCacat, hasRealDefect } from "@/lib/mending-grade-utils";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 
 const DASHBOARD_TOUR_STEPS: ProductTourStep[] = [
@@ -587,12 +587,14 @@ export default function DashboardPage() {
     ); // Keep raw sum since it's detail-level pcs
     const totalItems = uniqueHeaders.length;
 
-    // Cacat Panel (Count unique header_ids with problems)
+    // Cacat Panel (Count unique header_ids with problems, ignoring Gagal Cacat and BS Awal/Akhir)
     const countMasalahPanel = new Set(
       gradeScoped
         .filter(
           (item) =>
             !isBsAwalAkhir(item) &&
+            !isPanelGagalCacat(item) &&
+            hasRealDefect(item) &&
             item.status_qc === "Recheck" &&
             item.is_production &&
             (item.hasil_meter || 0) === 0 &&
@@ -609,10 +611,12 @@ export default function DashboardPage() {
       totalPanelValid > 0 ? (countMasalahPanel / totalPanelValid) * 100 : 0;
     const fpyPanel = Math.max(0, 100 - persentaseCacatPanel);
 
-    // Cacat Meteran (Count raw detail problem rows, as they are points on a continuous fabric)
+    // Cacat Meteran (Count raw detail problem rows, ignoring Gagal Cacat)
     const countMasalahMeteran = gradeScoped.filter(
       (item) =>
         !isBsAwalAkhir(item) &&
+        !isPanelGagalCacat(item) &&
+        hasRealDefect(item) &&
         item.status_qc === "Recheck" &&
         item.is_production &&
         (item.posisi_meter || 0) > 0,
@@ -664,12 +668,15 @@ export default function DashboardPage() {
     const oee =
       (availability / 100) * (performance / 100) * (quality / 100) * 100;
 
-    // Total Masalah Umum
+    // Total Masalah Umum (mengabaikan Gagal Cacat dan Kategori G)
     let countMasalah = 0;
     gradeScoped
       .filter(
         (item) =>
-          item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")
+          !isBsAwalAkhir(item) &&
+          !isPanelGagalCacat(item) &&
+          hasRealDefect(item) &&
+          (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== ""))
       )
       .forEach((item) => {
         let itemCount = 1;
@@ -677,7 +684,7 @@ export default function DashboardPage() {
           const cats = item
             .kategori_masalah.split(",")
             .map((c) => c.trim())
-            .filter((c) => c !== "");
+            .filter((c) => c !== "" && c !== "X" && c !== "G" && c !== "BS" && !c.toUpperCase().includes("ISTIRAHAT") && !c.toUpperCase().includes("GAGAL CACAT"));
           itemCount = Math.max(itemCount, cats.length);
         }
 
@@ -1028,7 +1035,7 @@ export default function DashboardPage() {
           downtimeHeaders: new Map(),
         };
       }
-      if (!isBsAwalAkhir(item) && (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== ""))) {
+      if (!isBsAwalAkhir(item) && !isPanelGagalCacat(item) && hasRealDefect(item) && (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== ""))) {
         criticalMachineMap[item.mesin_id].defects += 1;
       }
       criticalMachineMap[item.mesin_id].downtimeHeaders.set(
@@ -1093,6 +1100,8 @@ export default function DashboardPage() {
       const problemData = transactionsToAnalyze.filter(
         (item) =>
           !isBsAwalAkhir(item) &&
+          !isPanelGagalCacat(item) &&
+          hasRealDefect(item) &&
           (item.grade === "BS" ||
           (item.kategori_masalah && item.kategori_masalah.trim() !== "") ||
           (item.detail_masalah && item.detail_masalah.trim() !== ""))
@@ -1217,7 +1226,7 @@ export default function DashboardPage() {
           detailsList = item.detail_masalah.split(",").map(d => d.trim()).filter(d => d !== "");
         }
 
-        // Filter out any non-defect / scrap entries from detailsList
+        // Filter out any non-defect / scrap / gagal cacat entries from detailsList
         detailsList = detailsList.filter((det) => {
           const upper = det.toUpperCase();
           return (
@@ -1226,6 +1235,7 @@ export default function DashboardPage() {
             !upper.includes("POTONGAN AWAL") &&
             !upper.includes("POTONGAN AKHIR") &&
             !upper.includes("SISA POTONGAN") &&
+            !upper.includes("GAGAL CACAT") &&
             upper !== "START" &&
             upper !== "FINISH" &&
             upper !== "ISTIRAHAT"
@@ -1233,11 +1243,11 @@ export default function DashboardPage() {
         });
 
         if (detailsList.length === 0) {
-          if (item.kategori_masalah && item.kategori_masalah.trim() !== "" && item.kategori_masalah !== "X") {
+          if (item.kategori_masalah && item.kategori_masalah.trim() !== "" && item.kategori_masalah !== "X" && item.kategori_masalah !== "G" && !item.kategori_masalah.toUpperCase().includes("GAGAL CACAT")) {
             const cat = item.kategori_masalah.trim().toUpperCase();
             const desc = CATEGORY_NAMES[cat] || "Masalah Lain";
             detailsList.push(`[${cat}] ${desc}`);
-          } else if (item.grade === "BS" && !isBsAwalAkhir(item)) {
+          } else if (item.grade === "BS" && !isBsAwalAkhir(item) && !isPanelGagalCacat(item)) {
             detailsList.push("[X] Panel BS (Tanpa Detail)");
           }
         }
@@ -1264,10 +1274,10 @@ export default function DashboardPage() {
         });
       });
     } else {
-      // Group by MESIN: hitung jumlah kejadian masalah/cacat sesungguhnya per mesin
+      // Group by MESIN: hitung jumlah kejadian masalah/cacat sesungguhnya per mesin (mengabaikan Gagal Cacat)
       transactionsToAnalyze.forEach((item) => {
         if (isBsAwalAkhir(item)) return;
-        const isDefect = item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "");
+        const isDefect = !isPanelGagalCacat(item) && hasRealDefect(item) && (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== ""));
         const downtime = item.total_downtime_detik || 0;
         if (!isDefect && downtime === 0) return;
 
@@ -1347,7 +1357,7 @@ export default function DashboardPage() {
 
     switch (activeFilter) {
       case "LOLOS":
-        return validProductionData.filter((item) => item.status_qc === "Lolos");
+        return validProductionData.filter((item) => item.status_qc === "Lolos" || isPanelGagalCacat(item) || !hasRealDefect(item));
       case "EFISIENSI":
         return validProductionData.filter((item) => {
           const ef =
@@ -1356,7 +1366,7 @@ export default function DashboardPage() {
         });
       case "PROBLEMS":
         return dateFilteredTransactions.filter(
-          (item) => !isBsAwalAkhir(item) && (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")),
+          (item) => !isBsAwalAkhir(item) && !isPanelGagalCacat(item) && hasRealDefect(item) && (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")),
         );
       case "NOL_PRODUKSI":
         return validProductionData.filter((item) => item.hasil_pcs === 0);
@@ -1390,6 +1400,8 @@ export default function DashboardPage() {
     const problemData = dateFilteredTransactions.filter(
       (item) =>
         !isBsAwalAkhir(item) &&
+        !isPanelGagalCacat(item) &&
+        hasRealDefect(item) &&
         (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")),
     );
     const catMap = new Map<string, number>();
@@ -1398,11 +1410,11 @@ export default function DashboardPage() {
       let itemCount = 1;
       let cats: string[] = [];
 
-      if (item.kategori_masalah && item.kategori_masalah.trim() !== "" && item.kategori_masalah !== "X") {
+      if (item.kategori_masalah && item.kategori_masalah.trim() !== "" && item.kategori_masalah !== "X" && item.kategori_masalah !== "G") {
         cats = item
           .kategori_masalah.split(",")
           .map((c) => c.trim())
-          .filter((c) => c !== "" && c !== "X");
+          .filter((c) => c !== "" && c !== "X" && c !== "G" && !c.toUpperCase().includes("GAGAL CACAT"));
       }
 
       if (cats.length === 0 && item.detail_masalah && item.detail_masalah.trim() !== "") {
@@ -1795,8 +1807,9 @@ export default function DashboardPage() {
       else if (t.grade === "BS") bs++;
       else ungraded++;
 
-      if (t.status_qc === "Lolos") lolos++;
-      else if (t.status_qc === "Recheck") recheck++;
+      const isDefect = !isPanelGagalCacat(t) && hasRealDefect(t);
+      if (t.status_qc === "Lolos" || !isDefect) lolos++;
+      else if (t.status_qc === "Recheck" && isDefect) recheck++;
 
       operatorMap[t.nama_operator] =
         (operatorMap[t.nama_operator] || 0) + t.hasil_pcs;

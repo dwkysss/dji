@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getShiftDate } from "@/lib/shift-utils";
+import { isPanelGagalCacat, isPanelGagalCacatAja, hasRealDefect } from "@/lib/mending-grade-utils";
 
 export interface RealProductionItem {
   id: string;
@@ -127,6 +128,15 @@ export async function getRealProductionsData(): Promise<{
       const targetTs = item.tanggal_jam || item.created_at || headerTs || item.tanggal;
       const shiftTanggal = getShiftDate(targetTs);
 
+      const isDefective = hasRealDefect(item);
+      const isGagalCacatAja = isPanelGagalCacatAja(item);
+      const computedStatusQc: "Lolos" | "Recheck" =
+        isDefective
+          ? "Recheck"
+          : isGagalCacatAja
+          ? "Lolos"
+          : ((item.status_qc as "Lolos" | "Recheck") || "Lolos");
+
       return {
         id: item.id || `header_${item.header_id}_${Math.random().toString().slice(2, 8)}`,
         header_id: String(item.header_id),
@@ -142,7 +152,7 @@ export async function getRealProductionsData(): Promise<{
         hasil_meter: item.hasil_meter || 0,
         posisi_meter: item.posisi_meter || 0,
         target_pcs: item.target_pcs || 0,
-        status_qc: item.status_qc as "Lolos" | "Recheck",
+        status_qc: computedStatusQc,
         rpm_mesin: item.rpm_mesin || 800,
         grade: item.grade as "GRADE A" | "GRADE B" | "BS" | "UNGRADED",
         design: item.design || "Tanpa Design",

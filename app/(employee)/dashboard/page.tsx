@@ -21,6 +21,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { getRealProductionsData } from "@/actions/dashboard-actions";
+import { isBsAwalAkhir, isPanelGagalCacat, hasRealDefect } from "@/lib/mending-grade-utils";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 
 const FALLBACK_OPERATORS = [
@@ -532,10 +533,12 @@ export default function DashboardPage() {
     );
     const totalItems = productionOnly.length;
 
-    // Perhitungan Cacat Produksi (Panel)
-    // "menghitung baris panel yang ada kategori masalahnya di baris tsb" -> hitung baris/detail
+    // Perhitungan Cacat Produksi (Panel - mengabaikan Gagal Cacat dan BS Awal/Akhir)
     const countMasalahPanel = gradeScoped.filter(
       (item) =>
+        !isBsAwalAkhir(item) &&
+        !isPanelGagalCacat(item) &&
+        hasRealDefect(item) &&
         item.status_qc === "Recheck" &&
         item.is_production &&
         (item.hasil_meter || 0) === 0 &&
@@ -545,9 +548,12 @@ export default function DashboardPage() {
     const persentaseCacatPanel =
       totalPanelValid > 0 ? (countMasalahPanel / totalPanelValid) * 100 : 0;
 
-    // Perhitungan Cacat Produksi (Meteran)
+    // Perhitungan Cacat Produksi (Meteran - mengabaikan Gagal Cacat)
     const countMasalahMeteran = gradeScoped.filter(
       (item) =>
+        !isBsAwalAkhir(item) &&
+        !isPanelGagalCacat(item) &&
+        hasRealDefect(item) &&
         item.status_qc === "Recheck" &&
         item.is_production &&
         (item.posisi_meter || 0) > 0,
@@ -572,11 +578,14 @@ export default function DashboardPage() {
         ? (totalDetikKerjaEfektif / totalDetikTersedia) * 100
         : 0;
 
-    // Total Masalah Umum (berdasarkan kemunculan kategori masalah)
+    // Total Masalah Umum (berdasarkan kemunculan kategori masalah, mengabaikan Gagal Cacat)
     let countMasalah = 0;
     gradeScoped
       .filter(
         (item) =>
+          !isBsAwalAkhir(item) &&
+          !isPanelGagalCacat(item) &&
+          hasRealDefect(item) &&
           item.status_qc === "Recheck" &&
           item.is_production &&
           item.kategori_masalah,
@@ -585,7 +594,7 @@ export default function DashboardPage() {
         const cats = item
           .kategori_masalah!.split(",")
           .map((c) => c.trim())
-          .filter((c) => c !== "");
+          .filter((c) => c !== "" && c !== "X" && c !== "G" && c !== "BS" && !c.toUpperCase().includes("ISTIRAHAT") && !c.toUpperCase().includes("GAGAL CACAT"));
         countMasalah += cats.length;
       });
 
@@ -626,7 +635,7 @@ export default function DashboardPage() {
     switch (activeFilter) {
       case "LOLOS":
         return dateFilteredTransactions.filter(
-          (item) => item.status_qc === "Lolos",
+          (item) => item.status_qc === "Lolos" || isPanelGagalCacat(item) || !hasRealDefect(item),
         );
       case "EFISIENSI":
         // Filter efisiensi optimal (>= 90%)
@@ -638,6 +647,9 @@ export default function DashboardPage() {
       case "PROBLEMS":
         return dateFilteredTransactions.filter(
           (item) =>
+            !isBsAwalAkhir(item) &&
+            !isPanelGagalCacat(item) &&
+            hasRealDefect(item) &&
             item.status_qc === "Recheck" &&
             item.grade !== "UNGRADED" &&
             item.is_production,

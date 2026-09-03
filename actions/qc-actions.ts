@@ -1063,7 +1063,73 @@ export async function getPendingQCDetailsByDate(tanggal: string) {
 
 export async function deleteProductionDetailRow(detailId: string, mode: "permanent" | "keep_slot" | "shift" = "permanent") {
   try {
+    if (!detailId) return { success: false, error: "ID data tidak valid." };
+    const detailIdStr = String(detailId).trim();
     const supabase = await createAdminClient();
+
+    // 0. Check if detailId is a header deletion (e.g. "header-1234abcd") or direct header id
+    let headerIdToDelete = detailIdStr.startsWith("header-") ? detailIdStr.replace(/^header-/, "") : null;
+    if (!headerIdToDelete) {
+      const { data: directHeader } = await supabase
+        .from("production_headers")
+        .select("id")
+        .eq("id", detailIdStr)
+        .maybeSingle();
+      if (directHeader) {
+        headerIdToDelete = directHeader.id;
+      }
+    }
+
+    if (headerIdToDelete) {
+      // 1. Find all details under this header
+      const { data: childDetails } = await supabase
+        .from("production_details")
+        .select("id")
+        .eq("header_id", headerIdToDelete);
+
+      const childDetailIds = (childDetails || []).map((d: any) => d.id);
+
+      if (childDetailIds.length > 0) {
+        // Delete related mending_items, qc_inspection_items, production_defects
+        await supabase
+          .from("mending_items")
+          .delete()
+          .in("production_detail_id", childDetailIds);
+
+        await supabase
+          .from("qc_inspection_items")
+          .delete()
+          .in("production_detail_id", childDetailIds);
+
+        await supabase
+          .from("production_defects")
+          .delete()
+          .in("production_detail_id", childDetailIds);
+
+        await supabase
+          .from("production_details")
+          .delete()
+          .in("id", childDetailIds);
+      }
+
+      // Delete downtime_records for this header
+      await supabase
+        .from("downtime_records")
+        .delete()
+        .eq("header_id", headerIdToDelete);
+
+      // Delete the header itself
+      const { error: hdrDelErr } = await supabase
+        .from("production_headers")
+        .delete()
+        .eq("id", headerIdToDelete);
+
+      if (hdrDelErr) {
+        return { success: false, error: "Gagal menghapus header sesi: " + hdrDelErr.message };
+      }
+
+      return { success: true };
+    }
 
     if (mode === "keep_slot") {
       // Opsi 2: Tandai data rincian sebagai dihapus (slot & nomor panel tetap tidak bergeser)
@@ -2068,7 +2134,30 @@ export async function bulkDeleteProductionDetailRows(
       return { success: true, count: 0 };
     }
 
-    const supabase = await createClient();
+    const supabase = await createAdminClient();
+
+    const headerIdsToDelete = new Set<string>();
+    const regularDetailIds: string[] = [];
+
+    for (const id of detailIds) {
+      if (id.startsWith("header-")) {
+        headerIdsToDelete.add(id.replace(/^header-/, ""));
+      } else {
+        regularDetailIds.push(id);
+      }
+    }
+
+    // 1. Delete headers first
+    for (const hdrId of Array.from(headerIdsToDelete)) {
+      const res = await deleteProductionDetailRow(`header-${hdrId}`, mode);
+      if (!res.success) {
+        return { success: false, error: res.error };
+      }
+    }
+
+    if (regularDetailIds.length === 0) {
+      return { success: true, count: detailIds.length };
+    }
 
     if (mode === "keep_slot") {
       const { error } = await supabase
@@ -2080,7 +2169,7 @@ export async function bulkDeleteProductionDetailRows(
           jml_hasil_produksi: 0,
           keterangan_cacat: "[DIHAPUS]",
         })
-        .in("id", detailIds);
+        .in("id", regularDetailIds);
 
       if (error) {
         return { success: false, error: error.message };
@@ -2092,13 +2181,16 @@ export async function bulkDeleteProductionDetailRows(
     const { data: details, error: fetchErr } = await supabase
       .from("production_details")
       .select("id, header_id, pcs_index, production_headers(panel_no)")
-      .in("id", detailIds);
+      .in("id", regularDetailIds);
 
     if (fetchErr) {
       return { success: false, error: fetchErr.message };
     }
 
-    const sortedDetails = (details || []).sort((a: any, b: any) => {
+    // Filter out details whose header was already deleted
+    const remainingDetails = (details || []).filter((d: any) => !headerIdsToDelete.has(d.header_id));
+
+    const sortedDetails = remainingDetails.sort((a: any, b: any) => {
       const pA = parseInt(a.production_headers?.panel_no || "0");
       const pB = parseInt(b.production_headers?.panel_no || "0");
       return pB - pA; // Descending

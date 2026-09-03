@@ -25,6 +25,143 @@ export const isBsAwalAkhir = (item: any): boolean => {
   );
 };
 
+/**
+ * Memeriksa apakah sebuah baris/panel memiliki cacat fisik nyata (mengabaikan Istirahat, Gagal Cacat, Start/Finish, Scrap).
+ */
+export const hasRealDefect = (item: any): boolean => {
+  if (!item) return false;
+  if (isBsAwalAkhir(item)) return false;
+
+  const defects = item.production_defects || item.detail?.production_defects;
+  if (Array.isArray(defects) && defects.length > 0) {
+    return defects.some((d: any) => {
+      const k = String(d.kategori || "").toUpperCase().trim();
+      const det = String(d.detail || "").toUpperCase().trim();
+      if (k.includes("ISTIRAHAT") || det.includes("ISTIRAHAT")) return false;
+      if (det.includes("GAGAL CACAT") || k === "G") return false;
+      if (
+        det === "START" ||
+        det === "FINISH" ||
+        det.includes("SISA") ||
+        det.includes("POTONGAN")
+      )
+        return false;
+      return true;
+    });
+  }
+
+  const katStr = String(
+    item.kategori_masalah || item.detail?.kategori_masalah || ""
+  )
+    .toUpperCase()
+    .trim();
+  const detStr = String(
+    item.detail_masalah || item.detail?.detail_masalah || ""
+  )
+    .toUpperCase()
+    .trim();
+  const ketStr = String(
+    item.keterangan_cacat || item.detail?.keterangan_cacat || ""
+  )
+    .toUpperCase()
+    .trim();
+
+  // Jika ada [TAMBAHAN QC], itu adalah temuan cacat riil dari QC
+  if (ketStr.includes("[TAMBAHAN QC]")) return true;
+
+  // Cek apakah ada kategori masalah riil (selain G, BS, X, ISTIRAHAT, GAGAL CACAT)
+  const categories = katStr
+    .split(",")
+    .map((c) => c.trim())
+    .filter(
+      (c) =>
+        c !== "" &&
+        c !== "G" &&
+        c !== "BS" &&
+        c !== "X" &&
+        !c.includes("ISTIRAHAT") &&
+        !c.includes("GAGAL CACAT")
+    );
+
+  if (categories.length > 0) return true;
+
+  // Cek detail masalah
+  const details = detStr
+    .split(/[,|]/)
+    .map((d) => d.replace(/\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim())
+    .filter(
+      (d) =>
+        d !== "" &&
+        !d.includes("GAGAL CACAT") &&
+        !d.includes("ISTIRAHAT") &&
+        !d.includes("START") &&
+        !d.includes("FINISH") &&
+        !d.includes("SISA AWAL") &&
+        !d.includes("SISA AKHIR") &&
+        !d.includes("SISA POTONGAN") &&
+        !d.includes("POTONGAN AWAL") &&
+        !d.includes("POTONGAN AKHIR") &&
+        !d.includes("OPLOS SHIFT") &&
+        !d.includes("GANTI OPERATOR")
+    );
+
+  if (details.length > 0) return true;
+
+  return false;
+};
+
+/**
+ * Memeriksa apakah sebuah baris/panel HANYA memiliki status "Gagal Cacat" tanpa cacat riil lainnya ("gagal cacat aja").
+ * Aturan Dashboard: Jika sebuah panel gagal cacat aja, maka jangan dihitung sebagai cacat.
+ * Jika panel memiliki cacat fisik lain (misal: "A, G" / "Perbaikan Meped, Gagal Cacat"), maka BUKAN "gagal cacat aja"
+ * sehingga tetap dihitung sebagai cacat dari masalah riilnya.
+ */
+export const isPanelGagalCacatAja = (item: any): boolean => {
+  if (!item) return false;
+
+  // Jika panel memiliki cacat riil, maka BUKAN "gagal cacat aja"
+  if (hasRealDefect(item)) return false;
+
+  const det = String(
+    item.detail_masalah ||
+      item.keterangan_cacat ||
+      item.keterangan ||
+      item.detail?.detail_masalah ||
+      item.detail?.keterangan_cacat ||
+      ""
+  ).toUpperCase();
+
+  const kat = String(
+    item.kategori_masalah ||
+      item.detail?.kategori_masalah ||
+      ""
+  ).toUpperCase();
+
+  const pNo = String(
+    item.panel_no_str ||
+      item.panel_no ||
+      item.panelNo ||
+      ""
+  ).toUpperCase();
+
+  if (det.includes("GAGAL CACAT") || pNo.includes("GAGAL CACAT")) return true;
+  if (kat === "G" || kat === "GAGAL CACAT") return true;
+
+  const defects = item.production_defects || item.detail?.production_defects;
+  if (Array.isArray(defects) && defects.length > 0) {
+    return defects.some((d: any) => {
+      const k = String(d.kategori || "").toUpperCase().trim();
+      const dt = String(d.detail || "").toUpperCase().trim();
+      return dt.includes("GAGAL CACAT") || k === "G";
+    });
+  }
+
+  return false;
+};
+
+// Export alias untuk kemudahan
+export const isPanelGagalCacat = isPanelGagalCacatAja;
+
 export const calculateOverallGradeData = (
   items: any[],
   isMeter: boolean,
