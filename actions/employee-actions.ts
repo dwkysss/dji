@@ -957,7 +957,7 @@ export async function searchEmployeeHistory(filters: {
 
     // Removed created_by_name restriction to allow searching all history
 
-    if (filters.date) {
+    if (filters.date && !filters.includeDetails) {
       const d = parseAsWibDate(filters.date);
       const nextD = new Date(d.getTime() + 24 * 60 * 60 * 1000);
       const nextDateStr = nextD.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
@@ -999,7 +999,7 @@ export async function searchEmployeeHistory(filters: {
       }
     }
 
-    if (filters.design_id)
+    if (filters.design_id && !filters.includeDetails)
       query = query.ilike("design_id", `%${filters.design_id}%`);
     if (filters.potongan_ke)
       query = query.eq("potongan_ke", parseInt(filters.potongan_ke));
@@ -1040,13 +1040,16 @@ export async function searchEmployeeHistory(filters: {
     (data || []).forEach((row: any) => {
       const shiftDate = row.tanggal_jam ? getShiftDate(row.tanggal_jam) : (row.tgl ? getShiftDate(row.tgl) : "-");
 
-      if (filters.date && shiftDate !== filters.date) {
+      if (filters.date && !filters.includeDetails && shiftDate !== filters.date) {
         return;
       }
 
       const mcNorm = (row.nomor_mc || "").trim().toUpperCase();
       const potNorm = row.potongan_ke || "";
-      const key = `${mcNorm}_${potNorm}_${shiftDate}`;
+      // For detailed cut view or specific cut queries, group all data of that cut into one batch regardless of date
+      const key = (filters.includeDetails || (filters.nomor_mc && filters.potongan_ke))
+        ? `${mcNorm}_${potNorm}`
+        : `${mcNorm}_${potNorm}_${shiftDate}`;
 
       if (!batchesMap.has(key)) {
         batchesMap.set(key, {

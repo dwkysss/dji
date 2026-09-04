@@ -87,9 +87,9 @@ export default function MeterHistoryTable({
         );
 
         const problemsForThisPcs: any[] = [];
-        matchedEvents.forEach((e: any) => {
+        matchedEvents.forEach((e: any, evIdx: number) => {
           if (e.problems && Array.isArray(e.problems)) {
-            e.problems.forEach((prob: any) => {
+            e.problems.forEach((prob: any, probIdx: number) => {
               let meterVal = "";
               if (prob.meter) {
                 const match = prob.meter.match(new RegExp(`PCS ${pcsKey}:\\s*([^,]+)`));
@@ -97,7 +97,13 @@ export default function MeterHistoryTable({
                 else if (!prob.meter.includes("PCS")) meterVal = prob.meter.trim();
               }
               const detailText = Array.isArray(prob.details) ? prob.details.join(", ") : (prob.details || "");
+              const probUniqueId = prob.id || `dtevent::${p.id}::${e.id || evIdx}::${probIdx}`;
               problemsForThisPcs.push({
+                id: probUniqueId,
+                raw_prob_id: prob.id || null,
+                event_id: e.id || null,
+                prob_idx: probIdx,
+                header_id: p.id,
                 kategori_masalah: prob.kategori || e.kategori || "A",
                 detail_masalah: detailText + (meterVal ? ` (Titik: ${meterVal}m)` : ""),
                 keterangan_cacat: prob.blok ? `Blok ${prob.blok}` : null,
@@ -740,7 +746,7 @@ export default function MeterHistoryTable({
           isIstirahat,
           hasIstirahat,
           downtimeDisplay,
-          db_id: item.id,
+          db_id: item.id || (h.id ? `header-${h.id}` : undefined),
           header_id: h.id,
           pcs_index: item.pcs_index
         });
@@ -882,6 +888,7 @@ export default function MeterHistoryTable({
                           } else {
                             setDetailToDelete({
                               id: item.db_id,
+                              isMeter: true,
                               name: `Sesi Awal (${item.oprStr || "Operator"}) - ${item.meterDisplay || "0"} Meter`,
                             });
                           }
@@ -1082,6 +1089,7 @@ export default function MeterHistoryTable({
                           } else {
                             setDetailToDelete({
                               id: item.db_id,
+                              isMeter: true,
                               name: `Meter: ${item.meterDisplay || "-"} - ${item.cacatDisplay || "Normal"}`,
                             });
                           }

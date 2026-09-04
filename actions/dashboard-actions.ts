@@ -12,6 +12,7 @@ export interface RealProductionItem {
   panel_no?: number;
   panel_no_str?: string;
   is_dummy_downtime?: boolean;
+  is_meter?: boolean;
   potongan_ke?: string;
   nama_operator: string;
   mesin_id: string;
@@ -137,12 +138,23 @@ export async function getRealProductionsData(): Promise<{
           ? "Lolos"
           : ((item.status_qc as "Lolos" | "Recheck") || "Lolos");
 
+      const mesinNorm = String(mesinId).trim().toUpperCase();
+      const isMeteran =
+        rawPanelNo.toUpperCase() === "METERAN" ||
+        rawPanelNo.toUpperCase().includes("METER") ||
+        mesinNorm.startsWith("R11") ||
+        mesinNorm.startsWith("R12") ||
+        mesinNorm.startsWith("R16") ||
+        (Number(item.hasil_meter) || 0) > 0 ||
+        (Number(item.posisi_meter) || 0) > 0;
+
       return {
         id: item.id || `header_${item.header_id}_${Math.random().toString().slice(2, 8)}`,
         header_id: String(item.header_id),
         panel_no: parsedPanelNo,
         panel_no_str: rawPanelNo,
         is_dummy_downtime: isDummyDowntime,
+        is_meter: isMeteran,
         potongan_ke: item.potongan_ke || undefined,
         tanggal: shiftTanggal,
         hari: getHariFromTanggal(shiftTanggal),

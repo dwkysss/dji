@@ -67,6 +67,7 @@ interface Transaction {
   panel_no?: number;
   panel_no_str?: string;
   is_dummy_downtime?: boolean;
+  is_meter?: boolean;
   potongan_ke?: string;
   nama_operator: string;
   mesin_id: string;
@@ -85,6 +86,24 @@ interface Transaction {
   detail_masalah?: string;
   keterangan_cacat?: string;
 }
+
+const isMeterItem = (item: {
+  is_meter?: boolean;
+  panel_no?: any;
+  panel_no_str?: string;
+  hasil_meter?: number;
+  posisi_meter?: any;
+  mesin_id?: string;
+}): boolean => {
+  if (item.is_meter === true) return true;
+  const pStr = String(item.panel_no_str || item.panel_no || "").toUpperCase().trim();
+  if (pStr === "METERAN" || pStr.includes("METER")) return true;
+  if ((Number(item.hasil_meter) || 0) > 0) return true;
+  if ((Number(item.posisi_meter) || 0) > 0) return true;
+  const mc = String(item.mesin_id || "").trim().toUpperCase();
+  if (mc.startsWith("R11") || mc.startsWith("R12") || mc.startsWith("R16")) return true;
+  return false;
+};
 
 const dummyData: Transaction[] = [
   {
@@ -455,17 +474,33 @@ export default function DashboardPage() {
     loadLiveData();
   }, []);
 
-  // Unique Machines for Filter Dropdown
+  // Unique Machines for Filter Dropdown (scoped to active category: Panel vs Meteran)
   const uniqueMachines = useMemo(() => {
-    const macs = new Set(transactions.map((t) => t.mesin_id));
+    const isMeterMode = metricMode === "METER";
+    const macs = new Set(
+      transactions
+        .filter((t) => {
+          const isMeter = isMeterItem(t);
+          return isMeterMode ? isMeter : !isMeter;
+        })
+        .map((t) => t.mesin_id)
+    );
     return Array.from(macs).filter(Boolean).sort();
-  }, [transactions]);
+  }, [transactions, metricMode]);
 
-  // Unique Operators for Filter Dropdown
+  // Unique Operators for Filter Dropdown (scoped to active category: Panel vs Meteran)
   const uniqueOperators = useMemo(() => {
-    const ops = new Set(transactions.map((t) => t.nama_operator));
+    const isMeterMode = metricMode === "METER";
+    const ops = new Set(
+      transactions
+        .filter((t) => {
+          const isMeter = isMeterItem(t);
+          return isMeterMode ? isMeter : !isMeter;
+        })
+        .map((t) => t.nama_operator)
+    );
     return Array.from(ops).sort();
-  }, [transactions]);
+  }, [transactions, metricMode]);
 
   // Filter transactions by date range and operator
   const dateFilteredTransactions = useMemo(() => {
@@ -826,10 +861,10 @@ export default function DashboardPage() {
 
   // Main KPI calculations
   const stats = useMemo(() => {
+    const isMeterMode = metricMode === "METER";
     const modeScoped = dateFilteredTransactions.filter((item) => {
-      const isMeter =
-        (item.hasil_meter || 0) > 0 || (item.posisi_meter || 0) > 0;
-      return metricMode === "METER" ? isMeter : !isMeter;
+      const isMeter = isMeterItem(item);
+      return isMeterMode ? isMeter : !isMeter;
     });
     return calculateStatsForDataset(modeScoped, chartGradeFilter);
   }, [dateFilteredTransactions, chartGradeFilter, metricMode]);
@@ -863,15 +898,14 @@ export default function DashboardPage() {
       };
     };
 
+    const isMeterMode = metricMode === "METER";
     const modeScopedDelta = currentHalfFilteredTransactions.filter((item) => {
-      const isMeter =
-        (item.hasil_meter || 0) > 0 || (item.posisi_meter || 0) > 0;
-      return metricMode === "METER" ? isMeter : !isMeter;
+      const isMeter = isMeterItem(item);
+      return isMeterMode ? isMeter : !isMeter;
     });
     const modeScopedPrev = prevFilteredTransactions.filter((item) => {
-      const isMeter =
-        (item.hasil_meter || 0) > 0 || (item.posisi_meter || 0) > 0;
-      return metricMode === "METER" ? isMeter : !isMeter;
+      const isMeter = isMeterItem(item);
+      return isMeterMode ? isMeter : !isMeter;
     });
 
     const statsForDelta = calculateStatsForDataset(
@@ -919,7 +953,7 @@ export default function DashboardPage() {
     const isMeterMode = metricMode === "METER";
     const leaderboardData = dateFilteredTransactions.filter((item) => {
       if (!item.is_production || !item.header_id) return false;
-      const isMeter = (item.hasil_meter || 0) > 0 || (item.posisi_meter || 0) > 0;
+      const isMeter = isMeterItem(item);
       return isMeterMode ? isMeter : !isMeter;
     });
 
@@ -1113,9 +1147,15 @@ export default function DashboardPage() {
       BS: "Barang Sortir / Reject",
     };
 
+    const isMeterMode = metricMode === "METER";
+    const categoryScoped = dateFilteredTransactions.filter((item) => {
+      const isMeter = isMeterItem(item);
+      return isMeterMode ? isMeter : !isMeter;
+    });
+
     const transactionsToAnalyze = selectedParetoMachine === "ALL"
-      ? dateFilteredTransactions
-      : dateFilteredTransactions.filter((item) => getMachineKey(item) === selectedParetoMachine);
+      ? categoryScoped
+      : categoryScoped.filter((item) => getMachineKey(item) === selectedParetoMachine);
 
     const itemMap = new Map<string, { count: number; downtime: number }>();
 
@@ -1374,7 +1414,13 @@ export default function DashboardPage() {
 
   // Filter criteria logic
   const filteredData = useMemo(() => {
-    const validProductionData = dateFilteredTransactions.filter(
+    const isMeterMode = metricMode === "METER";
+    const categoryScoped = dateFilteredTransactions.filter((item) => {
+      const isMeter = isMeterItem(item);
+      return isMeterMode ? isMeter : !isMeter;
+    });
+
+    const validProductionData = categoryScoped.filter(
       (item) => item.is_production,
     );
 
@@ -1388,7 +1434,7 @@ export default function DashboardPage() {
           return ef >= 90;
         });
       case "PROBLEMS":
-        return dateFilteredTransactions.filter(
+        return categoryScoped.filter(
           (item) => !isBsAwalAkhir(item) && !isPanelGagalCacat(item) && hasRealDefect(item) && (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")),
         );
       case "NOL_PRODUKSI":
@@ -1397,7 +1443,7 @@ export default function DashboardPage() {
       default:
         return validProductionData;
     }
-  }, [activeFilter, dateFilteredTransactions]);
+  }, [activeFilter, dateFilteredTransactions, metricMode]);
 
   const categoryBreakdown = useMemo(() => {
     const PROBLEM_DETAILS_MAP: Record<string, string[]> = {
@@ -1765,18 +1811,24 @@ export default function DashboardPage() {
 
   // Rekap Data (Group x Hari)
   const rekapData = useMemo(() => {
+    const isMeterMode = metricMode === "METER";
+    const categoryScoped = dateFilteredTransactions.filter((item) => {
+      const isMeter = isMeterItem(item);
+      return isMeterMode ? isMeter : !isMeter;
+    });
+
     const dates = Array.from(
-      new Set(dateFilteredTransactions.map((t) => t.tanggal)),
+      new Set(categoryScoped.map((t) => t.tanggal)),
     ).sort();
     const groups = Array.from(
-      new Set(dateFilteredTransactions.map((t) => t.group || "Tanpa Group")),
+      new Set(categoryScoped.map((t) => t.group || "Tanpa Group")),
     ).sort();
 
     const data = dates.map((date) => {
       const row: any = { tanggal: date };
       let total = 0;
       groups.forEach((group) => {
-        const sum = dateFilteredTransactions
+        const sum = categoryScoped
           .filter(
             (t) => t.tanggal === date && (t.group || "Tanpa Group") === group,
           )
@@ -2124,7 +2176,10 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150">
             <button
-              onClick={() => setMetricMode("PCS")}
+              onClick={() => {
+                setMetricMode("PCS");
+                setSelectedMachines([]);
+              }}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${metricMode === "PCS"
                 ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                 : "text-slate-500 hover:text-slate-800"
@@ -2133,7 +2188,10 @@ export default function DashboardPage() {
               Panel
             </button>
             <button
-              onClick={() => setMetricMode("METER")}
+              onClick={() => {
+                setMetricMode("METER");
+                setSelectedMachines([]);
+              }}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${metricMode === "METER"
                 ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                 : "text-slate-500 hover:text-slate-800"

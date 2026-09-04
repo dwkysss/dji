@@ -1067,6 +1067,90 @@ export async function deleteProductionDetailRow(detailId: string, mode: "permane
     const detailIdStr = String(detailId).trim();
     const supabase = await createAdminClient();
 
+    // 0. Check if detailId is a sub-event defect in downtime_events JSON
+    if (detailIdStr.startsWith("dtevent::")) {
+      const parts = detailIdStr.split("::");
+      const headerId = parts[1];
+      const eventId = parts[2];
+      const probIdx = parseInt(parts[3] || "0", 10);
+
+      const { data: header, error: hFetchErr } = await supabase
+        .from("production_headers")
+        .select("id, downtime_events, total_downtime_detik")
+        .eq("id", headerId)
+        .maybeSingle();
+
+      if (hFetchErr || !header) {
+        return { success: false, error: "Header data tidak ditemukan: " + (hFetchErr?.message || "") };
+      }
+
+      let dtEvents: any[] = [];
+      try {
+        dtEvents = typeof header.downtime_events === "string" ? JSON.parse(header.downtime_events) : (header.downtime_events || []);
+      } catch (e) {
+        dtEvents = [];
+      }
+
+      // Find the event
+      const targetEvent = dtEvents.find((e: any, idx: number) => String(e.id || idx) === eventId);
+      if (targetEvent && Array.isArray(targetEvent.problems)) {
+        const removedProb = targetEvent.problems.splice(probIdx, 1)[0];
+
+        // If no more problems in this event, remove the event completely
+        if (targetEvent.problems.length === 0) {
+          dtEvents = dtEvents.filter((e: any) => e !== targetEvent);
+        }
+
+        // Recalculate total downtime
+        const newTotalDowntime = dtEvents.reduce((sum: number, ev: any) => sum + (Number(ev.durasiDetik) || 0), 0);
+
+        // If all downtime events are now gone, check if the header has any other data
+        if (dtEvents.length === 0) {
+          const { data: details } = await supabase
+            .from("production_details")
+            .select("id")
+            .eq("header_id", headerId);
+
+          if (!details || details.length === 0) {
+            await supabase
+              .from("downtime_records")
+              .delete()
+              .eq("header_id", headerId);
+
+            await supabase
+              .from("production_headers")
+              .delete()
+              .eq("id", headerId);
+
+            return { success: true };
+          }
+        }
+
+        // Update production_headers
+        await supabase
+          .from("production_headers")
+          .update({
+            downtime_events: dtEvents.length > 0 ? JSON.stringify(dtEvents) : null,
+            total_downtime_detik: newTotalDowntime,
+          })
+          .eq("id", headerId);
+
+        // Delete from downtime_records if matching
+        if (removedProb) {
+          const detailStr = Array.isArray(removedProb.details) ? removedProb.details.join(", ") : (removedProb.details || "");
+          if (detailStr) {
+            await supabase
+              .from("downtime_records")
+              .delete()
+              .eq("header_id", headerId)
+              .ilike("detail", `%${detailStr}%`);
+          }
+        }
+      }
+
+      return { success: true };
+    }
+
     // 0. Check if detailId is a header deletion (e.g. "header-1234abcd") or direct header id
     let headerIdToDelete = detailIdStr.startsWith("header-") ? detailIdStr.replace(/^header-/, "") : null;
     if (!headerIdToDelete) {
@@ -1223,6 +1307,40 @@ export async function deleteProductionDetailRow(detailId: string, mode: "permane
         return { success: false, error: delErr.message };
       }
 
+      // Also clean up any matching event from downtime_events JSON and downtime_records
+      const { data: currentHdr } = await supabase
+        .from("production_headers")
+        .select("id, downtime_events, total_downtime_detik")
+        .eq("id", headerId)
+        .maybeSingle();
+
+      if (currentHdr && currentHdr.downtime_events) {
+        let dtEvents: any[] = [];
+        try {
+          dtEvents = typeof currentHdr.downtime_events === "string" ? JSON.parse(currentHdr.downtime_events) : (currentHdr.downtime_events || []);
+        } catch (e) {
+          dtEvents = [];
+        }
+
+        const pcsStr = String(pcsIndex || "1");
+        const remainingEvents = dtEvents.filter((ev: any) => {
+          if (!ev.pcsKe || ev.pcsKe === "Semua") return false;
+          const keys = String(ev.pcsKe).split(",").map((k: string) => k.trim());
+          return !keys.includes(pcsStr);
+        });
+
+        if (remainingEvents.length !== dtEvents.length) {
+          const newTot = remainingEvents.reduce((s: number, e: any) => s + (Number(e.durasiDetik) || 0), 0);
+          await supabase
+            .from("production_headers")
+            .update({
+              downtime_events: remainingEvents.length > 0 ? JSON.stringify(remainingEvents) : null,
+              total_downtime_detik: newTot,
+            })
+            .eq("id", headerId);
+        }
+      }
+
       // Check if there are any remaining details for this header
       const { count } = await supabase
         .from("production_details")
@@ -1230,6 +1348,12 @@ export async function deleteProductionDetailRow(detailId: string, mode: "permane
         .eq("header_id", headerId);
 
       if (count === 0) {
+        // Delete related downtime_records first to avoid foreign key violation!
+        await supabase
+          .from("downtime_records")
+          .delete()
+          .eq("header_id", headerId);
+
         // Delete the header since no details remain
         const { error: hdrDelErr } = await supabase
           .from("production_headers")
@@ -2137,13 +2261,24 @@ export async function bulkDeleteProductionDetailRows(
     const supabase = await createAdminClient();
 
     const headerIdsToDelete = new Set<string>();
+    const dtEventIdsToDelete: string[] = [];
     const regularDetailIds: string[] = [];
 
     for (const id of detailIds) {
-      if (id.startsWith("header-")) {
+      if (id.startsWith("dtevent::")) {
+        dtEventIdsToDelete.push(id);
+      } else if (id.startsWith("header-")) {
         headerIdsToDelete.add(id.replace(/^header-/, ""));
       } else {
         regularDetailIds.push(id);
+      }
+    }
+
+    // Delete dtevent items first
+    for (const dtId of dtEventIdsToDelete) {
+      const res = await deleteProductionDetailRow(dtId, mode);
+      if (!res.success) {
+        return { success: false, error: res.error };
       }
     }
 

@@ -672,334 +672,387 @@ function ShiftHistoryDetailContent() {
         })()}
       </div>
 
-      {/* ================= MODAL HAPUS BARIS PANEL (SEPERTI DI HALAMAN INSPEKSI QC) ================= */}
-      {detailToDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
-            {pendingDeleteMode === null ? (
-              /* Step 1: Pilih Opsi Hapus */
-              <>
-                <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
-                  <AlertTriangle className="w-6 h-6 text-rose-600" />
-                </div>
-                <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
-                  Pilih Opsi Hapus Baris Panel
-                </h3>
-                <p className="text-xs text-center text-slate-500 mb-5">
-                  Panel:{" "}
-                  <span className="font-semibold text-slate-700">
-                    {detailToDelete.panelNo
-                      ? `Panel ${detailToDelete.panelNo} - `
-                      : ""}
-                    {detailToDelete.name}
-                  </span>
-                </p>
+      {/* ================= MODAL HAPUS BARIS DATA (PANEL / METER) ================= */}
+      {detailToDelete && (() => {
+        const isMeterItem = Boolean(
+          detailToDelete.isMeter ||
+          detailData?.is_meter ||
+          detailData?.panels?.some((p: any) => p.panel_no === "METERAN") ||
+          (detailToDelete.name && (detailToDelete.name.startsWith("Meter:") || detailToDelete.name.startsWith("Sesi Awal")))
+        );
 
-                <div className="flex flex-col gap-3 mb-5">
-                  {/* Opsi 1: Hapus Baris Panel (Permanen / Nomor Tetap) */}
-                  <button
-                    type="button"
-                    onClick={() => setPendingDeleteMode("permanent")}
-                    className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
-                      1
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
-                        <span>Hapus Baris Panel</span>
-                        <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">
-                          Permanen
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                        Hapus data baris ini sepenuhnya dari database. Nomor panel lain <span className="font-semibold text-rose-600">tidak akan bergeser</span>.
-                      </p>
-                    </div>
-                  </button>
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+              {pendingDeleteMode === null ? (
+                /* Step 1: Pilih Opsi Hapus */
+                <>
+                  <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
+                    <AlertTriangle className="w-6 h-6 text-rose-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
+                    {isMeterItem ? "Pilih Opsi Hapus Baris Meter" : "Pilih Opsi Hapus Baris Panel"}
+                  </h3>
+                  <p className="text-xs text-center text-slate-500 mb-5">
+                    {isMeterItem ? "Data: " : "Panel: "}
+                    <span className="font-semibold text-slate-700">
+                      {detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo} - ` : ""}
+                      {detailToDelete.name}
+                    </span>
+                  </p>
 
-                  {/* Opsi 2: Tandai Dihapus (Nomor Tetap) */}
-                  <button
-                    type="button"
-                    onClick={() => setPendingDeleteMode("keep_slot")}
-                    className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
-                      2
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
-                        <span>Tandai Dihapus (Nomor Tetap)</span>
-                        <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">
-                          Nomor Tetap
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                        Nomor panel tetap berada di posisinya (tidak bergeser), panel diberi tanda{" "}
-                        <span className="font-semibold text-rose-600">DIHAPUS</span>, dan tidak dihitung dalam total penjumlahan panel.
-                      </p>
-                    </div>
-                  </button>
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDetailToDelete(null);
-                      setPendingDeleteMode(null);
-                    }}
-                    className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* Step 2: Layar Konfirmasi Kedua */
-              <>
-                <div
-                  className={`w-12 h-12 rounded-full ${
-                    pendingDeleteMode === "permanent"
-                      ? "bg-rose-100 text-rose-600"
-                      : "bg-amber-100 text-amber-600"
-                  } flex items-center justify-center mb-3 mx-auto`}
-                >
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
-                  Konfirmasi Penghapusan
-                </h3>
-                <p className="text-xs text-center text-slate-500 mb-4">
-                  Apakah Anda yakin ingin melanjutkan tindakan ini?
-                </p>
-
-                {pendingDeleteMode === "permanent" ? (
-                  <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
-                    <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
-                      <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">
+                  <div className="flex flex-col gap-3 mb-5">
+                    {/* Opsi 1: Hapus Permanen */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteMode("permanent")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
                         1
-                      </span>
-                      Opsi 1: Hapus Baris Panel (Permanen)
-                    </div>
-                    <p className="text-xs text-slate-700 leading-relaxed">
-                      Data baris{" "}
-                      <span className="font-semibold text-rose-700">
-                        {detailToDelete.panelNo
-                          ? `Panel ${detailToDelete.panelNo}`
-                          : detailToDelete.name}
-                      </span>{" "}
-                      akan <strong>dihapus permanen</strong>. Nomor panel lain{" "}
-                      <strong>tidak akan bergeser</strong>.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
-                    <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
-                      <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">
-                        2
-                      </span>
-                      Opsi 2: Tandai Dihapus (Nomor Tetap)
-                    </div>
-                    <p className="text-xs text-slate-700 leading-relaxed">
-                      Nomor panel{" "}
-                      <span className="font-semibold text-amber-800">
-                        {detailToDelete.panelNo
-                          ? `Panel ${detailToDelete.panelNo}`
-                          : detailToDelete.name}
-                      </span>{" "}
-                      akan <strong>tetap di tempat</strong> dan berstatus{" "}
-                      <strong>DIHAPUS</strong> (tidak dihitung dalam total penjumlahan panel).
-                    </p>
-                  </div>
-                )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
+                          <span>{isMeterItem ? "Hapus Baris Meter" : "Hapus Baris Panel"}</span>
+                          <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">
+                            Permanen
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          {isMeterItem
+                            ? "Hapus data baris titik meter ini sepenuhnya dari database."
+                            : "Hapus data baris ini sepenuhnya dari database. Nomor panel lain tidak akan bergeser."}
+                        </p>
+                      </div>
+                    </button>
 
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPendingDeleteMode(null)}
-                    disabled={isDeletingDetail}
-                    className="flex-1 h-11 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 border border-slate-200 cursor-pointer"
-                  >
-                    Kembali
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeletePanel(pendingDeleteMode)}
-                    disabled={isDeletingDetail}
-                    className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${
+                    {/* Opsi 2: Tandai Dihapus (Nomor / Slot Tetap) */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteMode("keep_slot")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
+                        2
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
+                          <span>{isMeterItem ? "Tandai Dihapus (Slot Tetap)" : "Tandai Dihapus (Nomor Tetap)"}</span>
+                          <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">
+                            {isMeterItem ? "Slot Tetap" : "Nomor Tetap"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          {isMeterItem
+                            ? "Titik meter tetap tercatat, diberi tanda DIHAPUS, dan tidak dihitung dalam total cacat."
+                            : "Nomor panel tetap berada di posisinya (tidak bergeser), panel diberi tanda DIHAPUS, dan tidak dihitung dalam total penjumlahan panel."}
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDetailToDelete(null);
+                        setPendingDeleteMode(null);
+                      }}
+                      className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Step 2: Layar Konfirmasi Kedua */
+                <>
+                  <div
+                    className={`w-12 h-12 rounded-full ${
                       pendingDeleteMode === "permanent"
-                        ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20"
-                        : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"
-                    } shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
+                        ? "bg-rose-100 text-rose-600"
+                        : "bg-amber-100 text-amber-600"
+                    } flex items-center justify-center mb-3 mx-auto`}
                   >
-                    {isDeletingDetail ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                    Ya, Hapus Data
-                  </button>
-                </div>
-              </>
-            )}
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
+                    {isMeterItem ? "Konfirmasi Hapus Baris Meter" : "Konfirmasi Penghapusan"}
+                  </h3>
+                  <p className="text-xs text-center text-slate-500 mb-4">
+                    Apakah Anda yakin ingin melanjutkan tindakan ini?
+                  </p>
+
+                  {pendingDeleteMode === "permanent" ? (
+                    <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
+                        <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">
+                          1
+                        </span>
+                        {isMeterItem ? "Opsi 1: Hapus Baris Meter (Permanen)" : "Opsi 1: Hapus Baris Panel (Permanen)"}
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        {isMeterItem ? (
+                          <>
+                            Data titik meter{" "}
+                            <span className="font-semibold text-rose-700">{detailToDelete.name}</span>{" "}
+                            akan <strong>dihapus permanen</strong> dari database.
+                          </>
+                        ) : (
+                          <>
+                            Data baris{" "}
+                            <span className="font-semibold text-rose-700">
+                              {detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}
+                            </span>{" "}
+                            akan <strong>dihapus permanen</strong>. Nomor panel lain{" "}
+                            <strong>tidak akan bergeser</strong>.
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
+                        <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">
+                          2
+                        </span>
+                        {isMeterItem ? "Opsi 2: Tandai Dihapus (Slot Tetap)" : "Opsi 2: Tandai Dihapus (Nomor Tetap)"}
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        {isMeterItem ? (
+                          <>
+                            Data titik meter{" "}
+                            <span className="font-semibold text-amber-800">{detailToDelete.name}</span>{" "}
+                            akan <strong>tetap di tempat</strong> dan berstatus <strong>DIHAPUS</strong> (tidak dihitung dalam akumulasi cacat).
+                          </>
+                        ) : (
+                          <>
+                            Nomor panel{" "}
+                            <span className="font-semibold text-amber-800">
+                              {detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}
+                            </span>{" "}
+                            akan <strong>tetap di tempat</strong> dan berstatus{" "}
+                            <strong>DIHAPUS</strong> (tidak dihitung dalam total penjumlahan panel).
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteMode(null)}
+                      disabled={isDeletingDetail}
+                      className="flex-1 h-11 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 border border-slate-200 cursor-pointer"
+                    >
+                      Kembali
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePanel(pendingDeleteMode)}
+                      disabled={isDeletingDetail}
+                      className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${
+                        pendingDeleteMode === "permanent"
+                          ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20"
+                          : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"
+                      } shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
+                    >
+                      {isDeletingDetail ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      Ya, Hapus Data
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* ================= MODAL HAPUS MULTIPLE BARIS PANEL ================= */}
-      {isBulkDeleteModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
-            {pendingBulkDeleteMode === null ? (
-              /* Step 1: Pilih Opsi Hapus */
-              <>
-                <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
-                  <AlertTriangle className="w-6 h-6 text-rose-600" />
-                </div>
-                <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
-                  Hapus {selectedDetailIds.length} Baris Panel
-                </h3>
-                <p className="text-xs text-center text-slate-500 mb-5">
-                  Pilih mode penghapusan untuk <strong>{selectedDetailIds.length} baris panel</strong> terpilih:
-                </p>
+      {/* ================= MODAL HAPUS MULTIPLE BARIS ================= */}
+      {isBulkDeleteModalOpen && (() => {
+        const isMeterBatch = Boolean(
+          detailData?.is_meter ||
+          detailData?.panels?.some((p: any) => p.panel_no === "METERAN")
+        );
 
-                <div className="flex flex-col gap-3 mb-5">
-                  {/* Opsi 1: Hapus Baris Panel Terpilih (Permanen) */}
-                  <button
-                    type="button"
-                    onClick={() => setPendingBulkDeleteMode("permanent")}
-                    className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
-                      1
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
-                        <span>Hapus Baris Panel Terpilih</span>
-                        <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">
-                          Permanen
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                        Hapus seluruh baris terpilih secara permanen dari database. Nomor panel yang tersisa <span className="font-semibold text-rose-600">tidak akan bergeser</span>.
-                      </p>
-                    </div>
-                  </button>
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+              {pendingBulkDeleteMode === null ? (
+                /* Step 1: Pilih Opsi Hapus */
+                <>
+                  <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
+                    <AlertTriangle className="w-6 h-6 text-rose-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
+                    {isMeterBatch ? `Hapus ${selectedDetailIds.length} Baris Data Meter` : `Hapus ${selectedDetailIds.length} Baris Panel`}
+                  </h3>
+                  <p className="text-xs text-center text-slate-500 mb-5">
+                    Pilih mode penghapusan untuk <strong>{selectedDetailIds.length} baris {isMeterBatch ? "data meter" : "panel"}</strong> terpilih:
+                  </p>
 
-                  {/* Opsi 2: Tandai Dihapus */}
-                  <button
-                    type="button"
-                    onClick={() => setPendingBulkDeleteMode("keep_slot")}
-                    className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
-                      2
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
-                        <span>Tandai Dihapus (Nomor Tetap)</span>
-                        <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">
-                          Nomor Tetap
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                        Nomor panel tetap di tempatnya dan diberi label <span className="font-semibold text-rose-600">DIHAPUS</span>, serta tidak dihitung dalam total penjumlahan panel.
-                      </p>
-                    </div>
-                  </button>
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsBulkDeleteModalOpen(false);
-                      setPendingBulkDeleteMode(null);
-                    }}
-                    className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* Step 2: Konfirmasi */
-              <>
-                <div
-                  className={`w-12 h-12 rounded-full ${
-                    pendingBulkDeleteMode === "permanent"
-                      ? "bg-rose-100 text-rose-600"
-                      : "bg-amber-100 text-amber-600"
-                  } flex items-center justify-center mb-3 mx-auto`}
-                >
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
-                  Konfirmasi Hapus Multiple
-                </h3>
-                <p className="text-xs text-center text-slate-500 mb-4">
-                  Apakah Anda yakin ingin menghapus <strong>{selectedDetailIds.length} baris panel</strong> terpilih?
-                </p>
-
-                {pendingBulkDeleteMode === "permanent" ? (
-                  <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
-                    <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
-                      <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">
+                  <div className="flex flex-col gap-3 mb-5">
+                    {/* Opsi 1: Hapus Terpilih (Permanen) */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingBulkDeleteMode("permanent")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
                         1
-                      </span>
-                      Opsi 1: Hapus Baris Panel Terpilih (Permanen)
-                    </div>
-                    <p className="text-xs text-slate-700 leading-relaxed">
-                      Sebanyak <strong>{selectedDetailIds.length} baris panel</strong> akan <strong>dihapus permanen</strong>. Nomor panel yang tersisa <strong>tidak akan bergeser</strong>.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
-                    <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
-                      <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">
-                        2
-                      </span>
-                      Opsi 2: Tandai Dihapus (Nomor Tetap)
-                    </div>
-                    <p className="text-xs text-slate-700 leading-relaxed">
-                      Sebanyak <strong>{selectedDetailIds.length} baris panel</strong> akan berstatus <strong>DIHAPUS</strong> (nomor panel tetap berada di posisinya).
-                    </p>
-                  </div>
-                )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
+                          <span>{isMeterBatch ? "Hapus Baris Data Meter Terpilih" : "Hapus Baris Panel Terpilih"}</span>
+                          <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">
+                            Permanen
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          {isMeterBatch
+                            ? "Hapus seluruh baris data meter terpilih secara permanen dari database."
+                            : "Hapus seluruh baris terpilih secara permanen dari database. Nomor panel yang tersisa tidak akan bergeser."}
+                        </p>
+                      </div>
+                    </button>
 
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPendingBulkDeleteMode(null)}
-                    disabled={isDeletingBulk}
-                    className="flex-1 h-11 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 border border-slate-200 cursor-pointer"
-                  >
-                    Kembali
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleBulkDelete(pendingBulkDeleteMode)}
-                    disabled={isDeletingBulk}
-                    className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${
+                    {/* Opsi 2: Tandai Dihapus */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingBulkDeleteMode("keep_slot")}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs group-hover:scale-105 transition-transform">
+                        2
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
+                          <span>{isMeterBatch ? "Tandai Dihapus (Slot Tetap)" : "Tandai Dihapus (Nomor Tetap)"}</span>
+                          <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">
+                            {isMeterBatch ? "Slot Tetap" : "Nomor Tetap"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          {isMeterBatch
+                            ? "Baris data meter tetap tercatat dan diberi label DIHAPUS, serta tidak dihitung dalam total cacat."
+                            : "Nomor panel tetap di tempatnya dan diberi label DIHAPUS, serta tidak dihitung dalam total penjumlahan panel."}
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsBulkDeleteModalOpen(false);
+                        setPendingBulkDeleteMode(null);
+                      }}
+                      className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Step 2: Konfirmasi */
+                <>
+                  <div
+                    className={`w-12 h-12 rounded-full ${
                       pendingBulkDeleteMode === "permanent"
-                        ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20"
-                        : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"
-                    } shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
+                        ? "bg-rose-100 text-rose-600"
+                        : "bg-amber-100 text-amber-600"
+                    } flex items-center justify-center mb-3 mx-auto`}
                   >
-                    {isDeletingBulk ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                    Ya, Hapus {selectedDetailIds.length} Baris
-                  </button>
-                </div>
-              </>
-            )}
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">
+                    {isMeterBatch ? "Konfirmasi Hapus Data Meter Multiple" : "Konfirmasi Hapus Multiple"}
+                  </h3>
+                  <p className="text-xs text-center text-slate-500 mb-4">
+                    Apakah Anda yakin ingin menghapus <strong>{selectedDetailIds.length} baris {isMeterBatch ? "data meter" : "panel"}</strong> terpilih?
+                  </p>
+
+                  {pendingBulkDeleteMode === "permanent" ? (
+                    <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
+                        <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">
+                          1
+                        </span>
+                        {isMeterBatch ? "Opsi 1: Hapus Baris Data Meter Terpilih (Permanen)" : "Opsi 1: Hapus Baris Panel Terpilih (Permanen)"}
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        {isMeterBatch ? (
+                          <>
+                            Sebanyak <strong>{selectedDetailIds.length} baris data meter</strong> akan <strong>dihapus permanen</strong> dari database.
+                          </>
+                        ) : (
+                          <>
+                            Sebanyak <strong>{selectedDetailIds.length} baris panel</strong> akan <strong>dihapus permanen</strong>. Nomor panel yang tersisa <strong>tidak akan bergeser</strong>.
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
+                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
+                        <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">
+                          2
+                        </span>
+                        {isMeterBatch ? "Opsi 2: Tandai Dihapus (Slot Tetap)" : "Opsi 2: Tandai Dihapus (Nomor Tetap)"}
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        {isMeterBatch ? (
+                          <>
+                            Sebanyak <strong>{selectedDetailIds.length} baris data meter</strong> akan berstatus <strong>DIHAPUS</strong>.
+                          </>
+                        ) : (
+                          <>
+                            Sebanyak <strong>{selectedDetailIds.length} baris panel</strong> akan berstatus <strong>DIHAPUS</strong> (nomor panel tetap berada di posisinya).
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPendingBulkDeleteMode(null)}
+                      disabled={isDeletingBulk}
+                      className="flex-1 h-11 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 border border-slate-200 cursor-pointer"
+                    >
+                      Kembali
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkDelete(pendingBulkDeleteMode)}
+                      disabled={isDeletingBulk}
+                      className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${
+                        pendingBulkDeleteMode === "permanent"
+                          ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20"
+                          : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"
+                      } shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
+                    >
+                      {isDeletingBulk ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      Ya, Hapus {selectedDetailIds.length} Baris
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <PrintableProductionReport
         detailData={detailData}
