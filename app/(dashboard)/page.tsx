@@ -29,7 +29,47 @@ import { getRealProductionsData } from "@/actions/dashboard-actions";
 import { isBsAwalAkhir, isPanelGagalCacat, hasRealDefect } from "@/lib/mending-grade-utils";
 import { getShiftDate } from "@/lib/shift-utils";
 import { DEFAULT_PROBLEM_DETAILS } from "@/lib/constants";
+import { getOperatorsList } from "@/actions/operator-actions";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
+
+const FALLBACK_OPERATORS = [
+  // Shift A
+  { id: 1, name: "Rohmat", shift: "A" },
+  { id: 2, name: "M.Alwi", shift: "A" },
+  { id: 3, name: "Anwar", shift: "A" },
+  { id: 4, name: "Jaya", shift: "A" },
+  { id: 5, name: "Riki S", shift: "A" },
+  { id: 6, name: "Sandi M", shift: "A" },
+  { id: 7, name: "Padlan", shift: "A" },
+  { id: 8, name: "Rissa A", shift: "A" },
+  { id: 9, name: "Devi K", shift: "A" },
+  { id: 10, name: "Novi S", shift: "A" },
+  { id: 11, name: "Udin", shift: "A" },
+  // Shift B
+  { id: 12, name: "Irfan", shift: "B" },
+  { id: 13, name: "Anton", shift: "B" },
+  { id: 14, name: "Ahmad S", shift: "B" },
+  { id: 15, name: "Saepudin", shift: "B" },
+  { id: 16, name: "Parid", shift: "B" },
+  { id: 17, name: "Noval", shift: "B" },
+  { id: 18, name: "Sigit", shift: "B" },
+  { id: 19, name: "Rani Y", shift: "B" },
+  { id: 20, name: "Yanti P", shift: "B" },
+  { id: 21, name: "Irma P", shift: "B" },
+  { id: 22, name: "Aris W", shift: "B" },
+  // Shift C
+  { id: 23, name: "Tubagus", shift: "C" },
+  { id: 24, name: "Andri Y", shift: "C" },
+  { id: 25, name: "Royana", shift: "C" },
+  { id: 26, name: "Komara", shift: "C" },
+  { id: 27, name: "Sopian", shift: "C" },
+  { id: 28, name: "Iki S", shift: "C" },
+  { id: 29, name: "Hardi", shift: "C" },
+  { id: 30, name: "Rini D", shift: "C" },
+  { id: 31, name: "Neneng", shift: "C" },
+  { id: 32, name: "Rina R", shift: "C" },
+  { id: 33, name: "Farhan", shift: "C" },
+];
 
 const DASHBOARD_TOUR_STEPS: ProductTourStep[] = [
   {
@@ -522,19 +562,96 @@ export default function DashboardPage() {
     return Array.from(macs).filter(Boolean).sort();
   }, [transactions, metricMode]);
 
-  // Unique Operators for Filter Dropdown (scoped to active category: Panel vs Meteran)
-  const uniqueOperators = useMemo(() => {
-    const isMeterMode = metricMode === "METER";
-    const ops = new Set(
-      transactions
-        .filter((t) => {
-          const isMeter = isMeterItem(t);
-          return isMeterMode ? isMeter : !isMeter;
-        })
-        .map((t) => t.nama_operator)
+  // Master Operator List State (loaded from database / fallback)
+  const [operatorList, setOperatorList] = useState<{ name: string; shift: string }[]>(() =>
+    FALLBACK_OPERATORS.map((op) => ({ name: op.name, shift: op.shift }))
+  );
+
+  // Load dynamic operator list from database
+  useEffect(() => {
+    getOperatorsList()
+      .then((res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          setOperatorList(
+            res.data.map((d) => ({
+              name: d.nama_operator,
+              shift: d.shift || "A",
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Operators Grouped by Shift (A, B, C, and Lainnya for any unassigned/historical names)
+  const operatorsByShift = useMemo(() => {
+    const shiftMap: Record<string, string[]> = {
+      A: [],
+      B: [],
+      C: [],
+      Lainnya: [],
+    };
+
+    const registeredNames = new Set<string>();
+
+    operatorList.forEach((op) => {
+      registeredNames.add(op.name);
+      const s = (op.shift || "A").toUpperCase();
+      if (s === "A" || s === "B" || s === "C") {
+        shiftMap[s].push(op.name);
+      } else {
+        shiftMap.Lainnya.push(op.name);
+      }
+    });
+
+    // Also include any operators from active transactions who are not in the master list
+    const txnOps = new Set(
+      transactions.map((t) => t.nama_operator).filter(Boolean),
     );
-    return Array.from(ops).sort();
-  }, [transactions, metricMode]);
+    txnOps.forEach((opName) => {
+      if (!registeredNames.has(opName)) {
+        shiftMap.Lainnya.push(opName);
+      }
+    });
+
+    // Sort names alphabetically within each shift
+    Object.keys(shiftMap).forEach((k) => {
+      shiftMap[k].sort((a, b) => a.localeCompare(b));
+    });
+
+    return shiftMap;
+  }, [operatorList, transactions]);
+
+  // Label for Operator Trigger Button
+  const operatorButtonLabel = useMemo(() => {
+    if (selectedOperators.length === 0) return "Semua";
+
+    const isShift = (shiftKey: "A" | "B" | "C") => {
+      const list = operatorsByShift[shiftKey] || [];
+      return (
+        list.length > 0 &&
+        selectedOperators.length === list.length &&
+        list.every((n) => selectedOperators.includes(n))
+      );
+    };
+
+    if (isShift("A")) return "Shift A";
+    if (isShift("B")) return "Shift B";
+    if (isShift("C")) return "Shift C";
+
+    if (selectedOperators.length === 1) return selectedOperators[0];
+    return `${selectedOperators.length} Terpilih`;
+  }, [selectedOperators, operatorsByShift]);
+
+  // Unique Operators for Attendance and Filters (all master operators + any found in transactions)
+  const uniqueOperators = useMemo<string[]>(() => {
+    const set = new Set<string>();
+    operatorList.forEach((op) => set.add(op.name));
+    transactions.forEach((t) => {
+      if (t.nama_operator) set.add(t.nama_operator);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [operatorList, transactions]);
 
   // Filter transactions by date range and operator
   const dateFilteredTransactions = useMemo(() => {
@@ -2446,70 +2563,173 @@ export default function DashboardPage() {
             <div className="relative" ref={operatorDropdownRef}>
               <button
                 onClick={() => setIsOperatorDropdownOpen(!isOperatorDropdownOpen)}
-                className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer min-w-[120px] flex justify-between items-center"
+                className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer min-w-[130px] flex justify-between items-center transition-colors"
               >
-                <span className="truncate max-w-[100px]">
-                  {selectedOperators.length === 0
-                    ? "Semua"
-                    : `${selectedOperators.length} Terpilih`}
+                <span className="truncate max-w-[110px]" title={operatorButtonLabel}>
+                  {operatorButtonLabel}
                 </span>
                 <span className="text-[9px] ml-2 text-slate-400">▼</span>
               </button>
 
               {isOperatorDropdownOpen && (
-                <div className="absolute top-full mt-2 right-0 w-64 bg-white border border-slate-200 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] z-50 p-3 max-h-[300px] flex flex-col">
-                  <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-100">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase">
-                      Pilih Pegawai
-                    </span>
+                <div className="absolute top-full mt-2 right-0 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.14)] z-50 p-3 max-h-[440px] flex flex-col">
+                  {/* Header */}
+                  <div className="flex justify-between items-center pb-2.5 mb-2.5 border-b border-slate-100">
+                    <div className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-sky-600" />
+                      <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                        Filter Pegawai
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400 ml-1">
+                        ({selectedOperators.length === 0 ? "Semua Terpilih" : `${selectedOperators.length} Dipilih`})
+                      </span>
+                    </div>
                     <button
                       onClick={() => setIsOperatorDropdownOpen(false)}
-                      className="text-[10px] font-bold text-red-500 hover:text-red-700 bg-red-50 px-2 py-0.5 rounded"
+                      className="text-[10px] font-bold text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md transition-colors"
                     >
-                      Tutup
+                      ✕ Tutup
                     </button>
                   </div>
-                  <div className="overflow-y-auto flex-1 pr-1 custom-scrollbar">
-                    <label className="flex items-center gap-2.5 cursor-pointer p-1.5 hover:bg-slate-50 rounded-lg group">
-                      <input
-                        type="checkbox"
-                        checked={selectedOperators.length === 0}
-                        onChange={() => setSelectedOperators([])}
-                        className="accent-sky-500 w-3.5 h-3.5 cursor-pointer"
-                      />
-                      <span
-                        className={`text-xs font-bold transition-colors ${selectedOperators.length === 0 ? "text-sky-700" : "text-slate-600 group-hover:text-slate-800"}`}
+
+                  {/* 1-Click Quick Filter Bar */}
+                  <div className="mb-3">
+                    <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">
+                      Pilihan Cepat:
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <button
+                        onClick={() => setSelectedOperators([])}
+                        className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${
+                          selectedOperators.length === 0
+                            ? "bg-sky-600 text-white shadow-sm"
+                            : "bg-slate-50 border border-slate-200/80 text-slate-600 hover:bg-slate-100"
+                        }`}
                       >
-                        Semua Pegawai
-                      </span>
-                    </label>
-                    <div className="h-px bg-slate-100 my-1" />
-                    {uniqueOperators.map((op) => (
-                      <label
-                        key={op}
-                        className="flex items-center gap-2.5 cursor-pointer p-1.5 hover:bg-slate-50 rounded-lg group"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedOperators.includes(op)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedOperators((prev) => [...prev, op]);
-                            } else {
-                              setSelectedOperators((prev) =>
-                                prev.filter((o) => o !== op),
+                        Semua
+                      </button>
+                      {(["A", "B", "C"] as const).map((s) => {
+                        const shiftList = operatorsByShift[s] || [];
+                        const isAllShiftSelected =
+                          shiftList.length > 0 &&
+                          selectedOperators.length === shiftList.length &&
+                          shiftList.every((n) => selectedOperators.includes(n));
+
+                        const colorStyles =
+                          s === "A"
+                            ? isAllShiftSelected
+                              ? "bg-blue-600 text-white shadow-sm"
+                              : "bg-blue-50/70 border border-blue-200/80 text-blue-700 hover:bg-blue-100/70"
+                            : s === "B"
+                            ? isAllShiftSelected
+                              ? "bg-emerald-600 text-white shadow-sm"
+                              : "bg-emerald-50/70 border border-emerald-200/80 text-emerald-700 hover:bg-emerald-100/70"
+                            : isAllShiftSelected
+                            ? "bg-purple-600 text-white shadow-sm"
+                            : "bg-purple-50/70 border border-purple-200/80 text-purple-700 hover:bg-purple-100/70";
+
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => setSelectedOperators([...shiftList])}
+                            className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${colorStyles}`}
+                          >
+                            Shift {s}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Scrollable Shift Groups */}
+                  <div className="overflow-y-auto flex-1 pr-1 custom-scrollbar space-y-3">
+                    {[
+                      { key: "A" as const, title: "Shift A (Pagi)", badgeBg: "bg-blue-50 text-blue-700 border-blue-200" },
+                      { key: "B" as const, title: "Shift B (Sore)", badgeBg: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+                      { key: "C" as const, title: "Shift C (Malam)", badgeBg: "bg-purple-50 text-purple-700 border-purple-200" },
+                      ...(operatorsByShift.Lainnya && operatorsByShift.Lainnya.length > 0
+                        ? [{ key: "Lainnya" as const, title: "Lainnya / Riwayat", badgeBg: "bg-slate-100 text-slate-700 border-slate-200" }]
+                        : []),
+                    ].map((group) => {
+                      const list = operatorsByShift[group.key] || [];
+                      if (list.length === 0) return null;
+
+                      // Check if all operators in this shift are selected
+                      const allInShiftSelected =
+                        list.length > 0 &&
+                        list.every((name) => selectedOperators.includes(name));
+
+                      const handleToggleShift = () => {
+                        if (allInShiftSelected) {
+                          // Uncheck all in this shift
+                          setSelectedOperators((prev) =>
+                            prev.filter((name) => !list.includes(name)),
+                          );
+                        } else {
+                          // Check all in this shift (add missing ones)
+                          setSelectedOperators((prev) => {
+                            const set = new Set([...prev, ...list]);
+                            return Array.from(set);
+                          });
+                        }
+                      };
+
+                      return (
+                        <div key={group.key} className="bg-slate-50/50 rounded-xl p-2 border border-slate-100">
+                          {/* Shift Header & Toggle */}
+                          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-200/60">
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${group.badgeBg}`}>
+                              {group.title} ({list.length})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleToggleShift}
+                              className="text-[10px] font-bold text-sky-600 hover:text-sky-800 hover:underline cursor-pointer"
+                            >
+                              {allInShiftSelected ? "Batal Pilih" : "Pilih Semua"}
+                            </button>
+                          </div>
+
+                          {/* 2-Column Grid of Operators */}
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                            {list.map((name) => {
+                              const isChecked = selectedOperators.includes(name);
+                              return (
+                                <label
+                                  key={name}
+                                  className="flex items-center gap-2 p-1 hover:bg-white rounded-lg cursor-pointer transition-colors group"
+                                  title={name}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedOperators((prev) => [...prev, name]);
+                                      } else {
+                                        setSelectedOperators((prev) =>
+                                          prev.filter((o) => o !== name),
+                                        );
+                                      }
+                                    }}
+                                    className="accent-sky-500 w-3.5 h-3.5 cursor-pointer rounded shrink-0"
+                                  />
+                                  <span
+                                    className={`text-xs truncate transition-colors ${
+                                      isChecked
+                                        ? "font-bold text-sky-700"
+                                        : "font-medium text-slate-600 group-hover:text-slate-800"
+                                    }`}
+                                  >
+                                    {name}
+                                  </span>
+                                </label>
                               );
-                            }
-                          }}
-                          className="accent-sky-500 w-3.5 h-3.5 cursor-pointer"
-                        />
-                        <span
-                          className={`text-xs font-semibold transition-colors ${selectedOperators.includes(op) ? "text-sky-700" : "text-slate-600 group-hover:text-slate-800"}`}
-                        >
-                          {op}
-                        </span>
-                      </label>
-                    ))}
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
