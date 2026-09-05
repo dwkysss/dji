@@ -11,6 +11,8 @@ import {
   updateContinuousReport,
   getLastMeterStartByBatch,
   getOriginalT2ATarget,
+  checkOperatorHandoverStatus,
+  submitOperatorHandover,
 } from "@/actions/continuous-actions";
 import { getProductionPlan } from "@/actions/plan-actions";
 import { getMachineConfigs } from "@/actions/machine-config-actions";
@@ -40,6 +42,7 @@ import {
   Timer,
   ArrowLeft,
   ArrowRight,
+  ArrowRightLeft,
   Send,
   Scissors,
   AlertTriangle,
@@ -467,6 +470,17 @@ export default function ContinuousForm({
     after: string | null;
   }>({ before: null, after: null });
   const [isMeterAwalLocked, setIsMeterAwalLocked] = useState(true);
+  const [handoverWarning, setHandoverWarning] = useState<{
+    needsMeterAwal: boolean;
+    lastOperator: string | null;
+    lastMeter: number;
+    opStartMeter?: number;
+  } | null>(null);
+  const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
+  const [handoverInputMeter, setHandoverInputMeter] = useState<string>("");
+  const [isSubmittingHandover, setIsSubmittingHandover] = useState(false);
+  const [handoverModalError, setHandoverModalError] = useState<string | null>(null);
+  const prevOperatorRef = useRef<string>("");
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [originalT2ATarget, setOriginalT2ATarget] = useState<number | null>(
     null,
@@ -1033,11 +1047,35 @@ export default function ContinuousForm({
         setOriginalT2ATarget(null);
       }
     } else {
-      setValue("meterAwal", nextMeterStart, {
-        shouldDirty: false,
-        shouldValidate: Boolean(getValues("meterAkhir")),
+      const currentOpName = getOperatorName(getValues("operatorId"));
+      const handoverRes = await checkOperatorHandoverStatus({
+        nomorMc,
+        potonganKe,
+        currentOperator: currentOpName,
       });
-      setIsMeterAwalLocked(true);
+
+      if (handoverRes.success && handoverRes.needsMeterAwalInput) {
+        setHandoverWarning({
+          needsMeterAwal: true,
+          lastOperator: handoverRes.lastOperatorName,
+          lastMeter: handoverRes.lastRecordedMeter,
+          opStartMeter: handoverRes.opStartMeter,
+        });
+        setIsMeterAwalLocked(true);
+        if (!getValues("meterAwal") && handoverRes.lastRecordedMeter > 0) {
+          setValue("meterAwal", String(handoverRes.lastRecordedMeter), {
+            shouldDirty: false,
+            shouldValidate: Boolean(getValues("meterAkhir")),
+          });
+        }
+      } else {
+        setHandoverWarning(null);
+        setValue("meterAwal", nextMeterStart, {
+          shouldDirty: false,
+          shouldValidate: Boolean(getValues("meterAkhir")),
+        });
+        setIsMeterAwalLocked(true);
+      }
     }
   };
 
@@ -1087,11 +1125,45 @@ export default function ContinuousForm({
           }
         }
       } else {
-        setValue("meterAwal", nextMeterStartStr, {
-          shouldDirty: false,
-          shouldValidate: Boolean(watchMeterAkhir),
+        const currentOpName = getOperatorName(getValues("operatorId"));
+        const handoverRes = await checkOperatorHandoverStatus({
+          nomorMc: watchNomorMc,
+          potonganKe: watchPotonganKe,
+          currentOperator: currentOpName,
         });
-        setIsMeterAwalLocked(true);
+
+        if (handoverRes.success && handoverRes.needsMeterAwalInput) {
+          setHandoverWarning({
+            needsMeterAwal: true,
+            lastOperator: handoverRes.lastOperatorName,
+            lastMeter: handoverRes.lastRecordedMeter,
+            opStartMeter: handoverRes.opStartMeter,
+          });
+          setIsMeterAwalLocked(true);
+
+          const currentOpId = watch("operatorId");
+          if (currentOpId && prevOperatorRef.current && currentOpId !== prevOperatorRef.current) {
+            setHandoverInputMeter(handoverRes.lastRecordedMeter > 0 ? String(handoverRes.lastRecordedMeter) : "");
+            setHandoverModalError(null);
+            setIsHandoverModalOpen(true);
+          }
+          prevOperatorRef.current = currentOpId || "";
+
+          if (!getValues("meterAwal") && handoverRes.lastRecordedMeter > 0) {
+            setValue("meterAwal", String(handoverRes.lastRecordedMeter), {
+              shouldDirty: false,
+              shouldValidate: Boolean(watchMeterAkhir),
+            });
+          }
+        } else {
+          setHandoverWarning(null);
+          setValue("meterAwal", nextMeterStartStr, {
+            shouldDirty: false,
+            shouldValidate: Boolean(watchMeterAkhir),
+          });
+          setIsMeterAwalLocked(true);
+          prevOperatorRef.current = watch("operatorId") || "";
+        }
       }
 
       // Fetch Production Plan (Admin)
@@ -1121,7 +1193,7 @@ export default function ContinuousForm({
       isActive = false;
       clearTimeout(timeoutId);
     };
-  }, [isEdit, watchMeterAkhir, watchNomorMc, watchPotonganKe, watchJenisLaporan, setValue]);
+  }, [isEdit, watchMeterAkhir, watchNomorMc, watchPotonganKe, watchJenisLaporan, watch("operatorId"), setValue]);
 
   // Load Draft or Header Data dari LocalStorage
   useEffect(() => {
@@ -1172,6 +1244,92 @@ export default function ContinuousForm({
     });
     return () => subscription.unsubscribe();
   }, [watch, isEdit]);
+
+  // Handler untuk mengecek dan memicu modal serah terima shift secara instan saat operator diganti
+  const checkAndPromptHandover = async (customOpId?: string) => {
+    const opId = customOpId ?? getValues("operatorId");
+    const opName = getOperatorName(opId);
+    const mc = getValues("nomorMc");
+    const pot = getValues("potonganKe");
+
+    if (!mc || !pot || !opName) return;
+
+    try {
+      const handoverRes = await checkOperatorHandoverStatus({
+        nomorMc: mc,
+        potonganKe: pot,
+        currentOperator: opName,
+      });
+
+      if (handoverRes.success && handoverRes.needsMeterAwalInput) {
+        setHandoverWarning({
+          needsMeterAwal: true,
+          lastOperator: handoverRes.lastOperatorName,
+          lastMeter: handoverRes.lastRecordedMeter,
+          opStartMeter: handoverRes.opStartMeter,
+        });
+        setHandoverInputMeter(handoverRes.lastRecordedMeter > 0 ? String(handoverRes.lastRecordedMeter) : "");
+        setHandoverModalError(null);
+        setIsHandoverModalOpen(true);
+      } else {
+        setHandoverWarning(null);
+      }
+    } catch (err) {
+      console.error("Gagal memeriksa status serah terima operator:", err);
+    }
+  };
+
+  const handleConfirmHandover = async () => {
+    if (!handoverInputMeter || handoverInputMeter.trim() === "") {
+      setHandoverModalError("Counter meter serah terima wajib diisi!");
+      return;
+    }
+
+    const meterNum = parseFloat(handoverInputMeter);
+    if (isNaN(meterNum) || meterNum < 0) {
+      setHandoverModalError("Counter meter harus berupa angka yang valid!");
+      return;
+    }
+
+    const lastMeter = handoverWarning?.lastMeter || 0;
+    if (meterNum < lastMeter) {
+      setHandoverModalError(`Counter meter tidak boleh lebih kecil dari ${lastMeter}m (meter tercatat sebelumnya).`);
+      return;
+    }
+
+    const currentOpName = getOperatorName(getValues("operatorId"));
+    const mc = getValues("nomorMc");
+    const pot = getValues("potonganKe");
+
+    try {
+      setIsSubmittingHandover(true);
+      setHandoverModalError(null);
+
+      const res = await submitOperatorHandover({
+        nomorMc: mc,
+        potonganKe: pot,
+        incomingOperator: currentOpName,
+        handoverMeter: meterNum,
+      });
+
+      if (res.success) {
+        setValue("meterAwal", String(res.handoverMeter), {
+          shouldDirty: false,
+          shouldValidate: Boolean(getValues("meterAkhir")),
+        });
+        setIsMeterAwalLocked(true);
+        setHandoverWarning(null);
+        setIsHandoverModalOpen(false);
+      } else {
+        setHandoverModalError(res.message || "Gagal melakukan serah terima shift.");
+      }
+    } catch (err: any) {
+      console.error("Gagal serah terima shift:", err);
+      setHandoverModalError(err?.message || "Terjadi kesalahan saat memproses serah terima shift.");
+    } finally {
+      setIsSubmittingHandover(false);
+    }
+  };
 
   // Handler for form validation failures — extracts readable error messages
   const onInvalid = (fieldErrors: any) => {
@@ -1804,6 +1962,37 @@ export default function ContinuousForm({
                 />
               </div>
 
+              {/* Banner Peringatan Serah Terima Shift (Jika Operator Berubah & Operator Sebelumnya Belum Finish) */}
+              {handoverWarning?.needsMeterAwal && (
+                <div className="w-full p-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl flex flex-col gap-2.5 shadow-xs animate-fadeIn">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                      <ArrowRightLeft className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                        Serah Terima Shift
+                      </h4>
+                      <p className="text-[11px] font-semibold text-amber-800 leading-snug">
+                        Operator sebelumnya <strong>{handoverWarning.lastOperator}</strong> (s.d. {handoverWarning.lastMeter}m) belum lapor finish.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHandoverInputMeter(handoverWarning.lastMeter > 0 ? String(handoverWarning.lastMeter) : "");
+                      setHandoverModalError(null);
+                      setIsHandoverModalOpen(true);
+                    }}
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    Input Meter Serah Terima
+                  </button>
+                </div>
+              )}
+
               {/* Tombol Pemicu Pop-up Meteran (Sejajar dengan Card Nomor Panel pada form panel) */}
               <div
                 data-tour="meter-final-report"
@@ -2384,7 +2573,7 @@ export default function ContinuousForm({
                         onWheel={(e) => (e.target as HTMLElement).blur()}
                         {...register("meterAwal")}
                         readOnly
-                        className="h-12 px-4 rounded-xl bg-slate-100 border border-slate-200 text-base font-semibold text-slate-700 outline-none transition-all cursor-not-allowed"
+                        className="h-12 px-4 rounded-xl bg-slate-100 border border-slate-200 text-base font-semibold text-slate-700 outline-none cursor-not-allowed"
                         placeholder="Otomatis dari finish terakhir"
                       />
                       <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
@@ -2882,6 +3071,186 @@ export default function ContinuousForm({
         </div>
       )}
 
+      {/* MODAL SERAH TERIMA SHIFT (PERGANTIAN OPERATOR) */}
+      {isHandoverModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+            onClick={() => !isSubmittingHandover && setIsHandoverModalOpen(false)}
+          />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-100 flex flex-col">
+            {/* Header Modal */}
+            <div className="px-6 py-5 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200/80 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+                  <ArrowRightLeft className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Serah Terima Shift
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-500">
+                    Mesin {watchNomorMc} • Potongan #{watchPotonganKe}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isSubmittingHandover}
+                onClick={() => setIsHandoverModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-full transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body Modal */}
+            <div className="p-6 flex flex-col gap-4">
+              {/* Card info status operator */}
+              <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs font-semibold text-amber-900 leading-relaxed">
+                  {(() => {
+                    const lastOp = handoverWarning?.lastOperator || "sebelumnya";
+                    const lastM = handoverWarning?.lastMeter || 0;
+                    const startM = handoverWarning?.opStartMeter || 0;
+
+                    if (lastM > startM && startM > 0) {
+                      return (
+                        <>
+                          Pergantian operator dari <strong>{lastOp}</strong> (mulai dari <strong>{startM}m</strong>, terakhir tercatat di <strong>{lastM}m</strong> belum lapor finish).
+                        </>
+                      );
+                    }
+                    if (startM > 0) {
+                      return (
+                        <>
+                          Pergantian operator dari <strong>{lastOp}</strong> (mulai dari <strong>{startM}m</strong>, belum lapor finish).
+                        </>
+                      );
+                    }
+                    if (lastM > 0) {
+                      return (
+                        <>
+                          Pergantian operator dari <strong>{lastOp}</strong> (tercatat s.d. <strong>{lastM}m</strong> belum lapor finish).
+                        </>
+                      );
+                    }
+                    return (
+                      <>
+                        Pergantian operator dari <strong>{lastOp}</strong> (potongan baru dari <strong>0m</strong>, belum lapor finish).
+                      </>
+                    );
+                  })()}
+                  <div className="mt-1 text-[11px] text-amber-800 font-medium">
+                    Masukkan counter meter mesin saat serah terima agar sisa produksi operator sebelumnya tertutup otomatis dan shift Anda (<strong>{getOperatorName(watch("operatorId"))}</strong>) dimulai dari meter tersebut.
+                  </div>
+                </div>
+              </div>
+
+              {/* Input counter meter */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                  <span>Counter Meter Saat Serah Terima</span>
+                  <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase">
+                    Wajib Diisi
+                  </span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="any"
+                    autoFocus
+                    value={handoverInputMeter}
+                    onChange={(e) => {
+                      setHandoverInputMeter(e.target.value);
+                      setHandoverModalError(null);
+                    }}
+                    onWheel={(e) => (e.target as HTMLElement).blur()}
+                    placeholder={`Misal: ${handoverWarning?.lastMeter ? handoverWarning.lastMeter + 10 : 100}`}
+                    className="w-full h-13 px-4 pr-16 rounded-2xl bg-slate-50 border-2 border-slate-200 focus:border-amber-500 focus:bg-white text-lg font-black text-slate-900 outline-none transition-all shadow-inner"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 uppercase">
+                    Meter
+                  </span>
+                </div>
+              </div>
+
+              {/* Live Preview Kalkulasi */}
+              {(() => {
+                const inputNum = parseFloat(handoverInputMeter);
+                const lastMeter = handoverWarning?.lastMeter || 0;
+                const startMeter = handoverWarning?.opStartMeter || 0;
+                const baseStart = startMeter > 0 ? startMeter : 0;
+
+                if (!isNaN(inputNum)) {
+                  if (inputNum < lastMeter) {
+                    return (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-700 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Counter meter tidak boleh kurang dari {lastMeter}m!</span>
+                      </div>
+                    );
+                  }
+                  const diff = Math.max(0, inputNum - baseStart);
+                  return (
+                    <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col gap-1 text-[11px] font-semibold text-slate-600">
+                      <div className="flex justify-between">
+                        <span>Sisa produksi {handoverWarning?.lastOperator}:</span>
+                        <span className="font-bold text-slate-800">+{diff} meter ({baseStart}m &rarr; {inputNum}m)</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-200/60 pt-1 text-emerald-700 font-bold">
+                        <span>Shift Anda dimulai dari:</span>
+                        <span>{inputNum} meter</span>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Error Message */}
+              {handoverModalError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{handoverModalError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={isSubmittingHandover}
+                onClick={() => setIsHandoverModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-200/70 transition-colors cursor-pointer"
+              >
+                Nanti Saja
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingHandover}
+                onClick={handleConfirmHandover}
+                className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs rounded-xl shadow-md shadow-amber-500/20 active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-70 disabled:pointer-events-none"
+              >
+                {isSubmittingHandover ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Konfirmasi & Mulai Shift
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL UBAH HEADER */}
       <ProductionHeaderModal
         isOpen={isHeaderModalOpen}
@@ -2889,6 +3258,7 @@ export default function ContinuousForm({
           setIsHeaderModalOpen(false);
           setHighlightPotonganKe(false);
           setHighlightOperator(false);
+          checkAndPromptHandover();
         }}
         register={register}
         errors={errors}

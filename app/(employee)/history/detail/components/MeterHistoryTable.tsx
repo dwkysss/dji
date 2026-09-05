@@ -545,13 +545,46 @@ export default function MeterHistoryTable({
       }
 
       if (operatorStr !== lastOprString && items.length > 0) {
-        const totalMeter = currentOpLastMeter !== null && currentOpStartMeter !== null
-          ? Math.abs(currentOpLastMeter - currentOpStartMeter)
-          : null;
-
         const [prevGrp, prevOpr] = lastOprString.includes(") ") 
           ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
           : ["", lastOprString];
+
+        // Pastikan ada baris FINISH jika operator sebelumnya sudah lapor finish
+        const prevOpItems = items.filter((it) => !it.isTotalRow && it.oprStr === prevOpr);
+        const hasFinish = prevOpItems.some((it) => it.cacatDisplay === "FINISH");
+        const prevItem = sortedProcessed[idx - 1];
+        const lastOpHeader = prevItem?.item?.production_headers;
+
+        if (!hasFinish && lastOpHeader?.meter_akhir && !prevItem?.hasIstirahat) {
+          items.push({
+            id: `finish-${lastOprString}-${Math.random()}`,
+            isStartRow: false,
+            isMeter: true,
+            displayNo: (globalRowCount + 1).toString(),
+            tglStr: prevItem?.tgl || "-",
+            jamStr: prevItem?.jamStr || "-",
+            grpStr: prevGrp,
+            oprStr: prevOpr,
+            meterDisplay: cleanMeterVal(lastOpHeader.meter_akhir),
+            cacatDisplay: "FINISH",
+            backupOpName: "",
+            isGradable: false,
+            showTgl: false,
+            showGrp: false,
+            showOpr: false,
+            hasErrorDetail: false,
+            isIstirahat: false,
+            hasIstirahat: false,
+            downtimeDisplay: "-",
+            header_id: lastOpHeader.id,
+            pcs_index: pcsKey,
+          });
+          globalRowCount += 1;
+        }
+
+        const totalMeter = currentOpLastMeter !== null && currentOpStartMeter !== null
+          ? Math.abs(currentOpLastMeter - currentOpStartMeter)
+          : null;
 
         items.push({
           id: `total-${lastOprString}-${Math.random()}`,
@@ -751,14 +784,80 @@ export default function MeterHistoryTable({
           pcs_index: item.pcs_index
         });
         globalRowCount += 1;
+
+        if (isFinishReport && !hasIstirahat && cleanedCacatLines.length > 0) {
+          const isDuplicateFinish = items.some(
+            (it) => !it.isTotalRow && it.oprStr === opr && it.cacatDisplay === "FINISH"
+          );
+          if (!isDuplicateFinish) {
+            items.push({
+              id: `finish-${item.id || idx}-${Math.random()}`,
+              isStartRow: false,
+              isMeter: true,
+              displayNo: (globalRowCount + 1).toString(),
+              tglStr: tgl,
+              jamStr,
+              grpStr: grp,
+              oprStr: opr,
+              meterDisplay: cleanMeterVal(h.meter_akhir),
+              cacatDisplay: "FINISH",
+              backupOpName: "",
+              isGradable: false,
+              showTgl: false,
+              showGrp: false,
+              showOpr: false,
+              hasErrorDetail: false,
+              isIstirahat: false,
+              hasIstirahat: false,
+              downtimeDisplay: "-",
+              db_id: `finish-${h.id}`,
+              header_id: h.id,
+              pcs_index: item.pcs_index
+            });
+            globalRowCount += 1;
+          }
+        }
       }
     });
 
     if (items.length > 0 && currentOpStartMeter !== null && currentOpLastMeter !== null) {
-      const totalMeter = Math.abs(currentOpLastMeter - currentOpStartMeter);
       const [lastGrp, lastOprOnly] = lastOprString.includes(") ") 
         ? [lastOprString.match(/\(([^)]+)\)/)?.[1] || "", lastOprString.replace(/^\([^)]+\)\s*/, "")]
         : ["", lastOprString];
+
+      const currentOpItems = items.filter((it) => !it.isTotalRow && it.oprStr === lastOprOnly);
+      const hasFinish = currentOpItems.some((it) => it.cacatDisplay === "FINISH");
+      const lastItem = sortedProcessed[sortedProcessed.length - 1];
+      const lastOpHeader = lastItem?.item?.production_headers;
+
+      if (!hasFinish && lastOpHeader?.meter_akhir && !lastItem?.hasIstirahat) {
+        items.push({
+          id: `finish-last-${lastOprString}-${Math.random()}`,
+          isStartRow: false,
+          isMeter: true,
+          displayNo: (globalRowCount + 1).toString(),
+          tglStr: lastItem?.tgl || "-",
+          jamStr: lastItem?.jamStr || "-",
+          grpStr: lastGrp,
+          oprStr: lastOprOnly,
+          meterDisplay: cleanMeterVal(lastOpHeader.meter_akhir),
+          cacatDisplay: "FINISH",
+          backupOpName: "",
+          isGradable: false,
+          showTgl: false,
+          showGrp: false,
+          showOpr: false,
+          hasErrorDetail: false,
+          isIstirahat: false,
+          hasIstirahat: false,
+          downtimeDisplay: "-",
+          header_id: lastOpHeader.id,
+          pcs_index: pcsKey,
+        });
+        globalRowCount += 1;
+      }
+
+      const totalMeter = Math.abs(currentOpLastMeter - currentOpStartMeter);
       items.push({
         id: `total-last-${lastOprString}-${Math.random()}`,
         isTotalRow: true,

@@ -21,9 +21,14 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  CheckCircle2,
+  XCircle,
+  ShieldCheck,
 } from "lucide-react";
 import { getRealProductionsData } from "@/actions/dashboard-actions";
 import { isBsAwalAkhir, isPanelGagalCacat, hasRealDefect } from "@/lib/mending-grade-utils";
+import { getShiftDate } from "@/lib/shift-utils";
+import { DEFAULT_PROBLEM_DETAILS } from "@/lib/constants";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 
 const DASHBOARD_TOUR_STEPS: ProductTourStep[] = [
@@ -395,9 +400,13 @@ export default function DashboardPage() {
   // Date Filtering State
   const [dateRangeMode, setDateRangeMode] = useState<
     "TODAY" | "7DAYS" | "30DAYS" | "CUSTOM"
-  >("7DAYS");
+  >("TODAY");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+
+  // Quality Mode: "QC_GRADE" (Hasil Grade QC/Mending) vs "OPERATOR_STATUS" (Input Operator Ceklis/Silang)
+  const [qualityViewMode, setQualityViewMode] = useState<"QC_GRADE" | "OPERATOR_STATUS">("QC_GRADE");
+  const [operatorStatusFilter, setOperatorStatusFilter] = useState<"ALL" | "CEKLIS" | "SILANG">("ALL");
 
   // Grade breakdown filter for Chart
   const [chartGradeFilter, setChartGradeFilter] = useState<
@@ -507,14 +516,17 @@ export default function DashboardPage() {
     let result = transactions;
 
     const now = new Date();
-    const todayStr = now.toLocaleDateString("en-CA");
+    const todayStr = getShiftDate(now);
 
     result = result.filter((item) => {
       const itemDate = new Date(item.tanggal);
       if (isNaN(itemDate.getTime())) return true;
 
       if (dateRangeMode === "TODAY") {
-        return itemDate.toLocaleDateString("en-CA") === todayStr;
+        return (
+          item.tanggal === todayStr ||
+          itemDate.toLocaleDateString("en-CA") === todayStr
+        );
       }
 
       if (dateRangeMode === "7DAYS") {
@@ -592,13 +604,16 @@ export default function DashboardPage() {
     const uniquePanelsSet = new Set<string>();
     productionOnly.forEach((item) => {
       if ((item.hasil_meter || 0) > 0) return;
+      if (isBsAwalAkhir(item)) return;
       const panelStr = String(item.panel_no_str || item.panel_no || "").toUpperCase().trim();
       if (
         !panelStr ||
         panelStr.includes("DOWNTIME") ||
         panelStr === "BERHENTI" ||
         panelStr.includes("(GAGAL)") ||
-        panelStr.includes("(BS)")
+        panelStr.includes("(BS)") ||
+        panelStr.includes("BS AWAL") ||
+        panelStr.includes("BS AKHIR")
       ) {
         return;
       }
@@ -630,10 +645,8 @@ export default function DashboardPage() {
             !isBsAwalAkhir(item) &&
             !isPanelGagalCacat(item) &&
             hasRealDefect(item) &&
-            item.status_qc === "Recheck" &&
-            item.is_production &&
-            (item.hasil_meter || 0) === 0 &&
-            (item.posisi_meter || 0) === 0 &&
+            (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")) &&
+            !isMeterItem(item) &&
             item.panel_no !== undefined &&
             item.panel_no !== null &&
             !isNaN(Number(item.panel_no)),
@@ -652,9 +665,8 @@ export default function DashboardPage() {
         !isBsAwalAkhir(item) &&
         !isPanelGagalCacat(item) &&
         hasRealDefect(item) &&
-        item.status_qc === "Recheck" &&
-        item.is_production &&
-        (item.posisi_meter || 0) > 0,
+        (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")) &&
+        isMeterItem(item),
     ).length;
     const persentaseCacatMeteran =
       totalProduksiMeter > 0
@@ -1157,7 +1169,10 @@ export default function DashboardPage() {
       ? categoryScoped
       : categoryScoped.filter((item) => getMachineKey(item) === selectedParetoMachine);
 
-    const itemMap = new Map<string, { count: number; downtime: number }>();
+    const itemMap = new Map<
+      string,
+      { count: number; downtime: number; category?: string }
+    >();
 
     if (paretoGroupBy === "KATEGORI") {
       const problemData = transactionsToAnalyze.filter(
@@ -1267,18 +1282,58 @@ export default function DashboardPage() {
         ],
       };
 
-      const getCategoryForDetail = (detailStr: string, fallbackCategory?: string): string => {
-        const cleanStr = detailStr.replace(/\s*\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim();
-        for (const [cat, details] of Object.entries(PROBLEM_DETAILS_MAP)) {
-          if (details.some(d => cleanStr.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(cleanStr.toLowerCase()))) {
+      const mergedProblemDetailsMap: Record<string, string[]> = {};
+      const allCategories = ["A", "B", "C", "D", "E", "F", "G"];
+      allCategories.forEach((cat) => {
+        const defaultList = DEFAULT_PROBLEM_DETAILS[cat] || [];
+        const extraList = PROBLEM_DETAILS_MAP[cat] || [];
+        mergedProblemDetailsMap[cat] = Array.from(
+          new Set([...defaultList, ...extraList]),
+        );
+      });
+
+      const getCategoryForDetail = (
+        detailStr: string,
+        fallbackCategory?: string,
+      ): string => {
+        const cleanStr = detailStr
+          .replace(/\s*\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "")
+          .trim();
+        if (!cleanStr) return "X";
+
+        // 1. Exact match against registered defect names (case-insensitive)
+        for (const [cat, details] of Object.entries(mergedProblemDetailsMap)) {
+          if (details.some((d) => d.toLowerCase() === cleanStr.toLowerCase())) {
             return cat;
           }
         }
-        if (fallbackCategory && fallbackCategory.trim() !== "" && fallbackCategory !== "X") {
-          const firstCat = fallbackCategory.split(/[,/]/)[0].trim().toUpperCase();
-          if (firstCat && firstCat.length === 1 && firstCat >= "A" && firstCat <= "Z") {
-            return firstCat;
+
+        // 2. Substring match
+        for (const [cat, details] of Object.entries(mergedProblemDetailsMap)) {
+          if (
+            details.some(
+              (d) =>
+                cleanStr.toLowerCase().includes(d.toLowerCase()) ||
+                d.toLowerCase().includes(cleanStr.toLowerCase()),
+            )
+          ) {
+            return cat;
           }
+        }
+
+        // 3. Fallback to item.kategori_masalah, preferring real defect categories over 'G' (Gagal Cacat/Lain-lain)
+        if (
+          fallbackCategory &&
+          fallbackCategory.trim() !== "" &&
+          fallbackCategory !== "X"
+        ) {
+          const cats = fallbackCategory
+            .split(/[,/]/)
+            .map((c) => c.trim().toUpperCase())
+            .filter((c) => c.length === 1 && c >= "A" && c <= "Z");
+          const realDefectCat = cats.find((c) => c !== "G");
+          if (realDefectCat) return realDefectCat;
+          if (cats.length > 0) return cats[0];
         }
         return "X";
       };
@@ -1323,16 +1378,16 @@ export default function DashboardPage() {
           const cleanDet = det.replace(/\s*\(Titik:\s*[A-Za-z0-9\s.\-]+\)/gi, "").trim();
           if (!cleanDet) return;
 
-          let formattedName = cleanDet;
-          if (!cleanDet.startsWith("[")) {
-            const cat = getCategoryForDetail(cleanDet, item.kategori_masalah);
-            formattedName = `[${cat}] ${cleanDet}`;
-          }
-          const key = formattedName;
-          const existing = itemMap.get(key) || { count: 0, downtime: 0 };
+          // Strip any leading [A], [B], [X] if present to ensure clean name
+          const cleanName = cleanDet.replace(/^\[[A-Z0-9]+\]\s*/i, "").trim() || cleanDet;
+          const cat = getCategoryForDetail(cleanName, item.kategori_masalah);
+
+          const key = cleanName;
+          const existing = itemMap.get(key) || { count: 0, downtime: 0, category: cat };
           itemMap.set(key, {
             count: existing.count + 1,
             downtime: existing.downtime + downtimeShare,
+            category: existing.category || cat,
           });
         });
       });
@@ -1345,10 +1400,11 @@ export default function DashboardPage() {
         if (!isDefect && downtime === 0) return;
 
         const key = getMachineKey(item) || "Mesin -";
-        const existing = itemMap.get(key) || { count: 0, downtime: 0 };
+        const existing = itemMap.get(key) || { count: 0, downtime: 0, category: undefined };
         itemMap.set(key, {
           count: existing.count + (isDefect ? 1 : 0),
           downtime: existing.downtime + downtime,
+          category: undefined,
         });
       });
     }
@@ -1364,6 +1420,7 @@ export default function DashboardPage() {
         name: code,
         friendlyName,
         code,
+        category: (data as any).category,
         count: data.count,
         downtime: data.downtime,
       };
@@ -1446,32 +1503,22 @@ export default function DashboardPage() {
   }, [activeFilter, dateFilteredTransactions, metricMode]);
 
   const categoryBreakdown = useMemo(() => {
-    const PROBLEM_DETAILS_MAP: Record<string, string[]> = {
-      A: [
-        "L1/L2/L3 Benang timbul putus",
-        "L1/L2/L3 Benang timbul tebal",
-        "Benang lolos",
-        "Jarum timbul patah/bengkok",
-        "Over-lap/double lap",
-        "Pattern timbul cacat",
-        "Proofing timbul cacat",
-      ],
-      B: [
-        "Jarum pattern patah/bengkok",
-        "Ganti jarum Compoun Nedle, pattern",
-        "Ganti Jacquard",
-        "Stripe/garis jarum",
-        "Lubang/bolong",
-        "Beda warna/stripe",
-      ],
-    };
+    const mergedProblemDetailsMap: Record<string, string[]> = {};
+    const allCategories = ["A", "B", "C", "D", "E", "F", "G"];
+    allCategories.forEach((cat) => {
+      mergedProblemDetailsMap[cat] = Array.from(
+        new Set(DEFAULT_PROBLEM_DETAILS[cat] || []),
+      );
+    });
 
     const problemData = dateFilteredTransactions.filter(
       (item) =>
         !isBsAwalAkhir(item) &&
         !isPanelGagalCacat(item) &&
         hasRealDefect(item) &&
-        (item.status_qc === "Recheck" || item.grade === "BS" || (item.kategori_masalah && item.kategori_masalah.trim() !== "")),
+        (item.status_qc === "Recheck" ||
+          item.grade === "BS" ||
+          (item.kategori_masalah && item.kategori_masalah.trim() !== "")),
     );
     const catMap = new Map<string, number>();
 
@@ -1479,16 +1526,35 @@ export default function DashboardPage() {
       let itemCount = 1;
       let cats: string[] = [];
 
-      if (item.kategori_masalah && item.kategori_masalah.trim() !== "" && item.kategori_masalah !== "X" && item.kategori_masalah !== "G") {
-        cats = item
-          .kategori_masalah.split(",")
+      if (
+        item.kategori_masalah &&
+        item.kategori_masalah.trim() !== "" &&
+        item.kategori_masalah !== "X" &&
+        item.kategori_masalah !== "G"
+      ) {
+        cats = item.kategori_masalah
+          .split(",")
           .map((c) => c.trim())
-          .filter((c) => c !== "" && c !== "X" && c !== "G" && !c.toUpperCase().includes("GAGAL CACAT"));
+          .filter(
+            (c) =>
+              c !== "" &&
+              c !== "X" &&
+              c !== "G" &&
+              !c.toUpperCase().includes("GAGAL CACAT"),
+          );
       }
 
-      if (cats.length === 0 && item.detail_masalah && item.detail_masalah.trim() !== "") {
-        for (const [kat, detList] of Object.entries(PROBLEM_DETAILS_MAP)) {
-          if (detList.some((d) => item.detail_masalah!.includes(d))) {
+      if (
+        cats.length === 0 &&
+        item.detail_masalah &&
+        item.detail_masalah.trim() !== ""
+      ) {
+        for (const [kat, detList] of Object.entries(mergedProblemDetailsMap)) {
+          if (
+            detList.some((d) =>
+              item.detail_masalah!.toLowerCase().includes(d.toLowerCase()),
+            )
+          ) {
             cats.push(kat);
             break;
           }
@@ -1597,6 +1663,8 @@ export default function DashboardPage() {
           gradeB_sum: 0,
           bs_sum: 0,
           ungraded_sum: 0,
+          ceklis_sum: 0,
+          silang_sum: count,
           total: count,
         };
       });
@@ -1673,6 +1741,8 @@ export default function DashboardPage() {
       let gradeB_sum = 0;
       let bs_sum = 0;
       let ungraded_sum = 0;
+      let ceklis_sum = 0;
+      let silang_sum = 0;
 
       if (metricMode === "PCS") {
         const cutMap: { [key: string]: typeof items } = {};
@@ -1690,19 +1760,41 @@ export default function DashboardPage() {
         });
 
         Object.values(cutMap).forEach((cutItems) => {
-          const presentPanels = new Set<number>();
-
+          // Kelompokkan per nomor panel unik dalam potongan ini
+          const panelByNoMap = new Map<number, typeof cutItems>();
           cutItems.forEach((i) => {
             const pNo = Number(i.panel_no);
-            presentPanels.add(pNo);
-            if (i.grade === "GRADE A") gradeA_sum++;
-            else if (i.grade === "GRADE B") gradeB_sum++;
-            else if (i.grade === "BS") bs_sum++;
-            else ungraded_sum++;
+            if (!isNaN(pNo)) {
+              if (!panelByNoMap.has(pNo)) panelByNoMap.set(pNo, []);
+              panelByNoMap.get(pNo)!.push(i);
+            }
           });
 
-          const uninspectedCount = Math.max(0, presentPanels.size - cutItems.length);
-          ungraded_sum += uninspectedCount;
+          panelByNoMap.forEach((panelRows) => {
+            const hasBS = panelRows.some((i) => i.grade === "BS");
+            const hasB = panelRows.some((i) => i.grade === "GRADE B");
+            const hasA = panelRows.some((i) => i.grade === "GRADE A");
+
+            if (hasA) gradeA_sum++;
+            else if (hasB) gradeB_sum++;
+            else if (hasBS) bs_sum++;
+            else ungraded_sum++;
+
+            const firstItem = panelRows[0];
+            if (!isBsAwalAkhir(firstItem)) {
+              const isSilang = panelRows.some(
+                (i) =>
+                  !isPanelGagalCacat(i) &&
+                  hasRealDefect(i) &&
+                  (i.status_qc === "Recheck" || i.grade === "BS" || (i.kategori_masalah && i.kategori_masalah.trim() !== ""))
+              );
+              if (isSilang) {
+                silang_sum++;
+              } else {
+                ceklis_sum++;
+              }
+            }
+          });
         });
       } else {
         const uniqueHeadersMap = new Map<string, (typeof items)[0]>();
@@ -1740,9 +1832,21 @@ export default function DashboardPage() {
             (acc, curr) => acc + (parseFloat(curr.hasil_meter as any) || 0),
             0,
           );
+
+        const totalMeterItems = uniqueItems.reduce(
+          (acc, curr) => acc + (parseFloat(curr.hasil_meter as any) || 0),
+          0,
+        );
+        const silangMeter = items.filter(
+          (i) => !isBsAwalAkhir(i) && !isPanelGagalCacat(i) && (hasRealDefect(i) || i.status_qc === "Recheck")
+        ).length;
+        silang_sum = silangMeter;
+        ceklis_sum = Math.max(0, totalMeterItems - silangMeter);
       }
 
-      const total = gradeA_sum + gradeB_sum + bs_sum + ungraded_sum;
+      const total = qualityViewMode === "OPERATOR_STATUS"
+        ? (ceklis_sum + silang_sum)
+        : (gradeA_sum + gradeB_sum + bs_sum + ungraded_sum);
 
       let displayLabel = groupName;
       if (chartGroupBy === "HARI") {
@@ -1761,10 +1865,12 @@ export default function DashboardPage() {
         gradeB_sum,
         bs_sum,
         ungraded_sum,
+        ceklis_sum,
+        silang_sum,
         total,
       };
     });
-  }, [filteredData, chartGroupBy, metricMode]);
+  }, [filteredData, chartGroupBy, metricMode, qualityViewMode]);
 
   const maxChartValue = useMemo(() => {
     if (activeFilter === "PROBLEMS") {
@@ -1773,6 +1879,18 @@ export default function DashboardPage() {
         0,
       );
       return getNiceChartMax(maxProblemCount);
+    }
+
+    if (qualityViewMode === "OPERATOR_STATUS") {
+      const maxVisibleValue = Math.max(
+        ...chartData.map((item) => {
+          if (operatorStatusFilter === "CEKLIS") return item.ceklis_sum;
+          if (operatorStatusFilter === "SILANG") return item.silang_sum;
+          return Math.max(item.total, item.ceklis_sum, item.silang_sum);
+        }),
+        0,
+      );
+      return getNiceChartMax(maxVisibleValue);
     }
 
     const maxVisibleValue = Math.max(
@@ -1794,12 +1912,12 @@ export default function DashboardPage() {
     );
 
     return getNiceChartMax(maxVisibleValue);
-  }, [activeFilter, categoryBreakdown.list, chartData, chartGradeFilter]);
+  }, [activeFilter, categoryBreakdown.list, chartData, chartGradeFilter, qualityViewMode, operatorStatusFilter]);
 
   const handleResetFilters = () => {
     setActiveFilter("ALL");
     setChartGradeFilter("ALL");
-    setDateRangeMode("7DAYS");
+    setDateRangeMode("TODAY");
     setStartDate("");
     setEndDate("");
     setSelectedOperators([]);
@@ -2112,7 +2230,7 @@ export default function DashboardPage() {
                   : "text-slate-500 hover:text-slate-800"
                   }`}
               >
-                7 Hari
+                Minggu
               </button>
               <button
                 onClick={() => setDateRangeMode("30DAYS")}
@@ -2121,7 +2239,7 @@ export default function DashboardPage() {
                   : "text-slate-500 hover:text-slate-800"
                   }`}
               >
-                30 Hari
+                Bulan
               </button>
               <button
                 onClick={() => setDateRangeMode("CUSTOM")}
@@ -3011,12 +3129,40 @@ export default function DashboardPage() {
                   <h3 className="text-base font-extrabold text-slate-800">
                     Tren Hasil Produksi & Analisis Kualitas
                   </h3>
-                  <p className="text-[11px] text-slate-400 font-semibold">
-                    Filter Aktif:{" "}
-                    <span className="font-extrabold text-[#0070bc] uppercase">
-                      {activeFilter}
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    {/* Quality View Mode Switch */}
+                    <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
+                      <button
+                        onClick={() => setQualityViewMode("QC_GRADE")}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+                          qualityViewMode === "QC_GRADE"
+                            ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
+                            : "text-slate-500 hover:text-slate-800"
+                        }`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        Grade QC
+                      </button>
+                      <button
+                        onClick={() => setQualityViewMode("OPERATOR_STATUS")}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+                          qualityViewMode === "OPERATOR_STATUS"
+                            ? "bg-white text-emerald-600 shadow-xs border border-slate-200"
+                            : "text-slate-500 hover:text-slate-800"
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Input Operator
+                      </button>
+                    </div>
+
+                    <span className="text-[11px] text-slate-400 font-semibold">
+                      • Filter Aktif:{" "}
+                      <span className="font-extrabold text-[#0070bc] uppercase">
+                        {activeFilter}
+                      </span>
                     </span>
-                  </p>
+                  </div>
                 </div>
 
                 {/* Chart Control Toggles */}
@@ -3092,53 +3238,87 @@ export default function DashboardPage() {
                     </button>
                   </div>
 
-                  {/* Grade Slicer Toggles */}
+                  {/* Slicer Toggles depending on qualityViewMode */}
                   <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
-                    <button
-                      onClick={() => setChartGradeFilter("ALL")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "ALL"
-                        ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                        : "text-slate-500 hover:text-slate-800"
-                        }`}
-                    >
-                      Semua
-                    </button>
-                    <button
-                      onClick={() => setChartGradeFilter("GRADE_A")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "GRADE_A"
-                        ? "bg-sky-600 text-white shadow-xs"
-                        : "text-[#0070bc] hover:bg-sky-50"
-                        }`}
-                    >
-                      Grade A
-                    </button>
-                    <button
-                      onClick={() => setChartGradeFilter("GRADE_B")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "GRADE_B"
-                        ? "bg-amber-500 text-white shadow-xs"
-                        : "text-amber-700 hover:bg-amber-50"
-                        }`}
-                    >
-                      Grade B
-                    </button>
-                    <button
-                      onClick={() => setChartGradeFilter("BS")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "BS"
-                        ? "bg-rose-500 text-white shadow-xs"
-                        : "text-rose-700 hover:bg-rose-50"
-                        }`}
-                    >
-                      BS
-                    </button>
-                    <button
-                      onClick={() => setChartGradeFilter("UNGRADED")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "UNGRADED"
-                        ? "bg-slate-500 text-white shadow-xs"
-                        : "text-slate-500 hover:bg-slate-50"
-                        }`}
-                    >
-                      Belum Diinspeksi
-                    </button>
+                    {qualityViewMode === "QC_GRADE" ? (
+                      <>
+                        <button
+                          onClick={() => setChartGradeFilter("ALL")}
+                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "ALL"
+                            ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                            : "text-slate-500 hover:text-slate-800"
+                            }`}
+                        >
+                          Semua
+                        </button>
+                        <button
+                          onClick={() => setChartGradeFilter("GRADE_A")}
+                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "GRADE_A"
+                            ? "bg-sky-600 text-white shadow-xs"
+                            : "text-[#0070bc] hover:bg-sky-50"
+                            }`}
+                        >
+                          Grade A
+                        </button>
+                        <button
+                          onClick={() => setChartGradeFilter("GRADE_B")}
+                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "GRADE_B"
+                            ? "bg-amber-500 text-white shadow-xs"
+                            : "text-amber-700 hover:bg-amber-50"
+                            }`}
+                        >
+                          Grade B
+                        </button>
+                        <button
+                          onClick={() => setChartGradeFilter("BS")}
+                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "BS"
+                            ? "bg-rose-500 text-white shadow-xs"
+                            : "text-rose-700 hover:bg-rose-50"
+                            }`}
+                        >
+                          BS
+                        </button>
+                        <button
+                          onClick={() => setChartGradeFilter("UNGRADED")}
+                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "UNGRADED"
+                            ? "bg-slate-500 text-white shadow-xs"
+                            : "text-slate-500 hover:bg-slate-50"
+                            }`}
+                        >
+                          Belum Diinspeksi
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setOperatorStatusFilter("ALL")}
+                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${operatorStatusFilter === "ALL"
+                            ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                            : "text-slate-500 hover:text-slate-800"
+                            }`}
+                        >
+                          Semua
+                        </button>
+                        <button
+                          onClick={() => setOperatorStatusFilter("CEKLIS")}
+                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${operatorStatusFilter === "CEKLIS"
+                            ? "bg-sky-600 text-white shadow-xs"
+                            : "text-[#0070bc] hover:bg-sky-50"
+                            }`}
+                        >
+                          <CheckCircle2 className="w-3 h-3" /> Normal
+                        </button>
+                        <button
+                          onClick={() => setOperatorStatusFilter("SILANG")}
+                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${operatorStatusFilter === "SILANG"
+                            ? "bg-rose-500 text-white shadow-xs"
+                            : "text-rose-700 hover:bg-rose-50"
+                            }`}
+                        >
+                          <XCircle className="w-3 h-3" /> Cacat
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3263,146 +3443,199 @@ export default function DashboardPage() {
                           {/* Polylines for LINE chart */}
                           {chartType === "LINE" && (
                             <>
-                              {chartGradeFilter === "ALL" && (
-                                <polyline
-                                  points={chartData
-                                    .map((d, index) => {
-                                      const spacing =
-                                        totalWidth /
-                                        Math.max(chartData.length, 1);
-                                      const cx =
-                                        40 + spacing * index + spacing / 2;
-                                      const h =
-                                        maxChartValue > 0
-                                          ? (d.total / maxChartValue) * 175
-                                          : 0;
-                                      return `${cx},${195 - Math.max(h, 1.5)}`;
-                                    })
-                                    .join(" ")}
-                                  fill="none"
-                                  stroke="#334155"
-                                  strokeWidth="3.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              )}
-                              {chartGradeFilter === "GRADE_A" && (
-                                <polyline
-                                  points={chartData
-                                    .map((d, index) => {
-                                      const spacing =
-                                        totalWidth /
-                                        Math.max(chartData.length, 1);
-                                      const cx =
-                                        40 + spacing * index + spacing / 2;
-                                      const h =
-                                        maxChartValue > 0
-                                          ? (d.gradeA_sum / maxChartValue) * 175
-                                          : 0;
-                                      return `${cx},${195 - Math.max(h, 1.5)}`;
-                                    })
-                                    .join(" ")}
-                                  fill="none"
-                                  stroke="#0070bc"
-                                  strokeWidth="3"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              )}
-                              {chartGradeFilter === "GRADE_B" && (
-                                <polyline
-                                  points={chartData
-                                    .map((d, index) => {
-                                      const spacing =
-                                        totalWidth /
-                                        Math.max(chartData.length, 1);
-                                      const cx =
-                                        40 + spacing * index + spacing / 2;
-                                      const h =
-                                        maxChartValue > 0
-                                          ? (d.gradeB_sum / maxChartValue) * 175
-                                          : 0;
-                                      return `${cx},${195 - Math.max(h, 1.5)}`;
-                                    })
-                                    .join(" ")}
-                                  fill="none"
-                                  stroke="#f59e0b"
-                                  strokeWidth="3"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              )}
-                              {chartGradeFilter === "BS" && (
-                                <polyline
-                                  points={chartData
-                                    .map((d, index) => {
-                                      const spacing =
-                                        totalWidth /
-                                        Math.max(chartData.length, 1);
-                                      const cx =
-                                        40 + spacing * index + spacing / 2;
-                                      const h =
-                                        maxChartValue > 0
-                                          ? (d.bs_sum / maxChartValue) * 175
-                                          : 0;
-                                      return `${cx},${195 - Math.max(h, 1.5)}`;
-                                    })
-                                    .join(" ")}
-                                  fill="none"
-                                  stroke="#ef4444"
-                                  strokeWidth="3"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              )}
-                              {chartGradeFilter === "ALL" && (
-                                <polyline
-                                  points={chartData
-                                    .map((d, index) => {
-                                      const spacing =
-                                        totalWidth /
-                                        Math.max(chartData.length, 1);
-                                      const cx =
-                                        40 + spacing * index + spacing / 2;
-                                      const h =
-                                        maxChartValue > 0
-                                          ? (d.ungraded_sum / maxChartValue) *
-                                          175
-                                          : 0;
-                                      return `${cx},${195 - Math.max(h, 1.5)}`;
-                                    })
-                                    .join(" ")}
-                                  fill="none"
-                                  stroke="#94a3b8"
-                                  strokeWidth="2"
-                                  strokeDasharray="4 4"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              )}
-                              {chartGradeFilter === "UNGRADED" && (
-                                <polyline
-                                  points={chartData
-                                    .map((d, index) => {
-                                      const spacing =
-                                        totalWidth /
-                                        Math.max(chartData.length, 1);
-                                      const cx =
-                                        40 + spacing * index + spacing / 2;
-                                      const h =
-                                        maxChartValue > 0
-                                          ? (d.ungraded_sum / maxChartValue) *
-                                          175
-                                          : 0;
-                                      return `${cx},${195 - Math.max(h, 1.5)}`;
-                                    })
-                                    .join(" ")}
-                                  fill="none"
-                                  stroke="#94a3b8"
-                                  strokeWidth="3"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
+                              {qualityViewMode === "OPERATOR_STATUS" ? (
+                                <>
+                                  {(operatorStatusFilter === "ALL" || operatorStatusFilter === "CEKLIS") && (
+                                    <polyline
+                                      points={chartData
+                                        .map((d, index) => {
+                                          const spacing =
+                                            totalWidth /
+                                            Math.max(chartData.length, 1);
+                                          const cx =
+                                            40 + spacing * index + spacing / 2;
+                                          const h =
+                                            maxChartValue > 0
+                                              ? (d.ceklis_sum / maxChartValue) * 175
+                                              : 0;
+                                          return `${cx},${195 - Math.max(h, 1.5)}`;
+                                        })
+                                        .join(" ")}
+                                      fill="none"
+                                      stroke="#0070bc"
+                                      strokeWidth="3.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  )}
+                                  {(operatorStatusFilter === "ALL" || operatorStatusFilter === "SILANG") && (
+                                    <polyline
+                                      points={chartData
+                                        .map((d, index) => {
+                                          const spacing =
+                                            totalWidth /
+                                            Math.max(chartData.length, 1);
+                                          const cx =
+                                            40 + spacing * index + spacing / 2;
+                                          const h =
+                                            maxChartValue > 0
+                                              ? (d.silang_sum / maxChartValue) * 175
+                                              : 0;
+                                          return `${cx},${195 - Math.max(h, 1.5)}`;
+                                        })
+                                        .join(" ")}
+                                      fill="none"
+                                      stroke="#ef4444"
+                                      strokeWidth="3.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  {chartGradeFilter === "ALL" && (
+                                    <polyline
+                                      points={chartData
+                                        .map((d, index) => {
+                                          const spacing =
+                                            totalWidth /
+                                            Math.max(chartData.length, 1);
+                                          const cx =
+                                            40 + spacing * index + spacing / 2;
+                                          const h =
+                                            maxChartValue > 0
+                                              ? (d.total / maxChartValue) * 175
+                                              : 0;
+                                          return `${cx},${195 - Math.max(h, 1.5)}`;
+                                        })
+                                        .join(" ")}
+                                      fill="none"
+                                      stroke="#334155"
+                                      strokeWidth="3.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  )}
+                                  {chartGradeFilter === "GRADE_A" && (
+                                    <polyline
+                                      points={chartData
+                                        .map((d, index) => {
+                                          const spacing =
+                                            totalWidth /
+                                            Math.max(chartData.length, 1);
+                                          const cx =
+                                            40 + spacing * index + spacing / 2;
+                                          const h =
+                                            maxChartValue > 0
+                                              ? (d.gradeA_sum / maxChartValue) * 175
+                                              : 0;
+                                          return `${cx},${195 - Math.max(h, 1.5)}`;
+                                        })
+                                        .join(" ")}
+                                      fill="none"
+                                      stroke="#0070bc"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  )}
+                                  {chartGradeFilter === "GRADE_B" && (
+                                    <polyline
+                                      points={chartData
+                                        .map((d, index) => {
+                                          const spacing =
+                                            totalWidth /
+                                            Math.max(chartData.length, 1);
+                                          const cx =
+                                            40 + spacing * index + spacing / 2;
+                                          const h =
+                                            maxChartValue > 0
+                                              ? (d.gradeB_sum / maxChartValue) * 175
+                                              : 0;
+                                          return `${cx},${195 - Math.max(h, 1.5)}`;
+                                        })
+                                        .join(" ")}
+                                      fill="none"
+                                      stroke="#f59e0b"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  )}
+                                  {chartGradeFilter === "BS" && (
+                                    <polyline
+                                      points={chartData
+                                        .map((d, index) => {
+                                          const spacing =
+                                            totalWidth /
+                                            Math.max(chartData.length, 1);
+                                          const cx =
+                                            40 + spacing * index + spacing / 2;
+                                          const h =
+                                            maxChartValue > 0
+                                              ? (d.bs_sum / maxChartValue) * 175
+                                              : 0;
+                                          return `${cx},${195 - Math.max(h, 1.5)}`;
+                                        })
+                                        .join(" ")}
+                                      fill="none"
+                                      stroke="#ef4444"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  )}
+                                  {chartGradeFilter === "ALL" && (
+                                    <polyline
+                                      points={chartData
+                                        .map((d, index) => {
+                                          const spacing =
+                                            totalWidth /
+                                            Math.max(chartData.length, 1);
+                                          const cx =
+                                            40 + spacing * index + spacing / 2;
+                                          const h =
+                                            maxChartValue > 0
+                                              ? (d.ungraded_sum / maxChartValue) *
+                                              175
+                                              : 0;
+                                          return `${cx},${195 - Math.max(h, 1.5)}`;
+                                        })
+                                        .join(" ")}
+                                      fill="none"
+                                      stroke="#94a3b8"
+                                      strokeWidth="2"
+                                      strokeDasharray="4 4"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  )}
+                                  {chartGradeFilter === "UNGRADED" && (
+                                    <polyline
+                                      points={chartData
+                                        .map((d, index) => {
+                                          const spacing =
+                                            totalWidth /
+                                            Math.max(chartData.length, 1);
+                                          const cx =
+                                            40 + spacing * index + spacing / 2;
+                                          const h =
+                                            maxChartValue > 0
+                                              ? (d.ungraded_sum / maxChartValue) *
+                                              175
+                                              : 0;
+                                          return `${cx},${195 - Math.max(h, 1.5)}`;
+                                        })
+                                        .join(" ")}
+                                      fill="none"
+                                      stroke="#94a3b8"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  )}
+                                </>
                               )}
                             </>
                           )}
@@ -3418,6 +3651,357 @@ export default function DashboardPage() {
 
                             // Active state for mobile tap
                             const isActive = activeChartBar === index;
+
+                            // Quality View Mode: Input Operator (Ceklis / Silang)
+                            if (qualityViewMode === "OPERATOR_STATUS") {
+                              if (operatorStatusFilter === "ALL") {
+                                const hCeklis =
+                                  maxChartValue > 0
+                                    ? (d.ceklis_sum / maxChartValue) * 175
+                                    : 0;
+                                const hSilang =
+                                  maxChartValue > 0
+                                    ? (d.silang_sum / maxChartValue) * 175
+                                    : 0;
+
+                                const displayHCeklis = Math.max(hCeklis, 1.5);
+                                const displayHSilang = Math.max(hSilang, 1.5);
+
+                                const yCeklis = 195 - displayHCeklis;
+                                const ySilang = 195 - displayHSilang;
+
+                                const barW = 16;
+                                const xCeklis = groupCenter - 18;
+                                const xSilang = groupCenter + 2;
+
+                                return (
+                                  <g
+                                    key={d.label}
+                                    className="group/bar cursor-pointer"
+                                    onClick={() =>
+                                      setActiveChartBar(isActive ? null : index)
+                                    }
+                                  >
+                                    {/* X-Axis Tick */}
+                                    {index > 0 && (
+                                      <line
+                                        x1={40 + spacing * index}
+                                        y1={195}
+                                        x2={40 + spacing * index}
+                                        y2={205}
+                                        stroke="#cbd5e1"
+                                        strokeWidth="2"
+                                      />
+                                    )}
+
+                                    {/* Hover Tooltip Zone */}
+                                    <rect
+                                      x={40 + spacing * index}
+                                      y={20}
+                                      width={spacing}
+                                      height={175}
+                                      fill="transparent"
+                                      className="cursor-pointer"
+                                    />
+
+                                    {chartType === "BAR" && (
+                                      <>
+                                        {/* Ceklis Section */}
+                                        <rect
+                                          x={xCeklis}
+                                          y={yCeklis}
+                                          width={barW}
+                                          height={displayHCeklis}
+                                          rx="4"
+                                          fill="#0070bc"
+                                          className="transition-all duration-500 ease-out hover:opacity-85 cursor-pointer"
+                                        />
+                                        {/* Silang Section */}
+                                        <rect
+                                          x={xSilang}
+                                          y={ySilang}
+                                          width={barW}
+                                          height={displayHSilang}
+                                          rx="4"
+                                          fill="#ef4444"
+                                          className="transition-all duration-500 ease-out hover:opacity-85 cursor-pointer"
+                                        />
+
+                                        {/* Labels on top of bars */}
+                                        <text
+                                          x={xCeklis + barW / 2}
+                                          y={yCeklis - 4}
+                                          fill="#0070bc"
+                                          fontSize="8"
+                                          fontWeight="bold"
+                                          textAnchor="middle"
+                                          className={`transition-opacity duration-200 ${isActive ? "opacity-100" : "opacity-0 group-hover/bar:opacity-100"}`}
+                                        >
+                                          {d.ceklis_sum}
+                                        </text>
+                                        <text
+                                          x={xSilang + barW / 2}
+                                          y={ySilang - 4}
+                                          fill="#ef4444"
+                                          fontSize="8"
+                                          fontWeight="bold"
+                                          textAnchor="middle"
+                                          className={`transition-opacity duration-200 ${isActive ? "opacity-100" : "opacity-0 group-hover/bar:opacity-100"}`}
+                                        >
+                                          {d.silang_sum}
+                                        </text>
+
+                                        {/* Total summary on top */}
+                                        <text
+                                          x={groupCenter}
+                                          y={12}
+                                          fill="#1e293b"
+                                          fontSize="9"
+                                          fontWeight="extrabold"
+                                          textAnchor="middle"
+                                          className={`transition-opacity duration-200 ${isActive ? "opacity-100" : "opacity-0 group-hover/bar:opacity-100"}`}
+                                        >
+                                          {d.ceklis_sum + d.silang_sum > 0 ? `Total: ${d.ceklis_sum + d.silang_sum}` : ""}
+                                        </text>
+                                      </>
+                                    )}
+
+                                    {/* Unified Tooltip for LINE chart */}
+                                    {chartType === "LINE" && (
+                                      <g
+                                        className={`transition-opacity duration-200 pointer-events-none ${isActive ? "opacity-100" : "opacity-0 group-hover/bar:opacity-100"}`}
+                                      >
+                                        <line
+                                          x1={groupCenter}
+                                          y1={20}
+                                          x2={groupCenter}
+                                          y2={195}
+                                          stroke="#94a3b8"
+                                          strokeDasharray="3 3"
+                                          strokeWidth="1"
+                                        />
+                                        <rect
+                                          x={
+                                            index === 0
+                                              ? groupCenter + 5
+                                              : index === chartData.length - 1
+                                                ? groupCenter - 95
+                                                : groupCenter - 45
+                                          }
+                                          y={10}
+                                          width={90}
+                                          height={48}
+                                          rx="6"
+                                          fill="#ffffff"
+                                          stroke="#e2e8f0"
+                                          strokeWidth="1"
+                                          className="shadow-sm"
+                                        />
+                                        <text
+                                          x={
+                                            index === 0
+                                              ? groupCenter + 50
+                                              : index === chartData.length - 1
+                                                ? groupCenter - 50
+                                                : groupCenter
+                                          }
+                                          y={24}
+                                          fill="#0070bc"
+                                          fontSize="9"
+                                          fontWeight="extrabold"
+                                          textAnchor="middle"
+                                        >
+                                          Normal:{" "}
+                                          <tspan fill="#334155">{d.ceklis_sum}</tspan>
+                                        </text>
+                                        <text
+                                          x={
+                                            index === 0
+                                              ? groupCenter + 50
+                                              : index === chartData.length - 1
+                                                ? groupCenter - 50
+                                                : groupCenter
+                                          }
+                                          y={36}
+                                          fill="#ef4444"
+                                          fontSize="9"
+                                          fontWeight="extrabold"
+                                          textAnchor="middle"
+                                        >
+                                          Cacat:{" "}
+                                          <tspan fill="#334155">{d.silang_sum}</tspan>
+                                        </text>
+                                        <text
+                                          x={
+                                            index === 0
+                                              ? groupCenter + 50
+                                              : index === chartData.length - 1
+                                                ? groupCenter - 50
+                                                : groupCenter
+                                          }
+                                          y={48}
+                                          fill="#1e293b"
+                                          fontSize="9"
+                                          fontWeight="extrabold"
+                                          textAnchor="middle"
+                                        >
+                                          Total: {d.ceklis_sum + d.silang_sum}
+                                        </text>
+                                      </g>
+                                    )}
+
+                                    {/* X-Axis Label */}
+                                    <text
+                                      x={groupCenter}
+                                      y={220}
+                                      fill="#94a3b8"
+                                      fontSize="10"
+                                      fontWeight="extrabold"
+                                      textAnchor="middle"
+                                    >
+                                      {d.label.length > 12
+                                        ? d.label.substring(0, 10) + "..."
+                                        : d.label}
+                                    </text>
+                                  </g>
+                                );
+                              } else {
+                                const isCeklis = operatorStatusFilter === "CEKLIS";
+                                const value = isCeklis ? d.ceklis_sum : d.silang_sum;
+                                const barFill = isCeklis ? "#0070bc" : "#ef4444";
+
+                                const hVal =
+                                  maxChartValue > 0
+                                    ? (value / maxChartValue) * 175
+                                    : 0;
+                                const displayHVal = Math.max(hVal, 1.5);
+                                const yVal = 195 - displayHVal;
+                                const barW = 28;
+                                const xVal = groupCenter - barW / 2;
+
+                                return (
+                                  <g
+                                    key={d.label}
+                                    className="group/bar cursor-pointer"
+                                    onClick={() =>
+                                      setActiveChartBar(isActive ? null : index)
+                                    }
+                                  >
+                                    {/* X-Axis Tick Mark */}
+                                    {index > 0 && (
+                                      <line
+                                        x1={40 + spacing * index}
+                                        y1={195}
+                                        x2={40 + spacing * index}
+                                        y2={205}
+                                        stroke="#cbd5e1"
+                                        strokeWidth="2"
+                                      />
+                                    )}
+
+                                    {/* Hover Tooltip Zone */}
+                                    <rect
+                                      x={40 + spacing * index}
+                                      y={20}
+                                      width={spacing}
+                                      height={175}
+                                      fill="transparent"
+                                      className="cursor-pointer"
+                                    />
+
+                                    {chartType === "BAR" && (
+                                      <rect
+                                        x={xVal}
+                                        y={yVal}
+                                        width={barW}
+                                        height={displayHVal}
+                                        rx="6"
+                                        fill={barFill}
+                                        className="transition-all duration-500 ease-out cursor-pointer hover:opacity-85"
+                                      />
+                                    )}
+
+                                    {/* Permanent Value Label on Top (BAR only) */}
+                                    {chartType === "BAR" && (
+                                      <text
+                                        x={groupCenter}
+                                        y={yVal - 6}
+                                        fill="#475569"
+                                        fontSize="9"
+                                        fontWeight="extrabold"
+                                        textAnchor="middle"
+                                      >
+                                        {value}
+                                      </text>
+                                    )}
+
+                                    {/* Unified Tooltip for LINE chart (Single Mode) */}
+                                    {chartType === "LINE" && (
+                                      <g
+                                        className={`transition-opacity duration-200 pointer-events-none ${isActive ? "opacity-100" : "opacity-0 group-hover/bar:opacity-100"}`}
+                                      >
+                                        <line
+                                          x1={groupCenter}
+                                          y1={20}
+                                          x2={groupCenter}
+                                          y2={195}
+                                          stroke="#94a3b8"
+                                          strokeDasharray="3 3"
+                                          strokeWidth="1"
+                                        />
+                                        <rect
+                                          x={
+                                            index === 0
+                                              ? groupCenter + 5
+                                              : index === chartData.length - 1
+                                                ? groupCenter - 45
+                                                : groupCenter - 20
+                                          }
+                                          y={yVal > 40 ? yVal - 30 : yVal + 10}
+                                          width={40}
+                                          height={20}
+                                          rx="4"
+                                          fill="#ffffff"
+                                          stroke="#e2e8f0"
+                                          strokeWidth="1"
+                                          className="shadow-sm"
+                                        />
+                                        <text
+                                          x={
+                                            index === 0
+                                              ? groupCenter + 25
+                                              : index === chartData.length - 1
+                                                ? groupCenter - 25
+                                                : groupCenter
+                                          }
+                                          y={yVal > 40 ? yVal - 16 : yVal + 24}
+                                          fill={barFill}
+                                          fontSize="10"
+                                          fontWeight="extrabold"
+                                          textAnchor="middle"
+                                        >
+                                          {value}
+                                        </text>
+                                      </g>
+                                    )}
+
+                                    {/* X-Axis Label */}
+                                    <text
+                                      x={groupCenter}
+                                      y="215"
+                                      fill="#94a3b8"
+                                      fontSize="9"
+                                      fontWeight="extrabold"
+                                      textAnchor="middle"
+                                    >
+                                      {d.label.length > 12
+                                        ? d.label.substring(0, 10) + "..."
+                                        : d.label}
+                                    </text>
+                                  </g>
+                                );
+                              }
+                            }
 
                             // Grouped Rendering Logic
                             if (chartGradeFilter === "ALL") {
@@ -4028,22 +4612,41 @@ export default function DashboardPage() {
 
                 {/* Legend Indicators */}
                 <div className="flex flex-wrap items-center justify-center gap-4 pt-3.5 mt-3 border-t border-slate-100/60">
-                  <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
-                    <span className="w-2 h-2 rounded-full bg-[#0070bc]" />
-                    <span>Grade A (Lolos)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
-                    <span className="w-2 h-2 rounded-full bg-[#f59e0b]" />
-                    <span>Grade B (Lolos)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
-                    <span className="w-2 h-2 rounded-full bg-[#ef4444]" />
-                    <span>BS (Recheck)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
-                    <span className="w-2 h-2 rounded-full bg-[#94a3b8]" />
-                    <span>Belum Diinspeksi</span>
-                  </div>
+                  {qualityViewMode === "OPERATOR_STATUS" ? (
+                    <>
+                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#0070bc] flex items-center justify-center text-white text-[7px] font-black">
+                          ✓
+                        </span>
+                        <span>Normal</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] flex items-center justify-center text-white text-[7px] font-black">
+                          ✕
+                        </span>
+                        <span>Cacat</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-[#0070bc]" />
+                        <span>Grade A</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-[#f59e0b]" />
+                        <span>Grade B</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-[#ef4444]" />
+                        <span>BS</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-600 uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-[#94a3b8]" />
+                        <span>Belum Diinspeksi</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -4054,32 +4657,59 @@ export default function DashboardPage() {
               let totalB = 0;
               let totalBS = 0;
               let totalUngraded = 0;
+              let totalCeklis = 0;
+              let totalSilang = 0;
 
               if (metricMode === "PCS") {
-                totalA = new Set(
-                  filteredData
-                    .filter((i) => i.grade === "GRADE A")
-                    .map((i) => i.header_id),
-                ).size;
-                totalB = new Set(
-                  filteredData
-                    .filter((i) => i.grade === "GRADE B")
-                    .map((i) => i.header_id),
-                ).size;
-                totalBS = new Set(
-                  filteredData
-                    .filter((i) => i.grade === "BS")
-                    .map((i) => i.header_id),
-                ).size;
-                totalUngraded = new Set(
-                  filteredData
-                    .filter(
-                      (i) =>
-                        i.grade === "UNGRADED" ||
-                        !["GRADE A", "GRADE B", "BS"].includes(i.grade),
-                    )
-                    .map((i) => i.header_id),
-                ).size;
+                // Kelompokkan baris data per panel fisik unik
+                const panelMap = new Map<string, typeof filteredData>();
+
+                filteredData.forEach((item) => {
+                  if ((item.hasil_meter || 0) > 0 || isMeterItem(item)) return;
+                  if (isBsAwalAkhir(item)) return;
+                  const panelStr = String(item.panel_no_str || item.panel_no || "").toUpperCase().trim();
+                  if (
+                    !panelStr ||
+                    panelStr.includes("DOWNTIME") ||
+                    panelStr === "BERHENTI" ||
+                    panelStr.includes("(GAGAL)") ||
+                    panelStr.includes("(BS)") ||
+                    panelStr.includes("BS AWAL") ||
+                    panelStr.includes("BS AKHIR")
+                  ) {
+                    return;
+                  }
+                  const cutKey = item.potongan_ke || item.design || item.header_id;
+                  const key = `${item.tanggal}_${item.mesin_id}_${cutKey}_${panelStr}_${item.header_id}`;
+                  if (!panelMap.has(key)) {
+                    panelMap.set(key, []);
+                  }
+                  panelMap.get(key)!.push(item);
+                });
+
+                panelMap.forEach((panelItems) => {
+                  const isPanelSilang = panelItems.some(
+                    (i) =>
+                      !isPanelGagalCacat(i) &&
+                      hasRealDefect(i) &&
+                      (i.status_qc === "Recheck" || i.grade === "BS" || (i.kategori_masalah && i.kategori_masalah.trim() !== ""))
+                  );
+
+                  if (isPanelSilang) {
+                    totalSilang++;
+                  } else {
+                    totalCeklis++;
+                  }
+
+                  const hasBS = panelItems.some((i) => i.grade === "BS");
+                  const hasB = panelItems.some((i) => i.grade === "GRADE B");
+                  const hasA = panelItems.some((i) => i.grade === "GRADE A");
+
+                  if (hasBS) totalBS++;
+                  else if (hasB) totalB++;
+                  else if (hasA) totalA++;
+                  else totalUngraded++;
+                });
               } else {
                 const uniqueHeadersMap = new Map<
                   string,
@@ -4123,9 +4753,24 @@ export default function DashboardPage() {
                       acc + (parseFloat(curr.hasil_meter as any) || 0),
                     0,
                   );
+
+                const totalMeterItems = uniqueItems.reduce(
+                  (acc, curr) =>
+                    acc + (parseFloat(curr.hasil_meter as any) || 0),
+                  0,
+                );
+                const silangMeter = filteredData.filter(
+                  (i) =>
+                    !isBsAwalAkhir(i) &&
+                    !isPanelGagalCacat(i) &&
+                    (hasRealDefect(i) || i.status_qc === "Recheck"),
+                ).length;
+                totalSilang = silangMeter;
+                totalCeklis = Math.max(0, totalMeterItems - silangMeter);
               }
 
               const totalQuality = totalA + totalB + totalBS + totalUngraded;
+              const totalOperator = totalCeklis + totalSilang;
 
               const pctA = totalQuality > 0 ? (totalA / totalQuality) * 100 : 0;
               const pctB = totalQuality > 0 ? (totalB / totalQuality) * 100 : 0;
@@ -4134,21 +4779,51 @@ export default function DashboardPage() {
               const pctUngraded =
                 totalQuality > 0 ? (totalUngraded / totalQuality) * 100 : 0;
 
+              const pctCeklis =
+                totalOperator > 0 ? (totalCeklis / totalOperator) * 100 : 0;
+              const pctSilang =
+                totalOperator > 0 ? (totalSilang / totalOperator) * 100 : 0;
+
               return (
                 <div className="space-y-6 flex flex-col flex-1">
                   <div className="bg-white border border-[#e9ecef] rounded-[32px] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between flex-1">
                     <div>
                       <div className="border-b border-slate-100 pb-4 mb-6 flex justify-between items-start">
                         <div>
-                          <h3 className="text-base font-extrabold text-slate-800">
-                            Ringkasan Kualitas
-                          </h3>
-                          <p className="text-[11px] text-slate-400 font-semibold">
-                            Persentase barang berdasarkan Grade
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-extrabold text-slate-800">
+                              {qualityViewMode === "OPERATOR_STATUS"
+                                ? "Status Input Operator"
+                                : "Ringkasan Kualitas"}
+                            </h3>
+                            <button
+                              onClick={() =>
+                                setQualityViewMode(
+                                  qualityViewMode === "QC_GRADE"
+                                    ? "OPERATOR_STATUS"
+                                    : "QC_GRADE",
+                                )
+                              }
+                              className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors flex items-center gap-1 cursor-pointer"
+                              title="Beralih Tampilan Kualitas"
+                            >
+                              <RefreshCw className="w-2.5 h-2.5" />
+                              {qualityViewMode === "QC_GRADE"
+                                ? "Lihat Input Operator"
+                                : "Lihat Grade QC"}
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                            {qualityViewMode === "OPERATOR_STATUS"
+                              ? "Proporsi Normal vs Cacat"
+                              : "Persentase barang berdasarkan Grade"}
                           </p>
                         </div>
                         <span className="text-[9px] font-bold px-2.5 py-1 rounded-lg bg-sky-50 text-sky-600 flex items-center gap-1 shrink-0">
-                          {totalQuality} {metricMode === "PCS" ? "Panel" : "Meter"}
+                          {qualityViewMode === "OPERATOR_STATUS"
+                            ? totalOperator
+                            : totalQuality}{" "}
+                          {metricMode === "PCS" ? "Panel" : "Meter"}
                         </span>
                       </div>
 
@@ -4166,145 +4841,244 @@ export default function DashboardPage() {
                             stroke="#f1f5f9"
                             strokeWidth="12"
                           />
-                          {pctA > 0 && (
-                            <circle
-                              cx="50"
-                              cy="50"
-                              r="40"
-                              fill="transparent"
-                              stroke="#0070bc"
-                              strokeWidth="12"
-                              strokeDasharray={`${(pctA / 100) * 251.2} 251.2`}
-                              strokeDashoffset="0"
-                              className="transition-all duration-1000 ease-out"
-                            />
-                          )}
-                          {pctB > 0 && (
-                            <circle
-                              cx="50"
-                              cy="50"
-                              r="40"
-                              fill="transparent"
-                              stroke="#f59e0b"
-                              strokeWidth="12"
-                              strokeDasharray={`${(pctB / 100) * 251.2} 251.2`}
-                              strokeDashoffset={`-${(pctA / 100) * 251.2}`}
-                              className="transition-all duration-1000 ease-out"
-                            />
-                          )}
-                          {pctBS > 0 && (
-                            <circle
-                              cx="50"
-                              cy="50"
-                              r="40"
-                              fill="transparent"
-                              stroke="#ef4444"
-                              strokeWidth="12"
-                              strokeDasharray={`${(pctBS / 100) * 251.2} 251.2`}
-                              strokeDashoffset={`-${((pctA + pctB) / 100) * 251.2}`}
-                              className="transition-all duration-1000 ease-out"
-                            />
-                          )}
-                          {pctUngraded > 0 && (
-                            <circle
-                              cx="50"
-                              cy="50"
-                              r="40"
-                              fill="transparent"
-                              stroke="#94a3b8"
-                              strokeWidth="12"
-                              strokeDasharray={`${(pctUngraded / 100) * 251.2} 251.2`}
-                              strokeDashoffset={`-${((pctA + pctB + pctBS) / 100) * 251.2}`}
-                              className="transition-all duration-1000 ease-out"
-                            />
+                          {qualityViewMode === "OPERATOR_STATUS" ? (
+                            <>
+                              {pctCeklis > 0 && (
+                                <circle
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  fill="transparent"
+                                  stroke="#0070bc"
+                                  strokeWidth="12"
+                                  strokeDasharray={`${(pctCeklis / 100) * 251.2} 251.2`}
+                                  strokeDashoffset="0"
+                                  className="transition-all duration-1000 ease-out"
+                                />
+                              )}
+                              {pctSilang > 0 && (
+                                <circle
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  fill="transparent"
+                                  stroke="#ef4444"
+                                  strokeWidth="12"
+                                  strokeDasharray={`${(pctSilang / 100) * 251.2} 251.2`}
+                                  strokeDashoffset={`-${(pctCeklis / 100) * 251.2}`}
+                                  className="transition-all duration-1000 ease-out"
+                                />
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {pctA > 0 && (
+                                <circle
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  fill="transparent"
+                                  stroke="#0070bc"
+                                  strokeWidth="12"
+                                  strokeDasharray={`${(pctA / 100) * 251.2} 251.2`}
+                                  strokeDashoffset="0"
+                                  className="transition-all duration-1000 ease-out"
+                                />
+                              )}
+                              {pctB > 0 && (
+                                <circle
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  fill="transparent"
+                                  stroke="#f59e0b"
+                                  strokeWidth="12"
+                                  strokeDasharray={`${(pctB / 100) * 251.2} 251.2`}
+                                  strokeDashoffset={`-${(pctA / 100) * 251.2}`}
+                                  className="transition-all duration-1000 ease-out"
+                                />
+                              )}
+                              {pctBS > 0 && (
+                                <circle
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  fill="transparent"
+                                  stroke="#ef4444"
+                                  strokeWidth="12"
+                                  strokeDasharray={`${(pctBS / 100) * 251.2} 251.2`}
+                                  strokeDashoffset={`-${((pctA + pctB) / 100) * 251.2}`}
+                                  className="transition-all duration-1000 ease-out"
+                                />
+                              )}
+                              {pctUngraded > 0 && (
+                                <circle
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  fill="transparent"
+                                  stroke="#94a3b8"
+                                  strokeWidth="12"
+                                  strokeDasharray={`${(pctUngraded / 100) * 251.2} 251.2`}
+                                  strokeDashoffset={`-${((pctA + pctB + pctBS) / 100) * 251.2}`}
+                                  className="transition-all duration-1000 ease-out"
+                                />
+                              )}
+                            </>
                           )}
                         </svg>
 
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                           <span className="text-3xl font-black text-slate-800 tracking-tight">
-                            {Math.round(pctA)}%
+                            {qualityViewMode === "OPERATOR_STATUS"
+                              ? `${Math.round(pctCeklis)}%`
+                              : `${Math.round(pctA)}%`}
                           </span>
                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                            GRADE A
+                            {qualityViewMode === "OPERATOR_STATUS"
+                              ? "NORMAL"
+                              : "GRADE A"}
                           </span>
                         </div>
                       </div>
 
                       {/* Breakdown List */}
                       <div className="mt-8 space-y-3">
-                        <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <span className="w-3 h-3 rounded-full bg-[#0070bc]" />
-                            <span className="text-xs font-extrabold text-slate-700">
-                              Grade A (Lolos)
-                            </span>
-                          </div>
-                          <div className="text-right flex items-baseline gap-1.5">
-                            <span className="text-sm font-black text-slate-800">
-                              {totalA}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-bold">
-                              {metricMode === "PCS" ? "Panel" : "Meter"}
-                            </span>
-                          </div>
-                        </div>
+                        {qualityViewMode === "OPERATOR_STATUS" ? (
+                          <>
+                            <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className="w-5 h-5 rounded-full bg-sky-100 text-[#0070bc] flex items-center justify-center text-[10px] font-black">
+                                  ✓
+                                </span>
+                                <div>
+                                  <span className="text-xs font-extrabold text-slate-700 block">
+                                    Normal
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-semibold">
+                                    {pctCeklis.toFixed(1)}% dari total input
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right flex items-baseline gap-1.5">
+                                <span className="text-sm font-black text-slate-800">
+                                  {totalCeklis}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  {metricMode === "PCS" ? "Panel" : "Meter"}
+                                </span>
+                              </div>
+                            </div>
 
-                        <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <span className="w-3 h-3 rounded-full bg-[#f59e0b]" />
-                            <span className="text-xs font-extrabold text-slate-700">
-                              Grade B (Lolos)
-                            </span>
-                          </div>
-                          <div className="text-right flex items-baseline gap-1.5">
-                            <span className="text-sm font-black text-slate-800">
-                              {totalB}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-bold">
-                              {metricMode === "PCS" ? "Panel" : "Meter"}
-                            </span>
-                          </div>
-                        </div>
+                            <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-[10px] font-black">
+                                  ✕
+                                </span>
+                                <div>
+                                  <span className="text-xs font-extrabold text-slate-700 block">
+                                    Cacat
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-semibold">
+                                    {pctSilang.toFixed(1)}% dari total input
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right flex items-baseline gap-1.5">
+                                <span className="text-sm font-black text-slate-800">
+                                  {totalSilang}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  {metricMode === "PCS" ? "Panel" : "Meter"}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className="w-3 h-3 rounded-full bg-[#0070bc]" />
+                                <span className="text-xs font-extrabold text-slate-700">
+                                  Grade A (Lolos)
+                                </span>
+                              </div>
+                              <div className="text-right flex items-baseline gap-1.5">
+                                <span className="text-sm font-black text-slate-800">
+                                  {totalA}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  {metricMode === "PCS" ? "Panel" : "Meter"}
+                                </span>
+                              </div>
+                            </div>
 
-                        <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <span className="w-3 h-3 rounded-full bg-[#ef4444]" />
-                            <span className="text-xs font-extrabold text-slate-700">
-                              BS (Recheck)
-                            </span>
-                          </div>
-                          <div className="text-right flex items-baseline gap-1.5">
-                            <span className="text-sm font-black text-slate-800">
-                              {totalBS}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-bold">
-                              {metricMode === "PCS" ? "Panel" : "Meter"}
-                            </span>
-                          </div>
-                        </div>
+                            <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className="w-3 h-3 rounded-full bg-[#f59e0b]" />
+                                <span className="text-xs font-extrabold text-slate-700">
+                                  Grade B (Lolos)
+                                </span>
+                              </div>
+                              <div className="text-right flex items-baseline gap-1.5">
+                                <span className="text-sm font-black text-slate-800">
+                                  {totalB}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  {metricMode === "PCS" ? "Panel" : "Meter"}
+                                </span>
+                              </div>
+                            </div>
 
-                        <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <span className="w-3 h-3 rounded-full bg-[#94a3b8]" />
-                            <span className="text-xs font-extrabold text-slate-700">
-                              Belum Diinspeksi (Ungraded)
-                            </span>
-                          </div>
-                          <div className="text-right flex items-baseline gap-1.5">
-                            <span className="text-sm font-black text-slate-800">
-                              {totalUngraded}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-bold">
-                              {metricMode === "PCS" ? "Panel" : "Meter"}
-                            </span>
-                          </div>
-                        </div>
+                            <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className="w-3 h-3 rounded-full bg-[#ef4444]" />
+                                <span className="text-xs font-extrabold text-slate-700">
+                                  BS (Recheck)
+                                </span>
+                              </div>
+                              <div className="text-right flex items-baseline gap-1.5">
+                                <span className="text-sm font-black text-slate-800">
+                                  {totalBS}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  {metricMode === "PCS" ? "Panel" : "Meter"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className="w-3 h-3 rounded-full bg-[#94a3b8]" />
+                                <div>
+                                  <span className="text-xs font-extrabold text-slate-700 block">
+                                    Belum Diinspeksi (Ungraded)
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-semibold">
+                                    Input: {totalCeklis} Ceklis • {totalSilang}{" "}
+                                    Silang
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right flex items-baseline gap-1.5">
+                                <span className="text-sm font-black text-slate-800">
+                                  {totalUngraded}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  {metricMode === "PCS" ? "Panel" : "Meter"}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
                     <div className="border-t border-slate-100 pt-4 mt-6 text-center">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                        Ringkasan Kualifikasi
+                        {qualityViewMode === "OPERATOR_STATUS"
+                          ? "Ringkasan Status Operator"
+                          : "Ringkasan Kualifikasi"}
                       </span>
                     </div>
                   </div>
@@ -4791,9 +5565,16 @@ export default function DashboardPage() {
                                 >
                                   {idx + 1}
                                 </span>
-                                <span className="text-xs font-black text-slate-800">
-                                  {item.friendlyName}
-                                </span>
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-black text-slate-800">
+                                    {item.friendlyName}
+                                  </span>
+                                  {paretoGroupBy === "KATEGORI" && (item as any).category && (item as any).category !== "X" && (
+                                    <span className="text-[9px] font-bold text-slate-400">
+                                      Kategori {(item as any).category}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               {item.isVital80 && (
                                 <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300/80">

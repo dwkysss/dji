@@ -1045,11 +1045,11 @@ export async function searchEmployeeHistory(filters: {
       }
 
       const mcNorm = (row.nomor_mc || "").trim().toUpperCase();
-      const potNorm = row.potongan_ke || "";
-      // For detailed cut view or specific cut queries, group all data of that cut into one batch regardless of date
-      const key = (filters.includeDetails || (filters.nomor_mc && filters.potongan_ke))
-        ? `${mcNorm}_${potNorm}`
-        : `${mcNorm}_${potNorm}_${shiftDate}`;
+      const potNorm = row.potongan_ke !== undefined && row.potongan_ke !== null && String(row.potongan_ke).trim() !== ""
+        ? String(row.potongan_ke).trim()
+        : (row.id ? String(row.id) : shiftDate);
+      // Grouping per machine & cut (potongan) so multi-shift/multi-day cuts are not duplicated
+      const key = `${mcNorm}_${potNorm}`;
 
       if (!batchesMap.has(key)) {
         batchesMap.set(key, {

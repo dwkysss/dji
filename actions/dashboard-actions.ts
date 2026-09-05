@@ -46,7 +46,11 @@ function getHariFromTanggal(tglStr: string): string {
 
 
 
-export async function getRealProductionsData(): Promise<{
+export async function getRealProductionsData(options?: {
+  operatorName?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<{
   success: boolean;
   data?: RealProductionItem[];
   error?: string;
@@ -54,18 +58,30 @@ export async function getRealProductionsData(): Promise<{
   try {
     const supabase = await createClient();
 
-    // Query 1: Get all dashboard view data via chunked pagination to bypass the 1000-row limit
+    // Query 1: Get dashboard view data via chunked pagination to bypass the 1000-row limit
     let allData: any[] = [];
     const PAGE_SIZE = 1000;
     let from = 0;
     let hasMore = true;
 
     while (hasMore) {
-      const { data: chunk, error: chunkError } = await supabase
+      let query = supabase
         .from("dashboard_production_view")
         .select("*")
-        .order("tanggal", { ascending: false })
-        .range(from, from + PAGE_SIZE - 1);
+        .order("tanggal", { ascending: false });
+
+      if (options?.operatorName) {
+        const op = options.operatorName.trim();
+        query = query.or(`nama_operator.ilike.%${op}%,pic.ilike.%${op}%`);
+      }
+      if (options?.startDate) {
+        query = query.gte("tanggal", options.startDate);
+      }
+      if (options?.endDate) {
+        query = query.lte("tanggal", options.endDate);
+      }
+
+      const { data: chunk, error: chunkError } = await query.range(from, from + PAGE_SIZE - 1);
 
       if (chunkError) {
         console.error("Dashboard error fetching dashboard_production_view chunk:", chunkError);
@@ -115,7 +131,15 @@ export async function getRealProductionsData(): Promise<{
     }
 
     const mappedData: RealProductionItem[] = (data || []).map((item: any) => {
-      const isProduction = (item.hasil_pcs || 0) > 0 || (item.posisi_meter || 0) > 0 || (item.hasil_meter || 0) > 0;
+      const isDefective = hasRealDefect(item);
+      const isGagalCacatAja = isPanelGagalCacatAja(item);
+      const isProduction =
+        (item.hasil_pcs || 0) > 0 ||
+        (item.posisi_meter || 0) > 0 ||
+        (item.hasil_meter || 0) > 0 ||
+        isDefective ||
+        !!item.kategori_masalah ||
+        !!item.detail_masalah;
       
       const mesinId = item.mesin_id || `KNIT-001`;
       
@@ -129,8 +153,6 @@ export async function getRealProductionsData(): Promise<{
       const targetTs = item.tanggal_jam || item.created_at || headerTs || item.tanggal;
       const shiftTanggal = getShiftDate(targetTs);
 
-      const isDefective = hasRealDefect(item);
-      const isGagalCacatAja = isPanelGagalCacatAja(item);
       const computedStatusQc: "Lolos" | "Recheck" =
         isDefective
           ? "Recheck"

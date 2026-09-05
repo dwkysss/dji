@@ -84,6 +84,136 @@ async function resolveAutomaticMeterStart(input: {
   return 0;
 }
 
+export async function checkOperatorHandoverStatus(input: {
+  nomorMc?: string | null;
+  potonganKe?: string | null;
+  currentOperator?: string | null;
+}) {
+  try {
+    if (!input.nomorMc || !input.potonganKe) {
+      return { success: true, needsMeterAwalInput: false, lastOperatorName: null, lastRecordedMeter: 0 };
+    }
+
+    const nomorMcClean = input.nomorMc.trim();
+    const potonganKeNum = parseInt(input.potonganKe);
+    if (isNaN(potonganKeNum)) {
+      return { success: true, needsMeterAwalInput: false, lastOperatorName: null, lastRecordedMeter: 0 };
+    }
+
+    const supabase = await createAdminClient();
+
+    // Ambil header terakhir pada potongan ini
+    const { data: recentHeaders, error } = await supabase
+      .from("production_headers")
+      .select("id, pic, meter_awal, meter_akhir, total_produksi_meter, tanggal_jam, operator_backup")
+      .ilike("nomor_mc", nomorMcClean)
+      .eq("potongan_ke", potonganKeNum)
+      .order("tanggal_jam", { ascending: false })
+      .limit(10);
+
+    if (error || !recentHeaders || recentHeaders.length === 0) {
+      // Potongan masih baru / kosong
+      return { success: true, needsMeterAwalInput: false, lastOperatorName: null, lastRecordedMeter: 0 };
+    }
+
+    const latestHeader = recentHeaders[0];
+    const lastPic = (latestHeader.pic || "").trim();
+    const currentPic = (input.currentOperator || "").trim();
+
+    // Jika operator sama atau nama belum dipilih
+    if (!currentPic || !lastPic || lastPic.toLowerCase() === currentPic.toLowerCase()) {
+      return { success: true, needsMeterAwalInput: false, lastOperatorName: lastPic, lastRecordedMeter: latestHeader.meter_akhir || 0 };
+    }
+
+    // Terjadi pergantian operator! Cek apakah operator sebelumnya sudah di-finish.
+    const lastOpHeaders = recentHeaders.filter(
+      (h) => (h.pic || "").trim().toLowerCase() === lastPic.toLowerCase()
+    );
+    const lastOpLatest = lastOpHeaders[0];
+
+    const isLatestFinished = lastOpLatest && 
+                             lastOpLatest.meter_akhir !== null && 
+                             lastOpLatest.meter_akhir > 0 && 
+                             !lastOpLatest.operator_backup;
+
+    // 1. Cari titik meter tertinggi yang tercatat dari operator sebelumnya
+    let lastMeter = 0;
+    let opStartMeter = 0;
+
+    for (const h of lastOpHeaders) {
+      if (h.meter_akhir && Number(h.meter_akhir) > lastMeter) {
+        lastMeter = Number(h.meter_akhir);
+      }
+      if (h.meter_awal && Number(h.meter_awal) > 0) {
+        if (opStartMeter === 0 || Number(h.meter_awal) < opStartMeter) {
+          opStartMeter = Number(h.meter_awal);
+        }
+      }
+    }
+
+    // 2. Jika operator sebelumnya belum punya meter_awal (misal hanya catat masalah/cacat),
+    // cari titik serah terima dari operator sebelum dia pada potongan yang sama
+    if (opStartMeter === 0) {
+      for (const h of recentHeaders) {
+        if (h.pic && h.pic.trim().toLowerCase() !== lastPic.toLowerCase()) {
+          if (h.meter_akhir && Number(h.meter_akhir) > opStartMeter) {
+            opStartMeter = Number(h.meter_akhir);
+          }
+        }
+      }
+    }
+
+    // 3. Cek apakah ada catatan titik cacat/trouble pada detail produksi operator sebelumnya
+    const headerIds = lastOpHeaders.map((h) => h.id);
+    if (headerIds.length > 0) {
+      const { data: opDetails } = await supabase
+        .from("production_details")
+        .select("meter_kain, detail_masalah")
+        .in("header_id", headerIds);
+
+      if (opDetails && opDetails.length > 0) {
+        for (const d of opDetails) {
+          if (d.meter_kain && Number(d.meter_kain) > lastMeter) {
+            lastMeter = Number(d.meter_kain);
+          }
+          if (d.detail_masalah) {
+            const match = d.detail_masalah.match(/(?:Titik:\s*|meter\s*|ke-\s*)(\d+)/i);
+            if (match && match[1]) {
+              const parsedM = Number(match[1]);
+              if (parsedM > lastMeter) lastMeter = parsedM;
+            }
+          }
+        }
+      }
+    }
+
+    const effectiveLastMeter = Math.max(lastMeter, opStartMeter);
+
+    if (isLatestFinished) {
+      // Operator lama sudah finish dengan benar
+      return {
+        success: true,
+        needsMeterAwalInput: false,
+        lastOperatorName: lastPic,
+        lastRecordedMeter: effectiveLastMeter,
+        opStartMeter,
+      };
+    }
+
+    // Operator lama BELUM finish!
+    return {
+      success: true,
+      needsMeterAwalInput: true,
+      lastOperatorName: lastPic,
+      lastRecordedMeter: effectiveLastMeter,
+      opStartMeter,
+    };
+  } catch (err: any) {
+    console.error("Error checkOperatorHandoverStatus:", err);
+    return { success: false, needsMeterAwalInput: false, lastOperatorName: null, lastRecordedMeter: 0 };
+  }
+}
+
 export async function getLastMeterStartByBatch(input: {
   nomorMc?: string | null;
   designId?: string | null;
@@ -147,6 +277,152 @@ function parseOptionalMeter(value: string | null | undefined): number | null {
   }
   const num = parseFloat(String(value));
   return Number.isFinite(num) ? num : null;
+}
+
+export async function submitOperatorHandover(input: {
+  nomorMc: string;
+  potonganKe: string | number;
+  incomingOperator: string;
+  handoverMeter: number;
+}) {
+  try {
+    if (!input.nomorMc || !input.potonganKe || input.handoverMeter === undefined || input.handoverMeter === null) {
+      return { success: false, message: "Parameter serah terima tidak lengkap." };
+    }
+
+    const nomorMcClean = input.nomorMc.trim();
+    const potonganKeNum = typeof input.potonganKe === "number" ? input.potonganKe : parseInt(input.potonganKe);
+    const handoverMeterNum = Number(input.handoverMeter);
+
+    if (isNaN(potonganKeNum) || isNaN(handoverMeterNum) || handoverMeterNum < 0) {
+      return { success: false, message: "Nomor potongan atau counter meter tidak valid." };
+    }
+
+    const supabase = await createAdminClient();
+
+    // Ambil header pada potongan ini
+    const { data: recentHeaders, error } = await supabase
+      .from("production_headers")
+      .select("id, tgl, operator_id, group_id, design_id, pic, meter_awal, meter_akhir, total_produksi_meter, tanggal_jam, operator_backup")
+      .ilike("nomor_mc", nomorMcClean)
+      .eq("potongan_ke", potonganKeNum)
+      .order("tanggal_jam", { ascending: false })
+      .limit(10);
+
+    if (error || !recentHeaders || recentHeaders.length === 0) {
+      return { success: false, message: "Tidak ditemukan data produksi sebelumnya pada potongan ini." };
+    }
+
+    const latestHeader = recentHeaders[0];
+    const lastPic = (latestHeader.pic || "").trim();
+
+    if (!lastPic) {
+      return { success: false, message: "Nama operator sebelumnya tidak terdata." };
+    }
+
+    // Cari seluruh header milik operator sebelumnya di potongan ini
+    const lastOpHeaders = recentHeaders.filter(
+      (h) => (h.pic || "").trim().toLowerCase() === lastPic.toLowerCase()
+    );
+    const lastOpLatest = lastOpHeaders[0];
+
+    if (!lastOpLatest) {
+      return { success: false, message: "Header operator sebelumnya tidak ditemukan." };
+    }
+
+    // Cari titik meter awal & akhir yang tercatat sebelumnya
+    let prevFinishMeter = 0;
+    let opStartMeter = 0;
+    for (const ph of lastOpHeaders) {
+      if (ph.meter_akhir && Number(ph.meter_akhir) > prevFinishMeter) {
+        prevFinishMeter = Number(ph.meter_akhir);
+      }
+      if (ph.meter_awal && Number(ph.meter_awal) > 0) {
+        if (opStartMeter === 0 || Number(ph.meter_awal) < opStartMeter) {
+          opStartMeter = Number(ph.meter_awal);
+        }
+      }
+    }
+
+    if (opStartMeter === 0) {
+      for (const h of recentHeaders) {
+        if (h.pic && h.pic.trim().toLowerCase() !== lastPic.toLowerCase()) {
+          if (h.meter_akhir && Number(h.meter_akhir) > opStartMeter) {
+            opStartMeter = Number(h.meter_akhir);
+          }
+        }
+      }
+    }
+
+    const closingStart = prevFinishMeter > 0 ? prevFinishMeter : (opStartMeter > 0 ? opStartMeter : (lastOpLatest.meter_awal || 0));
+    const closingEnd = handoverMeterNum;
+
+    if (closingEnd < closingStart) {
+      return {
+        success: false,
+        message: `Counter meter serah terima (${closingEnd}m) tidak boleh lebih kecil dari meter tercatat sebelumnya (${closingStart}m).`
+      };
+    }
+
+    const closingTotal = closingEnd - closingStart;
+
+    if (lastOpLatest.meter_akhir === null || lastOpLatest.meter_akhir === undefined) {
+      // Update header operator sebelumnya yang belum memiliki meter_akhir
+      const { error: updateErr } = await supabase
+        .from("production_headers")
+        .update({
+          meter_awal: closingStart,
+          meter_akhir: closingEnd,
+          total_produksi_meter: closingTotal,
+        })
+        .eq("id", lastOpLatest.id);
+
+      if (updateErr) {
+        throw new Error("Gagal mengupdate header operator sebelumnya: " + updateErr.message);
+      }
+      console.log(`[Handover] Updated header ${lastOpLatest.id} for ${lastPic}: ${closingStart}m -> ${closingEnd}m (${closingTotal}m)`);
+    } else if (closingEnd > closingStart) {
+      // Buat header penutup jika header sebelumnya sudah memiliki meter_akhir
+      const closingHeaderId = generateExcelStyleId();
+      const { error: insertErr } = await supabase
+        .from("production_headers")
+        .insert({
+          id: closingHeaderId,
+          tgl: lastOpLatest.tgl || getShiftDate(new Date()),
+          tanggal_jam: new Date().toISOString(),
+          operator_id: lastOpLatest.operator_id,
+          group_id: lastOpLatest.group_id,
+          design_id: lastOpLatest.design_id,
+          nomor_mc: nomorMcClean,
+          potongan_ke: potonganKeNum,
+          panel_no: "METERAN",
+          pcs: 1,
+          meter_awal: closingStart,
+          meter_akhir: closingEnd,
+          total_produksi_meter: closingTotal,
+          pic: lastPic,
+          status_matching: "OK",
+        });
+
+      if (insertErr) {
+        throw new Error("Gagal membuat header penutup operator sebelumnya: " + insertErr.message);
+      }
+      console.log(`[Handover] Inserted closing header ${closingHeaderId} for ${lastPic}: ${closingStart}m -> ${closingEnd}m (${closingTotal}m)`);
+    }
+
+    revalidatePath("/(employee)/history");
+    revalidatePath("/(employee)/dashboard");
+
+    return {
+      success: true,
+      lastOperatorName: lastPic,
+      handoverMeter: closingEnd,
+      closingTotal,
+    };
+  } catch (err: any) {
+    console.error("Error submitOperatorHandover:", err);
+    return { success: false, message: err?.message || "Terjadi kesalahan saat serah terima shift" };
+  }
 }
 
 function expandBlockNumbers(blokInput?: string | null): string[] {
@@ -315,6 +591,90 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
         if (finishMeterNum <= effectiveMeterStart) {
           throw new Error(`Finish Meter (${finishMeterNum}m) harus lebih besar dari Start Meter (${effectiveMeterStart}m).`);
         }
+      }
+    }
+
+    // AUTO-FINISH OPERATOR SEBELUMNYA JIKA PERGANTIAN OPERATOR BELUM FINAL
+    if (startMeterInput !== null && potonganKeNum && validated.nomorMc && validated.pic) {
+      try {
+        const adminSupabase = await createAdminClient();
+        const { data: prevHeaders } = await adminSupabase
+          .from("production_headers")
+          .select("id, tgl, tanggal_jam, operator_id, group_id, design_id, nomor_mc, potongan_ke, pic, meter_awal, meter_akhir, total_produksi_meter, operator_backup")
+          .ilike("nomor_mc", validated.nomorMc.trim())
+          .eq("potongan_ke", potonganKeNum)
+          .order("tanggal_jam", { ascending: false })
+          .limit(10);
+
+        if (prevHeaders && prevHeaders.length > 0) {
+          const lastHeader = prevHeaders[0];
+          const lastPic = (lastHeader.pic || "").trim();
+          const incomingPic = validated.pic.trim();
+
+          if (lastPic && lastPic.toLowerCase() !== incomingPic.toLowerCase()) {
+            const lastOpHeaders = prevHeaders.filter(
+              (h) => (h.pic || "").trim().toLowerCase() === lastPic.toLowerCase()
+            );
+            const lastOpLatest = lastOpHeaders[0];
+            const isAlreadyFinished = lastOpLatest &&
+              lastOpLatest.meter_akhir !== null &&
+              lastOpLatest.meter_akhir > 0 &&
+              !lastOpLatest.operator_backup;
+
+            if (!isAlreadyFinished && lastOpLatest) {
+              let prevFinishMeter = 0;
+              for (const ph of lastOpHeaders) {
+                if (ph.meter_akhir && Number(ph.meter_akhir) > prevFinishMeter) {
+                  prevFinishMeter = Number(ph.meter_akhir);
+                }
+              }
+
+              const closingStart = prevFinishMeter > 0 ? prevFinishMeter : (lastOpLatest.meter_awal || 0);
+              const closingEnd = startMeterInput;
+
+              if (closingEnd > closingStart) {
+                const closingTotal = closingEnd - closingStart;
+
+                if (lastOpLatest.meter_akhir === null || lastOpLatest.meter_akhir === undefined) {
+                  await adminSupabase
+                    .from("production_headers")
+                    .update({
+                      meter_awal: closingStart,
+                      meter_akhir: closingEnd,
+                      total_produksi_meter: closingTotal,
+                    })
+                    .eq("id", lastOpLatest.id);
+                  console.log(`[Auto-Finish] Updated header ${lastOpLatest.id} for ${lastPic}: ${closingStart}m -> ${closingEnd}m (${closingTotal}m)`);
+                } else {
+                  const closingHeaderId = generateExcelStyleId();
+                  await adminSupabase
+                    .from("production_headers")
+                    .insert({
+                      id: closingHeaderId,
+                      tgl: lastOpLatest.tgl || tgl,
+                      tanggal_jam: tanggalJam,
+                      operator_id: lastOpLatest.operator_id,
+                      group_id: lastOpLatest.group_id,
+                      design_id: lastOpLatest.design_id || validated.designId,
+                      nomor_mc: validated.nomorMc,
+                      potongan_ke: potonganKeNum,
+                      panel_no: "METERAN",
+                      pcs: 1,
+                      meter_awal: closingStart,
+                      meter_akhir: closingEnd,
+                      total_produksi_meter: closingTotal,
+                      pic: lastPic,
+                      created_by_name: validated.created_by_name || null,
+                      status_matching: "OK",
+                    });
+                  console.log(`[Auto-Finish] Inserted closing header ${closingHeaderId} for ${lastPic}: ${closingStart}m -> ${closingEnd}m (${closingTotal}m)`);
+                }
+              }
+            }
+          }
+        }
+      } catch (handoverErr) {
+        console.error("Gagal auto-finish operator sebelumnya saat pergantian shift:", handoverErr);
       }
     }
 
