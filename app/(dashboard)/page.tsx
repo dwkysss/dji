@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
   ArrowUpRight,
@@ -424,10 +424,35 @@ export default function DashboardPage() {
   // Machine Filter State
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
   const [isMachineDropdownOpen, setIsMachineDropdownOpen] = useState(false);
+  const machineDropdownRef = useRef<HTMLDivElement>(null);
 
   // Operator Filter State
   const [selectedOperators, setSelectedOperators] = useState<string[]>([]);
   const [isOperatorDropdownOpen, setIsOperatorDropdownOpen] = useState(false);
+  const operatorDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        machineDropdownRef.current &&
+        !machineDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsMachineDropdownOpen(false);
+      }
+      if (
+        operatorDropdownRef.current &&
+        !operatorDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOperatorDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Rekap Table Expansion State
   const [isRekapExpanded, setIsRekapExpanded] = useState(false);
@@ -2333,7 +2358,7 @@ export default function DashboardPage() {
                 Mesin:
               </span>
             </div>
-            <div className="relative">
+            <div className="relative" ref={machineDropdownRef}>
               <button
                 onClick={() => setIsMachineDropdownOpen(!isMachineDropdownOpen)}
                 className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer min-w-[120px] flex justify-between items-center"
@@ -2418,7 +2443,7 @@ export default function DashboardPage() {
                 Pegawai:
               </span>
             </div>
-            <div className="relative">
+            <div className="relative" ref={operatorDropdownRef}>
               <button
                 onClick={() => setIsOperatorDropdownOpen(!isOperatorDropdownOpen)}
                 className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer min-w-[120px] flex justify-between items-center"
