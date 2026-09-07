@@ -144,6 +144,14 @@ export default function WifiDowntimeTrigger({
     };
   }, [registerSignalListener, selectedMachine, onStartTimer, onStopTimer]);
 
+  // Sinkronisasi status fisik sensor dengan timer form:
+  // Jika ESP32 sudah mendeteksi status "NYALA" (Mesin Berhenti / Downtime Aktif) tapi timer form belum running, nyalakan otomatis!
+  useEffect(() => {
+    if (connectionStatus === "terhubung" && currentStatus === "NYALA" && !isTimerRunning && onStartTimer) {
+      onStartTimer("ESP32 Sensor Otomatis");
+    }
+  }, [connectionStatus, currentStatus, isTimerRunning, onStartTimer]);
+
   return (
     <div className="w-full bg-white border border-slate-200 rounded-2xl p-2.5 shadow-xs flex flex-col gap-2 overflow-hidden">
       {/* Baris 1: Connection Status & Tombol Pengaturan */}
