@@ -467,11 +467,11 @@ function buildMeterRows(panels: any[], shiftName: string, hasNextPotongan?: bool
       return nextOpr !== opr;
     });
     const isLastItemOfTable = idx === filtered.length - 1;
-    const isIstirahatFinish = Boolean(hasNext) && hasIstirahat && isFinishReport && isLastItemOfTable;
+    const isIstirahatFinish = hasIstirahat && isFinishReport && (isLastItemOfOp || isLastItemOfTable);
 
-    const isTrueFinish = Boolean(hasNext) && isFinish && isLastItemOfTable;
+    const isTrueFinish = isFinish;
     const displayCacat = isFinish
-      ? (isTrueFinish ? "FINISH" : "-")
+      ? "FINISH"
       : isIstirahat
       ? (isIstirahatFinish ? (backupOpName ? `${backupOpName} (FINISH)` : "FINISH") : (backupOpName || "-"))
       : cacatText;
