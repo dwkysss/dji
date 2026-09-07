@@ -639,6 +639,7 @@ function ShiftHistoryDetailContent() {
                           <MeterHistoryTable
                             panels={panels}
                             pcsKey={pcsKey}
+                            hasNextPotongan={Boolean(detailData?.has_next_potongan || detailData?.tanggal_potong)}
                             setDetailToDelete={setDetailToDelete}
                             selectedDetailIds={selectedDetailIds}
                             onToggleSelectDetail={handleToggleSelectDetail}

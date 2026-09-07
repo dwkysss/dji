@@ -26,6 +26,9 @@ import {
   RotateCcw,
   MapPin,
   SlidersHorizontal,
+  Calendar,
+  Cpu,
+  ChevronDown,
 } from "lucide-react";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import DateRangePicker from "@/components/ui/DateRangePicker";
@@ -3316,38 +3319,69 @@ export default function MendingPage() {
   // Render Table View (Main Page)
   return (
     <div className="w-full max-w-6xl mx-auto pb-24 sm:pb-28">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-            <Scissors className="w-6 h-6 text-rose-500" />
-            Hasil Akhir Pengerjaan Mending
-          </h1>
-          <p className="text-sm font-semibold text-slate-500">
-            Total antrean baris yang belum dimending: <span className="text-rose-500 font-bold">{groupedPcsList.length} Antrean</span>
-          </p>
-        </div>
+      {/* Filter Card with Integrated Header */}
+      <div
+        data-tour="mending-filter"
+        className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6"
+      >
+        {/* Decorative Top Accent */}
+        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-rose-400 via-rose-500 to-amber-500 rounded-full opacity-80" />
 
-        <button
-          type="button"
-          onClick={() => setIsTourOpen(true)}
-          className="h-11 px-4 rounded-full bg-[#0070bc] hover:bg-[#004777] text-white text-xs font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 self-start"
+        {/* Header Section inside Card */}
+        <div
+          data-tour="mending-header"
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-100"
         >
-          <HelpCircle className="w-4 h-4" /> Tutorial
-        </button>
-      </div>
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-rose-500 via-rose-600 to-red-600 text-white flex items-center justify-center shadow-lg shadow-rose-500/25 shrink-0 ring-4 ring-rose-50 transition-transform duration-300 hover:scale-105">
+              <Scissors className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div className="flex flex-col">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                Hasil Akhir Pengerjaan Mending
+              </h1>
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">
+                Total antrean baris yang belum dimending: <span className="text-rose-500 font-bold">{groupedPcsList.length} Antrean</span>
+              </p>
+            </div>
+          </div>
 
-      {errorMsg && (
-        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 shrink-0" />
-          {errorMsg}
+          <button
+            type="button"
+            onClick={() => setIsTourOpen(true)}
+            className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 self-start sm:self-auto cursor-pointer shrink-0"
+          >
+            <HelpCircle className="w-4 h-4 text-rose-500" />
+            Tutorial
+          </button>
         </div>
-      )}
 
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 items-end gap-4 w-full">
-          <div className="flex flex-col gap-1 w-full">
-            <label className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between">
-              <span>Tanggal</span>
+        {/* Filter Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 items-end gap-4 w-full mt-5">
+          {/* TANGGAL */}
+          <div className="flex flex-col gap-1.5 w-full">
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-rose-500" />
+                <span>Tanggal</span>
+              </span>
+              {(searchStartDate || searchMesin || searchPotongan) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchStartDate("");
+                    setSearchEndDate("");
+                    setSearchTanggal("");
+                    setSearchMesin("");
+                    setSearchPotongan("");
+                    handleSearch("", "");
+                  }}
+                  className="text-[10px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 transition-colors hover:underline cursor-pointer normal-case"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" />
+                  Reset
+                </button>
+              )}
             </label>
             <DateRangePicker
               startDate={searchStartDate}
@@ -3360,53 +3394,85 @@ export default function MendingPage() {
               placeholder="Pilih Tanggal / Rentang..."
             />
           </div>
-          <div className="flex flex-col gap-1 w-full">
-            <label className="text-xs font-bold text-slate-500 uppercase">
-              Mesin
+
+          {/* MESIN */}
+          <div className="flex flex-col gap-1.5 w-full">
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Cpu className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Mesin</span>
             </label>
-            <select
-              value={searchMesin}
-              onChange={(e) => setSearchMesin(e.target.value)}
-              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-rose-400 focus:bg-white outline-none w-full cursor-pointer"
-            >
-              <option value="">Semua Mesin</option>
-              {REGISTERED_MACHINES.map(m => (
-                <option key={String(m)} value={String(m)}>{String(m)}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={searchMesin}
+                onChange={(e) => setSearchMesin(e.target.value)}
+                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+              >
+                <option value="">Semua Mesin</option>
+                {REGISTERED_MACHINES.map((m) => (
+                  <option key={String(m)} value={String(m)}>
+                    {String(m)}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col gap-1 w-full">
-            <label className="text-xs font-bold text-slate-500 uppercase">
-              Potongan
+
+          {/* POTONGAN */}
+          <div className="flex flex-col gap-1.5 w-full">
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Scissors className="w-3.5 h-3.5 text-amber-500" />
+              <span>Potongan</span>
             </label>
             <input
               type="number"
               value={searchPotongan}
               onChange={(e) => setSearchPotongan(e.target.value)}
-              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-rose-400 focus:bg-white outline-none w-full"
+              className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
               placeholder="Cari Potongan..."
             />
           </div>
-          <div className="flex flex-col gap-1 w-full">
-            <label className="text-xs font-bold text-slate-500 uppercase">
-              Urutan Waktu
+
+          {/* URUTAN WAKTU */}
+          <div className="flex flex-col gap-1.5 w-full">
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <span>Urutan Waktu</span>
             </label>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
-              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-rose-400 focus:bg-white outline-none w-full cursor-pointer"
-            >
-              <option value="desc">Terbaru</option>
-              <option value="asc">Terlama</option>
-            </select>
+            <div className="relative">
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
+                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+              >
+                <option value="desc">Terbaru</option>
+                <option value="asc">Terlama</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
           </div>
+
+          {/* CARI DATA BUTTON */}
           <button
-            onClick={() => handleSearch(searchTanggal)}
+            onClick={() => handleSearch(searchStartDate, searchEndDate)}
             disabled={isSearching}
-            className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm shrink-0 w-full col-span-1 sm:col-span-2 md:col-span-1"
+            className="h-11 px-6 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 active:scale-[0.98] disabled:opacity-50 text-white text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-2 shadow-md shadow-rose-600/25 hover:shadow-lg hover:shadow-rose-600/35 cursor-pointer w-full col-span-1 sm:col-span-2 md:col-span-1 group"
           >
-            {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            Cari Data
+            {isSearching ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Mencari...</span>
+              </>
+            ) : (
+              <>
+                <Search className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+                <span>Cari Data</span>
+              </>
+            )}
           </button>
         </div>
       </div>

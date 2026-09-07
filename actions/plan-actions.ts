@@ -64,7 +64,19 @@ export async function upsertProductionPlan(data: any) {
     }
 
     if (input_type && data.nomor_mc) {
-      await upsertMachineConfig(data.nomor_mc, data.pcs_count || 1, input_type);
+      // Retain the machine's configured default_pcs if already set in machine_configs
+      const { data: mcData } = await supabase
+        .from("machine_configs")
+        .select("default_pcs")
+        .eq("nomor_mc", data.nomor_mc.trim())
+        .maybeSingle();
+
+      const defaultPcsToKeep =
+        mcData?.default_pcs !== undefined && mcData?.default_pcs !== null
+          ? Number(mcData.default_pcs)
+          : Number(data.pcs_count || 1);
+
+      await upsertMachineConfig(data.nomor_mc, defaultPcsToKeep, input_type);
     }
     
     // Check if plan already exists in production_plans

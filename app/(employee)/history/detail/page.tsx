@@ -417,7 +417,11 @@ function HistoryDetailContent() {
                             <span className="font-black text-slate-800 text-sm tracking-wider uppercase">{pcsLabel}</span>
                           </div>
                           {isMeter ? (
-                            <MeterHistoryTable panels={panels} pcsKey={pcsKey} />
+                            <MeterHistoryTable
+                              panels={panels}
+                              pcsKey={pcsKey}
+                              hasNextPotongan={Boolean(detailData?.has_next_potongan || detailData?.tanggal_potong)}
+                            />
                           ) : (
                             <PanelHistoryTable panels={panels} pcsKey={pcsKey} onRefresh={fetchDetail} />
                           )}

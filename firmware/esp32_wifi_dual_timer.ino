@@ -1,10 +1,12 @@
 /*
  * =================================================================================
- * PROYEK: ESP32 WI-FI LOKAL DUAL MACHINE DOWNTIME TIMER
+ * PROYEK: ESP32 WI-FI LOKAL MULTI-MACHINE DOWNTIME TIMER (3 MESIN)
  *         (WIFIMANAGER + DYNAMIC CAPTIVE PORTAL + STATIC IP + HEARTBEAT WS)
- * Deskripsi: Program ESP32 untuk memantau 2 Mesin sekaligus via Wi-Fi Lokal & WebSocket.
- *            - Mesin 1 (M1): GPIO 4 (Relay Sakelar M1)
- *            - Mesin 2 (M2): GPIO 5 (Relay Sakelar M2)
+ * Deskripsi: Program ESP32 untuk memantau hingga 3 Mesin sekaligus via Wi-Fi Lokal & WebSocket.
+ *            - Mesin 1 (M1): GPIO 4  (Relay Sakelar M1)
+ *            - Mesin 2 (M2): GPIO 5  (Relay Sakelar M2)
+ *            - Mesin 3 (M3): GPIO 18 (Relay Sakelar M3)
+ *            - GND: Sambungkan kabel Ground (GND) ketiga relay secara paralel ke pin GND ESP32
  * 
  * Aturan Trigger Sinyal Mesin:
  * - KETIKA RELAY MESIN AKTIF (LOW)  -> Kirim WebSocket {"machine":"M1","status":"START"}
@@ -41,8 +43,9 @@ IPAddress secondaryDNS(8, 8, 4, 4);
 const char* mdns_hostname = "esp32-timer";
 
 // --- KONFIGURASI HARDWARE PIN ---
-const int MESIN_1_PIN = 4;   // GPIO 4 (Input Relay Mesin 1)
-const int MESIN_2_PIN = 5;   // GPIO 5 (Input Relay Mesin 2)
+const int MESIN_1_PIN = 4;   // GPIO 4  (Input Relay Mesin 1)
+const int MESIN_2_PIN = 5;   // GPIO 5  (Input Relay Mesin 2)
+const int MESIN_3_PIN = 18;  // GPIO 18 (Input Relay Mesin 3)
 const int LED_M1_PIN  = 2;   // Onboard LED ESP32 (Indikator Status Sinyal M1)
 
 // --- SERVER INSTANCES ---
@@ -53,6 +56,7 @@ WiFiManager wm;
 // --- STATE PELACAK DOWNTIME MESIN & WI-FI ---
 bool m1_active = false;
 bool m2_active = false;
+bool m3_active = false;
 
 bool wifiWasConnected = false;
 unsigned long lastWiFiRetry = 0;
@@ -65,6 +69,10 @@ unsigned long m1_lastDebounceTime = 0;
 // Debounce state Mesin 2
 int m2_lastRawState = HIGH;
 unsigned long m2_lastDebounceTime = 0;
+
+// Debounce state Mesin 3
+int m3_lastRawState = HIGH;
+unsigned long m3_lastDebounceTime = 0;
 
 const unsigned long debounceDelay = 500; // Stabilisasi sinyal 500ms
 
@@ -79,12 +87,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       IPAddress ip = webSocket.remoteIP(num);
       Serial.printf("[WebSocket] Client [%u] Terhubung dari %d.%d.%d.%d\n", num, ip[0], ip[1], ip[2], ip[3]);
 
-      // Kirimkan status fisik terkini M1 & M2 ke client yang baru terkoneksi
+      // Kirimkan status fisik terkini M1, M2, M3 ke client yang baru terkoneksi
       String payloadM1 = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\"}";
       String payloadM2 = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\"}";
+      String payloadM3 = String("{\"machine\":\"M3\",\"status\":\"") + (m3_active ? "START" : "STOP") + "\"}";
 
       webSocket.sendTXT(num, payloadM1);
       webSocket.sendTXT(num, payloadM2);
+      webSocket.sendTXT(num, payloadM3);
       break;
     }
 
@@ -95,8 +105,10 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       } else if (strcmp((char*)payload, "GET_STATUS") == 0) {
         String payloadM1 = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\"}";
         String payloadM2 = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\"}";
+        String payloadM3 = String("{\"machine\":\"M3\",\"status\":\"") + (m3_active ? "START" : "STOP") + "\"}";
         webSocket.sendTXT(num, payloadM1);
         webSocket.sendTXT(num, payloadM2);
+        webSocket.sendTXT(num, payloadM3);
       }
       break;
 
@@ -109,6 +121,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 void handleApiStatus() {
   String json = "{\"status\":\"OK\",\"m1\":\"" + String(m1_active ? "START" : "STOP") + 
                 "\", \"m2\":\"" + String(m2_active ? "START" : "STOP") + 
+                "\", \"m3\":\"" + String(m3_active ? "START" : "STOP") + 
                 "\", \"ip\":\"" + WiFi.localIP().toString() + 
                 "\", \"mdns\":\"http://esp32-timer.local\"}";
   
@@ -128,6 +141,7 @@ void setup() {
   // 1. Konfigurasi Input Pin dengan Pull-Up Internal
   pinMode(MESIN_1_PIN, INPUT_PULLUP);
   pinMode(MESIN_2_PIN, INPUT_PULLUP);
+  pinMode(MESIN_3_PIN, INPUT_PULLUP);
 
   pinMode(LED_M1_PIN, OUTPUT);
   digitalWrite(LED_M1_PIN, LOW);
@@ -139,8 +153,11 @@ void setup() {
   m2_lastRawState = digitalRead(MESIN_2_PIN);
   m2_active       = (m2_lastRawState == LOW);
 
+  m3_lastRawState = digitalRead(MESIN_3_PIN);
+  m3_active       = (m3_lastRawState == LOW);
+
   Serial.println("\n=============================================");
-  Serial.println("  ESP32 DUAL MACHINE WI-FI TIMER STARTING... ");
+  Serial.println("  ESP32 3-MACHINE WI-FI TIMER STARTING...    ");
   Serial.println("=============================================");
 
   // 2. Setup Mode Wi-Fi & Wi-Fi Manager
@@ -264,6 +281,27 @@ void loop() {
 
       String payload = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\"}";
       Serial.printf("[SENSOR M2] Status Baru: %s => Broadcast WS: %s\n", m2_active ? "AKTIF" : "OFF", payload.c_str());
+      
+      webSocket.broadcastTXT(payload);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // MONITORING MESIN 3 (GPIO 18)
+  // -------------------------------------------------------------
+  int currentM3State = digitalRead(MESIN_3_PIN);
+  if (currentM3State != m3_lastRawState) {
+    m3_lastDebounceTime = currentMillis;
+    m3_lastRawState = currentM3State;
+  }
+
+  if ((currentMillis - m3_lastDebounceTime) > debounceDelay) {
+    bool currentM3Active = (currentM3State == LOW);
+    if (currentM3Active != m3_active) {
+      m3_active = currentM3Active;
+
+      String payload = String("{\"machine\":\"M3\",\"status\":\"") + (m3_active ? "START" : "STOP") + "\"}";
+      Serial.printf("[SENSOR M3] Status Baru: %s => Broadcast WS: %s\n", m3_active ? "AKTIF" : "OFF", payload.c_str());
       
       webSocket.broadcastTXT(payload);
     }

@@ -368,7 +368,8 @@ function buildPanelRows(panels: any[], shiftName: string) {
 
 // ─── Build meter rows for a PCS group ────────────────────────────────────────
 
-function buildMeterRows(panels: any[], shiftName: string) {
+function buildMeterRows(panels: any[], shiftName: string, hasNextPotongan?: boolean) {
+  const hasNext = hasNextPotongan ?? panels.some((p: any) => Boolean(p.has_next_potongan || p.tanggal_potong || p.production_headers?.tanggal_potong));
   const details: any[] = [];
   panels.forEach((p: any) => {
     const dets = p.production_details || [];
@@ -460,7 +461,20 @@ function buildMeterRows(panels: any[], shiftName: string) {
     }
 
     // cacat display
-    const displayCacat = isFinish ? "FINISH" : isIstirahat ? (backupOpName || "-") : cacatText;
+    const isLastItemOfOp = filtered.slice(idx + 1).every((nextItem: any) => {
+      const nextH = nextItem.production_headers || nextItem;
+      const nextOpr = (nextH.pic || "").trim();
+      return nextOpr !== opr;
+    });
+    const isLastItemOfTable = idx === filtered.length - 1;
+    const isIstirahatFinish = Boolean(hasNext) && hasIstirahat && isFinishReport && isLastItemOfTable;
+
+    const isTrueFinish = Boolean(hasNext) && isFinish && isLastItemOfTable;
+    const displayCacat = isFinish
+      ? (isTrueFinish ? "FINISH" : "-")
+      : isIstirahat
+      ? (isIstirahatFinish ? (backupOpName ? `${backupOpName} (FINISH)` : "FINISH") : (backupOpName || "-"))
+      : cacatText;
 
     // Operator change → total row
     if (oprStr !== lastOprStr && rows.length > 0) {
@@ -948,7 +962,8 @@ export default function PrintableProductionReport({ detailData, isOpen, onClose 
               return pA - pB;
             });
             const isMeterPcs = pcsPanels.some((p: any) => p.panel_no === "METERAN");
-            const tableRows = isMeterPcs ? buildMeterRows(pcsPanels, shiftName) : buildPanelRows(pcsPanels, shiftName);
+            const hasNextPotongan = Boolean(detailData?.has_next_potongan || detailData?.tanggal_potong);
+            const tableRows = isMeterPcs ? buildMeterRows(pcsPanels, shiftName, hasNextPotongan) : buildPanelRows(pcsPanels, shiftName);
 
             // For portrait mode with panel, use 2-column split if >15 rows
             const useTwoCols = !isMeterPcs && !needsLandscape && tableRows.length > 15;

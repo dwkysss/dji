@@ -19,7 +19,7 @@ import {
   Settings,
   Info,
 } from "lucide-react";
-import { useWifiContext, getEsp32ConfigForMachine } from "@/lib/wifi-context";
+import { useWifiContext, getEsp32ConfigForMachine, MachineChannel } from "@/lib/wifi-context";
 import WifiController from "@/components/WifiController";
 import PinAuthModal from "@/components/PinAuthModal";
 
@@ -33,8 +33,8 @@ function formatTime(totalSeconds: number): string {
 }
 
 interface WifiDowntimeTriggerProps {
-  machineId?: "M1" | "M2";
-  initialMachineId?: "M1" | "M2";
+  machineId?: MachineChannel;
+  initialMachineId?: MachineChannel;
   selectedMachineCode?: string;
   onStartTimer?: (source?: string) => void;
   onStopTimer?: (source?: string) => void;
@@ -59,6 +59,10 @@ export default function WifiDowntimeTrigger({
     statusM2,
     isTimerM2Running,
     elapsedM2,
+    statusM3,
+    isTimerM3Running,
+    elapsedM3,
+    machineMapping,
     logs,
     registerSignalListener,
     triggerM1Start,
@@ -67,12 +71,27 @@ export default function WifiDowntimeTrigger({
     triggerM2Start,
     triggerM2Stop,
     resetTimerM2,
+    triggerM3Start,
+    triggerM3Stop,
+    resetTimerM3,
     isSimulationMode,
     toggleSimulationMode,
   } = useWifiContext();
 
-  // Sakelar Pilihan Mesin State
-  const [selectedMachine, setSelectedMachine] = useState<"M1" | "M2">(machineId || initialMachineId);
+  // Ambil konfigurasi untuk nomor mesin yang sedang dibuka di form
+  const currentConfig = React.useMemo(() => {
+    return getEsp32ConfigForMachine(selectedMachineCode, machineMapping);
+  }, [selectedMachineCode, machineMapping]);
+
+  // Otomatis ganti koneksi host ESP jika berbeda dari targetHost saat ini
+  useEffect(() => {
+    if (currentConfig.host && currentConfig.host !== targetHost && connectionStatus !== "menghubungkan") {
+      connect(currentConfig.host);
+    }
+  }, [currentConfig.host, targetHost, connect, connectionStatus]);
+
+  // Sakelar Mesin Terkunci Otomatis Sesuai Nomor Mesin di Header
+  const selectedMachine: MachineChannel = currentConfig.channel || machineId || initialMachineId || "M1";
   const [showControllerModal, setShowControllerModal] = useState<boolean>(false);
 
   // Pin Auth Modal State
@@ -97,26 +116,16 @@ export default function WifiDowntimeTrigger({
     });
   };
 
-  // Otomatis mengganti Sakelar Mesin (Mesin R1 vs Mesin R11) sesuai Nomor Mesin di Header Form
-  useEffect(() => {
-    if (selectedMachineCode) {
-      const code = String(selectedMachineCode).trim().toUpperCase();
-      let target: "M1" | "M2" | null = null;
-      if (code === "R11" || code.endsWith("11") || code.includes("M2")) {
-        target = "M2";
-      } else if (code === "R1" || code.includes("M1")) {
-        target = "M1";
-      }
+  const currentStatus = selectedMachine === "M1" ? statusM1 : selectedMachine === "M2" ? statusM2 : statusM3;
+  const currentElapsed = selectedMachine === "M1" ? elapsedM1 : selectedMachine === "M2" ? elapsedM2 : elapsedM3;
+  const currentIsRunning = selectedMachine === "M1" ? isTimerM1Running : selectedMachine === "M2" ? isTimerM2Running : isTimerM3Running;
 
-      if (target && target !== selectedMachine) {
-        setSelectedMachine(target);
-      }
-    }
-  }, [selectedMachineCode, selectedMachine]);
-
-  const currentStatus = selectedMachine === "M1" ? statusM1 : statusM2;
-  const currentElapsed = selectedMachine === "M1" ? elapsedM1 : elapsedM2;
-  const currentIsRunning = selectedMachine === "M1" ? isTimerM1Running : isTimerM2Running;
+  const getChannelRunning = (ch: MachineChannel) => {
+    if (ch === "M1") return isTimerM1Running;
+    if (ch === "M2") return isTimerM2Running;
+    if (ch === "M3") return isTimerM3Running;
+    return false;
+  };
 
   // Listen to Wi-Fi signals for the currently selected machine
   useEffect(() => {
@@ -210,32 +219,42 @@ export default function WifiDowntimeTrigger({
         </div>
       </div>
 
-      {/* Baris 2: Badge Indikator Mesin Read-Only (Full Width Responsif 50%-50%) */}
-      <div className="bg-slate-100/80 p-0.5 rounded-xl flex items-center justify-between gap-1 border border-slate-200/80 cursor-default select-none">
-        <div
-          className={`flex-1 py-1 px-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${selectedMachine === "M1"
-              ? "bg-sky-600 text-white shadow-xs"
-              : "text-slate-400 opacity-60"
-            }`}
-        >
-          <Cpu className="w-3 h-3 shrink-0" />
-          <span className="truncate">Mesin R1</span>
-          {isTimerM1Running && (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-          )}
+      {/* Baris 2: Badge Indikator Mesin Terkunci Sesuai Nomor Mesin di Header */}
+      <div className="bg-slate-100/90 p-1.5 px-2.5 rounded-xl flex items-center justify-between gap-2 border border-slate-200/80 select-none">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200">
+            <Cpu className="w-3.5 h-3.5" />
+          </div>
+          <div className="flex items-center gap-1.5 min-w-0 truncate">
+            <span className="text-xs font-black text-slate-800 tracking-tight">
+              Mesin {selectedMachineCode ? selectedMachineCode.toUpperCase() : "-"}
+            </span>
+            <span className="px-1.5 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-600 shadow-2xs">
+              {currentConfig.channel}
+            </span>
+          </div>
         </div>
 
-        <div
-          className={`flex-1 py-1 px-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-0 ${selectedMachine === "M2"
-              ? "bg-sky-600 text-white shadow-xs"
-              : "text-slate-400 opacity-60"
-            }`}
-        >
-          <Cpu className="w-3 h-3 shrink-0" />
-          <span className="truncate">Mesin R11</span>
-          {isTimerM2Running && (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+        {/* Status Sinyal Downtime Real-Time */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {currentIsRunning && (
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping shrink-0" />
           )}
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
+              currentStatus === "NYALA"
+                ? "bg-rose-100 text-rose-700 border border-rose-200"
+                : currentStatus === "MATI"
+                ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                : "bg-slate-200 text-slate-600 border border-slate-300"
+            }`}
+          >
+            {currentStatus === "NYALA"
+              ? "Downtime Aktif"
+              : currentStatus === "MATI"
+              ? "Mesin Berjalan"
+              : "Standby"}
+          </span>
         </div>
       </div>
 

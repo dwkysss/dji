@@ -33,7 +33,10 @@ import {
   ListChecks,
   Boxes,
   Layers2,
-  CheckCheck
+  CheckCheck,
+  ChevronDown,
+  Users,
+  FileText,
 } from "lucide-react";
 import { REGISTERED_MACHINES } from "@/lib/constants";
 
@@ -392,103 +395,108 @@ export default function PackingPage() {
         </div>
       )}
 
-      {/* HEADER CARD */}
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[28px] border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-200 text-white shrink-0">
-            <Package className="w-7 h-7 stroke-[2.2]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-                Pengerjaan & Tracking Packing
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 uppercase tracking-wide">
-                Sesi Keseluruhan
-              </span>
+      {/* Filter Card with Integrated Header & Controls */}
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6">
+        {/* Decorative Top Accent */}
+        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
+
+        {/* Header Section inside Card */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
+              <Package className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
             </div>
-            <p className="text-sm font-semibold text-slate-500 mt-0.5">
-              Jalankan stopwatch saat pengerjaan packing, lalu klik kotak potongan kain yang selesai dikerjakan.
-            </p>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+                  Pengerjaan & Tracking Packing
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-50 text-[#0070bc] border border-sky-200/80 uppercase tracking-wide">
+                  Sesi Keseluruhan
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">
+                Jalankan stopwatch saat pengerjaan packing, lalu klik kotak potongan kain yang selesai dikerjakan.
+              </p>
+            </div>
+          </div>
+
+          {/* Tab Buttons */}
+          <div className="flex items-center gap-1.5 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200/80 self-start md:self-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab("queue")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "queue"
+                  ? "bg-white text-slate-800 shadow-xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-[#0070bc]" />
+              <span>Antrian & Stopwatch</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-[#0070bc] text-white">
+                {queueItems.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("history")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "history"
+                  ? "bg-white text-slate-800 shadow-xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <History className="w-3.5 h-3.5 text-[#0070bc]" />
+              <span>Riwayat Packing</span>
+            </button>
           </div>
         </div>
 
-        {/* Tab Buttons */}
-        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 self-start md:self-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab("queue")}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === "queue"
-                ? "bg-white text-slate-800 shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5 text-amber-500" />
-            Antrian & Stopwatch
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white">
-              {queueItems.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("history")}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === "history"
-                ? "bg-white text-slate-800 shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <History className="w-3.5 h-3.5 text-sky-600" />
-            Riwayat Packing
-          </button>
-        </div>
-      </div>
-
-      {/* ===================== TAB 1: ANTRIAN & STOPWATCH ===================== */}
-      {activeTab === "queue" && (
-        <div className="space-y-6 animate-fadeIn">
-          {/* SECTION 1: KONTROL WAKTU & PETUGAS (LOGIKA SAMA DENGAN QC & MENDING) */}
-          <div className="bg-white p-6 rounded-[28px] shadow-sm border border-slate-200">
+        {/* Content Section inside Unified Card based on Active Tab */}
+        {activeTab === "queue" ? (
+          /* SECTION 1: KONTROL WAKTU & PETUGAS */
+          <div className="pt-5">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              
               {/* Kolom Stopwatch Realtime (5 Kolom) */}
-              <div className="lg:col-span-5 bg-linear-to-br from-slate-900 via-slate-800 to-slate-950 rounded-2xl p-5 text-white shadow-md border border-slate-800 flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-2">
+              <div className="lg:col-span-5 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 rounded-2xl p-5 text-white shadow-lg border border-slate-800/80 flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                <div className="flex items-center justify-between mb-2 relative z-10">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-amber-400" />
+                    <Clock className="w-4 h-4 text-sky-400" />
                     <span className="text-[11px] font-black uppercase tracking-widest text-slate-300">
                       Stopwatch Realtime
                     </span>
                   </div>
                   {timerRunning ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                       Berjalan
                     </span>
                   ) : elapsedSeconds > 0 ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-500/20 text-sky-300 border border-sky-500/30">
                       Dijeda
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-700 text-slate-300">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-800 text-slate-400 border border-slate-700">
                       Standby
                     </span>
                   )}
                 </div>
 
-                <div className="text-4xl sm:text-5xl font-black font-mono tracking-wider text-amber-400 py-1 text-center drop-shadow-md">
+                <div className="text-4xl sm:text-5xl font-black font-mono tracking-wider text-sky-300 py-2 text-center drop-shadow-[0_0_15px_rgba(56,189,248,0.3)] relative z-10">
                   {formatDuration(elapsedSeconds)}
                 </div>
 
                 {/* Kontrol Stopwatch */}
-                <div className="flex items-center justify-center gap-2 pt-3 border-t border-slate-800 mt-2">
+                <div className="flex items-center justify-center gap-2 pt-3 border-t border-slate-800/80 mt-2 relative z-10">
                   {!timerRunning ? (
                     <button
                       type="button"
                       onClick={handleStartTimer}
-                      className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-emerald-500/20"
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 active:scale-95 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-emerald-500/20"
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />
                       {elapsedSeconds > 0 ? "Lanjutkan" : "Mulai Stopwatch"}
@@ -497,7 +505,7 @@ export default function PackingPage() {
                     <button
                       type="button"
                       onClick={handlePauseTimer}
-                      className="px-5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-black text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                      className="px-5 py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 font-black text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                     >
                       <Pause className="w-3.5 h-3.5 fill-current" />
                       Jeda (Pause)
@@ -507,7 +515,7 @@ export default function PackingPage() {
                   <button
                     type="button"
                     onClick={handleResetTimer}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer border border-slate-700"
                     title="Reset Timer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -519,98 +527,213 @@ export default function PackingPage() {
               {/* Kolom Form Waktu & Petugas (7 Kolom) */}
               <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Waktu Mulai */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider block">
-                    Waktu Mulai
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-[#0070bc]" />
+                    <span>Waktu Mulai</span>
                   </label>
                   <input
                     type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    className="h-10 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none w-full bg-slate-50 transition-all"
+                    className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs font-bold text-slate-800 shadow-xs w-full"
                   />
                 </div>
 
                 {/* Waktu Selesai */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider block">
-                    Waktu Selesai
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-[#0070bc]" />
+                    <span>Waktu Selesai</span>
                   </label>
                   <input
                     type="time"
                     value={finishTime}
                     onChange={(e) => setFinishTime(e.target.value)}
-                    className="h-10 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none w-full bg-slate-50 transition-all"
+                    className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs font-bold text-slate-800 shadow-xs w-full"
                   />
                 </div>
 
                 {/* Petugas 1 (Dropdown) */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider block">
-                    Petugas Packing 1 <span className="text-rose-500">*</span>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-[#0070bc]" />
+                    <span>Petugas Packing 1</span>
+                    <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={petugas1}
-                    onChange={(e) => setPetugas1(e.target.value)}
-                    className="h-10 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none w-full bg-white transition-all cursor-pointer"
-                  >
-                    <option value="">-- Pilih Petugas --</option>
-                    {QC_INSPECTOR_NAMES.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={petugas1}
+                      onChange={(e) => setPetugas1(e.target.value)}
+                      className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs font-bold text-slate-800 shadow-xs w-full cursor-pointer appearance-none"
+                    >
+                      <option value="">-- Pilih Petugas --</option>
+                      {QC_INSPECTOR_NAMES.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  </div>
                 </div>
 
                 {/* Petugas 2 (Dropdown) */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider block">
-                    Petugas Packing 2 (Helper)
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Petugas 2 (Helper)</span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase">(opsional)</span>
                   </label>
-                  <select
-                    value={petugas2}
-                    onChange={(e) => setPetugas2(e.target.value)}
-                    className="h-10 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none w-full bg-white transition-all cursor-pointer"
-                  >
-                    <option value="">-- Pilih Petugas (Opsional) --</option>
-                    {QC_INSPECTOR_NAMES.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={petugas2}
+                      onChange={(e) => setPetugas2(e.target.value)}
+                      className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs font-bold text-slate-800 shadow-xs w-full cursor-pointer appearance-none"
+                    >
+                      <option value="">-- Pilih Petugas (Opsional) --</option>
+                      {QC_INSPECTOR_NAMES.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  </div>
                 </div>
 
                 {/* Keterangan */}
-                <div className="sm:col-span-2 space-y-1">
-                  <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider block">
-                    Catatan / Keterangan Packing (Opsional)
+                <div className="sm:col-span-2 space-y-1.5">
+                  <label className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Catatan / Keterangan Packing</span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase">(opsional)</span>
                   </label>
                   <input
                     type="text"
                     value={keterangan}
                     onChange={(e) => setKeterangan(e.target.value)}
                     placeholder="Contoh: Polybag tebal, label barcode lengkap, dll..."
-                    className="h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none w-full bg-slate-50 transition-all"
+                    className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs font-medium text-slate-800 shadow-xs w-full"
                   />
                 </div>
               </div>
             </div>
           </div>
+        ) : (
+          /* TAB 2: FILTER RIWAYAT PACKING */
+          <div className="pt-5">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-[#0070bc]" />
+                Filter Riwayat Packing
+              </span>
+              {(historyFilters.tanggal || historyFilters.nomor_mc || historyFilters.potongan_ke || historyFilters.petugas) && (
+                <button
+                  type="button"
+                  onClick={() => setHistoryFilters({ tanggal: "", nomor_mc: "", potongan_ke: "", petugas: "" })}
+                  className="text-[11px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Reset Filter
+                </button>
+              )}
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#0070bc]" />
+                  <span>Tanggal Packing</span>
+                </label>
+                <input
+                  type="date"
+                  value={historyFilters.tanggal}
+                  onChange={(e) => setHistoryFilters({ ...historyFilters, tanggal: e.target.value })}
+                  className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs font-bold text-slate-800 shadow-xs w-full"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Cpu className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Mesin</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={historyFilters.nomor_mc}
+                    onChange={(e) => setHistoryFilters({ ...historyFilters, nomor_mc: e.target.value })}
+                    className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs font-bold text-slate-800 shadow-xs w-full cursor-pointer appearance-none"
+                  >
+                    <option value="">-- Semua Mesin --</option>
+                    {REGISTERED_MACHINES.map((m) => (
+                      <option key={m} value={m}>Mesin {m}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Scissors className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Potongan Ke</span>
+                </label>
+                <input
+                  type="text"
+                  value={historyFilters.potongan_ke}
+                  onChange={(e) => setHistoryFilters({ ...historyFilters, potongan_ke: e.target.value })}
+                  placeholder="Contoh: 345..."
+                  className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs font-bold text-slate-800 shadow-xs w-full"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-[#0070bc]" />
+                  <span>Petugas Packing</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={historyFilters.petugas}
+                    onChange={(e) => setHistoryFilters({ ...historyFilters, petugas: e.target.value })}
+                    className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs font-bold text-slate-800 shadow-xs w-full cursor-pointer appearance-none"
+                  >
+                    <option value="">-- Semua Petugas --</option>
+                    {QC_INSPECTOR_NAMES.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ===================== TAB 1: ANTRIAN & STOPWATCH ===================== */}
+      {activeTab === "queue" && (
+        <div className="space-y-6 animate-fadeIn">
           {/* SECTION 2: KOTAK-KOTAK KECIL DAFTAR KAIN SIAP PACKING */}
-          <div className="bg-white p-6 rounded-[28px] shadow-sm border border-slate-200">
+          <div className="bg-white/95 backdrop-blur-sm p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 hover:shadow-md transition-shadow relative overflow-hidden">
+            {/* Decorative Top Accent */}
+            <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
+
             {/* Header & Filter Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-5">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <Boxes className="w-4 h-4 text-amber-500" />
-                  Daftar Kain Siap Packing
-                </h3>
-                <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                  Klik kotak-kotak di bawah untuk memilih potongan kain mana saja yang telah selesai Anda pack.
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-md shadow-[#0070bc]/20 shrink-0 ring-4 ring-sky-50">
+                  <Boxes className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                    Daftar Kain Siap Packing
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                    Klik kotak-kotak di bawah untuk memilih potongan kain mana saja yang telah selesai Anda pack.
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center gap-2.5 flex-wrap">
@@ -622,28 +745,31 @@ export default function PackingPage() {
                     value={queueSearch}
                     onChange={(e) => setQueueSearch(e.target.value)}
                     placeholder="Cari mesin / potongan..."
-                    className="h-9 pl-8 pr-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium outline-none w-44 focus:bg-white focus:border-amber-500"
+                    className="h-10 pl-9 pr-3 rounded-xl bg-slate-50/70 border border-slate-200 hover:border-slate-300 focus:bg-white focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 text-xs font-medium outline-none transition-all w-44"
                   />
                 </div>
 
                 {/* Filter Mesin Dropdown */}
-                <select
-                  value={filterMesin}
-                  onChange={(e) => setFilterMesin(e.target.value)}
-                  className="h-9 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                >
-                  <option value="">Semua Mesin</option>
-                  {REGISTERED_MACHINES.map((m) => (
-                    <option key={m} value={m}>Mesin {m}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={filterMesin}
+                    onChange={(e) => setFilterMesin(e.target.value)}
+                    className="h-10 pl-3 pr-8 rounded-xl bg-slate-50/70 border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 text-xs font-bold text-slate-700 outline-none cursor-pointer appearance-none"
+                  >
+                    <option value="">Semua Mesin</option>
+                    {REGISTERED_MACHINES.map((m) => (
+                      <option key={m} value={m}>Mesin {m}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
+                </div>
 
                 {/* Tombol Pilih Semua */}
                 {filteredQueue.length > 0 && (
                   <button
                     type="button"
                     onClick={() => handleSelectAll(filteredQueue)}
-                    className="h-9 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                   >
                     <CheckCheck className="w-3.5 h-3.5" />
                     {filteredQueue.every((i) => selectedQueueIds.has(i.id))
@@ -652,7 +778,7 @@ export default function PackingPage() {
                   </button>
                 )}
 
-                <span className="px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-black shadow-2xs">
+                <span className="h-10 px-3.5 bg-sky-50 text-[#0070bc] border border-sky-200/80 rounded-xl text-xs font-black shadow-2xs flex items-center">
                   {selectedQueueIds.size} / {filteredQueue.length} Terpilih
                 </span>
               </div>
@@ -661,12 +787,12 @@ export default function PackingPage() {
             {/* KOTAK-KOTAK KECIL GRID */}
             {isLoadingQueue ? (
               <div className="py-16 flex flex-col items-center justify-center text-center">
-                <Loader2 className="w-8 h-8 text-amber-500 animate-spin mb-3" />
+                <Loader2 className="w-8 h-8 text-[#0070bc] animate-spin mb-3" />
                 <p className="text-xs font-bold text-slate-600">Memuat Potongan Siap Pack...</p>
               </div>
             ) : filteredQueue.length === 0 ? (
               <div className="py-16 flex flex-col items-center justify-center text-center">
-                <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-3 border border-amber-100 text-amber-400">
+                <div className="w-16 h-16 bg-sky-50 rounded-2xl flex items-center justify-center mb-3 border border-sky-100 text-[#0070bc]">
                   <Package className="w-8 h-8" />
                 </div>
                 <h4 className="text-sm font-black text-slate-700">Tidak Ada Potongan Tersedia</h4>
@@ -682,23 +808,23 @@ export default function PackingPage() {
                       onClick={() => handleToggleCard(item.id)}
                       className={`relative p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex flex-col justify-between gap-2.5 ${
                         isSelected
-                          ? "bg-emerald-50 border-2 border-emerald-500 shadow-md shadow-emerald-500/10 scale-[1.02]"
-                          : "bg-white border-slate-200 hover:border-amber-400 hover:shadow-md hover:scale-[1.01]"
+                          ? "bg-sky-50/80 border-2 border-[#0070bc] shadow-md shadow-[#0070bc]/10 scale-[1.02]"
+                          : "bg-white border-slate-200 hover:border-[#0070bc] hover:shadow-md hover:scale-[1.01]"
                       }`}
                     >
                       {/* Checkmark Indicator */}
                       {isSelected && (
-                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#0070bc] text-white flex items-center justify-center shadow-xs">
                           <Check className="w-3 h-3 stroke-[3]" />
                         </div>
                       )}
 
                       {/* Header Badge (Mesin & Potongan) */}
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="px-2 py-0.5 bg-slate-900 text-amber-300 font-black rounded-lg text-[10px]">
+                        <span className="px-2 py-0.5 bg-[#0070bc] text-white font-black rounded-md text-[10px] shadow-2xs">
                           {item.nomor_mc}
                         </span>
-                        <span className="px-2 py-0.5 bg-rose-50 border border-rose-200 text-rose-700 font-black rounded-lg text-[10px]">
+                        <span className="px-2 py-0.5 bg-sky-50 border border-sky-200/80 text-[#0070bc] font-black rounded-md text-[10px]">
                           Ke-{item.potongan_ke}
                         </span>
                       </div>
@@ -711,7 +837,7 @@ export default function PackingPage() {
                       {/* Footer Info */}
                       <div className="text-[10px] text-slate-400 font-semibold flex items-center justify-between border-t border-slate-100 pt-1.5">
                         <span>{item.total_panel} {item.is_meteran ? "Mtr" : "Pnl"}</span>
-                        <span className="text-emerald-700 font-extrabold">A:{item.final_grade_a}</span>
+                        <span className="text-[#0070bc] font-extrabold">A:{item.final_grade_a}</span>
                       </div>
                     </div>
                   );
@@ -724,12 +850,12 @@ export default function PackingPage() {
           {selectedQueueIds.size > 0 && (
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-6 py-3.5 rounded-full shadow-2xl border border-slate-700/60 flex items-center gap-5 animate-in slide-in-from-bottom-5">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
                 <span className="text-xs font-black">
                   {selectedQueueIds.size} Potongan Dipilih
                 </span>
                 {elapsedSeconds > 0 && (
-                  <span className="text-xs font-mono text-amber-400 ml-1">
+                  <span className="text-xs font-mono text-sky-300 ml-1">
                     (⏱️ {formatDuration(elapsedSeconds)})
                   </span>
                 )}
@@ -738,7 +864,7 @@ export default function PackingPage() {
               <button
                 type="button"
                 onClick={handleOpenSummaryModal}
-                className="px-5 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-5 py-2 rounded-full bg-gradient-to-r from-sky-500 to-[#0070bc] hover:from-sky-400 hover:to-sky-600 active:scale-95 text-white font-black text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <Check className="w-4 h-4 stroke-[3]" />
                 Simpan Data Packing
@@ -753,8 +879,8 @@ export default function PackingPage() {
         <div className="space-y-6 animate-fadeIn">
           {/* KPI STATS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-[24px] border border-slate-200 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+            <div className="bg-white/95 backdrop-blur-sm p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-[#0070bc] shrink-0">
                 <Package className="w-6 h-6" />
               </div>
               <div>
@@ -763,7 +889,7 @@ export default function PackingPage() {
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-[24px] border border-slate-200 shadow-sm flex items-center gap-4">
+            <div className="bg-white/95 backdrop-blur-sm p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
@@ -773,7 +899,7 @@ export default function PackingPage() {
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-[24px] border border-slate-200 shadow-sm flex items-center gap-4">
+            <div className="bg-white/95 backdrop-blur-sm p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shrink-0">
                 <Clock className="w-6 h-6" />
               </div>
@@ -783,7 +909,7 @@ export default function PackingPage() {
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-[24px] border border-slate-200 shadow-sm flex items-center gap-4">
+            <div className="bg-white/95 backdrop-blur-sm p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
                 <Sparkles className="w-6 h-6" />
               </div>
@@ -794,99 +920,16 @@ export default function PackingPage() {
             </div>
           </div>
 
-          {/* FILTER RIWAYAT */}
-          <div className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-              <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Search className="w-3.5 h-3.5 text-sky-600" />
-                Filter Riwayat Packing
-              </span>
-              {(historyFilters.tanggal || historyFilters.nomor_mc || historyFilters.potongan_ke || historyFilters.petugas) && (
-                <button
-                  type="button"
-                  onClick={() => setHistoryFilters({ tanggal: "", nomor_mc: "", potongan_ke: "", petugas: "" })}
-                  className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  Reset Filter
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  Tanggal Packing
-                </label>
-                <input
-                  type="date"
-                  value={historyFilters.tanggal}
-                  onChange={(e) => setHistoryFilters({ ...historyFilters, tanggal: e.target.value })}
-                  className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-500/20 outline-none w-full transition-all shadow-inner"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                  <Cpu className="w-3.5 h-3.5 text-slate-400" />
-                  Mesin
-                </label>
-                <select
-                  value={historyFilters.nomor_mc}
-                  onChange={(e) => setHistoryFilters({ ...historyFilters, nomor_mc: e.target.value })}
-                  className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-500/20 outline-none w-full transition-all cursor-pointer shadow-inner"
-                >
-                  <option value="">-- Semua Mesin --</option>
-                  {REGISTERED_MACHINES.map((m) => (
-                    <option key={m} value={m}>Mesin {m}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                  <Scissors className="w-3.5 h-3.5 text-slate-400" />
-                  Potongan Ke
-                </label>
-                <input
-                  type="text"
-                  value={historyFilters.potongan_ke}
-                  onChange={(e) => setHistoryFilters({ ...historyFilters, potongan_ke: e.target.value })}
-                  placeholder="Contoh: 345..."
-                  className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-500/20 outline-none w-full transition-all shadow-inner"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-slate-400" />
-                  Petugas Packing
-                </label>
-                <select
-                  value={historyFilters.petugas}
-                  onChange={(e) => setHistoryFilters({ ...historyFilters, petugas: e.target.value })}
-                  className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-500/20 outline-none w-full transition-all cursor-pointer shadow-inner"
-                >
-                  <option value="">-- Semua Petugas --</option>
-                  {QC_INSPECTOR_NAMES.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
           {/* TABLE RIWAYAT */}
           {isLoadingHistory ? (
-            <div className="bg-white rounded-[28px] p-16 shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center">
-              <Loader2 className="w-10 h-10 text-sky-600 animate-spin mb-4" />
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-16 shadow-sm border border-slate-200/80 flex flex-col items-center justify-center text-center">
+              <Loader2 className="w-10 h-10 text-[#0070bc] animate-spin mb-4" />
               <h3 className="text-lg font-black text-slate-800 mb-1">Memuat Riwayat Packing...</h3>
             </div>
           ) : historyItems.length === 0 ? (
-            <div className="bg-white rounded-[28px] p-16 shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center">
-              <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 border border-slate-100 shadow-inner">
-                <History className="w-10 h-10 text-slate-300" />
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-16 shadow-sm border border-slate-200/80 flex flex-col items-center justify-center text-center">
+              <div className="w-20 h-20 bg-sky-50 rounded-2xl flex items-center justify-center mb-4 border border-sky-100 shadow-inner">
+                <History className="w-10 h-10 text-sky-400" />
               </div>
               <h3 className="text-lg font-black text-slate-700 mb-1">Belum Ada Riwayat Packing</h3>
               <p className="text-slate-500 text-xs max-w-md mx-auto font-medium">
@@ -894,7 +937,7 @@ export default function PackingPage() {
               </p>
             </div>
           ) : (
-            <div className="bg-white rounded-[28px] shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
@@ -919,7 +962,7 @@ export default function PackingPage() {
                           </div>
                         </td>
                         <td className="py-4 px-4 font-bold">
-                          <span className="px-3 py-1 bg-slate-900 text-amber-300 font-black rounded-xl text-xs inline-block shadow-2xs">
+                          <span className="px-3 py-1 bg-slate-900 text-sky-300 font-black rounded-xl text-xs inline-block shadow-2xs">
                             {record.nomor_mc}
                           </span>
                         </td>
@@ -973,7 +1016,7 @@ export default function PackingPage() {
       {/* ===================== MODAL RINGKASAN LAPORAN (SUMMARY MODAL) ===================== */}
       {isSummaryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-[32px] max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col gap-5">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col gap-5">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-3">
@@ -1056,7 +1099,7 @@ export default function PackingPage() {
                       key={item.id}
                       className="px-2.5 py-1 bg-white rounded-xl border border-slate-200 text-xs font-extrabold text-slate-800 flex items-center gap-1.5 shadow-2xs"
                     >
-                      <span className="px-1.5 py-0.5 bg-slate-900 text-amber-300 rounded-md text-[10px]">
+                      <span className="px-1.5 py-0.5 bg-slate-900 text-sky-300 rounded-md text-[10px]">
                         {item.nomor_mc}
                       </span>
                       <span>Ke-{item.potongan_ke}</span>
@@ -1099,7 +1142,7 @@ export default function PackingPage() {
       {/* ===================== DELETE CONFIRMATION MODAL ===================== */}
       {itemToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-[28px] max-w-md w-full p-6 shadow-2xl border border-slate-100 flex flex-col gap-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 flex flex-col gap-4">
             <div className="flex items-center gap-3 text-rose-600">
               <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-5 h-5 text-rose-600" />

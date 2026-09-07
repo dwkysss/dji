@@ -2,36 +2,62 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 
+// Multi-machine Wi-Fi Context (M1, M2, M3, M4)
+
 export interface WifiLogEntry {
   id: string;
   timestamp: string;
   type: "START" | "STOP" | "CONNECTED" | "DISCONNECTED" | "ERROR" | "INFO";
-  machine?: "M1" | "M2" | "SYSTEM";
+  machine?: "M1" | "M2" | "M3" | "M4" | "SYSTEM";
   message: string;
 }
 
-export type WifiSignalListener = (machine: "M1" | "M2", signal: "START" | "STOP", source: string) => void;
+export type MachineChannel = "M1" | "M2" | "M3" | "M4";
+
+export type WifiSignalListener = (machine: MachineChannel, signal: "START" | "STOP", source: string) => void;
 
 export type ConnectionStatus = "terputus" | "menghubungkan" | "terhubung";
 
-// Pemetaan Mesin ke Target Host ESP32 & Channel (M1/M2)
-export const MACHINE_ESP32_MAP: Record<string, { host: string; channel: "M1" | "M2" }> = {
-  "R1": { host: "esp32-r1.local", channel: "M1" },
-  "R2": { host: "esp32-r2.local", channel: "M1" },
-  "R1C": { host: "esp32-r1c.local", channel: "M1" },
-  "R2C": { host: "esp32-r2c.local", channel: "M1" },
-  "R3B": { host: "esp32-r3b.local", channel: "M1" },
-  "R11": { host: "esp32-r1.local", channel: "M2" },
-  "R12": { host: "esp32-r2.local", channel: "M2" },
-  "R16": { host: "esp32-r6.local", channel: "M2" },
-  "T1C": { host: "esp32-t1c.local", channel: "M1" },
-  "T2A": { host: "esp32-t2a.local", channel: "M1" },
+export interface MachineEspMapping {
+  host: string;
+  channel: MachineChannel;
+}
+
+// Pemetaan Standar Mesin ke Target Host ESP32 & Channel Pin
+export const DEFAULT_MACHINE_ESP_MAP: Record<string, MachineEspMapping> = {
+  "R1": { host: "192.168.2.171", channel: "M1" },
+  "R11": { host: "192.168.2.171", channel: "M2" },
+  "R2": { host: "192.168.2.171", channel: "M3" },
+  "R12": { host: "192.168.2.172", channel: "M1" },
+  "R1C": { host: "192.168.2.172", channel: "M2" },
+  "R2C": { host: "192.168.2.172", channel: "M3" },
+  "R3B": { host: "192.168.2.172", channel: "M4" },
+  "T1C": { host: "192.168.2.173", channel: "M1" },
+  "T2A": { host: "192.168.2.173", channel: "M2" },
+  "R16": { host: "192.168.2.173", channel: "M3" },
 };
 
-export function getEsp32ConfigForMachine(machineCode?: string) {
-  if (!machineCode) return { host: "192.168.2.171", channel: "M1" as const };
+export const MACHINE_ESP32_MAP = DEFAULT_MACHINE_ESP_MAP;
+
+export function getEsp32ConfigForMachine(machineCode?: string, customMap?: Record<string, MachineEspMapping>) {
+  const map = customMap || DEFAULT_MACHINE_ESP_MAP;
+  if (!machineCode) {
+    const peers = Object.entries(map)
+      .filter(([_, cfg]) => cfg.host === "192.168.2.171")
+      .map(([mCode, cfg]) => ({ machineCode: mCode, channel: cfg.channel }));
+    return { host: "192.168.2.171", channel: "M1" as MachineChannel, peers };
+  }
   const normalized = machineCode.trim().toUpperCase();
-  return MACHINE_ESP32_MAP[normalized] || { host: "192.168.2.171", channel: "M1" as const };
+  const config = map[normalized] || { host: "192.168.2.171", channel: "M1" as MachineChannel };
+  
+  const peers = Object.entries(map)
+    .filter(([_, cfg]) => cfg.host === config.host)
+    .map(([mCode, cfg]) => ({ machineCode: mCode, channel: cfg.channel }));
+
+  return {
+    ...config,
+    peers,
+  };
 }
 
 interface WifiContextType {
@@ -50,13 +76,23 @@ interface WifiContextType {
   isTimerM2Running: boolean;
   elapsedM2: number;
 
+  // Machine 3 state & timers
+  statusM3: "MATI" | "NYALA" | "UNKNOWN";
+  isTimerM3Running: boolean;
+  elapsedM3: number;
+
+  // Machine Mapping Management
+  machineMapping: Record<string, MachineEspMapping>;
+  updateMachineMapping: (newMap: Record<string, MachineEspMapping>) => void;
+  resetMachineMapping: () => void;
+
   // Logs & Actions
   logs: WifiLogEntry[];
   setTargetHost: (host: string) => void;
   connect: (customHost?: string) => void;
   disconnect: () => void;
   clearLogs: () => void;
-  addLog: (type: WifiLogEntry["type"], message: string, machine?: "M1" | "M2" | "SYSTEM") => void;
+  addLog: (type: WifiLogEntry["type"], message: string, machine?: MachineChannel | "SYSTEM") => void;
 
   // Web Simulator & Manual Triggers
   isSimulationMode: boolean;
@@ -65,8 +101,11 @@ interface WifiContextType {
   triggerM1Stop: (source?: string) => void;
   triggerM2Start: (source?: string) => void;
   triggerM2Stop: (source?: string) => void;
+  triggerM3Start: (source?: string) => void;
+  triggerM3Stop: (source?: string) => void;
   resetTimerM1: () => void;
   resetTimerM2: () => void;
+  resetTimerM3: () => void;
 
   // Signal listeners
   registerSignalListener: (listener: WifiSignalListener) => () => void;
@@ -76,12 +115,16 @@ const WifiContext = createContext<WifiContextType | undefined>(undefined);
 
 const DEFAULT_HOSTNAME = "192.168.2.171";
 const STORAGE_KEY = "wifi_esp32_target";
+const MAP_STORAGE_KEY = "wifi_machine_esp32_map";
 
 export function WifiProvider({ children }: { children: React.ReactNode }) {
   const [targetHost, setTargetHostState] = useState<string>(DEFAULT_HOSTNAME);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("terputus");
   const [isSimulationMode, setIsSimulationMode] = useState<boolean>(false);
   const [wsUrl, setWsUrl] = useState<string>("");
+
+  // Dynamic Machine Mapping State
+  const [machineMapping, setMachineMapping] = useState<Record<string, MachineEspMapping>>(DEFAULT_MACHINE_ESP_MAP);
 
   // Machine 1 State
   const [statusM1, setStatusM1] = useState<"MATI" | "NYALA" | "UNKNOWN">("UNKNOWN");
@@ -93,6 +136,11 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
   const [isTimerM2Running, setIsTimerM2Running] = useState<boolean>(false);
   const [elapsedM2, setElapsedM2] = useState<number>(0);
 
+  // Machine 3 State
+  const [statusM3, setStatusM3] = useState<"MATI" | "NYALA" | "UNKNOWN">("UNKNOWN");
+  const [isTimerM3Running, setIsTimerM3Running] = useState<boolean>(false);
+  const [elapsedM3, setElapsedM3] = useState<number>(0);
+
   const [logs, setLogs] = useState<WifiLogEntry[]>([]);
 
   // Refs for persistent connection management
@@ -103,7 +151,7 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
 
   // Log Helper
   const addLog = useCallback(
-    (type: WifiLogEntry["type"], message: string, machine: "M1" | "M2" | "SYSTEM" = "SYSTEM") => {
+    (type: WifiLogEntry["type"], message: string, machine: MachineChannel | "SYSTEM" = "SYSTEM") => {
       const timeStr = new Date().toLocaleTimeString("id-ID", {
         hour12: false,
         hour: "2-digit",
@@ -145,8 +193,25 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Update Machine Mapping
+  const updateMachineMapping = useCallback((newMap: Record<string, MachineEspMapping>) => {
+    setMachineMapping(newMap);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(newMap));
+    }
+    addLog("INFO", "Pemetaan mesin ESP32 berhasil diperbarui", "SYSTEM");
+  }, [addLog]);
+
+  const resetMachineMapping = useCallback(() => {
+    setMachineMapping(DEFAULT_MACHINE_ESP_MAP);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(MAP_STORAGE_KEY);
+    }
+    addLog("INFO", "Pemetaan mesin ESP32 di-reset ke standar pabrik", "SYSTEM");
+  }, [addLog]);
+
   // Notify registered signal listeners
-  const notifyListeners = useCallback((machine: "M1" | "M2", signal: "START" | "STOP", source: string) => {
+  const notifyListeners = useCallback((machine: MachineChannel, signal: "START" | "STOP", source: string) => {
     signalListenersRef.current.forEach((listener) => {
       try {
         listener(machine, signal, source);
@@ -181,6 +246,19 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
       if (interval) clearInterval(interval);
     };
   }, [isTimerM2Running]);
+
+  // Timer Tick Interval for M3
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isTimerM3Running) {
+      interval = setInterval(() => {
+        setElapsedM3((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isTimerM3Running]);
 
   // Handle Event Triggers for M1
   const triggerM1Start = useCallback(
@@ -236,6 +314,34 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     setIsTimerM2Running(false);
     setStatusM2("UNKNOWN");
     addLog("INFO", "Timer Mesin 2 di-reset ke 0", "M2");
+  }, [addLog]);
+
+  // Handle Event Triggers for M3
+  const triggerM3Start = useCallback(
+    (source: string = "Manual/Simulasi") => {
+      setStatusM3("NYALA");
+      setIsTimerM3Running(true);
+      addLog("START", `Mesin 3 START (Downtime/Operation Aktif) - via ${source}`, "M3");
+      notifyListeners("M3", "START", source);
+    },
+    [addLog, notifyListeners]
+  );
+
+  const triggerM3Stop = useCallback(
+    (source: string = "Manual/Simulasi") => {
+      setStatusM3("MATI");
+      setIsTimerM3Running(false);
+      addLog("STOP", `Mesin 3 STOP - via ${source}`, "M3");
+      notifyListeners("M3", "STOP", source);
+    },
+    [addLog, notifyListeners]
+  );
+
+  const resetTimerM3 = useCallback(() => {
+    setElapsedM3(0);
+    setIsTimerM3Running(false);
+    setStatusM3("UNKNOWN");
+    addLog("INFO", "Timer Mesin 3 di-reset ke 0", "M3");
   }, [addLog]);
 
   const reconnectAttemptsRef = useRef<number>(0);
@@ -301,7 +407,7 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
             const data = JSON.parse(event.data);
             // Payload format: {"machine":"M1","status":"START"}
             if (data.machine && data.status) {
-              const machine = data.machine as "M1" | "M2";
+              const machine = data.machine as MachineChannel;
               const status = data.status as "START" | "STOP";
 
               if (machine === "M1") {
@@ -315,6 +421,12 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
                   triggerM2Start("ESP32 GPIO 5");
                 } else if (status === "STOP") {
                   triggerM2Stop("ESP32 GPIO 5");
+                }
+              } else if (machine === "M3") {
+                if (status === "START") {
+                  triggerM3Start("ESP32 GPIO 18");
+                } else if (status === "STOP") {
+                  triggerM3Stop("ESP32 GPIO 18");
                 }
               }
             }
@@ -346,10 +458,10 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
         setConnectionStatus("terputus");
       }
     },
-    [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop]
+    [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop, triggerM3Start, triggerM3Stop]
   );
 
-  // Load Hostname & Auto-connect on mount
+  // Load Hostname, Machine Map & Auto-connect on mount
   useEffect(() => {
     let savedHost = DEFAULT_HOSTNAME;
     if (typeof window !== "undefined") {
@@ -357,6 +469,14 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
       if (stored) {
         savedHost = stored;
         setTargetHostState(stored);
+      }
+      const storedMap = localStorage.getItem(MAP_STORAGE_KEY);
+      if (storedMap) {
+        try {
+          setMachineMapping(JSON.parse(storedMap));
+        } catch (e) {
+          console.error("Gagal parse stored machine map:", e);
+        }
       }
     }
 
@@ -393,6 +513,12 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     statusM2,
     isTimerM2Running,
     elapsedM2,
+    statusM3,
+    isTimerM3Running,
+    elapsedM3,
+    machineMapping,
+    updateMachineMapping,
+    resetMachineMapping,
     logs,
     setTargetHost,
     connect,
@@ -403,8 +529,11 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     triggerM1Stop,
     triggerM2Start,
     triggerM2Stop,
+    triggerM3Start,
+    triggerM3Stop,
     resetTimerM1,
     resetTimerM2,
+    resetTimerM3,
     registerSignalListener,
   }), [
     targetHost,
@@ -418,6 +547,12 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     statusM2,
     isTimerM2Running,
     elapsedM2,
+    statusM3,
+    isTimerM3Running,
+    elapsedM3,
+    machineMapping,
+    updateMachineMapping,
+    resetMachineMapping,
     logs,
     setTargetHost,
     connect,
@@ -428,8 +563,11 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     triggerM1Stop,
     triggerM2Start,
     triggerM2Stop,
+    triggerM3Start,
+    triggerM3Stop,
     resetTimerM1,
     resetTimerM2,
+    resetTimerM3,
     registerSignalListener,
   ]);
 

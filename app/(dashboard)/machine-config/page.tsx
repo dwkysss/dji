@@ -153,9 +153,11 @@ export default function MachineConfigPage() {
         catRes.categories.forEach((cat) => {
           const dbItems = detRes.grouped[cat.kode];
           const fallbackItems = FALLBACK_CATEGORIES[cat.kode]?.items || [];
+          const sourceItems = dbItems && dbItems.length > 0 ? dbItems : fallbackItems;
+          const uniqueItems = Array.from(new Set(sourceItems.map((s) => s.trim()))).filter(Boolean);
           dynamicMap[cat.kode] = {
             desc: cat.label,
-            items: dbItems && dbItems.length > 0 ? dbItems : fallbackItems,
+            items: uniqueItems,
           };
         });
         if (Object.keys(dynamicMap).length > 0) {
@@ -533,12 +535,12 @@ export default function MachineConfigPage() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                      {catGroup.items.map((item) => {
+                      {catGroup.items.map((item, itemIdx) => {
                         const isReq = requiredBlockDefects.includes(item);
                         return (
                           <button
                             type="button"
-                            key={item}
+                            key={`${catCode}-${item}-${itemIdx}`}
                             onClick={() => toggleRequiredDefect(item)}
                             className={`p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-between select-none active:scale-95 ${
                               isReq

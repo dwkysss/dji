@@ -991,7 +991,13 @@ export async function getMendingReportOptions() {
   }
 }
 
-export async function getMendingReportSummary(nomor_mc?: string, potongan_ke?: string, tanggal?: string) {
+export async function getMendingReportSummary(
+  nomor_mc?: string, 
+  potongan_ke?: string, 
+  tanggal?: string,
+  startDate?: string,
+  endDate?: string
+) {
   try {
     const supabase = await createClient();
     let query = supabase
@@ -1025,7 +1031,13 @@ export async function getMendingReportSummary(nomor_mc?: string, potongan_ke?: s
         query = query.eq("potongan_ke", pNum);
       }
     }
-    if (tanggal && tanggal.trim() !== "") {
+    if (startDate && startDate.trim() !== "") {
+      if (endDate && endDate.trim() !== "" && endDate !== startDate) {
+        query = query.gte("tanggal_final", startDate.trim()).lte("tanggal_final", endDate.trim());
+      } else {
+        query = query.eq("tanggal_final", startDate.trim());
+      }
+    } else if (tanggal && tanggal.trim() !== "") {
       query = query.eq("tanggal_final", tanggal.trim());
     }
 

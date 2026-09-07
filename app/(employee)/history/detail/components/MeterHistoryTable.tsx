@@ -56,6 +56,7 @@ export default function MeterHistoryTable({
   onToggleSelectDetail,
   onToggleSelectAll,
   onRequestBulkDelete,
+  hasNextPotongan,
 }: {
   panels: any[];
   pcsKey: string;
@@ -65,9 +66,11 @@ export default function MeterHistoryTable({
   onToggleSelectDetail?: (id: string) => void;
   onToggleSelectAll?: (ids: string[]) => void;
   onRequestBulkDelete?: () => void;
+  hasNextPotongan?: boolean;
 }) {
   const header = panels[0] || {};
   const actualDowntimeRecords = downtimeRecords || panels.flatMap(p => p.downtime_records || []);
+  const hasNext = hasNextPotongan ?? panels.some((p: any) => Boolean(p.has_next_potongan || p.tanggal_potong || p.production_headers?.tanggal_potong));
 
   const detailsToDisplay = React.useMemo(() => {
     const list: any[] = [];
@@ -666,9 +669,19 @@ export default function MeterHistoryTable({
           .filter(Boolean)
       );
 
+      const isLastItemOfThisOp = sortedProcessed.slice(idx + 1).every((nextItem: any) => {
+        const nextOpr = nextItem.opr || (nextItem.item?.production_headers?.pic || "").trim();
+        return nextOpr !== opr;
+      });
+
+      const isLastItemOfTable = idx === sortedProcessed.length - 1;
+      const isIstirahatFinish = Boolean(hasNext) && hasIstirahat && isFinishReport && isLastItemOfTable;
+
+      const isTrueFinish = Boolean(hasNext) && isFinishReport && !hasIstirahat && isLastItemOfTable;
+
       let cacatText = isStartRow 
         ? "START" 
-        : (cleanedCacatLines.length > 0 ? cleanedCacatLines.join("\n") : (isFinishReport && !hasIstirahat ? "FINISH" : "-"));
+        : (cleanedCacatLines.length > 0 ? cleanedCacatLines.join("\n") : (isTrueFinish ? "FINISH" : "-"));
 
       let backupOpName = "";
       if (hasIstirahat) {
@@ -778,6 +791,8 @@ export default function MeterHistoryTable({
           hasErrorDetail,
           isIstirahat,
           hasIstirahat,
+          isIstirahatFinish,
+          isLastItemOfTable,
           downtimeDisplay,
           db_id: item.id || (h.id ? `header-${h.id}` : undefined),
           header_id: h.id,
@@ -830,7 +845,7 @@ export default function MeterHistoryTable({
       const lastItem = sortedProcessed[sortedProcessed.length - 1];
       const lastOpHeader = lastItem?.item?.production_headers;
 
-      if (!hasFinish && lastOpHeader?.meter_akhir && !lastItem?.hasIstirahat) {
+      if (Boolean(hasNext) && !hasFinish && lastOpHeader?.meter_akhir && !lastItem?.hasIstirahat) {
         items.push({
           id: `finish-last-${lastOprString}-${Math.random()}`,
           isStartRow: false,
@@ -867,7 +882,7 @@ export default function MeterHistoryTable({
     }
 
     return items;
-  }, [detailsToDisplay, panels]);
+  }, [detailsToDisplay, panels, hasNext]);
 
   const selectableIds = React.useMemo(() => {
     return displayItems
@@ -1112,7 +1127,7 @@ export default function MeterHistoryTable({
                 {item.showGrp ? item.grpStr : ""}
               </td>
               <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${(item.hasIstirahat && !item.showOpr) ? "italic font-bold text-slate-500" : "font-medium text-slate-700"}`}>
-                {item.showOpr ? item.oprStr : (item.hasIstirahat ? "Istirahat" : "")}
+                {item.showOpr ? item.oprStr : (item.hasIstirahat ? (item.isIstirahatFinish ? "Istirahat / FINISH" : "Istirahat") : "")}
               </td>
               <td className="px-1 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100 border-b border-slate-100">
                 {item.meterDisplay}
@@ -1131,15 +1146,20 @@ export default function MeterHistoryTable({
                </td>
                 <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? 'text-slate-500' : 'text-slate-700'}`}>
                   {item.hasIstirahat && (
-                    <>
+                    <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                       {(item.backupOpName && item.backupOpName.trim().toLowerCase() !== (item.oprStr || "").trim().toLowerCase()) ? (
-                        <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>
+                        <span className="text-slate-700 font-bold">{item.backupOpName}</span>
                       ) : item.showOpr ? (
-                        <div className="text-slate-700 font-bold mb-0.5">ISTIRAHAT</div>
+                        <span className="text-slate-700 font-bold">ISTIRAHAT</span>
                       ) : (
-                        <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName || "-"}</div>
+                        <span className="text-slate-700 font-bold">{item.backupOpName || "-"}</span>
                       )}
-                    </>
+                      {item.isIstirahatFinish && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs tracking-wider">
+                          FINISH {item.isLastItemOfTable ? "(SELESAI POTONGAN)" : ""}
+                        </span>
+                      )}
+                    </div>
                   )}
                   {parsedCacatItems.length > 0 ? (
                     <div className="flex flex-col gap-0.5">

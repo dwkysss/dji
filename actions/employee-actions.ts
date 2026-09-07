@@ -1204,6 +1204,47 @@ export async function searchEmployeeHistory(filters: {
 
     const pagedBatches = batches.slice(start, end);
 
+    // Cek apakah potongan selanjutnya sudah ada datanya di database (atau sudah ditandai potong kain)
+    if (filters.includeDetails && pagedBatches.length > 0) {
+      for (const batch of pagedBatches) {
+        if (batch.nomor_mc && batch.potongan_ke) {
+          const potNum = parseInt(batch.potongan_ke);
+          if (!isNaN(potNum)) {
+            let batchTime = batch.tanggal_jam || batch.tgl || "";
+            if (batch.panels && Array.isArray(batch.panels)) {
+              batch.panels.forEach((p: any) => {
+                const ts = p.tanggal_jam || p.tgl || "";
+                if (ts && (!batchTime || String(ts).localeCompare(String(batchTime)) < 0)) {
+                  batchTime = ts;
+                }
+              });
+            }
+            const batchDate = batchTime ? String(batchTime).split("T")[0] : "";
+
+            let query = supabase
+              .from("production_headers")
+              .select("id")
+              .ilike("nomor_mc", batch.nomor_mc.trim())
+              .not("id", "ilike", "dummy%")
+              .gt("potongan_ke", potNum);
+
+            if (batchDate) {
+              query = query.gte("tanggal_jam", batchDate);
+            }
+
+            const { data: nextPot } = await query.limit(1);
+            const hasNext = Boolean(nextPot && nextPot.length > 0) || Boolean(batch.tanggal_potong);
+            batch.has_next_potongan = hasNext;
+            if (batch.panels && Array.isArray(batch.panels)) {
+              batch.panels.forEach((p: any) => {
+                p.has_next_potongan = hasNext;
+              });
+            }
+          }
+        }
+      }
+    }
+
     return {
       success: true,
       data: pagedBatches,

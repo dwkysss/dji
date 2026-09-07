@@ -29,9 +29,11 @@ import {
   Scissors,
   User,
   Sparkles,
+  ChevronDown,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import { PROBLEM_DETAILS, REGISTERED_MACHINES } from "@/lib/constants";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 
 const cleanMeterVal = (val: any) => {
   if (val === null || val === undefined) return "";
@@ -130,6 +132,8 @@ export default function MendingProductionReportPage() {
     nomor_mc: "",
     potongan_ke: "",
     tanggal: "",
+    startDate: "",
+    endDate: "",
     jenis_kain: "all"
   });
 
@@ -533,7 +537,14 @@ export default function MendingProductionReportPage() {
   const groupedPotongans = useMemo(() => {
     const map = new Map<string, any>();
     summaryBatches.forEach((batch: any) => {
-      if (filters.tanggal && batch.tanggal_mending !== filters.tanggal) {
+      const batchDate = batch.tanggal_mending || batch.tanggal_final;
+      if (filters.startDate) {
+        if (filters.endDate && filters.endDate !== filters.startDate) {
+          if (batchDate < filters.startDate || batchDate > filters.endDate) return;
+        } else {
+          if (batchDate !== filters.startDate) return;
+        }
+      } else if (filters.tanggal && batchDate !== filters.tanggal) {
         return;
       }
       const isMeter = !!batch.is_meteran;
@@ -571,7 +582,7 @@ export default function MendingProductionReportPage() {
       ...p,
       petugas_mending: Array.from(p.petugas_mending).filter(Boolean).join(", ")
     }));
-  }, [summaryBatches, filters.tanggal, filters.jenis_kain]);
+  }, [summaryBatches, filters.tanggal, filters.startDate, filters.endDate, filters.jenis_kain]);
 
   useEffect(() => {
     getMendingReportOptions().then(res => {
@@ -590,11 +601,11 @@ export default function MendingProductionReportPage() {
       setCurrentPage(1);
     }, 300);
     return () => clearTimeout(timer);
-  }, [filters.nomor_mc, filters.potongan_ke]);
+  }, [filters.nomor_mc, filters.potongan_ke, filters.startDate, filters.endDate, filters.tanggal]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters.tanggal, filters.jenis_kain]);
+  }, [filters.tanggal, filters.startDate, filters.endDate, filters.jenis_kain]);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -608,7 +619,9 @@ export default function MendingProductionReportPage() {
       const res = await getMendingReportSummary(
         filters.nomor_mc || undefined, 
         filters.potongan_ke || undefined,
-        filters.tanggal || undefined
+        filters.tanggal || undefined,
+        filters.startDate || undefined,
+        filters.endDate || undefined
       );
 
       if (res.success && res.data) {
@@ -1142,51 +1155,143 @@ export default function MendingProductionReportPage() {
 
   return (
     <div className="w-full max-w-[1600px] mx-auto pb-20 animate-fadeIn">
-      {/* PAGE HEADER */}
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[28px] border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-200 text-white shrink-0">
-            <FileSpreadsheet className="w-7 h-7 stroke-[2.2]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-                Laporan Kualitas Produksi Mending
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wide">
-                Laporan Kualitas
-              </span>
+      {/* Integrated Header & Filter Card */}
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6">
+        {/* Decorative Top Accent */}
+        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
+
+        {/* Header Section inside Card */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
+              <FileSpreadsheet className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
             </div>
-            <p className="text-sm font-semibold text-slate-500 mt-0.5">
-              Lihat dan analisis rincian hasil inspeksi & mending per potongan kain (Panel & Meteran).
-            </p>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+                  Laporan Kualitas Produksi Mending
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-50 text-[#0070bc] border border-sky-200/80 uppercase tracking-wider">
+                  {groupedPotongans.length} Potongan Ditemukan
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">
+                Lihat dan analisis rincian hasil inspeksi & mending per potongan kain (Panel & Meteran).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {(filters.nomor_mc || filters.potongan_ke || filters.tanggal || filters.startDate || filters.jenis_kain !== "all") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters({ nomor_mc: "", potongan_ke: "", tanggal: "", startDate: "", endDate: "", jenis_kain: "all" });
+                }}
+                className="h-10 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Reset Semua Filter"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                <span>Reset Filter</span>
+              </button>
+            )}
+
+            {selectedPotonganKey !== null && selectedPcsData.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+              >
+                <Download className="w-4 h-4 stroke-[2.5]" />
+                <span>Export ke Excel</span>
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {(filters.nomor_mc || filters.potongan_ke || filters.tanggal || filters.jenis_kain !== "all") && (
-            <button
-              onClick={() => {
-                setFilters({ nomor_mc: "", potongan_ke: "", tanggal: "", jenis_kain: "all" });
+        {/* Filter Form Controls */}
+        <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+          {/* TANGGAL MENDING (Modern DateRangePicker) */}
+          <div className="flex flex-col gap-1.5 w-full">
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#0070bc]" />
+              <span>Pilih Tanggal Mending</span>
+            </label>
+            <DateRangePicker
+              startDate={filters.startDate}
+              endDate={filters.endDate}
+              onChange={(start, end) => {
+                setFilters((prev) => ({
+                  ...prev,
+                  startDate: start,
+                  endDate: end,
+                  tanggal: start,
+                }));
               }}
-              className="px-4 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-all active:scale-95 flex items-center gap-2 cursor-pointer shadow-2xs"
-              title="Reset Semua Filter"
-            >
-              <RotateCcw className="w-4 h-4 text-slate-500" />
-              Reset Filter
-            </button>
-          )}
+              placeholder="Pilih Tanggal / Rentang..."
+            />
+          </div>
 
-          {selectedPotonganKey !== null && selectedPcsData.length > 0 && (
-            <button
-              onClick={handleExportExcel}
-              className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Download className="w-4 h-4 stroke-[2.5]" />
-              Export ke Excel
-            </button>
-          )}
-        </div>
+          {/* PILIH MESIN */}
+          <div className="flex flex-col gap-1.5 w-full">
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Cpu className="w-3.5 h-3.5 text-[#0070bc]" />
+              <span>Pilih Mesin</span>
+            </label>
+            <div className="relative">
+              <select
+                value={filters.nomor_mc}
+                onChange={(e) => setFilters({ ...filters, nomor_mc: e.target.value })}
+                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+              >
+                <option value="">-- Semua Mesin --</option>
+                {options.mesins.map((m) => (
+                  <option key={m} value={m}>Mesin {m}</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
+
+          {/* PILIH POTONGAN KE */}
+          <div className="flex flex-col gap-1.5 w-full">
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Scissors className="w-3.5 h-3.5 text-[#0070bc]" />
+              <span>Pilih Potongan Ke</span>
+            </label>
+            <input
+              type="text"
+              value={filters.potongan_ke}
+              onChange={(e) => setFilters({ ...filters, potongan_ke: e.target.value })}
+              placeholder="Contoh: 332..."
+              className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
+            />
+          </div>
+
+          {/* JENIS KAIN */}
+          <div className="flex flex-col gap-1.5 w-full">
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#0070bc]" />
+              <span>Jenis Kain</span>
+            </label>
+            <div className="relative">
+              <select
+                value={filters.jenis_kain}
+                onChange={(e) => setFilters({ ...filters, jenis_kain: e.target.value })}
+                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+              >
+                <option value="all">-- Semua Jenis --</option>
+                <option value="panel">Panel</option>
+                <option value="meteran">All Over (Meteran)</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
+        </form>
       </div>
 
       {errorMsg && (
@@ -1195,83 +1300,6 @@ export default function MendingProductionReportPage() {
           <span>{errorMsg}</span>
         </div>
       )}
-
-      {/* FILTER CARD */}
-      <div className="bg-white p-6 rounded-[28px] shadow-sm border border-slate-200 mb-6">
-        <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-emerald-600" />
-            <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
-              Filter Pencarian Potongan
-            </span>
-          </div>
-          <span className="text-[11px] font-bold text-slate-400">
-            {groupedPotongans.length} potongan ditemukan
-          </span>
-        </div>
-
-        <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              Pilih Tanggal Mending
-            </label>
-            <input
-              type="date"
-              value={filters.tanggal}
-              onChange={(e) => setFilters({ ...filters, tanggal: e.target.value })}
-              className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none w-full transition-all shadow-inner"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-              <Cpu className="w-3.5 h-3.5 text-slate-400" />
-              Pilih Mesin
-            </label>
-            <select
-              value={filters.nomor_mc}
-              onChange={(e) => setFilters({ ...filters, nomor_mc: e.target.value })}
-              className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none w-full transition-all cursor-pointer shadow-inner"
-            >
-              <option value="">-- Semua Mesin --</option>
-              {options.mesins.map((m) => (
-                <option key={m} value={m}>Mesin {m}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-              <Scissors className="w-3.5 h-3.5 text-slate-400" />
-              Pilih Potongan Ke
-            </label>
-            <input
-              type="text"
-              value={filters.potongan_ke}
-              onChange={(e) => setFilters({ ...filters, potongan_ke: e.target.value })}
-              placeholder="Contoh: 332..."
-              className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none w-full transition-all shadow-inner"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-slate-400" />
-              Jenis Kain
-            </label>
-            <select
-              value={filters.jenis_kain}
-              onChange={(e) => setFilters({ ...filters, jenis_kain: e.target.value })}
-              className="h-11 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none w-full transition-all cursor-pointer shadow-inner"
-            >
-              <option value="all">-- Semua Jenis --</option>
-              <option value="panel">Panel</option>
-              <option value="meteran">All Over (Meteran)</option>
-            </select>
-          </div>
-        </form>
-      </div>
 
       {isLoading && (
         <div className="bg-white rounded-[28px] p-16 shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center animate-fadeIn">

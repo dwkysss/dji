@@ -31,6 +31,8 @@ import {
   RotateCcw,
   MapPin,
   SlidersHorizontal,
+  ChevronDown,
+  Cpu,
 } from "lucide-react";
 import FinalInspectionModal from "@/components/forms/FinalInspectionModal";
 import DateRangePicker from "@/components/ui/DateRangePicker";
@@ -2624,21 +2626,6 @@ export default function FinalInspectionPage() {
   // QUEUE LIST VIEW (Exact Mirror of Riwayat Mending)
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 pb-12 animate-fadeIn p-4 md:p-6">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-sky-50 flex items-center justify-center text-[#0070bc]">
-              <RefreshCw className="w-5 h-5" />
-            </div>
-            Riwayat Mending Siap Final
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Daftar batch mending yang siap diverifikasi untuk tahap final inspection.
-          </p>
-        </div>
-      </div>
-
       {errorMsg && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -2651,14 +2638,48 @@ export default function FinalInspectionPage() {
         </div>
       )}
 
-      {/* Filter Card */}
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
-        <form onSubmit={handleSearch} className="flex flex-col gap-4">
+      {/* Filter Card with Integrated Header */}
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6">
+        {/* Decorative Top Accent */}
+        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
+
+        {/* Header Section inside Card */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-100">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
+              <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div className="flex flex-col">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+                Riwayat Mending Siap Final
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+                Daftar batch mending yang siap diverifikasi untuk tahap final inspection.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Form */}
+        <form onSubmit={handleSearch} className="flex flex-col gap-4 mt-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-            <div className="flex flex-col gap-1 w-full">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
-                Tanggal Mending
+            {/* TANGGAL MENDING */}
+            <div className="flex flex-col gap-1.5 w-full">
+              <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-sky-500" />
+                  <span>Tanggal Mending</span>
+                </span>
+                {(searchStartDate || searchMesin || searchPotongan) && (
+                  <button
+                    type="button"
+                    onClick={handleResetSearch}
+                    className="text-[10px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 transition-colors hover:underline cursor-pointer normal-case"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    Reset
+                  </button>
+                )}
               </label>
               <DateRangePicker
                 startDate={searchStartDate}
@@ -2672,60 +2693,64 @@ export default function FinalInspectionPage() {
               />
             </div>
 
-            <div className="flex flex-col gap-1 w-full">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
-                <Hash className="w-3.5 h-3.5" />
-                Nomor Mesin
+            {/* NOMOR MESIN */}
+            <div className="flex flex-col gap-1.5 w-full">
+              <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Cpu className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Nomor Mesin</span>
               </label>
-              <select
-                value={searchMesin}
-                onChange={(e) => setSearchMesin(e.target.value)}
-                className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full"
-              >
-                <option value="">-- Semua Mesin --</option>
-                {REGISTERED_MACHINES.map((mc) => (
-                  <option key={mc} value={mc}>
-                    {mc}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={searchMesin}
+                  onChange={(e) => setSearchMesin(e.target.value)}
+                  className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+                >
+                  <option value="">-- Semua Mesin --</option>
+                  {REGISTERED_MACHINES.map((mc) => (
+                    <option key={mc} value={mc}>
+                      Mesin {mc}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                  <ChevronDown className="w-4 h-4" />
+                </div>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1 w-full">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
-                <Box className="w-3.5 h-3.5" />
-                Potongan Ke
+            {/* POTONGAN KE */}
+            <div className="flex flex-col gap-1.5 w-full">
+              <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Scissors className="w-3.5 h-3.5 text-amber-500" />
+                <span>Potongan Ke</span>
               </label>
               <input
                 type="number"
                 placeholder="Cari Potongan..."
                 value={searchPotongan}
                 onChange={(e) => setSearchPotongan(e.target.value)}
-                className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full"
+                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleResetSearch}
-                className="h-11 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all cursor-pointer"
-              >
-                Reset
-              </button>
-              <button
-                type="submit"
-                disabled={isSearching}
-                className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm flex-1 cursor-pointer"
-              >
-                {isSearching ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Search className="w-4 h-4" />
-                )}
-                Cari Data
-              </button>
-            </div>
+            {/* BUTTON SUBMIT */}
+            <button
+              type="submit"
+              disabled={isSearching}
+              className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#0070bc] to-[#005a96] hover:from-[#005a96] hover:to-[#004777] active:scale-[0.98] disabled:opacity-50 text-white text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-2 shadow-md shadow-[#0070bc]/25 hover:shadow-lg hover:shadow-[#0070bc]/35 cursor-pointer w-full group"
+            >
+              {isSearching ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Mencari...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+                  <span>Cari Data</span>
+                </>
+              )}
+            </button>
           </div>
         </form>
       </div>

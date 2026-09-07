@@ -666,8 +666,8 @@ export default function ProblemDetailsPage() {
                 key={catItem.kode}
                 onClick={() => setActiveCategory(catItem.kode)}
                 className={`px-4 py-3 rounded-2xl font-black text-xs transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer border ${isActive
-                    ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
-                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                  ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
+                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
                   }`}
               >
                 <span
@@ -927,8 +927,8 @@ export default function ProblemDetailsPage() {
                                 <button
                                   onClick={() => handleToggleActive(item)}
                                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-all cursor-pointer inline-flex items-center gap-1.5 ${item.is_active
-                                      ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-                                      : "bg-rose-100 text-rose-800 hover:bg-rose-200"
+                                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                                    : "bg-rose-100 text-rose-800 hover:bg-rose-200"
                                     }`}
                                 >
                                   {item.is_active ? (

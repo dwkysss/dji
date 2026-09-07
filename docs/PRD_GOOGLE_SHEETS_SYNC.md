@@ -263,9 +263,19 @@ function doPost(e) {
 
       var existingOp = String(currentValues[r][6] || "").trim();
       var existingProd = Number(currentValues[r][7] || 0);
+      var existingBg = String(currentBackgrounds[r][7] || "").toLowerCase();
       var hasExisting = existingOp !== "" || existingProd > 0;
 
-      if (isSafeMode && hasExisting) {
+      var webOp = String(tData.operator_name || "").trim();
+      var webProd = Number(tData.hasil_produksi || 0);
+
+      // Cek apakah baris ini sebelumnya adalah hasil sync web (kuning), kelanjutan shift, atau produksinya bertambah
+      var isFromWebSync = (existingBg === "#ffff00");
+      var isSameOperator = (webOp !== "" && webOp.toLowerCase() === existingOp.toLowerCase());
+      var isProductionIncreased = (webProd > existingProd);
+
+      // Safe Mode HANYA melindungi ketikan manual staf (bukan dari sync web dan bukan penambahan produksi)
+      if (isSafeMode && hasExisting && !isFromWebSync && !isSameOperator && !isProductionIncreased) {
         skippedCount++;
         continue;
       }

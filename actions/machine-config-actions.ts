@@ -36,10 +36,15 @@ export async function getMachineConfigs(): Promise<{ success: boolean; data: Mac
     const configMap = new Map<string, { rawName: string; pcs: number; input_type?: "PANEL" | "METER" }>();
     if (data && Array.isArray(data)) {
       data.forEach((item: any) => {
-        if (item.nomor_mc && !String(item.nomor_mc).startsWith("REQUIRED_BLOCK:")) {
-          const rawName = String(item.nomor_mc).trim();
-          configMap.set(rawName.toUpperCase(), {
-            rawName,
+        const mcStr = String(item.nomor_mc || "").trim();
+        if (
+          mcStr &&
+          !mcStr.startsWith("REQUIRED_BLOCK:") &&
+          !mcStr.startsWith("MAX_PANEL:") &&
+          mcStr !== "PROBLEM_GROUP_MAPPING"
+        ) {
+          configMap.set(mcStr.toUpperCase(), {
+            rawName: mcStr,
             pcs: item.default_pcs !== undefined && item.default_pcs !== null ? Number(item.default_pcs) : 1,
             input_type: item.input_type === "METER" ? "METER" : "PANEL",
           });
@@ -47,14 +52,9 @@ export async function getMachineConfigs(): Promise<{ success: boolean; data: Mac
       });
     }
 
-    // Merge standard machines list with any extra machines present in DB
-    const allMachineNamesSet = new Set<string>(STANDARD_MACHINES);
-    configMap.forEach((v) => {
-      if (v.rawName) allMachineNamesSet.add(v.rawName);
-    });
-
-    const results: MachineConfig[] = Array.from(allMachineNamesSet).map((mc) => {
-      const mcKey = mc.toUpperCase();
+    // Strictly return the 10 registered machines in standard defined order
+    const results: MachineConfig[] = STANDARD_MACHINES.map((mc) => {
+      const mcKey = mc.toUpperCase().trim();
       const dbObj = configMap.get(mcKey);
       const fallbackPcs = DEFAULT_MACHINES[mc] || 1;
       const fallbackType = DEFAULT_INPUT_TYPES[mc] || "PANEL";
@@ -69,7 +69,6 @@ export async function getMachineConfigs(): Promise<{ success: boolean; data: Mac
     return { success: true, data: results };
   } catch (err: any) {
     console.error("Error in getMachineConfigs:", err);
-    // Return fallback list if error
     const fallbackData = STANDARD_MACHINES.map((mc) => ({
       nomor_mc: mc,
       default_pcs: DEFAULT_MACHINES[mc] || 1,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getShiftDate, getShiftName } from '@/lib/shift-utils';
 
 const FALLBACK_MODELS = [
   "gemini-3.6-flash",
@@ -29,12 +30,7 @@ async function generateContentWithFallback(genAIInstance: GoogleGenerativeAI, co
 }
 
 function getJakartaDate() {
-  return new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  return getShiftDate(new Date());
 }
 
 async function fetchFactoryLiveContext() {
@@ -200,6 +196,7 @@ async function fetchFactoryLiveContext() {
 
     return {
       today,
+      currentShift: getShiftName(new Date()),
       totalPanelsToday,
       totalMetersToday,
       totalDefectsToday,
@@ -282,7 +279,7 @@ function generateSmartRuleReply(query: string, factoryData: any): string {
       factoryData.plans.map((p: string) => `• ${p}`).join("\n");
   }
 
-  return `Halo! Saya adalah **DJI Enterprise Assistant AI**.\n\n` +
+  return `Halo! Saya adalah **DJI AI**.\n\n` +
     `Data ringkas hari ini (${factoryData.today}):\n` +
     `• **Total Produksi**: ${factoryData.totalPanelsToday} Roll/Panel (${factoryData.totalMetersToday} Meter)\n` +
     `• **Operator Aktif**: ${factoryData.activeOperatorsTodayList.length} Orang (${factoryData.activeOperatorsTodayList.slice(0, 3).map((o: string) => o.split(" ")[0]).join(", ")}${factoryData.activeOperatorsTodayList.length > 3 ? "..." : ""})\n` +
@@ -313,7 +310,9 @@ export async function POST(req: Request) {
 
         const contextString = factoryContext
           ? `
---- DATA OPERASIONAL PABRIK PT DAN LIRIS (DJI) HARI INI (${factoryContext.today}) ---
+--- DATA OPERASIONAL PABRIK PT DJI HARI INI (${factoryContext.today}) ---
+- Tanggal Operasional: ${factoryContext.today} (Siklus hari kerja dihitung dari pukul 07:10 WIB hingga 07:10 WIB esok hari)
+- Shift Operasional Saat Ini: ${factoryContext.currentShift || "Shift Aktif"}
 - Total Hasil Produksi Hari Ini: ${factoryContext.totalPanelsToday} Roll/Panel (${factoryContext.totalMetersToday} Meter)
 - Total Temuan Cacat (Defect) Hari Ini: ${factoryContext.totalDefectsToday} temuan
 - Total Durasi Downtime Hari Ini: ${factoryContext.totalDowntimeMinutesToday} Menit
@@ -335,11 +334,22 @@ ${factoryContext.plans.map((p: string) => `  • ${p}`).join("\n")}
 --- AKHIR DATA OPERASIONAL ---`
           : "Data real-time pabrik sedang dalam proses sinkronisasi.";
 
-        const systemPrompt = `Anda adalah "DJI AI", Enterprise Production & Quality Intelligence Assistant resmi dari PT Dan Liris (DJI) - Pabrik Mesin Rajut (Knitting / Tricot / Renda / Meteran & Panel).
+        const systemPrompt = `Anda adalah "DJI AI", Enterprise Production & Quality Intelligence Assistant resmi dari PT DJI - Pabrik Mesin Rajut (Knitting / Tricot / Renda / Meteran & Panel).
 
 Pengguna yang sedang berinteraksi:
 - Nama: ${userName || "Supervisor"}
 - Role / Wewenang: ${userRole || "Supervisor"}
+
+ATURAN PENTING PERHITUNGAN HARI OPERASIONAL & SHIFT KERJA PABRIK (CUT-OFF PUKUL 07:10 WIB):
+1. Siklus pergantian hari kerja operasional pabrik TIDAK berganti pada jam 12:00 tengah malam (00:00 WIB), melainkan berganti pada pukul 07:10 WIB pagi (07:10 WIB hari ini hingga 07:10 WIB hari berikutnya).
+2. Pembagian Shift Operasional:
+   - Shift 1 (Pagi): 07:10 - 15:10 WIB
+   - Shift 2 (Sore): 15:10 - 23:10 WIB
+   - Shift 3 (Malam): 23:10 - 07:10 WIB (melewati tengah malam)
+3. Ketentuan Waktu Transaksi/Input:
+   - Seluruh data transaksi/produksi yang terjadi antara pukul 00:00:00 hingga 07:09:59 WIB tetap terhitung dan diatribusikan ke tanggal operasional hari sebelumnya (karena masih merupakan bagian dari Shift 3 hari kemarin).
+   - Tanggal operasional baru (hari ini) baru resmi dimulai tepat pada pukul 07:10:00 WIB pagi.
+4. Ketika pengguna menanyakan data "hari ini", selalu gunakan acuan tanggal operasional pabrik yang dimulai dari cut-off pukul 07:10 WIB ini.
 
 Tugas Utama Anda:
 1. Menyajikan analitik hasil produksi, rasio cacat, downtime teknisi/mekanik, serta performa shift secara lugas, profesional, akurat, dan ramah dalam bahasa Indonesia.

@@ -1142,7 +1142,7 @@ export default function ContinuousForm({
           setIsMeterAwalLocked(true);
 
           const currentOpId = watch("operatorId");
-          if (currentOpId && prevOperatorRef.current && currentOpId !== prevOperatorRef.current) {
+          if (currentOpId && (!prevOperatorRef.current || currentOpId !== prevOperatorRef.current)) {
             setHandoverInputMeter(handoverRes.lastRecordedMeter > 0 ? String(handoverRes.lastRecordedMeter) : "");
             setHandoverModalError(null);
             setIsHandoverModalOpen(true);
@@ -2563,6 +2563,16 @@ export default function ContinuousForm({
                   </div>
                 ) : (
                   <>
+                    {handoverWarning?.needsMeterAwal && (
+                      <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl mb-3 flex items-start gap-2.5 text-amber-900 text-xs shadow-xs">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="leading-relaxed">
+                          <span className="font-bold block text-amber-950 mb-0.5">⚠️ Serah Terima Shift Otomatis</span>
+                          Operator sebelumnya (<b>{handoverWarning.lastOperator}</b>) belum melaporkan finish shift.
+                          Counter meter yang Anda masukkan di bawah akan otomatis <b>menutup shift {handoverWarning.lastOperator}</b>, dan shift Anda akan langsung dimulai dari counter tersebut.
+                        </div>
+                      </div>
+                    )}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-bold text-slate-600 uppercase">
                         Start Meter Otomatis
@@ -2593,7 +2603,7 @@ export default function ContinuousForm({
                           ? "Meter Ketika Istirahat"
                           : watchJenisLaporan === "Selesai Istirahat"
                             ? "Meter Selesai Istirahat"
-                            : "Finish Meter"}
+                            : (handoverWarning?.needsMeterAwal ? "Counter Meter Serah Terima Shift" : "Finish Meter")}
                       </label>
                       <input
                         type="number"
@@ -2819,6 +2829,50 @@ export default function ContinuousForm({
                         const currentMeterAkhir = parseFloat(
                           watch("meterAkhir") || "0",
                         );
+
+                        // JIKA OPERATOR SEBELUMNYA BELUM FINISH DAN INI ADALAH LAPORAN OPER SHIFT:
+                        // Simpan serah terima shift secara otomatis agar header penutup tercatat atas nama operator lama!
+                        if (handoverWarning?.needsMeterAwal && watchJenisLaporan === "") {
+                          const lastMeter = handoverWarning?.lastMeter || 0;
+                          if (currentMeterAkhir < lastMeter) {
+                            setErrorMsg(`Counter meter tidak boleh lebih kecil dari ${lastMeter}m (meter tercatat sebelumnya).`);
+                            return;
+                          }
+
+                          try {
+                            setIsSubmitting(true);
+                            setErrorMsg(null);
+                            const res = await submitOperatorHandover({
+                              nomorMc: watch("nomorMc"),
+                              potonganKe: watch("potonganKe"),
+                              incomingOperator: getOperatorName(watch("operatorId")),
+                              handoverMeter: currentMeterAkhir,
+                            });
+
+                            if (res.success) {
+                              setValue("meterAwal", String(res.handoverMeter), {
+                                shouldDirty: false,
+                                shouldValidate: false,
+                              });
+                              setValue("meterAkhir", "");
+                              setValue("hasilProduksiMeter", "");
+                              setIsMeterAwalLocked(true);
+                              setHandoverWarning(null);
+                              setIsMeterModalOpen(false);
+                              setSuccessMsg(`Serah terima shift berhasil! Shift ${res.lastOperatorName} telah ditutup pada meter ${res.handoverMeter}m. Shift Anda dimulai dari ${res.handoverMeter}m.`);
+                              return;
+                            } else {
+                              setErrorMsg(res.message || "Gagal melakukan serah terima shift.");
+                              return;
+                            }
+                          } catch (err: any) {
+                            setErrorMsg(err?.message || "Terjadi kesalahan saat serah terima shift.");
+                            return;
+                          } finally {
+                            setIsSubmitting(false);
+                          }
+                        }
+
                         if (currentMc === "T2A" && currentMeterAkhir === 0) {
                           setIsLastRoll(true);
                           setValue(
@@ -2851,7 +2905,7 @@ export default function ContinuousForm({
                       ) : (
                         <Save className="w-4 h-4" />
                       )}
-                      Simpan & Kirim Meteran
+                      {handoverWarning?.needsMeterAwal && watchJenisLaporan === "" ? "Simpan Serah Terima Shift" : "Simpan & Kirim Meteran"}
                     </button>
                   </>
                 )}

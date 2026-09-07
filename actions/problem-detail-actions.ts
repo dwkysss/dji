@@ -340,7 +340,9 @@ export async function getProblemDetailsGrouped(): Promise<{
       if (!grouped[item.kategori]) {
         grouped[item.kategori] = [];
       }
-      grouped[item.kategori].push(item.nama_detail);
+      if (!grouped[item.kategori].includes(item.nama_detail)) {
+        grouped[item.kategori].push(item.nama_detail);
+      }
     });
 
     return { success: true, grouped, rawList, groupMapping: mapping };

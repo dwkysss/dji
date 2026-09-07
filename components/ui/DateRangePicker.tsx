@@ -5,6 +5,7 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   X,
   Check,
 } from "lucide-react";
@@ -292,21 +293,31 @@ export default function DateRangePicker({
       {/* Trigger Button */}
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`h-11 px-3.5 rounded-xl bg-slate-50 border transition-all duration-200 flex items-center justify-between gap-2 shadow-xs select-none cursor-pointer ${
+        className={`h-11 px-3.5 rounded-xl border transition-all duration-200 flex items-center justify-between gap-2 select-none cursor-pointer ${
           isOpen
-            ? "border-[#0070bc] ring-2 ring-sky-100 bg-white"
-            : "border-slate-200 hover:border-slate-300 hover:bg-white"
+            ? "border-[#0070bc] ring-4 ring-sky-500/15 bg-white shadow-sm"
+            : displayText
+            ? "border-sky-300 bg-sky-50/50 hover:bg-sky-50/80 shadow-xs"
+            : "border-slate-200 hover:border-slate-300 bg-slate-50/70 hover:bg-white shadow-xs"
         } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
       >
-        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-          <CalendarIcon className="w-4 h-4 text-[#0070bc] shrink-0" />
+        <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+          <div
+            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+              displayText || isOpen
+                ? "bg-[#0070bc] text-white shadow-xs"
+                : "bg-slate-200/70 text-slate-500"
+            }`}
+          >
+            <CalendarIcon className="w-3.5 h-3.5" />
+          </div>
           {displayText ? (
             <div className="flex items-center gap-1.5 truncate">
               <span className="text-xs sm:text-sm font-bold text-slate-800 truncate">
                 {displayText}
               </span>
               {dayCount > 1 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-[#0070bc] shrink-0">
+                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-sky-100 text-[#0070bc] shrink-0 border border-sky-200/60">
                   {dayCount} hari
                 </span>
               )}
@@ -318,17 +329,22 @@ export default function DateRangePicker({
           )}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {displayText && (
             <button
               type="button"
               onClick={handleClear}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+              className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
               title="Hapus filter tanggal"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+              isOpen ? "rotate-180 text-[#0070bc]" : ""
+            }`}
+          />
         </div>
       </div>
 
