@@ -41,53 +41,65 @@ export default function MonthlyPerformanceCharts({ period }: MonthlyPerformanceC
   return (
     <div className="space-y-6">
       {/* Chart Section Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-sky-700 uppercase tracking-wider mb-1">
-            <BarChart3 className="w-4 h-4" />
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#0070bc] uppercase tracking-wider">
+            <BarChart3 className="w-4 h-4 text-[#0070bc]" />
             <span>Grafik Evaluasi Performa Bulanan</span>
           </div>
-          <h2 className="text-lg font-black text-slate-900 tracking-tight">
+          <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
             Visualisasi Matriks Mesin — {period.monthName} {period.year}
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500">
             Perbandingan komprehensif hasil produksi, efisiensi kerja, dan tingkat cacat per tim (A, B, C) untuk setiap mesin.
           </p>
         </div>
 
         {/* Tab Filter */}
-        <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1.5 rounded-xl self-start sm:self-auto">
+        <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-xl shrink-0 overflow-x-auto custom-scrollbar self-start lg:self-auto max-w-full">
           <button
             onClick={() => setActiveTab("ALL")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              activeTab === "ALL" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "ALL"
+                ? "bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/60 font-black"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             }`}
           >
-            Semua Grafik (3)
+            <BarChart3 className={`w-3.5 h-3.5 ${activeTab === "ALL" ? "text-[#0070bc]" : "text-slate-400"}`} />
+            <span>Semua Grafik (3)</span>
           </button>
           <button
             onClick={() => setActiveTab("PROD")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              activeTab === "PROD" ? "bg-white text-sky-700 shadow-xs" : "text-slate-500 hover:text-slate-800"
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "PROD"
+                ? "bg-white text-[#0070bc] shadow-xs ring-1 ring-sky-200 font-black"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             }`}
           >
-            📦 Hasil Produksi
+            <Layers className={`w-3.5 h-3.5 ${activeTab === "PROD" ? "text-[#0070bc]" : "text-slate-400"}`} />
+            <span>Hasil Produksi</span>
           </button>
           <button
             onClick={() => setActiveTab("EFF")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              activeTab === "EFF" ? "bg-white text-emerald-700 shadow-xs" : "text-slate-500 hover:text-slate-800"
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "EFF"
+                ? "bg-white text-emerald-700 shadow-xs ring-1 ring-emerald-200 font-black"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             }`}
           >
-            ⚡ Efisiensi
+            <TrendingUp className={`w-3.5 h-3.5 ${activeTab === "EFF" ? "text-emerald-600" : "text-slate-400"}`} />
+            <span>Efisiensi</span>
           </button>
           <button
             onClick={() => setActiveTab("DEFECT")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              activeTab === "DEFECT" ? "bg-white text-rose-700 shadow-xs" : "text-slate-500 hover:text-slate-800"
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "DEFECT"
+                ? "bg-white text-rose-700 shadow-xs ring-1 ring-rose-200 font-black"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             }`}
           >
-            ⚠️ Rasio Cacat
+            <AlertTriangle className={`w-3.5 h-3.5 ${activeTab === "DEFECT" ? "text-rose-600" : "text-slate-400"}`} />
+            <span>Rasio Cacat</span>
           </button>
         </div>
       </div>
@@ -110,9 +122,19 @@ export default function MonthlyPerformanceCharts({ period }: MonthlyPerformanceC
                     <p className="text-[11px] text-slate-400">Total output kain per mesin (Panel / Meter)</p>
                   </div>
                 </div>
-                <span className="text-xs font-mono font-bold text-sky-800 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200">
-                  Total: {period.totalRow.hasilProduksi.total.toLocaleString("id-ID")}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-xs font-mono font-bold text-sky-800 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200">
+                    Total: {period.totalRow.hasilProduksi.total.toLocaleString("id-ID")}
+                  </span>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                    <span className="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 font-mono">
+                      Panel: {period.totalRow.hasilProduksi.panelTotal.toLocaleString("id-ID")} pcs
+                    </span>
+                    <span className="text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 font-mono">
+                      Meteran: {period.totalRow.hasilProduksi.meterTotal.toLocaleString("id-ID")} m
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Legend */}
@@ -154,21 +176,50 @@ export default function MonthlyPerformanceCharts({ period }: MonthlyPerformanceC
                     }`}
                   >
                     <div className="flex items-center justify-between gap-4 border-b border-slate-700 pb-1.5 mb-1.5">
-                      <span className="font-extrabold text-sky-300">Mesin {activeList[hoveredIndex.mcIndex].machineId}</span>
-                      <span className="font-mono font-bold text-sky-400">Total: {activeList[hoveredIndex.mcIndex].hasilProduksi.total}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-sky-300">Mesin {activeList[hoveredIndex.mcIndex].machineId}</span>
+                        {activeList[hoveredIndex.mcIndex].isMeterMachine ? (
+                          <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-teal-800 text-teal-200 border border-teal-600">
+                            METERAN
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-indigo-800 text-indigo-200 border border-indigo-600">
+                            PANEL
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono font-bold text-sky-400">
+                        Total: {activeList[hoveredIndex.mcIndex].hasilProduksi.total.toLocaleString("id-ID")}{" "}
+                        {activeList[hoveredIndex.mcIndex].isMeterMachine ? "m" : "pcs"}
+                      </span>
                     </div>
                     <div className="grid grid-cols-3 gap-3 text-[11px]">
                       <div className="flex flex-col">
                         <span className="text-slate-400 font-medium">Tim A</span>
-                        <span className="font-mono font-bold text-white text-sm">{activeList[hoveredIndex.mcIndex].hasilProduksi.A}</span>
+                        <span className="font-mono font-bold text-white text-sm">
+                          {activeList[hoveredIndex.mcIndex].hasilProduksi.A.toLocaleString("id-ID")}{" "}
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {activeList[hoveredIndex.mcIndex].isMeterMachine ? "m" : "pcs"}
+                          </span>
+                        </span>
                       </div>
                       <div className="flex flex-col">
                         <span className="text-slate-400 font-medium">Tim B</span>
-                        <span className="font-mono font-bold text-white text-sm">{activeList[hoveredIndex.mcIndex].hasilProduksi.B}</span>
+                        <span className="font-mono font-bold text-white text-sm">
+                          {activeList[hoveredIndex.mcIndex].hasilProduksi.B.toLocaleString("id-ID")}{" "}
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {activeList[hoveredIndex.mcIndex].isMeterMachine ? "m" : "pcs"}
+                          </span>
+                        </span>
                       </div>
                       <div className="flex flex-col">
                         <span className="text-slate-400 font-medium">Tim C</span>
-                        <span className="font-mono font-bold text-white text-sm">{activeList[hoveredIndex.mcIndex].hasilProduksi.C}</span>
+                        <span className="font-mono font-bold text-white text-sm">
+                          {activeList[hoveredIndex.mcIndex].hasilProduksi.C.toLocaleString("id-ID")}{" "}
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {activeList[hoveredIndex.mcIndex].isMeterMachine ? "m" : "pcs"}
+                          </span>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -214,11 +265,22 @@ export default function MonthlyPerformanceCharts({ period }: MonthlyPerformanceC
                         </div>
 
                         {/* Machine X-Label */}
-                        <span className={`text-[11px] font-bold mt-1.5 transition-colors ${
-                          isHovered ? "text-sky-600 font-extrabold scale-105" : "text-slate-600"
-                        }`}>
-                          {m.machineId}
-                        </span>
+                        <div className="flex flex-col items-center mt-1.5">
+                          <span className={`text-[11px] font-bold transition-colors ${
+                            isHovered ? "text-sky-600 font-extrabold scale-105" : "text-slate-600"
+                          }`}>
+                            {m.machineId}
+                          </span>
+                          {m.isMeterMachine ? (
+                            <span className="text-[8px] font-black px-1 py-0.2 rounded bg-teal-100 text-teal-800 border border-teal-200 leading-tight mt-0.5">
+                              MTR
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-black px-1 py-0.2 rounded bg-indigo-100 text-indigo-700 border border-indigo-200 leading-tight mt-0.5">
+                              PNL
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -293,7 +355,18 @@ export default function MonthlyPerformanceCharts({ period }: MonthlyPerformanceC
                     }`}
                   >
                     <div className="flex items-center justify-between gap-4 border-b border-slate-700 pb-1.5 mb-1.5">
-                      <span className="font-extrabold text-emerald-300">Mesin {activeList[hoveredIndex.mcIndex].machineId}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-emerald-300">Mesin {activeList[hoveredIndex.mcIndex].machineId}</span>
+                        {activeList[hoveredIndex.mcIndex].isMeterMachine ? (
+                          <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-teal-800 text-teal-200 border border-teal-600">
+                            METERAN
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-indigo-800 text-indigo-200 border border-indigo-600">
+                            PANEL
+                          </span>
+                        )}
+                      </div>
                       <span className="font-mono font-bold text-emerald-400">Rata-rata: {activeList[hoveredIndex.mcIndex].effTeam.avg.toFixed(2)}%</span>
                     </div>
                     <div className="grid grid-cols-3 gap-3 text-[11px]">
@@ -353,11 +426,22 @@ export default function MonthlyPerformanceCharts({ period }: MonthlyPerformanceC
                         </div>
 
                         {/* Machine X-Label */}
-                        <span className={`text-[11px] font-bold mt-1.5 transition-colors ${
-                          isHovered ? "text-emerald-700 font-extrabold scale-105" : "text-slate-600"
-                        }`}>
-                          {m.machineId}
-                        </span>
+                        <div className="flex flex-col items-center mt-1.5">
+                          <span className={`text-[11px] font-bold transition-colors ${
+                            isHovered ? "text-emerald-700 font-extrabold scale-105" : "text-slate-600"
+                          }`}>
+                            {m.machineId}
+                          </span>
+                          {m.isMeterMachine ? (
+                            <span className="text-[8px] font-black px-1 py-0.2 rounded bg-teal-100 text-teal-800 border border-teal-200 leading-tight mt-0.5">
+                              MTR
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-black px-1 py-0.2 rounded bg-indigo-100 text-indigo-700 border border-indigo-200 leading-tight mt-0.5">
+                              PNL
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -432,7 +516,18 @@ export default function MonthlyPerformanceCharts({ period }: MonthlyPerformanceC
                     }`}
                   >
                     <div className="flex items-center justify-between gap-4 border-b border-slate-700 pb-1.5 mb-1.5">
-                      <span className="font-extrabold text-rose-300">Mesin {activeList[hoveredIndex.mcIndex].machineId}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-rose-300">Mesin {activeList[hoveredIndex.mcIndex].machineId}</span>
+                        {activeList[hoveredIndex.mcIndex].isMeterMachine ? (
+                          <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-teal-800 text-teal-200 border border-teal-600">
+                            METERAN
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-indigo-800 text-indigo-200 border border-indigo-600">
+                            PANEL
+                          </span>
+                        )}
+                      </div>
                       <span className="font-mono font-bold text-rose-400">Rata-rata: {activeList[hoveredIndex.mcIndex].cacatPerTeam.avg.toFixed(2)}%</span>
                     </div>
                     <div className="grid grid-cols-3 gap-3 text-[11px]">
@@ -492,11 +587,22 @@ export default function MonthlyPerformanceCharts({ period }: MonthlyPerformanceC
                         </div>
 
                         {/* Machine X-Label */}
-                        <span className={`text-[11px] font-bold mt-1.5 transition-colors ${
-                          isHovered ? "text-rose-700 font-extrabold scale-105" : "text-slate-600"
-                        }`}>
-                          {m.machineId}
-                        </span>
+                        <div className="flex flex-col items-center mt-1.5">
+                          <span className={`text-[11px] font-bold transition-colors ${
+                            isHovered ? "text-rose-700 font-extrabold scale-105" : "text-slate-600"
+                          }`}>
+                            {m.machineId}
+                          </span>
+                          {m.isMeterMachine ? (
+                            <span className="text-[8px] font-black px-1 py-0.2 rounded bg-teal-100 text-teal-800 border border-teal-200 leading-tight mt-0.5">
+                              MTR
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-black px-1 py-0.2 rounded bg-indigo-100 text-indigo-700 border border-indigo-200 leading-tight mt-0.5">
+                              PNL
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

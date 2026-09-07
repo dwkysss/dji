@@ -527,7 +527,7 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
 }
 
 export async function getAllPendingQCDetails(
-  tanggalOrFilters?: string | { tanggal?: string; mesin?: string; potongan?: string | number },
+  tanggalOrFilters?: string | { tanggal?: string; startDate?: string; endDate?: string; mesin?: string; potongan?: string | number },
   mesinParam?: string,
   potonganParam?: string | number
 ) {
@@ -535,11 +535,15 @@ export async function getAllPendingQCDetails(
     const supabase = await createClient();
 
     let tanggal: string | undefined = undefined;
+    let startDate: string | undefined = undefined;
+    let endDate: string | undefined = undefined;
     let mesin: string | undefined = undefined;
     let potongan: string | number | undefined = undefined;
 
     if (typeof tanggalOrFilters === "object" && tanggalOrFilters !== null) {
       tanggal = tanggalOrFilters.tanggal;
+      startDate = tanggalOrFilters.startDate;
+      endDate = tanggalOrFilters.endDate;
       mesin = tanggalOrFilters.mesin;
       potongan = tanggalOrFilters.potongan;
     } else {
@@ -553,9 +557,19 @@ export async function getAllPendingQCDetails(
       .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, groups(nama_grup), operators(nama_operator), tanggal_jam")
       .order("tgl", { ascending: false });
 
-    if (tanggal) {
-      query = query.eq("tgl", tanggal);
+    const sDate = startDate || tanggal;
+    const eDate = endDate || startDate || tanggal;
+
+    if (sDate && eDate) {
+      if (sDate === eDate) {
+        query = query.eq("tgl", sDate);
+      } else {
+        query = query.gte("tgl", sDate).lte("tgl", eDate);
+      }
+    } else if (sDate) {
+      query = query.eq("tgl", sDate);
     }
+
     if (mesin) {
       query = query.eq("nomor_mc", mesin);
     }
@@ -567,7 +581,7 @@ export async function getAllPendingQCDetails(
     }
 
     // Only limit when no search filters are provided at all
-    if (!tanggal && !mesin && !potongan) {
+    if (!sDate && !mesin && !potongan) {
       query = query.limit(300);
     }
 
@@ -720,6 +734,8 @@ export async function getQCHistoryByBatch(designId: string, potonganKe: string) 
 export async function searchQCHistory(
   filters: {
     date?: string;
+    startDate?: string;
+    endDate?: string;
     nomor_mc?: string;
     petugas_ids?: string[];
     design_id?: string;
@@ -736,6 +752,9 @@ export async function searchQCHistory(
     }
 
     const supabase = await createClient();
+
+    const startDate = filters.startDate || filters.date;
+    const endDate = filters.endDate || filters.startDate || filters.date;
 
     if (!includeDetails) {
       // Lightweight Query: Only fetch batch summary fields without massive nested details & defect joins
@@ -763,8 +782,14 @@ export async function searchQCHistory(
         .order("created_at", { ascending: false })
         .limit(500);
 
-      if (filters.date) {
-        query = query.eq("tanggal_inspeksi", filters.date);
+      if (startDate && endDate) {
+        if (startDate === endDate) {
+          query = query.eq("tanggal_inspeksi", startDate);
+        } else {
+          query = query.gte("tanggal_inspeksi", startDate).lte("tanggal_inspeksi", endDate);
+        }
+      } else if (startDate) {
+        query = query.eq("tanggal_inspeksi", startDate);
       }
 
       if (filters.nomor_mc) {
@@ -821,8 +846,14 @@ export async function searchQCHistory(
       .order("created_at", { ascending: false })
       .limit(500);
 
-    if (filters.date) {
-      query = query.eq("tanggal_inspeksi", filters.date);
+    if (startDate && endDate) {
+      if (startDate === endDate) {
+        query = query.eq("tanggal_inspeksi", startDate);
+      } else {
+        query = query.gte("tanggal_inspeksi", startDate).lte("tanggal_inspeksi", endDate);
+      }
+    } else if (startDate) {
+      query = query.eq("tanggal_inspeksi", startDate);
     }
 
     if (filters.nomor_mc) {

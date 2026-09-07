@@ -18,6 +18,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 
 // Helper Fallbacks (if DB fetch fails)
 const FALLBACK_OPERATORS = [
@@ -75,9 +76,10 @@ const FALLBACK_GROUPS = [
 
 export default function ShiftHistoryPage() {
   const router = useRouter();
-  const { user } = useAuth();
   const [filters, setFilters] = useState<{
     date: string;
+    startDate: string;
+    endDate: string;
     nomor_mc: string;
     group_id: string;
     operator_ids: string[];
@@ -87,6 +89,8 @@ export default function ShiftHistoryPage() {
     no_customer: string;
   }>({
     date: "",
+    startDate: "",
+    endDate: "",
     nomor_mc: "",
     group_id: "",
     operator_ids: [],
@@ -114,6 +118,7 @@ export default function ShiftHistoryPage() {
   // Load from session storage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const today = getShiftDate(new Date());
       const cachedFilters = sessionStorage.getItem("dji_shift_history_filters");
 
       let initialFilters = { ...filters };
@@ -121,12 +126,18 @@ export default function ShiftHistoryPage() {
         try {
           const parsed = JSON.parse(cachedFilters);
           initialFilters = { ...parsed };
+          if (!initialFilters.startDate && initialFilters.date) {
+            initialFilters.startDate = initialFilters.date;
+            initialFilters.endDate = initialFilters.date;
+          }
           if (!initialFilters.operator_ids) {
             initialFilters.operator_ids = [];
           }
         } catch (e) {}
       } else {
-        initialFilters.date = getShiftDate(new Date());
+        initialFilters.date = today;
+        initialFilters.startDate = today;
+        initialFilters.endDate = today;
       }
       setFilters(initialFilters);
 
@@ -136,6 +147,8 @@ export default function ShiftHistoryPage() {
         try {
           const res = await searchEmployeeHistory({
             ...initialFilters,
+            startDate: initialFilters.startDate || initialFilters.date,
+            endDate: initialFilters.endDate || initialFilters.date,
             page: 1,
             perPage,
             sortBy,
@@ -216,13 +229,17 @@ export default function ShiftHistoryPage() {
     try {
       sessionStorage.setItem("dji_shift_history_filters", JSON.stringify(filters));
       setCurrentPage(1);
-      const res = await searchEmployeeHistory({
+      const searchPayload = {
         ...filters,
+        date: filters.startDate,
+        startDate: filters.startDate,
+        endDate: filters.endDate || filters.startDate,
         page: 1,
         perPage,
         sortBy,
         sortDir,
-      });
+      };
+      const res = await searchEmployeeHistory(searchPayload);
       if (res.success && res.data) {
         setData(res.data);
         setTotalCount(res.total || 0);
@@ -246,13 +263,17 @@ export default function ShiftHistoryPage() {
     (async () => {
       setIsLoading(true);
       try {
-        const res = await searchEmployeeHistory({
+        const searchPayload = {
           ...filters,
+          date: filters.startDate,
+          startDate: filters.startDate,
+          endDate: filters.endDate || filters.startDate,
           page: currentPage,
           perPage,
           sortBy,
           sortDir,
-        });
+        };
+        const res = await searchEmployeeHistory(searchPayload);
         if (cancelled) return;
         if (res.success && res.data) {
           setData(res.data);
@@ -288,7 +309,8 @@ export default function ShiftHistoryPage() {
   useEffect(
     () => setCurrentPage(1),
     [
-      filters.date,
+      filters.startDate,
+      filters.endDate,
       filters.nomor_mc,
       filters.group_id,
       filters.design_id,
@@ -325,24 +347,30 @@ export default function ShiftHistoryPage() {
       {/* Filter Card */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
         <form onSubmit={handleSearch} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            {/* TANGGAL PRODUKSI / RENTANG */}
             <div className="flex flex-col gap-1 w-full">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5 h-[18px]">
+                <Calendar className="w-3.5 h-3.5 text-[#0070bc]" />
                 Tanggal Produksi
               </label>
-              <input
-                type="date"
-                value={filters.date}
-                onChange={(e) =>
-                  setFilters({ ...filters, date: e.target.value })
-                }
-                className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full"
+              <DateRangePicker
+                startDate={filters.startDate}
+                endDate={filters.endDate}
+                onChange={(start, end) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    startDate: start,
+                    endDate: end,
+                    date: start,
+                  }));
+                }}
+                placeholder="Pilih Tanggal / Rentang..."
               />
             </div>
 
             <div className="flex flex-col gap-1 w-full">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5 h-[18px]">
                 <Hash className="w-3.5 h-3.5" />
                 Nomor Mesin
               </label>
@@ -363,7 +391,7 @@ export default function ShiftHistoryPage() {
             </div>
 
             <div className="flex flex-col gap-1 w-full">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5 h-[18px]">
                 Potongan Ke
               </label>
               <input

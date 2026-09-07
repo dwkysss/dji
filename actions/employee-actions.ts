@@ -901,6 +901,8 @@ export async function getLastPanelNoByPotongan(
 }
 export async function searchEmployeeHistory(filters: {
   date?: string;
+  startDate?: string;
+  endDate?: string;
   nomor_mc?: string;
   group_id?: string;
   operator_ids?: string[];
@@ -957,15 +959,22 @@ export async function searchEmployeeHistory(filters: {
 
     // Removed created_by_name restriction to allow searching all history
 
-    if (filters.date && !filters.includeDetails) {
-      const d = parseAsWibDate(filters.date);
-      const nextD = new Date(d.getTime() + 24 * 60 * 60 * 1000);
-      const nextDateStr = nextD.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+    const startDate = filters.startDate || filters.date;
+    const endDate = filters.endDate || filters.startDate || filters.date;
 
-      const startWib = `${filters.date} 07:10:00`;
-      const endWib = `${nextDateStr} 07:09:59.999`;
+    if (startDate && endDate && !filters.includeDetails) {
+      const endD = parseAsWibDate(endDate);
+      const nextEndD = new Date(endD.getTime() + 24 * 60 * 60 * 1000);
+      const nextEndDateStr = nextEndD.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
 
-      query = query.or(`and(tanggal_jam.gte."${startWib}",tanggal_jam.lte."${endWib}"),tgl.eq."${filters.date}",tgl.eq."${nextDateStr}"`);
+      const startWib = `${startDate} 07:10:00`;
+      const endWib = `${nextEndDateStr} 07:09:59.999`;
+
+      if (startDate === endDate) {
+        query = query.or(`and(tanggal_jam.gte."${startWib}",tanggal_jam.lte."${endWib}"),tgl.eq."${startDate}",tgl.eq."${nextEndDateStr}"`);
+      } else {
+        query = query.or(`and(tanggal_jam.gte."${startWib}",tanggal_jam.lte."${endWib}"),and(tgl.gte."${startDate}",tgl.lte."${nextEndDateStr}")`);
+      }
     }
     if (filters.nomor_mc)
       query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
@@ -1040,8 +1049,10 @@ export async function searchEmployeeHistory(filters: {
     (data || []).forEach((row: any) => {
       const shiftDate = row.tanggal_jam ? getShiftDate(row.tanggal_jam) : (row.tgl ? getShiftDate(row.tgl) : "-");
 
-      if (filters.date && !filters.includeDetails && shiftDate !== filters.date) {
-        return;
+      if (startDate && endDate && !filters.includeDetails) {
+        if (shiftDate < startDate || shiftDate > endDate) {
+          return;
+        }
       }
 
       const mcNorm = (row.nomor_mc || "").trim().toUpperCase();

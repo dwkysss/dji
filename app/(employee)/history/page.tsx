@@ -31,6 +31,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 
 // Helper Fallbacks (if DB fetch fails)
 const FALLBACK_OPERATORS = [
@@ -124,6 +125,8 @@ export default function EmployeeHistoryPage() {
   const { user } = useAuth();
   const [filters, setFilters] = useState<{
     date: string;
+    startDate: string;
+    endDate: string;
     nomor_mc: string;
     group_id: string;
     operator_ids: string[];
@@ -133,6 +136,8 @@ export default function EmployeeHistoryPage() {
     no_customer: string;
   }>({
     date: "",
+    startDate: "",
+    endDate: "",
     nomor_mc: "",
     group_id: "",
     operator_ids: [],
@@ -177,12 +182,20 @@ export default function EmployeeHistoryPage() {
         try {
           const parsed = JSON.parse(cachedFilters);
           initialFilters = { ...parsed };
+          if (!initialFilters.startDate) {
+            initialFilters.startDate = initialFilters.date || today;
+          }
+          if (!initialFilters.endDate) {
+            initialFilters.endDate = initialFilters.date || today;
+          }
           if (!initialFilters.operator_ids) {
             initialFilters.operator_ids = [];
           }
         } catch (e) { }
       } else {
         initialFilters.date = today;
+        initialFilters.startDate = today;
+        initialFilters.endDate = today;
       }
       setFilters(initialFilters);
 
@@ -190,7 +203,16 @@ export default function EmployeeHistoryPage() {
       (async () => {
         setIsLoading(true);
         try {
-          const res = await searchEmployeeHistory({ ...initialFilters, page: 1, perPage, sortBy: sortBy, sortDir: sortDir });
+          const payload = {
+            ...initialFilters,
+            startDate: initialFilters.startDate || initialFilters.date,
+            endDate: initialFilters.endDate || initialFilters.date,
+            page: 1,
+            perPage,
+            sortBy,
+            sortDir,
+          };
+          const res = await searchEmployeeHistory(payload);
           if (res.success && res.data) {
             setData(res.data);
             setTotalCount(res.total || 0);
@@ -330,7 +352,17 @@ export default function EmployeeHistoryPage() {
     try {
       sessionStorage.setItem("dji_history_filters", JSON.stringify(filters));
       setCurrentPage(1);
-      const res = await searchEmployeeHistory({ ...filters, page: 1, perPage, sortBy, sortDir });
+      const searchPayload = {
+        ...filters,
+        date: filters.startDate,
+        startDate: filters.startDate,
+        endDate: filters.endDate || filters.startDate,
+        page: 1,
+        perPage,
+        sortBy,
+        sortDir,
+      };
+      const res = await searchEmployeeHistory(searchPayload);
       if (res.success && res.data) {
         setData(res.data);
         setTotalCount(res.total || 0);
@@ -354,7 +386,17 @@ export default function EmployeeHistoryPage() {
     (async () => {
       setIsLoading(true);
       try {
-        const res = await searchEmployeeHistory({ ...filters, page: currentPage, perPage, sortBy, sortDir });
+        const searchPayload = {
+          ...filters,
+          date: filters.startDate,
+          startDate: filters.startDate,
+          endDate: filters.endDate || filters.startDate,
+          page: currentPage,
+          perPage,
+          sortBy,
+          sortDir,
+        };
+        const res = await searchEmployeeHistory(searchPayload);
         if (cancelled) return;
         if (res.success && res.data) {
           setData(res.data);
@@ -394,7 +436,7 @@ export default function EmployeeHistoryPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
 
   // Reset to page 1 when filters, perPage, or sort change
-  useEffect(() => setCurrentPage(1), [filters.date, filters.nomor_mc, filters.group_id, filters.design_id, filters.potongan_ke, filters.no_customer, perPage, sortBy, sortDir]);
+  useEffect(() => setCurrentPage(1), [filters.startDate, filters.endDate, filters.nomor_mc, filters.group_id, filters.design_id, filters.potongan_ke, filters.no_customer, perPage, sortBy, sortDir]);
 
   const pagedData = data;
 
@@ -431,25 +473,31 @@ export default function EmployeeHistoryPage() {
         <form onSubmit={handleSearch} className="flex flex-col gap-4">
           <div
             data-tour="history-primary-filters"
-            className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-end"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end"
           >
+            {/* TANGGAL PRODUKSI / RENTANG */}
             <div className="flex flex-col gap-1 w-full">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5 h-[18px]">
+                <Calendar className="w-3.5 h-3.5 text-[#0070bc]" />
                 Tanggal Produksi
               </label>
-              <input
-                type="date"
-                value={filters.date}
-                onChange={(e) =>
-                  setFilters({ ...filters, date: e.target.value })
-                }
-                className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full"
+              <DateRangePicker
+                startDate={filters.startDate}
+                endDate={filters.endDate}
+                onChange={(start, end) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    startDate: start,
+                    endDate: end,
+                    date: start,
+                  }));
+                }}
+                placeholder="Pilih Tanggal / Rentang..."
               />
             </div>
 
             <div className="flex flex-col gap-1 w-full">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5 h-[18px]">
                 <Hash className="w-3.5 h-3.5" />
                 Nomor Mesin
               </label>
@@ -458,7 +506,7 @@ export default function EmployeeHistoryPage() {
                 onChange={(e) =>
                   setFilters({ ...filters, nomor_mc: e.target.value })
                 }
-                className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full"
+                className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full cursor-pointer"
               >
                 <option value="">-- Pilih Mesin --</option>
                 {REGISTERED_MACHINES.map((mc) => (
@@ -470,7 +518,7 @@ export default function EmployeeHistoryPage() {
             </div>
 
             <div className="flex flex-col gap-1 w-full">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5 h-[18px]">
                 Potongan Ke
               </label>
               <input
@@ -487,7 +535,7 @@ export default function EmployeeHistoryPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm w-full"
+              className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm w-full cursor-pointer"
             >
               {isLoading ? (
                 <>

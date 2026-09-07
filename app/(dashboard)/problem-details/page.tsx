@@ -560,55 +560,50 @@ export default function ProblemDetailsPage() {
   return (
     <div className="space-y-6 pb-20 font-sans">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[28px] border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-200 shrink-0">
-            <ListFilter className="w-7 h-7 text-white" />
+      <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-[28px] border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+            <ListFilter className="w-6 h-6 text-white" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-                Master Detail & Kelompok Masalah
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 uppercase tracking-wide">
-                Master Data
-              </span>
-            </div>
-            <p className="text-sm font-semibold text-slate-500 mt-0.5">
-              Atur kategori, kelompok header (sub-kategori), dan opsi detail masalah untuk form operator, QC, & Mending
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight whitespace-nowrap">
+              Master Detail & Kelompok Masalah
+            </h1>
+            <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5 leading-snug line-clamp-2">
+              Atur kategori, kelompok header, dan opsi masalah operator.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0 flex-nowrap overflow-x-auto sm:overflow-visible pb-1 lg:pb-0">
           <button
             onClick={() => fetchData()}
             disabled={loading}
-            className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+            className="h-10 w-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh Data"
           >
-            <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
           <button
             onClick={handleOpenManageGroups}
-            className="px-4 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs shadow-md shadow-sky-200 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+            className="h-10 px-3.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Layers className="w-4 h-4 text-sky-200" />
-            Kelola Kelompok (Header)
+            <span>Kelola Kelompok (Header)</span>
           </button>
           <button
             onClick={handleOpenAddCategory}
-            className="px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+            className="h-10 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
           >
             <FolderPlus className="w-4 h-4 text-amber-400" />
-            + Kategori Baru
+            <span>+ Kategori Baru</span>
           </button>
           <button
             onClick={() => handleOpenAdd()}
-            className="px-5 py-3 rounded-2xl bg-linear-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-xs shadow-md shadow-amber-200 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+            className="h-10 px-4 rounded-xl bg-linear-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-xs shadow-md shadow-amber-500/25 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
-            Tambah Detail Masalah
+            <span>Tambah Detail Masalah</span>
           </button>
         </div>
       </div>
@@ -670,24 +665,21 @@ export default function ProblemDetailsPage() {
               <button
                 key={catItem.kode}
                 onClick={() => setActiveCategory(catItem.kode)}
-                className={`px-4 py-3 rounded-2xl font-black text-xs transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer border ${
-                  isActive
+                className={`px-4 py-3 rounded-2xl font-black text-xs transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer border ${isActive
                     ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
                     : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 <span
-                  className={`w-6 h-6 rounded-lg text-[11px] font-black flex items-center justify-center ${
-                    isActive ? "bg-amber-400 text-slate-950" : "bg-slate-200 text-slate-700"
-                  }`}
+                  className={`w-6 h-6 rounded-lg text-[11px] font-black flex items-center justify-center ${isActive ? "bg-amber-400 text-slate-950" : "bg-slate-200 text-slate-700"
+                    }`}
                 >
                   {catItem.kode}
                 </span>
                 <span>{catItem.label}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                    isActive ? "bg-slate-800 text-amber-300" : "bg-slate-200 text-slate-600"
-                  }`}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? "bg-slate-800 text-amber-300" : "bg-slate-200 text-slate-600"
+                    }`}
                 >
                   {count}
                 </span>
@@ -934,11 +926,10 @@ export default function ProblemDetailsPage() {
                               <td className="py-3 px-4 text-center">
                                 <button
                                   onClick={() => handleToggleActive(item)}
-                                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                                    item.is_active
+                                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-all cursor-pointer inline-flex items-center gap-1.5 ${item.is_active
                                       ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
                                       : "bg-rose-100 text-rose-800 hover:bg-rose-200"
-                                  }`}
+                                    }`}
                                 >
                                   {item.is_active ? (
                                     <>

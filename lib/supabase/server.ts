@@ -4,7 +4,12 @@ import { cookies } from "next/headers";
 const SESSION_MAX_AGE = 60 * 60 * 8; // 8 jam
 
 export async function createClient() {
-  const cookieStore = await cookies();
+  let cookieStore: any = null;
+  try {
+    cookieStore = await cookies();
+  } catch {
+    // Outside request context (e.g. scripts, background tasks)
+  }
 
   return createServerClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,9 +17,10 @@ export async function createClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          return cookieStore ? cookieStore.getAll() : [];
         },
         setAll(cookiesToSet) {
+          if (!cookieStore) return;
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
               const sessionOptions = { ...options, maxAge: SESSION_MAX_AGE };
@@ -22,7 +28,6 @@ export async function createClient() {
             });
           } catch {
             // Metode `setAll` dipanggil dari Server Component.
-            // Ini bisa diabaikan jika middleware menangani refresh session token.
           }
         },
       },
@@ -31,7 +36,12 @@ export async function createClient() {
 }
 
 export async function createAdminClient() {
-  const cookieStore = await cookies();
+  let cookieStore: any = null;
+  try {
+    cookieStore = await cookies();
+  } catch {
+    // Outside request context
+  }
 
   return createServerClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,9 +49,10 @@ export async function createAdminClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          return cookieStore ? cookieStore.getAll() : [];
         },
         setAll(cookiesToSet) {
+          if (!cookieStore) return;
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
               const sessionOptions = { ...options, maxAge: SESSION_MAX_AGE };

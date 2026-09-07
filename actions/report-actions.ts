@@ -158,11 +158,20 @@ export async function getMonthlyMachineReport(
     let prevAssigned: { shiftDateStr: string; shiftName: string; groupName: string; operatorName: string; timestamp: Date } | null = null;
 
     sortedHeaders.forEach((h: any) => {
-      const ts = h.tanggal_jam || h.tgl;
+      let ts = h.tanggal_jam || h.tgl;
+      if (h.panel_no === "BERHENTI" && h.tgl) {
+        const shiftDateOfTs = getShiftDate(ts);
+        if (shiftDateOfTs !== h.tgl) {
+          ts = `${h.tgl} 08:00:00`;
+        }
+      }
       const dt = parseAsWibDate(ts);
       const naturalShiftDateStr = getShiftDate(ts);
       const naturalShiftName = getShiftNameFromDate(dt);
-      const opr = (h.operators?.nama_operator || h.pic || "").trim();
+      let opr = (h.operators?.nama_operator || h.pic || "").trim();
+      if (h.panel_no === "BERHENTI" && (!h.operator_id || opr.toUpperCase() === "ADMIN" || !opr)) {
+        opr = "-";
+      }
       const grp = (h.groups?.nama_grup || "A").trim().toUpperCase();
 
       let assignedShiftDateStr = naturalShiftDateStr;
@@ -229,7 +238,10 @@ export async function getMonthlyMachineReport(
       if (!reportDay) return;
 
       const groupName = assignment.groupName || "A"; // Default to A if null
-      const operatorName = assignment.operatorName || header.operators?.nama_operator || header.pic || "";
+      let operatorName = assignment.operatorName || header.operators?.nama_operator || header.pic || "";
+      if (header.panel_no === "BERHENTI" && (!header.operator_id || operatorName.toUpperCase() === "ADMIN" || !operatorName)) {
+        operatorName = "-";
+      }
 
       // Update shift/day metadata
       if (header.design_id && !reportDay.desain) reportDay.desain = header.design_id;
@@ -249,7 +261,7 @@ export async function getMonthlyMachineReport(
         }
       }
 
-      if (operatorName && !team.operator_name) {
+      if (operatorName && (!team.operator_name || team.operator_name === "-")) {
         team.operator_name = operatorName;
       }
       
@@ -283,7 +295,7 @@ export async function getMonthlyMachineReport(
         team.keterangan_per_kategori = {};
       }
       const addKeterangan = (kat: string, detail: string) => {
-        if (!kat || kat === "Unknown" || kat === "BS" || kat === "G") return;
+        if (!kat || kat === "Unknown" || kat === "BS") return;
         const d = detail.trim();
         if (!d) return;
         const dUpper = d.toUpperCase();
@@ -301,7 +313,7 @@ export async function getMonthlyMachineReport(
 
       const addDefectCode = (k: string) => {
         const code = k.replace("KODE ", "").trim().toUpperCase();
-        if (!code || code === "BS" || code === "G") return;
+        if (!code || code === "BS") return;
         if (!team.kode_tindakan[code]) team.kode_tindakan[code] = 0;
         team.kode_tindakan[code] += 1;
       };
@@ -313,13 +325,13 @@ export async function getMonthlyMachineReport(
       const katsRaw = row.kategori_masalah || "";
       let kats = katsRaw === "X" ? [] : katsRaw.split(",")
         .map((s: string) => s.trim().toUpperCase())
-        .filter((k: string) => Boolean(k) && k !== "BS" && k !== "G" && !k.includes("ISTIRAHAT") && !k.includes("GAGAL CACAT"));
+        .filter((k: string) => Boolean(k) && k !== "BS" && !k.includes("ISTIRAHAT") && !k.includes("GAGAL CACAT"));
 
       const recordedKats = new Set<string>();
       let hasRealDefectsOnRow = false;
 
       const addDefectKeterangan = (kat: string, detail: string) => {
-        if (!kat || kat === "BS" || kat === "G") return;
+        if (!kat || kat === "BS") return;
         const d = detail.trim();
         const dUpper = d.toUpperCase();
         if (
@@ -332,7 +344,9 @@ export async function getMonthlyMachineReport(
         ) {
           return;
         }
-        hasRealDefectsOnRow = true;
+        if (kat !== "G") {
+          hasRealDefectsOnRow = true;
+        }
         addDefectCode(kat);
         recordedKats.add(kat);
         if (d) {
@@ -351,7 +365,7 @@ export async function getMonthlyMachineReport(
             if (seenRowDefects.has(defKey)) return;
             seenRowDefects.add(defKey);
 
-            if (k && k !== "G" && k !== "BS") {
+            if (k && k !== "BS") {
               addDefectKeterangan(k, det);
             }
           });
@@ -360,7 +374,6 @@ export async function getMonthlyMachineReport(
           if (cleanD) {
             const allKnownProblems: { kat: string; detail: string }[] = [];
             for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
-              if (kat === "G") continue;
               detList.forEach(det => {
                 allKnownProblems.push({ kat, detail: det });
               });
@@ -400,7 +413,7 @@ export async function getMonthlyMachineReport(
           }
 
           kats.forEach((k: string) => {
-            if (k && k !== "BS" && k !== "G" && !recordedKats.has(k)) {
+            if (k && k !== "BS" && !recordedKats.has(k)) {
               addDefectKeterangan(k, "");
             }
           });
@@ -418,6 +431,14 @@ export async function getMonthlyMachineReport(
               team.jumlah_cacat += 1;
             }
           }
+        }
+      } else if (isBerhenti) {
+        // Mesin berstatus berhenti (LIBUR, MAINTENANCE, RUSAK, dsb.)
+        const kat = (row.kategori_masalah || "G").trim().toUpperCase();
+        const det = (row.detail_masalah || "LIBUR").trim();
+        if (kat && det) {
+          addKeterangan(kat, det);
+          addDefectCode(kat);
         }
       }
 

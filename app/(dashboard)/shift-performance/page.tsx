@@ -36,6 +36,7 @@ import {
   Zap,
   Ruler,
   Grid,
+  Info,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -105,6 +106,7 @@ export default function ShiftPerformancePage() {
   
   const [activeTab, setActiveTab] = useState<"overview" | "operators" | "problems" | "machines">("overview");
   const [operatorSearchQuery, setOperatorSearchQuery] = useState<string>("");
+  const [hoveredTrend, setHoveredTrend] = useState<ShiftDailyTrend | null>(null);
 
   const [machinesList, setMachinesList] = useState<string[]>(REGISTERED_MACHINES);
   const [data, setData] = useState<ShiftPerformanceSummary | null>(null);
@@ -279,40 +281,35 @@ export default function ShiftPerformancePage() {
 
   return (
     <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 animate-fadeIn space-y-6">
-      {/* Top Header & Page Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-[#0070bc]/10 text-[#0070bc]">
-              Modul Kepala Shift
-            </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-xs font-bold text-slate-500">Evaluasi Kinerja Bulanan</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Trophy className="w-7 h-7 text-amber-500 shrink-0" />
-            Kinerja Kepala Shift
+      {/* Top Header Card */}
+      <div className="bg-white/90 backdrop-blur-md rounded-[32px] p-6 sm:p-7 border border-[#e9ecef] shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <div className="p-2 rounded-2xl bg-amber-50 border border-amber-200/80 shadow-xs shrink-0">
+              <Trophy className="w-6 h-6 text-amber-500" />
+            </div>
+            <span>Kinerja Tim Produksi</span>
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
-            Evaluasi output produksi, kualitas grade, rasio cacat, dan performa tim shift secara terpisah antara kain Panel dan Meteran.
+          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1.5 max-w-2xl leading-relaxed">
+            Evaluasi output produksi, kualitas grade, rasio cacat, dan performa tim secara terpisah antara kain Panel dan Meteran.
           </p>
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
           <button
             onClick={fetchData}
             disabled={isLoading}
-            className="h-10 px-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-2xs hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+            className="h-10 px-4 rounded-full border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
             title="Muat Ulang Data"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-[#0070bc]" : ""}`} />
-            <span className="hidden sm:inline">Refresh</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-[#0070bc]" : "text-slate-500"}`} />
+            <span>Refresh</span>
           </button>
           <button
             onClick={handleExportExcel}
             disabled={isLoading || !data}
-            className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
+            className="h-10 px-4 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
           >
             <FileSpreadsheet className="w-4 h-4" />
             <span>Export Excel</span>
@@ -320,7 +317,7 @@ export default function ShiftPerformancePage() {
           <button
             onClick={handlePrint}
             disabled={isLoading || !data}
-            className="h-10 px-4 rounded-xl bg-[#0070bc] hover:bg-[#005a96] text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
+            className="h-10 px-4 rounded-full bg-[#0070bc] hover:bg-[#005a96] text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
           >
             <Printer className="w-4 h-4" />
             <span>Cetak Rekap</span>
@@ -330,17 +327,17 @@ export default function ShiftPerformancePage() {
 
       {/* Filter Toolbar & Switchers */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-xs space-y-4">
-        {/* Row 1: Shift Selector */}
+        {/* Row 1: Team Selector */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-black text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-slate-400" /> Pilih Shift:
+              <Users className="w-4 h-4 text-slate-400" /> Pilih Tim:
             </span>
             {[
-              { id: "A", label: "Shift A" },
-              { id: "B", label: "Shift B" },
-              { id: "C", label: "Shift C" },
-              { id: "all", label: "Semua Shift" },
+              { id: "A", label: "Tim A" },
+              { id: "B", label: "Tim B" },
+              { id: "C", label: "Tim C" },
+              { id: "all", label: "Semua Tim" },
             ].map((s) => {
               const isSelected = selectedShift === s.id;
               const theme = SHIFT_THEMES[s.id.toUpperCase()] || SHIFT_THEMES.A;
@@ -505,12 +502,8 @@ export default function ShiftPerformancePage() {
             <div className="absolute right-20 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
 
             <div className="relative z-10 space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-black tracking-wide border border-white/20">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                LAPORAN KINERJA KEPALA SHIFT
-              </div>
               <h2 className="text-2xl sm:text-4xl font-black tracking-tight">
-                {selectedShift === "all" ? "Rekap Kinerja Seluruh Shift" : `Hasil Kinerja Shift ${selectedShift}`}
+                {selectedShift === "all" ? "Rekap Kinerja Seluruh Tim" : `Hasil Kinerja Tim ${selectedShift}`}
               </h2>
               <p className="text-xs sm:text-sm text-white/80 font-medium max-w-xl">
                 Periode <strong>{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</strong> • {data.activeDays} hari operasi • {data.totalOperators} operator bertugas
@@ -518,29 +511,10 @@ export default function ShiftPerformancePage() {
                 {selectedFabricType !== "all" ? ` • ${selectedFabricType === "panel" ? "Kain Panel" : "Kain Meteran"}` : ""}
               </p>
             </div>
-
-            {/* Quick Overall Badge */}
-            <div className="relative z-10 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:p-5 flex items-center gap-4 shrink-0">
-              <div className="w-14 h-14 rounded-2xl bg-white text-slate-900 flex flex-col items-center justify-center font-black shadow-md shrink-0">
-                <span className="text-[10px] uppercase text-slate-400 font-bold leading-none">GRADE</span>
-                <span className="text-2xl leading-none text-emerald-600 mt-0.5">
-                  {data.qualityScore >= 85 ? "A" : data.qualityScore >= 70 ? "B" : "C"}
-                </span>
-              </div>
-              <div>
-                <span className="text-[11px] font-extrabold text-white/75 block uppercase tracking-wider">
-                  Quality Score
-                </span>
-                <span className="text-2xl sm:text-3xl font-black text-white">{data.qualityScore}%</span>
-                <span className="text-[11px] text-emerald-200 font-bold block mt-0.5">
-                  {data.gradeA} item lolos Grade A
-                </span>
-              </div>
-            </div>
           </div>
 
           {/* KPI Summary Cards - Segregated by Panel & Meteran */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${selectedFabricType === "all" ? "lg:grid-cols-3" : "lg:grid-cols-2"} gap-4`}>
             {/* Card 1: Produksi Kain Panel */}
             {(selectedFabricType === "all" || selectedFabricType === "panel") && (
               <div className="bg-white rounded-2xl border border-indigo-100 p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden">
@@ -558,10 +532,8 @@ export default function ShiftPerformancePage() {
                     {data.totalPanel.toLocaleString("id-ID")}{" "}
                     <span className="text-xs font-bold text-slate-400 uppercase">Panel</span>
                   </div>
-                  <div className="text-xs font-bold text-slate-500 mt-1 flex items-center gap-2">
+                  <div className="text-xs font-bold text-slate-500 mt-1">
                     <span className="text-rose-600 font-extrabold">{data.totalDefectsPanel} Cacat</span>
-                    <span>•</span>
-                    <span className="text-emerald-700 font-bold">{data.qualityScore_Panel}% Gr. A</span>
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
@@ -590,10 +562,8 @@ export default function ShiftPerformancePage() {
                     {data.totalMeter.toLocaleString("id-ID")}{" "}
                     <span className="text-xs font-bold text-slate-400 uppercase">Meter</span>
                   </div>
-                  <div className="text-xs font-bold text-slate-500 mt-1 flex items-center gap-2">
+                  <div className="text-xs font-bold text-slate-500 mt-1">
                     <span className="text-rose-600 font-extrabold">{data.totalDefectsMeter}m Cacat</span>
-                    <span>•</span>
-                    <span className="text-emerald-700 font-bold">{data.qualityScore_Meter}% Gr. A</span>
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
@@ -627,31 +597,6 @@ export default function ShiftPerformancePage() {
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
                 <span>Rata-rata/hari</span>
                 <span className="font-bold text-amber-700">{data.avgDailyDowntimeMinutes} mnt/hari</span>
-              </div>
-            </div>
-
-            {/* Card 4: Kekuatan Tim & Top Performer */}
-            <div className="bg-white rounded-2xl border border-purple-100 p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-black uppercase text-purple-700 tracking-wider flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-purple-500" /> Anggota Shift
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200">
-                    {data.activeDays} Hari Kerja
-                  </span>
-                </div>
-                <div className="text-2xl sm:text-3xl font-black text-purple-900 tracking-tight">
-                  {data.totalOperators}{" "}
-                  <span className="text-xs font-bold text-slate-400 uppercase">Operator</span>
-                </div>
-                <div className="text-xs font-bold text-slate-500 mt-1 truncate">
-                  Top: <strong className="text-slate-800">{data.topOperator || "-"}</strong>
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                <span>Rata-rata output</span>
-                <span className="font-bold text-slate-800">{data.avgDailyOutput} / hari</span>
               </div>
             </div>
           </div>
@@ -710,52 +655,160 @@ export default function ShiftPerformancePage() {
                   </div>
                 </div>
 
-                {/* Custom Responsive Bar Chart */}
-                <div className="overflow-x-auto pt-6 pb-2 custom-scrollbar">
-                  <div className="min-w-[760px] h-56 flex items-end gap-2 px-2 border-b border-slate-200">
+                {/* Live Day Inspector Strip on Hover / Click - Clean Light Theme */}
+                <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-sky-100 text-[#0070bc] flex items-center justify-center font-black text-base shrink-0 border border-sky-200/60 shadow-xs">
+                      <Calendar className="w-5 h-5 text-[#0070bc]" />
+                    </div>
+                    <div>
+                      <div className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
+                        {hoveredTrend ? (
+                          <>
+                            <span>Tanggal {hoveredTrend.day} {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                              hoveredTrend.output > 0
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-slate-100 text-slate-500 border-slate-200"
+                            }`}>
+                              {hoveredTrend.output > 0 ? "Hari Beroperasi" : "Tidak Ada Produksi"}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-slate-700">Arahkan kursor atau sentuh grafik batang untuk rincian harian</span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        {hoveredTrend
+                          ? `${hoveredTrend.activeOperators} operator bertugas • Mesin: ${hoveredTrend.activeMachines.join(", ") || "-"}`
+                          : `Total ${data.dailyTrends.filter((d) => d.output > 0).length} hari kerja aktif tercatat di periode ini`}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 text-xs font-bold flex-wrap">
+                    {hoveredTrend ? (
+                      <>
+                        <div className="bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1.5">
+                          <span className="text-slate-400 text-[10px] uppercase font-extrabold">Output:</span>
+                          <span className="text-slate-900 font-black">
+                            {hoveredTrend.panelCount > 0 && `${hoveredTrend.panelCount.toLocaleString("id-ID")} Panel`}
+                            {hoveredTrend.panelCount > 0 && hoveredTrend.meterCount > 0 && " • "}
+                            {hoveredTrend.meterCount > 0 && `${hoveredTrend.meterCount.toLocaleString("id-ID")}m`}
+                            {!hoveredTrend.panelCount && !hoveredTrend.meterCount && "-"}
+                          </span>
+                        </div>
+                        <div className="bg-rose-50 px-3.5 py-1.5 rounded-xl border border-rose-200 shadow-2xs flex items-center gap-1.5">
+                          <span className="text-rose-500 text-[10px] uppercase font-extrabold">Cacat:</span>
+                          <span className="text-rose-700 font-black">{hoveredTrend.defects} temuan</span>
+                        </div>
+                        <div className="bg-amber-50 px-3.5 py-1.5 rounded-xl border border-amber-200 shadow-2xs flex items-center gap-1.5">
+                          <span className="text-amber-600 text-[10px] uppercase font-extrabold">Downtime:</span>
+                          <span className="text-amber-800 font-black">{hoveredTrend.downtimeMinutes} mnt</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-slate-500 text-[11px] font-medium hidden sm:flex items-center gap-1.5 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+                        <Info className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Arahkan kursor ke grafik batang untuk melihat data detail</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Custom Responsive Bar Chart with Headroom so Tooltip is never clipped */}
+                <div className="overflow-x-auto pt-2 pb-2 custom-scrollbar">
+                  <div className="min-w-[760px] h-72 flex items-end gap-2 px-3 pt-32 pb-2 border-b border-slate-200 relative">
                     {data.dailyTrends.map((trend) => {
                       const heightPercent = maxDailyOutput > 0 ? Math.round((trend.output / maxDailyOutput) * 100) : 0;
                       const hasActivity = trend.output > 0 || trend.defects > 0 || trend.downtimeMinutes > 0;
+                      const isHovered = hoveredTrend?.day === trend.day;
 
                       return (
                         <div
                           key={trend.day}
-                          className="flex-1 flex flex-col items-center justify-end h-full group relative"
+                          className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer"
+                          onMouseEnter={() => setHoveredTrend(trend)}
+                          onMouseLeave={() => setHoveredTrend(null)}
+                          onClick={() => setHoveredTrend(trend)}
                         >
-                          {/* Tooltip on Hover */}
-                          <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-slate-900 text-white text-[10px] font-bold p-2.5 rounded-xl shadow-xl z-20 pointer-events-none whitespace-nowrap min-w-[130px]">
-                            <div className="text-slate-300 font-normal border-b border-slate-700 pb-1 mb-1">
-                              Tgl {trend.day} {MONTH_NAMES[selectedMonth - 1]}
+                          {/* Floating Tooltip inside container (top-2) - Clean Light Theme */}
+                          <div
+                            className={`absolute top-2 ${
+                              trend.day <= 3
+                                ? "left-0"
+                                : trend.day >= 28
+                                ? "right-0"
+                                : "left-1/2 -translate-x-1/2"
+                            } hidden group-hover:flex flex-col bg-white text-slate-800 text-[10px] font-bold p-3 rounded-2xl shadow-xl z-30 pointer-events-none whitespace-nowrap min-w-[145px] border border-slate-200 ring-4 ring-slate-900/5`}
+                          >
+                            <div className="text-[#0070bc] font-black border-b border-slate-100 pb-1.5 mb-1.5 flex items-center justify-between gap-2">
+                              <span>Tgl {trend.day} {MONTH_NAMES[selectedMonth - 1]}</span>
+                              <span className="text-[9px] text-slate-500 font-bold px-1.5 py-0.5 bg-slate-100 rounded-md">
+                                Hari ke-{trend.day}
+                              </span>
                             </div>
-                            {trend.panelCount > 0 && <div className="text-indigo-300">Panel: {trend.panelCount} pcs</div>}
-                            {trend.meterCount > 0 && <div className="text-teal-300">Meter: {trend.meterCount} m</div>}
-                            <div className="text-rose-300">Cacat: {trend.defects} titik/m</div>
-                            <div className="text-amber-300">Downtime: {trend.downtimeMinutes} mnt</div>
-                            <div className="text-slate-400 font-normal mt-1">{trend.activeOperators} Operator</div>
+                            <div className="space-y-1">
+                              {trend.panelCount > 0 && (
+                                <div className="text-indigo-700 font-extrabold flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                                  <span>Panel: {trend.panelCount.toLocaleString("id-ID")} pcs</span>
+                                </div>
+                              )}
+                              {trend.meterCount > 0 && (
+                                <div className="text-teal-700 font-extrabold flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0" />
+                                  <span>Meter: {trend.meterCount.toLocaleString("id-ID")} m</span>
+                                </div>
+                              )}
+                              <div className="text-rose-600 font-bold flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                                <span>Cacat: {trend.defects} temuan</span>
+                              </div>
+                              <div className="text-amber-700 font-bold flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                <span>Downtime: {trend.downtimeMinutes} mnt</span>
+                              </div>
+                            </div>
+                            <div className="text-slate-400 font-medium text-[9px] mt-1.5 pt-1.5 border-t border-slate-100 flex items-center gap-1.5">
+                              <Users className="w-3 h-3 text-slate-400" />
+                              <span>{trend.activeOperators} Operator bertugas</span>
+                            </div>
                           </div>
+
+                          {/* Column hover background glow */}
+                          <div
+                            className={`absolute inset-y-0 -inset-x-0.5 rounded-lg pointer-events-none -z-10 transition-opacity ${
+                              isHovered ? "bg-sky-500/15 opacity-100" : "bg-sky-500/10 opacity-0 group-hover:opacity-100"
+                            }`}
+                          />
 
                           {/* Defect Tiny Bar on Top if any */}
                           {trend.defects > 0 && (
                             <div
-                              className="w-full bg-rose-500 rounded-t-sm mb-0.5 transition-all"
-                              style={{ height: `${Math.min(20, trend.defects * 3)}px` }}
+                              className="w-full bg-rose-500 rounded-t-sm mb-0.5 transition-all shadow-xs"
+                              style={{ height: `${Math.min(18, Math.max(4, trend.defects * 3))}px` }}
                             />
                           )}
 
-                          {/* Main Production Bar */}
+                          {/* Main Production Bar - capped at 52% to ensure clean headroom */}
                           <div
-                            className={`w-full rounded-t-lg transition-all duration-300 ${
+                            className={`w-full rounded-t-lg transition-all duration-200 ${
                               hasActivity
-                                ? "bg-gradient-to-t from-[#0070bc] to-sky-400 group-hover:from-sky-600 group-hover:to-sky-300 shadow-2xs"
+                                ? "bg-gradient-to-t from-[#0070bc] to-sky-400 group-hover:from-sky-600 group-hover:to-sky-300 shadow-xs group-hover:brightness-110"
                                 : "bg-slate-100 h-1"
-                            }`}
-                            style={{ height: hasActivity ? `${Math.max(8, heightPercent)}%` : "4px" }}
+                            } ${isHovered ? "ring-2 ring-sky-400" : ""}`}
+                            style={{ height: hasActivity ? `${Math.max(8, Math.round(heightPercent * 0.52))}%` : "4px" }}
                           />
 
                           {/* Day Number Label */}
                           <span
-                            className={`text-[10px] font-bold mt-2 ${
-                              hasActivity ? "text-slate-800" : "text-slate-300"
+                            className={`text-[10px] font-bold mt-2 transition-colors ${
+                              isHovered
+                                ? "text-sky-600 font-black scale-110"
+                                : hasActivity
+                                ? "text-slate-800 group-hover:text-sky-600"
+                                : "text-slate-300"
                             }`}
                           >
                             {trend.day}
@@ -838,7 +891,7 @@ export default function ShiftPerformancePage() {
                   {/* 2nd Place */}
                   <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center text-center order-2 md:order-1 relative overflow-hidden">
                     <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 font-black text-xl flex items-center justify-center mb-3 shadow-xs">
-                      🥈
+                      <Medal className="w-6 h-6 text-slate-500" />
                     </div>
                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Juara 2 Shift</span>
                     <h4 className="text-base font-black text-slate-900 mt-1">{data.operators[1].operatorName}</h4>
@@ -846,7 +899,9 @@ export default function ShiftPerformancePage() {
                       {data.operators[1].panelCount > 0 && `${data.operators[1].panelCount} Panel `}
                       {data.operators[1].meterCount > 0 && `${data.operators[1].meterCount}m`}
                     </div>
-                    <div className="text-xs font-bold text-emerald-600 mt-0.5">{data.operators[1].qualityScore}% Grade A</div>
+                    <div className="text-xs font-bold text-rose-600 mt-0.5">
+                      {data.operators[1].totalDefects} Cacat ({data.operators[1].defectRate}%)
+                    </div>
                     <div className="text-[11px] text-slate-400 mt-2">Mesin: {data.operators[1].machinesOperated.join(", ") || "-"}</div>
                   </div>
 
@@ -856,7 +911,7 @@ export default function ShiftPerformancePage() {
                       <CrownBadge />
                     </div>
                     <div className="w-16 h-16 rounded-3xl bg-amber-400 text-white font-black text-3xl flex items-center justify-center mb-3 shadow-lg shadow-amber-500/30 animate-bounce">
-                      🥇
+                      <Trophy className="w-8 h-8 text-white" />
                     </div>
                     <span className="text-[11px] font-black uppercase text-amber-700 tracking-wider">Top Performer Shift</span>
                     <h4 className="text-lg font-black text-slate-900 mt-1">{data.operators[0].operatorName}</h4>
@@ -864,14 +919,16 @@ export default function ShiftPerformancePage() {
                       {data.operators[0].panelCount > 0 && `${data.operators[0].panelCount} Panel `}
                       {data.operators[0].meterCount > 0 && `${data.operators[0].meterCount}m`}
                     </div>
-                    <div className="text-xs font-bold text-emerald-600 mt-0.5">{data.operators[0].qualityScore}% Grade A • {data.operators[0].defectRate}% Cacat</div>
+                    <div className="text-xs font-bold text-rose-600 mt-0.5">
+                      {data.operators[0].totalDefects} Cacat ({data.operators[0].defectRate}%)
+                    </div>
                     <div className="text-[11px] text-slate-500 mt-2 font-medium">Mesin: {data.operators[0].machinesOperated.join(", ") || "-"}</div>
                   </div>
 
                   {/* 3rd Place */}
                   <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center text-center order-3 relative overflow-hidden">
                     <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 font-black text-xl flex items-center justify-center mb-3 shadow-xs">
-                      🥉
+                      <Medal className="w-6 h-6 text-amber-700" />
                     </div>
                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Juara 3 Shift</span>
                     <h4 className="text-base font-black text-slate-900 mt-1">{data.operators[2].operatorName}</h4>
@@ -879,7 +936,9 @@ export default function ShiftPerformancePage() {
                       {data.operators[2].panelCount > 0 && `${data.operators[2].panelCount} Panel `}
                       {data.operators[2].meterCount > 0 && `${data.operators[2].meterCount}m`}
                     </div>
-                    <div className="text-xs font-bold text-emerald-600 mt-0.5">{data.operators[2].qualityScore}% Grade A</div>
+                    <div className="text-xs font-bold text-rose-600 mt-0.5">
+                      {data.operators[2].totalDefects} Cacat ({data.operators[2].defectRate}%)
+                    </div>
                     <div className="text-[11px] text-slate-400 mt-2">Mesin: {data.operators[2].machinesOperated.join(", ") || "-"}</div>
                   </div>
                 </div>
@@ -935,8 +994,15 @@ export default function ShiftPerformancePage() {
                       ) : (
                         filteredOperators.map((op, idx) => (
                           <tr key={op.operatorName} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3 px-4 text-center font-black text-slate-500">
-                              {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                            <td className="py-3 px-4 text-center">
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-black ${
+                                idx === 0 ? "bg-amber-100 text-amber-800 border border-amber-300" :
+                                idx === 1 ? "bg-slate-100 text-slate-700 border border-slate-300" :
+                                idx === 2 ? "bg-orange-100 text-orange-800 border border-orange-300" :
+                                "text-slate-400 font-bold"
+                              }`}>
+                                {idx + 1}
+                              </span>
                             </td>
                             <td className="py-3 px-4">
                               <div className="font-extrabold text-slate-900">{op.operatorName}</div>

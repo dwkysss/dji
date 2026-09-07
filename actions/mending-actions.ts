@@ -437,6 +437,8 @@ export async function getMendingHistoryByBatch(designId: string, potonganKe: str
 export async function searchMendingHistory(
   filters: {
     date?: string;
+    startDate?: string;
+    endDate?: string;
     nomor_mc?: string;
     petugas_ids?: string[];
     design_id?: string;
@@ -459,6 +461,9 @@ export async function searchMendingHistory(
     const limit = filters.limit || 15;
     const from = (page - 1) * limit;
     const to = from + limit - 1;
+
+    const startDate = filters.startDate || filters.date;
+    const endDate = filters.endDate || filters.startDate || filters.date;
 
     if (!includeDetails) {
       // Lightweight Query: Fetch only batch summary fields
@@ -485,8 +490,14 @@ export async function searchMendingHistory(
         `, { count: "exact" })
         .order("created_at", { ascending: false });
 
-      if (filters.date) {
-        query = query.eq("tanggal_mending", filters.date);
+      if (startDate && endDate) {
+        if (startDate === endDate) {
+          query = query.eq("tanggal_mending", startDate);
+        } else {
+          query = query.gte("tanggal_mending", startDate).lte("tanggal_mending", endDate);
+        }
+      } else if (startDate) {
+        query = query.eq("tanggal_mending", startDate);
       }
       if (filters.nomor_mc) {
         query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
@@ -566,7 +577,15 @@ export async function searchMendingHistory(
       `, { count: "exact" })
       .order("created_at", { ascending: false });
 
-    if (filters.date) query = query.eq("tanggal_mending", filters.date);
+    if (startDate && endDate) {
+      if (startDate === endDate) {
+        query = query.eq("tanggal_mending", startDate);
+      } else {
+        query = query.gte("tanggal_mending", startDate).lte("tanggal_mending", endDate);
+      }
+    } else if (startDate) {
+      query = query.eq("tanggal_mending", startDate);
+    }
     if (filters.nomor_mc) query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
     if (filters.design_id) query = query.ilike("design_id", `%${filters.design_id}%`);
     if (filters.potongan_ke) query = query.eq("potongan_ke", parseInt(filters.potongan_ke));
@@ -783,7 +802,7 @@ export async function getAllDetailsForPcs(nomor_mc: string, design_id: string, p
   }
 }
 
-export async function getPendingMendingDetailsByDate(tanggal: string) {
+export async function getPendingMendingDetailsByDate(tanggalOrParams: string | { startDate?: string; endDate?: string; tanggal?: string }) {
   try {
     const supabase = await createClient();
     
@@ -813,9 +832,30 @@ export async function getPendingMendingDetailsByDate(tanggal: string) {
     if (error) return { success: false, error: error.message };
     if (!data || data.length === 0) return { success: true, data: [] };
 
+    let startDate: string | undefined;
+    let endDate: string | undefined;
+
+    if (typeof tanggalOrParams === "object" && tanggalOrParams !== null) {
+      startDate = tanggalOrParams.startDate || tanggalOrParams.tanggal;
+      endDate = tanggalOrParams.endDate || tanggalOrParams.startDate || tanggalOrParams.tanggal;
+    } else if (tanggalOrParams && tanggalOrParams !== "all") {
+      startDate = tanggalOrParams;
+      endDate = tanggalOrParams;
+    }
+
     let filteredData = data;
-    if (tanggal && tanggal !== "all") {
-      const groupsOnDate = new Set(data.filter((d: any) => d.production_headers?.tgl === tanggal).map((d: any) => `${d.production_headers?.nomor_mc}_${d.production_headers?.design_id}_${d.production_headers?.potongan_ke}_${d.pcs_index}`));
+    if (startDate && endDate) {
+      const groupsOnRange = new Set(
+        data
+          .filter((d: any) => {
+            const t = d.production_headers?.tgl;
+            return t && t >= startDate! && t <= endDate!;
+          })
+          .map((d: any) => `${d.production_headers?.nomor_mc}_${d.production_headers?.design_id}_${d.production_headers?.potongan_ke}_${d.pcs_index}`)
+      );
+      filteredData = data.filter((d: any) => groupsOnRange.has(`${d.production_headers?.nomor_mc}_${d.production_headers?.design_id}_${d.production_headers?.potongan_ke}_${d.pcs_index}`));
+    } else if (startDate) {
+      const groupsOnDate = new Set(data.filter((d: any) => d.production_headers?.tgl === startDate).map((d: any) => `${d.production_headers?.nomor_mc}_${d.production_headers?.design_id}_${d.production_headers?.potongan_ke}_${d.pcs_index}`));
       filteredData = data.filter((d: any) => groupsOnDate.has(`${d.production_headers?.nomor_mc}_${d.production_headers?.design_id}_${d.production_headers?.potongan_ke}_${d.pcs_index}`));
     }
 

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { searchQCHistory } from "@/actions/qc-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 import {
   Search,
   Loader2,
@@ -112,6 +113,8 @@ export default function QCHistoryPage() {
 
   const [filters, setFilters] = useState<{
     date: string;
+    startDate: string;
+    endDate: string;
     nomor_mc: string;
     petugas_ids: string[];
     design_id: string;
@@ -119,6 +122,8 @@ export default function QCHistoryPage() {
     no_customer: string;
   }>({
     date: "",
+    startDate: "",
+    endDate: "",
     nomor_mc: "",
     petugas_ids: [],
     design_id: "",
@@ -155,6 +160,8 @@ export default function QCHistoryPage() {
   useEffect(() => {
     const initialFilters = {
       date: "",
+      startDate: "",
+      endDate: "",
       nomor_mc: "",
       petugas_ids: [],
       design_id: "",
@@ -252,13 +259,13 @@ export default function QCHistoryPage() {
                 <Calendar className="w-3.5 h-3.5" />
                 Tanggal Inspeksi
               </label>
-              <input
-                type="date"
-                value={filters.date}
-                onChange={(e) =>
-                  setFilters({ ...filters, date: e.target.value })
+              <DateRangePicker
+                startDate={filters.startDate}
+                endDate={filters.endDate}
+                onChange={(s, e) =>
+                  setFilters({ ...filters, startDate: s || "", endDate: e || "", date: s || "" })
                 }
-                className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full"
+                placeholder="Pilih Tanggal / Rentang..."
               />
             </div>
 

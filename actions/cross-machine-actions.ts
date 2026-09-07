@@ -2,6 +2,7 @@
 
 import { getMonthlyMachineReport, MonthlyMachineReportData } from "@/actions/report-actions";
 import { getMachineStatuses } from "@/actions/dashboard-actions";
+import { getMachineConfigs } from "@/actions/machine-config-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
 
 export interface MachineTeamMetric {
@@ -40,6 +41,8 @@ export interface CrossMachineReportSummary {
       B: number;
       C: number;
       total: number;
+      panelTotal: number;
+      meterTotal: number;
     };
     effTeam: {
       A: number;
@@ -71,6 +74,10 @@ export interface DualPeriodCrossMachineReport {
     totalProductionCurrent: number;
     totalProductionPrevious: number;
     productionGrowthPercent: number;
+    totalPanelCurrent: number;
+    totalPanelPrevious: number;
+    totalMeterCurrent: number;
+    totalMeterPrevious: number;
     avgEffCurrent: number;
     avgEffPrevious: number;
     effDeltaPercent: number;
@@ -208,6 +215,11 @@ function buildReportSummary(
   const totalHasilC = machines.reduce((acc, m) => acc + m.hasilProduksi.C, 0);
   const totalHasilAll = totalHasilA + totalHasilB + totalHasilC;
 
+  const panelMachines = machines.filter((m) => !m.isMeterMachine);
+  const meterMachines = machines.filter((m) => m.isMeterMachine);
+  const totalPanel = panelMachines.reduce((acc, m) => acc + m.hasilProduksi.total, 0);
+  const totalMeter = meterMachines.reduce((acc, m) => acc + m.hasilProduksi.total, 0);
+
   // Active machines count for average calculations
   const activeMachines = machines.filter((m) => m.hasData);
   const count = activeMachines.length || machines.length || 1;
@@ -233,6 +245,8 @@ function buildReportSummary(
         B: totalHasilB,
         C: totalHasilC,
         total: totalHasilAll,
+        panelTotal: totalPanel,
+        meterTotal: totalMeter,
       },
       effTeam: {
         A: avgEffA,
@@ -281,22 +295,39 @@ export async function getCrossMachineReportWithWeeks(
     console.error("Error fetching machine statuses for cross-machine report:", err);
   }
 
+  // Fetch machine configurations to guarantee correct input_type (PANEL vs METER)
+  const machineConfigMap = new Map<string, "PANEL" | "METER">();
+  try {
+    const cfgRes = await getMachineConfigs();
+    if (cfgRes.success && cfgRes.data) {
+      cfgRes.data.forEach((c) => {
+        machineConfigMap.set(c.nomor_mc.toUpperCase(), c.input_type);
+      });
+    }
+  } catch (err) {
+    console.error("Error fetching machine configs in cross-machine-actions:", err);
+  }
+
   // Fetch report data for all machines in parallel
   const rawMachineReports = await Promise.all(
     machineList.map(async (mId) => {
       try {
         const { data, isMeterMachine } = await getMonthlyMachineReport(month, year, mId);
+        const configuredType = machineConfigMap.get(mId.toUpperCase());
+        const isMeter = configuredType === "METER" || Boolean(isMeterMachine) || mId.toUpperCase() === "R11" || mId.toUpperCase() === "R12";
         return {
           mId,
           data: data || [],
-          isMeterMachine: Boolean(isMeterMachine),
+          isMeterMachine: isMeter,
         };
       } catch (e) {
         console.error(`Error calculating metrics for machine ${mId}:`, e);
+        const configuredType = machineConfigMap.get(mId.toUpperCase());
+        const isMeter = configuredType === "METER" || mId.toUpperCase() === "R11" || mId.toUpperCase() === "R12";
         return {
           mId,
           data: [] as MonthlyMachineReportData[],
-          isMeterMachine: mId.startsWith("T") || mId.includes("M"),
+          isMeterMachine: isMeter,
         };
       }
     })
@@ -397,6 +428,10 @@ export async function getDualPeriodMachineReport(
       totalProductionCurrent: prodCur,
       totalProductionPrevious: prodPrev,
       productionGrowthPercent: prodGrowth,
+      totalPanelCurrent: currentPeriod.totalRow.hasilProduksi.panelTotal,
+      totalPanelPrevious: previousPeriod.totalRow.hasilProduksi.panelTotal,
+      totalMeterCurrent: currentPeriod.totalRow.hasilProduksi.meterTotal,
+      totalMeterPrevious: previousPeriod.totalRow.hasilProduksi.meterTotal,
       avgEffCurrent: effCur,
       avgEffPrevious: effPrev,
       effDeltaPercent: effDelta,

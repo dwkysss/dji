@@ -26,6 +26,7 @@ import {
   MapPin,
   SlidersHorizontal,
 } from "lucide-react";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 import QCInspectionModal from "@/components/forms/QCInspectionModal";
 import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import QCBulkEditModal from "@/components/forms/QCBulkEditModal";
@@ -179,6 +180,8 @@ const formatDurationSeconds = (totalSeconds: number) => {
 };
 
 export default function QCPage() {
+  const [searchStartDate, setSearchStartDate] = useState("");
+  const [searchEndDate, setSearchEndDate] = useState("");
   const [searchTanggal, setSearchTanggal] = useState("");
   const [searchMesin, setSearchMesin] = useState("");
   const [searchPotongan, setSearchPotongan] = useState("");
@@ -464,16 +467,17 @@ export default function QCPage() {
     }
   }, [fullActiveQcDetails]);
 
-  const saveQCFilters = (t: string, m: string, p: string, s: "desc" | "asc") => {
+  const saveQCFilters = (sDate: string, eDate: string, m: string, p: string, s: "desc" | "asc") => {
     try {
-      const payload = { tanggal: t, mesin: m, potongan: p, sortOrder: s };
+      const payload = { startDate: sDate, endDate: eDate, tanggal: sDate, mesin: m, potongan: p, sortOrder: s };
       sessionStorage.setItem("dji_qc_filters", JSON.stringify(payload));
       localStorage.setItem("dji_qc_filters", JSON.stringify(payload));
     } catch (e) {}
   };
 
   useEffect(() => {
-    let initT = "";
+    let initStart = "";
+    let initEnd = "";
     let initM = "";
     let initP = "";
     let initS: "desc" | "asc" = "desc";
@@ -482,17 +486,21 @@ export default function QCPage() {
       const saved = sessionStorage.getItem("dji_qc_filters") || localStorage.getItem("dji_qc_filters");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.tanggal !== undefined) { initT = parsed.tanggal; setSearchTanggal(parsed.tanggal); }
+        if (parsed.startDate !== undefined) { initStart = parsed.startDate; setSearchStartDate(parsed.startDate); }
+        else if (parsed.tanggal !== undefined) { initStart = parsed.tanggal; setSearchStartDate(parsed.tanggal); }
+        if (parsed.endDate !== undefined) { initEnd = parsed.endDate; setSearchEndDate(parsed.endDate); }
+        else if (initStart) { initEnd = initStart; setSearchEndDate(initStart); }
+        if (initStart) setSearchTanggal(initStart);
         if (parsed.mesin !== undefined) { initM = parsed.mesin; setSearchMesin(parsed.mesin); }
         if (parsed.potongan !== undefined) { initP = parsed.potongan; setSearchPotongan(parsed.potongan); }
         if (parsed.sortOrder === "asc" || parsed.sortOrder === "desc") { initS = parsed.sortOrder; setSortOrder(parsed.sortOrder); }
       }
     } catch (e) {}
 
-    handleSearch(initT, initM, initP);
+    handleSearch(initStart, initEnd, initM, initP);
   }, []);
 
-  const handleSearch = async (tanggal?: string, mesin?: string, potongan?: string) => {
+  const handleSearch = async (startDate?: string, endDate?: string, mesin?: string, potongan?: string) => {
     setIsSearching(true);
     setErrorMsg(null);
     setAllDetails([]);
@@ -500,14 +508,16 @@ export default function QCPage() {
     setSelections({});
     setCurrentPage(1);
 
-    const t = tanggal !== undefined ? tanggal : searchTanggal;
+    const sDate = startDate !== undefined ? startDate : searchStartDate;
+    const eDate = endDate !== undefined ? endDate : searchEndDate;
     const m = mesin !== undefined ? mesin : searchMesin;
     const p = potongan !== undefined ? potongan : searchPotongan;
 
-    saveQCFilters(t, m, p, sortOrder);
+    saveQCFilters(sDate, eDate, m, p, sortOrder);
 
     const res = await getAllPendingQCDetails({
-      tanggal: t || undefined,
+      startDate: sDate || undefined,
+      endDate: eDate || undefined,
       mesin: m || undefined,
       potongan: p || undefined,
     });
@@ -2453,29 +2463,18 @@ export default function QCPage() {
           <div className="flex flex-col gap-1 w-full">
             <label className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between">
               <span>Tanggal</span>
-              {searchTanggal && (
-                <button
-                  onClick={() => {
-                    setSearchTanggal("");
-                    saveQCFilters("", searchMesin, searchPotongan, sortOrder);
-                    handleSearch("", searchMesin, searchPotongan);
-                  }}
-                  className="text-[10px] text-rose-500 hover:text-rose-600 font-extrabold transition-all lowercase"
-                >
-                  [reset filter]
-                </button>
-              )}
             </label>
-            <input
-              type="date"
-              value={searchTanggal}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSearchTanggal(val);
-                saveQCFilters(val, searchMesin, searchPotongan, sortOrder);
-                handleSearch(val, searchMesin, searchPotongan);
+            <DateRangePicker
+              startDate={searchStartDate}
+              endDate={searchEndDate}
+              onChange={(s, e) => {
+                setSearchStartDate(s || "");
+                setSearchEndDate(e || "");
+                setSearchTanggal(s || "");
+                saveQCFilters(s || "", e || "", searchMesin, searchPotongan, sortOrder);
+                handleSearch(s || "", e || "", searchMesin, searchPotongan);
               }}
-              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full cursor-pointer"
+              placeholder="Pilih Tanggal / Rentang..."
             />
           </div>
           <div className="flex flex-col gap-1 w-full">
@@ -2487,7 +2486,7 @@ export default function QCPage() {
               onChange={(e) => {
                 const val = e.target.value;
                 setSearchMesin(val);
-                saveQCFilters(searchTanggal, val, searchPotongan, sortOrder);
+                saveQCFilters(searchStartDate, searchEndDate, val, searchPotongan, sortOrder);
               }}
               className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full cursor-pointer"
             >
@@ -2507,7 +2506,7 @@ export default function QCPage() {
               onChange={(e) => {
                 const val = e.target.value;
                 setSearchPotongan(val);
-                saveQCFilters(searchTanggal, searchMesin, val, sortOrder);
+                saveQCFilters(searchStartDate, searchEndDate, searchMesin, val, sortOrder);
               }}
               className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full"
               placeholder="Cari Potongan..."
@@ -2522,7 +2521,7 @@ export default function QCPage() {
               onChange={(e) => {
                 const val = e.target.value as "desc" | "asc";
                 setSortOrder(val);
-                saveQCFilters(searchTanggal, searchMesin, searchPotongan, val);
+                saveQCFilters(searchStartDate, searchEndDate, searchMesin, searchPotongan, val);
               }}
               className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none w-full cursor-pointer"
             >
@@ -2531,7 +2530,7 @@ export default function QCPage() {
             </select>
           </div>
           <button
-            onClick={() => handleSearch(searchTanggal, searchMesin, searchPotongan)}
+            onClick={() => handleSearch(searchStartDate, searchEndDate, searchMesin, searchPotongan)}
             disabled={isSearching}
             className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm w-full col-span-1 sm:col-span-2 md:col-span-1"
           >

@@ -436,18 +436,6 @@ function HistoryDetailContent() {
              return p.panel_no === "Downtime Mekanik (Direct)" || p.panel_no === "BERHENTI";
            });
 
-           const generalPanels = detailData.panels?.filter((p: any) => {
-             if (p.panel_no === "Downtime Mekanik (Direct)" || p.panel_no === "BERHENTI") return false;
-             if (!p.pcs || parseInt(p.pcs) === 0) {
-               let dtEvents: any[] = [];
-               try { dtEvents = typeof p.downtime_events === 'string' ? JSON.parse(p.downtime_events) : (p.downtime_events || []); } catch(e){}
-               if (dtEvents && dtEvents.length > 0) return true;
-               if (p.downtime_records && p.downtime_records.length > 0) return true;
-               if (p.total_downtime_detik && p.total_downtime_detik > 0) return true;
-             }
-             return false;
-           });
-
             const cleanPenanggungJawab = (raw: string | undefined | null) => {
               if (!raw) return "Operator";
               const pkMatch = raw.match(/^Perbaikan Khusus\s*\((.*)\)$/i);
@@ -497,31 +485,38 @@ function HistoryDetailContent() {
               sourcePanels.forEach((mp: any) => {
                 let dtEvents: any[] = [];
                 try { dtEvents = typeof mp.downtime_events === 'string' ? JSON.parse(mp.downtime_events) : (mp.downtime_events || []); } catch(e){}
+                const panelLabel = mp.panel_no ? `Panel ${mp.panel_no}` : "";
                 if (dtEvents && dtEvents.length > 0) {
                   dtEvents.forEach((ev: any, idx: number) => {
                     const rawTime = ev.waktu || ev.timestamp || mp.tanggal_jam || mp.created_at;
                     const timeStr = formatWibTime(rawTime);
                     if (ev.problems && ev.problems.length > 0) {
                       ev.problems.forEach((p: any, pIdx: number) => {
+                        const detailText = (p.details && Array.isArray(p.details)) ? p.details.join(", ") : (p.details || ev.detail || "-");
+                        const blokText = p.blok ? ` (Blok: ${p.blok})` : (ev.blok ? ` (Blok: ${ev.blok})` : "");
                         rows.push({
                           id: `${mp.id}-${idx}-${pIdx}`,
+                          panelNo: panelLabel,
                           timeStr,
                           penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
                           shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
                           durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
                           kategori: p.kategori || ev.kategori || "-",
-                          detailMasalah: (p.details && Array.isArray(p.details)) ? p.details.join(", ") : (p.details || ev.detail || "-"),
+                          detailMasalah: `${detailText}${blokText}`,
                         });
                       });
                     } else {
+                      const detailText = ev.detail || "-";
+                      const blokText = ev.blok ? ` (Blok: ${ev.blok})` : "";
                       rows.push({
                         id: `${mp.id}-${idx}`,
+                        panelNo: panelLabel,
                         timeStr,
                         penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
                         shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
                         durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
                         kategori: ev.kategori || "-",
-                        detailMasalah: ev.detail || "-",
+                        detailMasalah: `${detailText}${blokText}`,
                       });
                     }
                   });
@@ -529,14 +524,17 @@ function HistoryDetailContent() {
                   mp.downtime_records.forEach((dr: any, dIdx: number) => {
                     const rawTime = dr.waktu || dr.created_at || dr.tanggal_jam || mp.tanggal_jam;
                     const timeStr = formatWibTime(rawTime);
+                    const detailText = dr.detail || "-";
+                    const blokText = dr.blok ? ` (Blok: ${dr.blok})` : "";
                     rows.push({
                       id: `${mp.id}-dr-${dIdx}`,
+                      panelNo: panelLabel,
                       timeStr,
                       penanggungJawab: cleanPenanggungJawab(dr.dikerjakan_oleh || mp.pic || mp.operators?.nama_operator),
                       shift: mp.grup || mp.groups?.nama_grup || "-",
                       durasiDisplay: formatDurationNice(dr.durasi_detik || mp.total_downtime_detik || 0),
                       kategori: dr.kategori || "-",
-                      detailMasalah: dr.detail || "-",
+                      detailMasalah: `${detailText}${blokText}`,
                     });
                   });
                 } else if (mp.total_downtime_detik > 0) {
@@ -544,6 +542,7 @@ function HistoryDetailContent() {
                   const timeStr = formatWibTime(rawTime);
                   rows.push({
                     id: `${mp.id}-fallback`,
+                    panelNo: panelLabel,
                     timeStr,
                     penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
                     shift: mp.grup || mp.groups?.nama_grup || "-",
@@ -600,17 +599,22 @@ function HistoryDetailContent() {
                            {row.penanggungJawab.charAt(0).toUpperCase()}
                          </div>
                          <div className="flex flex-col">
-                           <span className="text-xs font-bold text-slate-700 leading-tight">{row.penanggungJawab}</span>
+                            <span className="text-xs font-bold text-slate-700 leading-tight">{row.penanggungJawab}</span>
                            <span className="text-[10px] text-slate-400">Penanggung Jawab</span>
                          </div>
                        </div>
 
-                       {/* Shift */}
-                       <div className="shrink-0">
-                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-[#0070bc] text-white tracking-wide">
-                           {row.shift}
-                         </span>
-                       </div>
+                        {/* Shift & Panel */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-[#0070bc] text-white tracking-wide">
+                            {row.shift}
+                          </span>
+                          {row.panelNo && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700">
+                              {row.panelNo}
+                            </span>
+                          )}
+                        </div>
 
                        {/* Durasi & Kategori - Pushed to Right on Desktop */}
                        <div className="flex flex-col sm:flex-row sm:items-center sm:ml-auto gap-3 sm:gap-6 mt-2 sm:mt-0">
@@ -638,7 +642,6 @@ function HistoryDetailContent() {
 
            return (
              <>
-               {renderSection(generalPanels, "Laporan Downtime Umum", "Downtime singkat tanpa spesifik PCS", "amber")}
                {renderSection(mechanicPanels, "Laporan Downtime Khusus", "Mesin berhenti total — tanpa produksi", "blue")}
              </>
            );

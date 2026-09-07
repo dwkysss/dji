@@ -14,8 +14,11 @@ import {
   AlertTriangle,
   ChevronRight,
   Cpu,
+  Loader2,
+  Sparkles,
+  RotateCcw,
 } from "lucide-react";
-import { submitStatusMesin, StatusMesinInput } from "@/actions/status-actions";
+import { submitStatusMesin, StatusMesinInput, getLastMachineSpec } from "@/actions/status-actions";
 import { useAuth } from "@/lib/auth-context";
 import { REGISTERED_MACHINES } from "@/lib/constants";
 
@@ -70,6 +73,10 @@ export default function StatusMesinForm() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<any | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [cakupan, setCakupan] = useState<"FULL_DAY" | "SHIFT">("FULL_DAY");
+  const [isRange, setIsRange] = useState(false);
+  const [isLoadingSpec, setIsLoadingSpec] = useState(false);
+  const [specSourceDate, setSpecSourceDate] = useState<string | null>(null);
 
   const idempotencyKeyRef = useRef(Math.random().toString(36).substring(2, 15));
 
@@ -84,6 +91,7 @@ export default function StatusMesinForm() {
       designId: "",
       status: "",
       tanggalOff: new Date().toISOString().split("T")[0],
+      sampaiTanggalOff: "",
     }
   });
 
@@ -107,7 +115,37 @@ export default function StatusMesinForm() {
 
   const selectedGrupId = watch("grupId");
   const selectedMesin = watch("nomorMc");
+  const selectedTanggal = watch("tanggalOff");
   const selectedGroup = FALLBACK_GROUPS.find(g => g.id.toString() === selectedGrupId);
+
+  const loadLastSpec = async (mc: string, dateStr?: string) => {
+    if (!mc) return;
+    setIsLoadingSpec(true);
+    try {
+      const res = await getLastMachineSpec(mc, dateStr);
+      if (res.success && res.data) {
+        setValue("designId", res.data.designId, { shouldValidate: true });
+        setValue("rpm", res.data.rpm, { shouldValidate: true });
+        setValue("pick", res.data.pick, { shouldValidate: true });
+        setValue("course", res.data.course, { shouldValidate: true });
+        setSpecSourceDate(res.data.sourceDate);
+      } else {
+        setSpecSourceDate(null);
+      }
+    } catch (e) {
+      console.error("Gagal mengambil spesifikasi terakhir:", e);
+      setSpecSourceDate(null);
+    } finally {
+      setIsLoadingSpec(false);
+    }
+  };
+
+  // Otomatis tarik spesifikasi terakhir saat mesin atau tanggal dipilih/berubah
+  useEffect(() => {
+    if (selectedMesin) {
+      loadLastSpec(selectedMesin, selectedTanggal);
+    }
+  }, [selectedMesin, selectedTanggal]);
 
   const filteredOperators = operators.filter(op => {
     if (!selectedGroup) return false;
@@ -118,8 +156,17 @@ export default function StatusMesinForm() {
     setIsSubmitting(true);
     setErrorMsg(null);
     data.idempotencyKey = idempotencyKeyRef.current;
-    const operator = operators.find(o => o.id.toString() === data.operatorId);
-    data.pic = operator ? operator.name : (user?.fullName || "");
+    data.cakupan = cakupan;
+    data.isRange = isRange;
+
+    if (cakupan === "SHIFT") {
+      const operator = operators.find(o => o.id.toString() === data.operatorId);
+      data.pic = operator ? operator.name : (user?.fullName || "");
+    } else {
+      data.pic = "-";
+      data.operatorId = undefined;
+      data.grupId = undefined;
+    }
     data.status = data.status ? data.status.toUpperCase() : "";
 
     try {
@@ -140,6 +187,8 @@ export default function StatusMesinForm() {
   const handleCloseSuccess = () => {
     setSuccessData(null);
     setSelectedStatus("");
+    setIsRange(false);
+    setSpecSourceDate(null);
     reset({
       nomorMc: "",
       status: "",
@@ -150,6 +199,7 @@ export default function StatusMesinForm() {
       rpm: "",
       designId: "",
       tanggalOff: new Date().toISOString().split("T")[0],
+      sampaiTanggalOff: "",
     });
   };
 
@@ -165,12 +215,15 @@ export default function StatusMesinForm() {
           <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-bold text-xs">
             {successData.status}
           </span>{" "}
-          pada <strong className="text-slate-700">{successData.tanggalOff}</strong>.
+          untuk <strong className="text-slate-700">{successData.cakupan === "FULL_DAY" ? "1 Hari Penuh (Semua Shift)" : "1 Shift Tertentu"}</strong>{" "}
+          pada <strong className="text-slate-700">{successData.tanggalOff}{successData.isRange && successData.sampaiTanggalOff ? ` s/d ${successData.sampaiTanggalOff}` : ""}</strong>.
         </p>
         <div className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 grid grid-cols-2 gap-3 text-left">
           <div>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Operator</div>
-            <div className="text-sm font-bold text-slate-700 mt-0.5">{successData.pic}</div>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Cakupan / Operator</div>
+            <div className="text-sm font-bold text-slate-700 mt-0.5">
+              {successData.cakupan === "FULL_DAY" ? "Shift A, B, & C (Semua)" : (successData.pic || "-")}
+            </div>
           </div>
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Design</div>
@@ -211,12 +264,67 @@ export default function StatusMesinForm() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="p-6 flex flex-col gap-7">
 
-        {/* STEP 1 — Info Dasar */}
-        <FormSection step={1} title="Info Dasar" icon={<Calendar className="w-4 h-4" />}>
+        {/* STEP 1 — Info Dasar & Cakupan Waktu */}
+        <FormSection step={1} title="Info Dasar & Cakupan Waktu" icon={<Calendar className="w-4 h-4" />}>
+          {/* Pilihan Cakupan Waktu */}
+          <div className="flex flex-col gap-2 mb-3">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Cakupan Berhenti</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCakupan("FULL_DAY")}
+                className={`flex items-start gap-3 p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                  cakupan === "FULL_DAY"
+                    ? "bg-sky-50/80 border-sky-600 text-sky-950 shadow-sm"
+                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                  cakupan === "FULL_DAY" ? "border-sky-600 bg-sky-600" : "border-slate-300"
+                }`}>
+                  {cakupan === "FULL_DAY" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+                <div>
+                  <div className="text-xs font-black flex items-center gap-1.5">
+                    1 Hari Penuh (Semua Shift)
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-sky-200/70 text-sky-800">Rekomendasi</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-medium leading-snug mt-0.5">
+                    Otomatis berlaku untuk Shift A, B, & C sekaligus (libur pabrik, stop order, dsb.)
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCakupan("SHIFT")}
+                className={`flex items-start gap-3 p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                  cakupan === "SHIFT"
+                    ? "bg-sky-50/80 border-sky-600 text-sky-950 shadow-sm"
+                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                  cakupan === "SHIFT" ? "border-sky-600 bg-sky-600" : "border-slate-300"
+                }`}>
+                  {cakupan === "SHIFT" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+                <div>
+                  <div className="text-xs font-black">Per Shift Tertentu</div>
+                  <div className="text-[11px] text-slate-500 font-medium leading-snug mt-0.5">
+                    Hanya berlaku untuk satu grup / shift operasional tertentu
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Tanggal */}
+            {/* Tanggal Mulai */}
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tanggal</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                {isRange ? "Tanggal Mulai" : "Tanggal"}
+              </label>
               <input
                 type="date"
                 {...register("tanggalOff", { required: "Tanggal wajib diisi" })}
@@ -225,41 +333,76 @@ export default function StatusMesinForm() {
               {errors.tanggalOff && <p className="text-[10px] text-rose-500 font-bold">{errors.tanggalOff?.message as string}</p>}
             </div>
 
-            {/* Grup */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Grup / Shift</label>
-              <select
-                {...register("grupId", { required: "Grup wajib dipilih" })}
-                onChange={(e) => {
-                  setValue("grupId", e.target.value);
-                  setValue("operatorId", "");
-                }}
-                className="h-11 px-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold text-slate-700 focus:bg-white focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none transition-all appearance-none cursor-pointer"
-              >
-                <option value="">-- Pilih Grup --</option>
-                {FALLBACK_GROUPS.map(g => (
-                  <option key={g.id} value={g.id}>Grup {g.name}</option>
-                ))}
-              </select>
-              {errors.grupId && <p className="text-[10px] text-rose-500 font-bold">{errors.grupId?.message as string}</p>}
-            </div>
+            {cakupan === "FULL_DAY" && isRange && (
+              <div className="flex flex-col gap-1 animate-fadeIn">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Sampai Tanggal</label>
+                <input
+                  type="date"
+                  {...register("sampaiTanggalOff")}
+                  className="h-11 px-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:bg-white focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none transition-all"
+                />
+              </div>
+            )}
 
-            {/* Operator */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Operator Bertugas</label>
-              <select
-                {...register("operatorId", { required: "Operator wajib dipilih" })}
-                disabled={!selectedGrupId}
-                className="h-11 px-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold text-slate-700 focus:bg-white focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="">{selectedGrupId ? "-- Pilih Operator --" : "-- Pilih Grup Dulu --"}</option>
-                {filteredOperators.map(op => (
-                  <option key={op.id} value={op.id}>{op.name}</option>
-                ))}
-              </select>
-              {errors.operatorId && <p className="text-[10px] text-rose-500 font-bold">{errors.operatorId?.message as string}</p>}
-            </div>
+            {cakupan === "SHIFT" ? (
+              <>
+                {/* Grup */}
+                <div className="flex flex-col gap-1 animate-fadeIn">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Grup / Shift</label>
+                  <select
+                    {...register("grupId", { required: cakupan === "SHIFT" ? "Grup wajib dipilih" : false })}
+                    onChange={(e) => {
+                      setValue("grupId", e.target.value);
+                      setValue("operatorId", "");
+                    }}
+                    className="h-11 px-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold text-slate-700 focus:bg-white focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="">-- Pilih Grup --</option>
+                    {FALLBACK_GROUPS.map(g => (
+                      <option key={g.id} value={g.id}>Grup {g.name}</option>
+                    ))}
+                  </select>
+                  {errors.grupId && <p className="text-[10px] text-rose-500 font-bold">{errors.grupId?.message as string}</p>}
+                </div>
+
+                {/* Operator */}
+                <div className="flex flex-col gap-1 animate-fadeIn">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Operator Bertugas</label>
+                  <select
+                    {...register("operatorId", { required: cakupan === "SHIFT" ? "Operator wajib dipilih" : false })}
+                    disabled={!selectedGrupId}
+                    className="h-11 px-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold text-slate-700 focus:bg-white focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">{selectedGrupId ? "-- Pilih Operator --" : "-- Pilih Grup Dulu --"}</option>
+                    {filteredOperators.map(op => (
+                      <option key={op.id} value={op.id}>{op.name}</option>
+                    ))}
+                  </select>
+                  {errors.operatorId && <p className="text-[10px] text-rose-500 font-bold">{errors.operatorId?.message as string}</p>}
+                </div>
+              </>
+            ) : (
+              <div className="sm:col-span-2 flex items-center gap-2 pt-5">
+                <button
+                  type="button"
+                  onClick={() => setIsRange(!isRange)}
+                  className="text-xs font-bold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-3 py-2 rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  {isRange ? "Gunakan 1 Tanggal Saja" : "+ Libur Beberapa Hari Sekaligus (Rentang Tanggal)"}
+                </button>
+              </div>
+            )}
           </div>
+
+          {cakupan === "FULL_DAY" && (
+            <div className="mt-2.5 p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-xs font-medium flex items-center gap-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                Status ini akan otomatis dicatat untuk <strong>seluruh Shift (A, B, dan C)</strong> pada tanggal terpilih. Tidak perlu input berulang per shift.
+              </span>
+            </div>
+          )}
         </FormSection>
 
         {/* STEP 2 — Pilih Mesin */}
@@ -272,8 +415,8 @@ export default function StatusMesinForm() {
                 onClick={() => setValue("nomorMc", m, { shouldValidate: true })}
                 className={`px-4 py-2 rounded-xl border-2 text-sm font-black transition-all duration-200 ${
                   selectedMesin === m
-                    ? "bg-[#0070bc] border-[#004777] text-white shadow-md shadow-sky-500/20"
-                    : "bg-white border-slate-200 text-slate-600 hover:border-sky-300 hover:bg-sky-50"
+                    ? "bg-[#0070bc] border-[#004777] text-white shadow-md shadow-sky-500/20 scale-105"
+                    : "bg-white border-slate-200 text-slate-600 hover:border-sky-300 hover:bg-sky-50 active:scale-95"
                 }`}
               >
                 {m}
@@ -282,16 +425,52 @@ export default function StatusMesinForm() {
             <input type="hidden" {...register("nomorMc", { required: "Mesin wajib dipilih" })} />
           </div>
           {errors.nomorMc && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.nomorMc?.message as string}</p>}
-          {selectedMesin && (
-            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-sky-50 border border-sky-200 rounded-full">
-              <div className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-              <span className="text-xs font-bold text-sky-700">Dipilih: {selectedMesin}</span>
+          {selectedMesin ? (
+            <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 bg-sky-50 border border-sky-200 rounded-full animate-fadeIn">
+              <div className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+              <span className="text-xs font-bold text-sky-700">Mesin Dipilih: {selectedMesin}</span>
+            </div>
+          ) : (
+            <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold animate-fadeIn">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>Silakan klik salah satu tombol mesin di atas (cth: <strong>R1</strong>) untuk memuat spesifikasi otomatis.</span>
             </div>
           )}
         </FormSection>
 
         {/* STEP 3 — Spesifikasi */}
         <FormSection step={3} title="Spesifikasi Terakhir" icon={<Settings2 className="w-4 h-4" />}>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <p className="text-[11px] text-slate-500 font-medium">
+              Spesifikasi teknis terakhir saat mesin beroperasi (dapat diubah jika diperlukan).
+            </p>
+            {isLoadingSpec && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 border border-sky-200 rounded-lg text-sky-700 text-xs font-bold animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600" />
+                <span>Mengambil spesifikasi data sebelumnya...</span>
+              </div>
+            )}
+            {!isLoadingSpec && specSourceDate && (
+              <div className="inline-flex items-center px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs font-semibold animate-fadeIn">
+                <span>Terisi otomatis dari data tgl {specSourceDate}</span>
+              </div>
+            )}
+            {!isLoadingSpec && !selectedMesin && (
+              <div className="inline-flex items-center px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 text-xs font-medium">
+                <span>Pilih mesin di Langkah 2 terlebih dahulu</span>
+              </div>
+            )}
+            {!isLoadingSpec && !specSourceDate && selectedMesin && (
+              <button
+                type="button"
+                onClick={() => loadLastSpec(selectedMesin, selectedTanggal)}
+                className="text-[11px] font-bold text-sky-600 hover:text-sky-800 hover:underline cursor-pointer"
+              >
+                Cek Spec Terakhir
+              </button>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Design</label>

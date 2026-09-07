@@ -79,6 +79,8 @@ export async function getAvailableFinalInspectionFilters() {
 
 export async function searchPendingFinalInspectionBatches(params: {
   date?: string;
+  startDate?: string;
+  endDate?: string;
   nomor_mc?: string;
   potongan_ke?: string;
   page?: number;
@@ -124,8 +126,17 @@ export async function searchPendingFinalInspectionBatches(params: {
       .order("tanggal_mending", { ascending: false })
       .order("created_at", { ascending: false });
 
-    if (params.date && params.date.trim() !== "") {
-      query = query.eq("tanggal_mending", params.date.trim());
+    const startDate = params.startDate || params.date;
+    const endDate = params.endDate || params.startDate || params.date;
+
+    if (startDate && endDate) {
+      if (startDate === endDate) {
+        query = query.eq("tanggal_mending", startDate);
+      } else {
+        query = query.gte("tanggal_mending", startDate).lte("tanggal_mending", endDate);
+      }
+    } else if (startDate) {
+      query = query.eq("tanggal_mending", startDate);
     }
     if (params.nomor_mc && params.nomor_mc.trim() !== "") {
       query = query.ilike("nomor_mc", `%${params.nomor_mc.trim()}%`);
@@ -482,6 +493,8 @@ export async function submitFinalInspection(params: {
 export async function searchFinalInspectionHistory(
   filters: {
     date?: string;
+    startDate?: string;
+    endDate?: string;
     nomor_mc?: string;
     petugas_ids?: string[];
     design_id?: string;
@@ -520,8 +533,17 @@ export async function searchFinalInspectionHistory(
         created_at
       `, { count: "exact" });
 
-    if (filters.date) {
-      query = query.eq("tanggal_final", filters.date);
+    const startDate = filters.startDate || filters.date;
+    const endDate = filters.endDate || filters.startDate || filters.date;
+
+    if (startDate && endDate) {
+      if (startDate === endDate) {
+        query = query.eq("tanggal_final", startDate);
+      } else {
+        query = query.gte("tanggal_final", startDate).lte("tanggal_final", endDate);
+      }
+    } else if (startDate) {
+      query = query.eq("tanggal_final", startDate);
     }
     if (filters.nomor_mc) {
       query = query.eq("nomor_mc", filters.nomor_mc);

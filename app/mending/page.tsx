@@ -28,6 +28,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 import MendingModal from "@/components/forms/MendingModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
 import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
@@ -131,6 +132,8 @@ const MENDING_TOUR_STEPS: ProductTourStep[] = [
 ];
 
 export default function MendingPage() {
+  const [searchStartDate, setSearchStartDate] = useState("");
+  const [searchEndDate, setSearchEndDate] = useState("");
   const [searchTanggal, setSearchTanggal] = useState("");
   const [searchMesin, setSearchMesin] = useState("");
   const [searchPotongan, setSearchPotongan] = useState("");
@@ -722,10 +725,10 @@ export default function MendingPage() {
   };
 
   useEffect(() => {
-    handleSearch(searchTanggal);
-  }, [searchTanggal]);
+    handleSearch(searchStartDate, searchEndDate);
+  }, [searchStartDate, searchEndDate]);
 
-  const handleSearch = async (tanggal: string) => {
+  const handleSearch = async (startDate?: string, endDate?: string) => {
     setIsSearching(true);
     setErrorMsg(null);
     setAllDetails([]);
@@ -733,8 +736,13 @@ export default function MendingPage() {
     setSelections({});
     setCurrentPage(1);
 
-    const queryTanggal = tanggal === "" ? "all" : tanggal;
-    const res = await getPendingMendingDetailsByDate(queryTanggal);
+    const sDate = startDate !== undefined ? startDate : searchStartDate;
+    const eDate = endDate !== undefined ? endDate : searchEndDate;
+
+    const res = await getPendingMendingDetailsByDate({
+      startDate: sDate || undefined,
+      endDate: eDate || undefined,
+    });
     if (res.success && res.data) {
       setAllDetails(res.data);
       setPendingCount(res.pendingCount || 0);
@@ -3340,24 +3348,16 @@ export default function MendingPage() {
           <div className="flex flex-col gap-1 w-full">
             <label className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between">
               <span>Tanggal</span>
-              {searchTanggal && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTanggal("");
-                    handleSearch("");
-                  }}
-                  className="text-[10px] text-rose-500 hover:text-rose-600 font-extrabold transition-all lowercase"
-                >
-                  [reset filter]
-                </button>
-              )}
             </label>
-            <input
-              type="date"
-              value={searchTanggal}
-              onChange={(e) => setSearchTanggal(e.target.value)}
-              className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-rose-400 focus:bg-white outline-none w-full cursor-pointer"
+            <DateRangePicker
+              startDate={searchStartDate}
+              endDate={searchEndDate}
+              onChange={(s, e) => {
+                setSearchStartDate(s || "");
+                setSearchEndDate(e || "");
+                setSearchTanggal(s || "");
+              }}
+              placeholder="Pilih Tanggal / Rentang..."
             />
           </div>
           <div className="flex flex-col gap-1 w-full">

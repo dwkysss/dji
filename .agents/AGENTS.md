@@ -1,6 +1,6 @@
 # Workspace Rules
 
-- Do NOT execute `git push` automatically. Always ask for explicit user permission or wait for direct request before pushing code to GitHub/remote repository.
+- Do NOT execute `git commit` or `git push` automatically. Always ask for explicit user permission or wait for direct request before committing or pushing code.
 - Eksekusi `npx tsc --noEmit` untuk verifikasi TypeScript dapat dijalankan langsung secara proaktif tanpa perlu meminta izin pengguna terlebih dahulu.
 
 # Cara Penampilan Tabel dengan jenis inputan panel

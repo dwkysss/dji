@@ -33,6 +33,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import FinalInspectionModal from "@/components/forms/FinalInspectionModal";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
 import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
@@ -158,6 +159,8 @@ const getActualMeter = (item: any, h: any) => {
 };
 
 export default function FinalInspectionPage() {
+  const [searchStartDate, setSearchStartDate] = useState("");
+  const [searchEndDate, setSearchEndDate] = useState("");
   const [searchTanggal, setSearchTanggal] = useState("");
   const [searchMesin, setSearchMesin] = useState("");
   const [searchPotongan, setSearchPotongan] = useState("");
@@ -846,7 +849,8 @@ export default function FinalInspectionPage() {
   const [totalPages, setTotalPages] = useState<number>(1);
 
   const fetchPendingBatches = async (
-    date = searchTanggal,
+    startDate = searchStartDate,
+    endDate = searchEndDate,
     nomor_mc = searchMesin,
     potongan_ke = searchPotongan,
     page = currentPage,
@@ -856,7 +860,9 @@ export default function FinalInspectionPage() {
     setErrorMsg(null);
     try {
       const res = await searchPendingFinalInspectionBatches({
-        date: date || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        date: startDate || undefined,
         nomor_mc: nomor_mc || undefined,
         potongan_ke: potongan_ke || undefined,
         page,
@@ -878,19 +884,21 @@ export default function FinalInspectionPage() {
   };
 
   useEffect(() => {
-    fetchPendingBatches("", "", "", 1);
+    fetchPendingBatches("", "", "", "", 1);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchPendingBatches(searchTanggal, searchMesin, searchPotongan, 1);
+    fetchPendingBatches(searchStartDate, searchEndDate, searchMesin, searchPotongan, 1);
   };
 
   const handleResetSearch = () => {
+    setSearchStartDate("");
+    setSearchEndDate("");
     setSearchTanggal("");
     setSearchMesin("");
     setSearchPotongan("");
-    fetchPendingBatches("", "", "", 1);
+    fetchPendingBatches("", "", "", "", 1);
   };
 
   const refreshActiveFinalDetails = async (nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string) => {
@@ -1749,7 +1757,7 @@ export default function FinalInspectionPage() {
     setActiveFinalPcs(null);
     setFullActiveFinalDetails([]);
     setSelections({});
-    fetchPendingBatches(searchTanggal, searchMesin, searchPotongan, 1);
+    fetchPendingBatches(searchStartDate, searchEndDate, searchMesin, searchPotongan, 1);
   };
 
   const renderInsertPanelModal = () => {
@@ -2572,7 +2580,7 @@ export default function FinalInspectionPage() {
             setActiveFinalPcs(null);
             setFullActiveFinalDetails([]);
             setSelections({});
-            fetchPendingBatches(searchTanggal, searchMesin, searchPotongan, 1);
+            fetchPendingBatches(searchStartDate, searchEndDate, searchMesin, searchPotongan, 1);
           }}
           headerData={{ details: fullActiveFinalDetails }}
           detailData={fullActiveFinalDetails}
@@ -2652,11 +2660,15 @@ export default function FinalInspectionPage() {
                 <Calendar className="w-3.5 h-3.5" />
                 Tanggal Mending
               </label>
-              <input
-                type="date"
-                value={searchTanggal}
-                onChange={(e) => setSearchTanggal(e.target.value)}
-                className="h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:bg-white outline-none transition-all shadow-sm w-full"
+              <DateRangePicker
+                startDate={searchStartDate}
+                endDate={searchEndDate}
+                onChange={(s, e) => {
+                  setSearchStartDate(s || "");
+                  setSearchEndDate(e || "");
+                  setSearchTanggal(s || "");
+                }}
+                placeholder="Pilih Tanggal / Rentang..."
               />
             </div>
 
@@ -2869,7 +2881,7 @@ export default function FinalInspectionPage() {
                 onClick={() => {
                   const newPage = currentPage - 1;
                   setCurrentPage(newPage);
-                  fetchPendingBatches(searchTanggal, searchMesin, searchPotongan, newPage);
+                  fetchPendingBatches(searchStartDate, searchEndDate, searchMesin, searchPotongan, newPage);
                 }}
                 className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
@@ -2880,7 +2892,7 @@ export default function FinalInspectionPage() {
                 onClick={() => {
                   const newPage = currentPage + 1;
                   setCurrentPage(newPage);
-                  fetchPendingBatches(searchTanggal, searchMesin, searchPotongan, newPage);
+                  fetchPendingBatches(searchStartDate, searchEndDate, searchMesin, searchPotongan, newPage);
                 }}
                 className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >

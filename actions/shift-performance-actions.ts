@@ -269,6 +269,7 @@ export async function getMonthlyShiftPerformance(
     });
 
     const processedHeadersForDowntime = new Set<string>();
+    const processedHeadersForMeterOutput = new Set<string>();
     const activeDaysSet = new Set<number>();
 
     let totalPanel = 0;
@@ -318,6 +319,53 @@ export async function getMonthlyShiftPerformance(
       dailyOperatorsMap.get(day)?.add(opName);
       dailyMachinesMap.get(day)?.add(mcId);
 
+      // Initialize operator stats if not present
+      if (!operatorMap.has(opName)) {
+        operatorMap.set(opName, {
+          operatorId: opId,
+          operatorName: opName,
+          shiftGroup: groupName || shiftGroup,
+          totalOutput: 0,
+          panelCount: 0,
+          meterCount: 0,
+          totalDefects: 0,
+          totalDefectsPanel: 0,
+          totalDefectsMeter: 0,
+          defectRate: 0,
+          totalDowntimeSeconds: 0,
+          totalDowntimeMinutes: 0,
+          gradeA: 0,
+          gradeB: 0,
+          gradeBS: 0,
+          gradeUngraded: 0,
+          qualityScore: 100,
+          machinesOperated: [],
+          shiftCount: 0,
+          contributionPercent: 0,
+          performanceRating: "Good",
+        });
+      }
+
+      // Initialize machine stats if not present
+      if (!machineMap.has(mcId)) {
+        machineMap.set(mcId, {
+          machineId: mcId,
+          machineType: isMeteran ? "METERAN" : "PANEL",
+          totalOutput: 0,
+          panelCount: 0,
+          meterCount: 0,
+          totalDefects: 0,
+          totalDowntimeSeconds: 0,
+          totalDowntimeMinutes: 0,
+          defectRate: 0,
+          operators: [],
+          designs: [],
+        });
+      }
+
+      const opStat = operatorMap.get(opName)!;
+      const mcStat = machineMap.get(mcId)!;
+
       // Process Downtime once per header
       if (!processedHeadersForDowntime.has(header.id)) {
         processedHeadersForDowntime.add(header.id);
@@ -328,6 +376,12 @@ export async function getMonthlyShiftPerformance(
         if (dailyItem) {
           dailyItem.downtimeMinutes += Math.round(dtSec / 60);
         }
+
+        opStat.totalDowntimeSeconds += dtSec;
+        opStat.totalDowntimeMinutes = Math.round(opStat.totalDowntimeSeconds / 60);
+
+        mcStat.totalDowntimeSeconds += dtSec;
+        mcStat.totalDowntimeMinutes = Math.round(mcStat.totalDowntimeSeconds / 60);
       }
 
       // Check if item is special / deleted / BS awal-akhir
@@ -347,23 +401,33 @@ export async function getMonthlyShiftPerformance(
       let rowPanel = 0;
       let rowMeter = 0;
 
-      if (!isBsAwalAkhir && !isIstirahat) {
-        if (isMeteran) {
-          // For meter fabric: if header has meter_awal and meter_akhir
-          const mEnd = Number(header.meter_akhir) || 0;
-          const mStart = Number(header.meter_awal) || 0;
-          const deltaM = Math.max(0, mEnd - mStart);
-          rowOutput = deltaM > 0 ? deltaM : (Number(row.jml_hasil_produksi) || 0);
-          rowMeter = rowOutput;
-          totalMeter += rowOutput;
-        } else {
-          // For panel: regular panels count as 1 output (excluding BS rows as per rule)
-          const isBS = row.jml_hasil_produksi === 0 || row.status_inspeksi === "BS" || row.status_mending === "BS";
-          if (!isBS) {
-            rowOutput = 1;
-            rowPanel = 1;
-            totalPanel += 1;
+      if (isMeteran) {
+        // Meteran fabric: output is recorded once per header from total_produksi_meter or (meter_akhir - meter_awal)
+        if (!processedHeadersForMeterOutput.has(header.id)) {
+          processedHeadersForMeterOutput.add(header.id);
+          let hMeter = 0;
+          if (header.total_produksi_meter && Number(header.total_produksi_meter) > 0) {
+            hMeter = Number(header.total_produksi_meter);
+          } else if (header.meter_akhir !== null && header.meter_awal !== null) {
+            hMeter = Math.max(0, Number(header.meter_akhir) - Number(header.meter_awal));
           }
+
+          if (!isBsAwalAkhir) {
+            rowOutput = hMeter;
+            rowMeter = hMeter;
+            totalMeter += hMeter;
+          } else {
+            totalGradeBS += hMeter;
+            gradeBS_Meter += hMeter;
+          }
+        }
+      } else {
+        // For panel: regular panels count as 1 output (excluding BS rows, BS awal/akhir, and rest marker rows)
+        const isBS = row.jml_hasil_produksi === 0;
+        if (!isBsAwalAkhir && !isIstirahat && !isBS) {
+          rowOutput = 1;
+          rowPanel = 1;
+          totalPanel += 1;
         }
       }
 
@@ -421,34 +485,28 @@ export async function getMonthlyShiftPerformance(
         });
       }
 
-      // Calculate Grades (Mending/Inspection)
-      let mendingGrade = (row.status_mending || "").trim().toUpperCase();
-      if (!mendingGrade) {
-        // Fallback to inspection grade
-        if (row.final_inspection_id === 1) mendingGrade = "A";
-        else if (row.final_inspection_id === 2 || row.final_inspection_id === 3) mendingGrade = "B";
-        else if (row.final_inspection_id === 4) mendingGrade = "BS";
-      }
-
+      // Calculate Grades directly from operator input (murni hasil operator, tanpa mending)
       let gA = 0, gB = 0, gBS = 0, gUngraded = 0;
-      if (mendingGrade === "A") {
-        totalGradeA += 1;
-        gA = 1;
-        if (isMeteran) gradeA_Meter += 1;
-        else gradeA_Panel += 1;
-      } else if (mendingGrade === "B") {
-        totalGradeB += 1;
-        gB = 1;
-        if (isMeteran) gradeB_Meter += 1;
-        else gradeB_Panel += 1;
-      } else if (mendingGrade === "BS") {
-        totalGradeBS += 1;
-        gBS = 1;
-        if (isMeteran) gradeBS_Meter += 1;
-        else gradeBS_Panel += 1;
+
+      if (!isMeteran) {
+        if (isBsAwalAkhir || row.jml_hasil_produksi === 0) {
+          gBS = 1;
+          totalGradeBS += 1;
+          gradeBS_Panel += 1;
+        } else if (hasRealDefects) {
+          gB = 1;
+          totalGradeB += 1;
+          gradeB_Panel += 1;
+        } else if (!isIstirahat && rowOutput > 0) {
+          gA = 1;
+          totalGradeA += 1;
+          gradeA_Panel += 1;
+        }
       } else {
-        totalUngraded += 1;
-        gUngraded = 1;
+        // For meter fabric: defects count toward Grade B (cacat meter)
+        if (hasRealDefects) {
+          gB = defectCountForRow;
+        }
       }
 
       // Update Daily Trend
@@ -463,33 +521,6 @@ export async function getMonthlyShiftPerformance(
       }
 
       // Update Operator Stats
-      if (!operatorMap.has(opName)) {
-        operatorMap.set(opName, {
-          operatorId: opId,
-          operatorName: opName,
-          shiftGroup: groupName || shiftGroup,
-          totalOutput: 0,
-          panelCount: 0,
-          meterCount: 0,
-          totalDefects: 0,
-          totalDefectsPanel: 0,
-          totalDefectsMeter: 0,
-          defectRate: 0,
-          totalDowntimeSeconds: 0,
-          totalDowntimeMinutes: 0,
-          gradeA: 0,
-          gradeB: 0,
-          gradeBS: 0,
-          gradeUngraded: 0,
-          qualityScore: 100,
-          machinesOperated: [],
-          shiftCount: 0,
-          contributionPercent: 0,
-          performanceRating: "Good",
-        });
-      }
-
-      const opStat = operatorMap.get(opName)!;
       opStat.totalOutput += rowOutput;
       opStat.panelCount += rowPanel;
       opStat.meterCount += rowMeter;
@@ -505,23 +536,6 @@ export async function getMonthlyShiftPerformance(
       }
 
       // Update Machine Stats
-      if (!machineMap.has(mcId)) {
-        machineMap.set(mcId, {
-          machineId: mcId,
-          machineType: isMeteran ? "METERAN" : "PANEL",
-          totalOutput: 0,
-          panelCount: 0,
-          meterCount: 0,
-          totalDefects: 0,
-          totalDowntimeSeconds: 0,
-          totalDowntimeMinutes: 0,
-          defectRate: 0,
-          operators: [],
-          designs: [],
-        });
-      }
-
-      const mcStat = machineMap.get(mcId)!;
       mcStat.totalOutput += rowOutput;
       mcStat.panelCount += rowPanel;
       mcStat.meterCount += rowMeter;
@@ -543,9 +557,20 @@ export async function getMonthlyShiftPerformance(
     // 7. Post-Processing Operators List & Ratings
     const totalOutputSum = fabricType === "panel" ? totalPanel : fabricType === "meter" ? totalMeter : (totalPanel + totalMeter);
     const operatorList = Array.from(operatorMap.values()).map((op) => {
-      const totalGraded = op.gradeA + op.gradeB + op.gradeBS;
-      op.qualityScore = totalGraded > 0 ? Math.round((op.gradeA / totalGraded) * 100) : 100;
-      op.defectRate = op.totalOutput > 0 ? Number(((op.totalDefects / op.totalOutput) * 100).toFixed(1)) : 0;
+      // For operators that handled meter fabric, compute clean meter length as Grade A
+      if (op.meterCount > 0) {
+        const cleanMeter = Math.max(0, op.meterCount - op.totalDefectsMeter);
+        if (op.panelCount === 0) {
+          op.gradeA = cleanMeter;
+          op.gradeB = op.totalDefectsMeter;
+        } else {
+          op.gradeA += cleanMeter;
+        }
+      }
+
+      const opOutput = op.totalOutput;
+      op.qualityScore = opOutput > 0 ? Math.round((op.gradeA / opOutput) * 100) : 0;
+      op.defectRate = opOutput > 0 ? Number(((op.totalDefects / opOutput) * 100).toFixed(1)) : 0;
       op.contributionPercent = totalOutputSum > 0 ? Number(((op.totalOutput / totalOutputSum) * 100).toFixed(1)) : 0;
 
       // Rating determination
@@ -593,20 +618,30 @@ export async function getMonthlyShiftPerformance(
     problemCategories.sort((a, b) => b.count - a.count);
 
     // 10. Summary Metrics
+    gradeB_Meter = totalDefectsMeter;
+    gradeA_Meter = Math.max(0, totalMeter - gradeB_Meter - gradeBS_Meter);
+    totalGradeA = gradeA_Panel + gradeA_Meter;
+    totalGradeB = gradeB_Panel + gradeB_Meter;
+    totalGradeBS = gradeBS_Panel + gradeBS_Meter;
+
     const activeDaysCount = activeDaysSet.size;
     const avgDailyOutput = activeDaysCount > 0 ? Math.round(totalOutputSum / activeDaysCount) : 0;
     const totalDowntimeMinutes = Math.round(totalDowntimeSeconds / 60);
     const totalDowntimeHours = Number((totalDowntimeSeconds / 3600).toFixed(1));
     const avgDailyDowntimeMinutes = activeDaysCount > 0 ? Math.round(totalDowntimeMinutes / activeDaysCount) : 0;
     
-    const overallTotalGraded = totalGradeA + totalGradeB + totalGradeBS;
-    const qualityScore = overallTotalGraded > 0 ? Math.round((totalGradeA / overallTotalGraded) * 100) : 100;
-    
-    const gradedPanelTotal = gradeA_Panel + gradeB_Panel + gradeBS_Panel;
-    const qualityScore_Panel = gradedPanelTotal > 0 ? Math.round((gradeA_Panel / gradedPanelTotal) * 100) : 100;
-    
-    const gradedMeterTotal = gradeA_Meter + gradeB_Meter + gradeBS_Meter;
-    const qualityScore_Meter = gradedMeterTotal > 0 ? Math.round((gradeA_Meter / gradedMeterTotal) * 100) : 100;
+    const qualityScore_Panel = totalPanel > 0 ? Math.round((gradeA_Panel / totalPanel) * 100) : 0;
+    const qualityScore_Meter = totalMeter > 0 ? Math.round((gradeA_Meter / totalMeter) * 100) : 0;
+
+    let qualityScore = 0;
+    if (fabricType === "panel") {
+      qualityScore = qualityScore_Panel;
+    } else if (fabricType === "meter") {
+      qualityScore = qualityScore_Meter;
+    } else {
+      const totalCombinedOutput = totalPanel + totalMeter;
+      qualityScore = totalCombinedOutput > 0 ? Math.round(((gradeA_Panel + gradeA_Meter) / totalCombinedOutput) * 100) : 0;
+    }
 
     const overallDefectRate = totalOutputSum > 0 ? Number(((totalDefects / totalOutputSum) * 100).toFixed(1)) : 0;
     const defectRatePanel = totalPanel > 0 ? Number(((totalDefectsPanel / totalPanel) * 100).toFixed(1)) : 0;
