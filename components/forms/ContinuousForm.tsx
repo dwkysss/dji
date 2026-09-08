@@ -362,6 +362,7 @@ export default function ContinuousForm({
       : Math.random().toString(36).substring(2, 15)
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessingSubmit, setIsProcessingSubmit] = useState(false);
   const [successData, setSuccessData] = useState<
     (ContinuousFormInput & { id?: string }) | null
   >(null);
@@ -1354,13 +1355,16 @@ export default function ContinuousForm({
     };
 
     const msg = extractMessage(fieldErrors);
+    setIsProcessingSubmit(false);
     setErrorMsg(msg || "Terdapat kesalahan validasi. Silakan periksa form.");
   };
 
   const onSubmit = async (data: ContinuousFormInput) => {
+    setIsProcessingSubmit(true);
     const currentMc = data.nomorMc || getValues("nomorMc") || watch("nomorMc") || "";
     if (currentMc && machineInputTypes[currentMc.toUpperCase()] === "PANEL") {
       setIsSubmitting(false);
+      setIsProcessingSubmit(false);
       setErrorMsg(`Mesin ${currentMc} telah dikunci oleh Admin khusus untuk input PANEL. Anda tidak dapat mengisi form Meter untuk mesin ini.`);
       return;
     }
@@ -1407,6 +1411,7 @@ export default function ContinuousForm({
     if (data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat") {
       if (!backupOperator) {
         setIsSubmitting(false);
+        setIsProcessingSubmit(false);
         setErrorMsg(`Wajib memilih Operator Backup yang menjaga mesin saat ${data.jenisLaporan}.`);
         return;
       }
@@ -1434,12 +1439,14 @@ export default function ContinuousForm({
       if (currentMc.toUpperCase() === "T2A") {
         if (meterAkhirNum > meterAwalNum) {
           setIsSubmitting(false);
+          setIsProcessingSubmit(false);
           setErrorMsg(`Finish Meter (${meterAkhirNum}m) tidak boleh lebih besar dari Target (${meterAwalNum}m).`);
           return;
         }
       } else {
         if (meterAkhirNum <= meterAwalNum) {
           setIsSubmitting(false);
+          setIsProcessingSubmit(false);
           setErrorMsg(`Finish Meter (${meterAkhirNum}m) harus lebih besar dari Start Meter (${meterAwalNum}m).`);
           return;
         }
@@ -1458,6 +1465,7 @@ export default function ContinuousForm({
           "Untuk mesin T2A, masukkan Target Produksi terlebih dahulu.",
         );
         setIsSubmitting(false);
+        setIsProcessingSubmit(false);
         return;
       }
     }
@@ -1586,6 +1594,7 @@ export default function ContinuousForm({
       }
     } finally {
       setIsSubmitting(false);
+      setIsProcessingSubmit(false);
     }
   };
 
@@ -1625,6 +1634,7 @@ export default function ContinuousForm({
   };
 
   const handleCloseSuccess = () => {
+    setIsProcessingSubmit(false);
     if (isEdit) {
       sessionStorage.removeItem("dji_history_data");
       sessionStorage.removeItem("dji_history_searched");
@@ -2115,6 +2125,8 @@ export default function ContinuousForm({
                   isPanelType={false}
                   viewMode="timer_only"
                   onAutoSubmit={() => {
+                    if (isSubmitting || isProcessingSubmit) return;
+                    setIsProcessingSubmit(true);
                     handleSubmit(onSubmit, onInvalid)();
                   }}
                 />
@@ -2138,6 +2150,8 @@ export default function ContinuousForm({
               isPanelType={false}
               viewMode="events_only"
               onAutoSubmit={() => {
+                if (isSubmitting || isProcessingSubmit) return;
+                setIsProcessingSubmit(true);
                 handleSubmit(onSubmit, onInvalid)();
               }}
             />
@@ -2152,11 +2166,15 @@ export default function ContinuousForm({
                 <div className="w-full mt-3 flex justify-end">
                   <button
                     type="button"
-                    onClick={() => handleSubmit(onSubmit, onInvalid)()}
-                    disabled={isSubmitting}
-                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-sky-600 to-[#0070bc] hover:from-sky-700 hover:to-[#005a96] active:scale-95 text-white text-xs font-black rounded-xl shadow-md shadow-sky-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    onClick={() => {
+                      if (isSubmitting || isProcessingSubmit) return;
+                      setIsProcessingSubmit(true);
+                      handleSubmit(onSubmit, onInvalid)();
+                    }}
+                    disabled={isSubmitting || isProcessingSubmit}
+                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-sky-600 to-[#0070bc] hover:from-sky-700 hover:to-[#005a96] active:scale-95 text-white text-xs font-black rounded-xl shadow-md shadow-sky-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? (
+                    {isSubmitting || isProcessingSubmit ? (
                       <RefreshCw className="w-4 h-4 animate-spin" />
                     ) : (
                       <Send className="w-4 h-4" />
@@ -2395,15 +2413,17 @@ export default function ContinuousForm({
                 ) : (
                   <button
                     type="button"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isProcessingSubmit}
                     onClick={() => {
+                      if (isSubmitting || isProcessingSubmit) return;
+                      setIsProcessingSubmit(true);
                       setShowAdvancedActions(false);
                       handleSubmit(onSubmit, onInvalid)();
                     }}
                     className="flex-1 h-12 sm:h-14 bg-[#0070bc] hover:bg-[#004777] active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-sky-900/20 transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     <Save className="w-5 h-5" />
-                    <span>{isSubmitting ? "Menyimpan..." : "Kirim Laporan Sekarang"}</span>
+                    <span>{isSubmitting || isProcessingSubmit ? "Menyimpan..." : "Kirim Laporan Sekarang"}</span>
                   </button>
                 )}
               </div>
@@ -2426,16 +2446,18 @@ export default function ContinuousForm({
               data-tour="meter-submit-defect"
               type="button"
               onClick={() => {
+                if (isSubmitting || isProcessingSubmit) return;
+                setIsProcessingSubmit(true);
                 if (watch("nomorMc") !== "T2A") {
                   setValue("meterAwal", "");
                 }
                 setValue("meterAkhir", "");
                 handleSubmit(onSubmit, onInvalid)();
               }}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isProcessingSubmit}
               className={`w-full h-12 rounded-xl active:scale-[0.99] disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-md ${isLastRoll ? "bg-slate-400 hover:bg-slate-500" : "bg-[#0070bc] hover:bg-[#004777]"}`}
             >
-              {isSubmitting ? (
+              {isSubmitting || isProcessingSubmit ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" /> Menyimpan...
                 </>
@@ -2760,45 +2782,54 @@ export default function ContinuousForm({
                     <button
                       type="button"
                       onClick={async () => {
-                        await refreshAutomaticMeterStart();
-                        const isValid = await trigger([
-                          "meterAwal",
-                          "meterAkhir",
-                        ]);
-                        if (!isValid) return;
+                        if (isSubmitting || isProcessingSubmit) return;
+                        setIsProcessingSubmit(true);
+                        try {
+                          await refreshAutomaticMeterStart();
+                          const isValid = await trigger([
+                            "meterAwal",
+                            "meterAkhir",
+                          ]);
+                          if (!isValid) {
+                            setIsProcessingSubmit(false);
+                            return;
+                          }
 
-                        const currentMc = watch("nomorMc");
-                        const currentMeterAkhir = parseFloat(
-                          watch("meterAkhir") || "0",
-                        );
-                        if (currentMc === "T2A" && currentMeterAkhir === 0) {
-                          setIsLastRoll(true);
-                          setValue(
-                            "tanggalPotong",
-                            getJakartaDateString(),
+                          const currentMc = watch("nomorMc");
+                          const currentMeterAkhir = parseFloat(
+                            watch("meterAkhir") || "0",
                           );
+                          if (currentMc === "T2A" && currentMeterAkhir === 0) {
+                            setIsLastRoll(true);
+                            setValue(
+                              "tanggalPotong",
+                              getJakartaDateString(),
+                            );
+                          }
+
+                          const currentPcs = watch("pcsData") || [];
+                          const cleanPcs = currentPcs.map((pcs) => ({
+                            ...pcs,
+                            indikatorStop: false,
+                            kategoriMasalah: [],
+                            detailMasalahMap: undefined,
+                            detailMasalah: "",
+                            spesifikMasalah: "",
+                            keteranganCacat: "",
+                          }));
+                          setValue("pcsData", cleanPcs);
+                          setValue("totalDowntime", "");
+
+                          setIsMeterModalOpen(false);
+                          handleSubmit(onSubmit, onInvalid)();
+                        } catch (err) {
+                          setIsProcessingSubmit(false);
                         }
-
-                        const currentPcs = watch("pcsData") || [];
-                        const cleanPcs = currentPcs.map((pcs) => ({
-                          ...pcs,
-                          indikatorStop: false,
-                          kategoriMasalah: [],
-                          detailMasalahMap: undefined,
-                          detailMasalah: "",
-                          spesifikMasalah: "",
-                          keteranganCacat: "",
-                        }));
-                        setValue("pcsData", cleanPcs);
-                        setValue("totalDowntime", "");
-
-                        setIsMeterModalOpen(false);
-                        handleSubmit(onSubmit, onInvalid)();
                       }}
-                      disabled={isSubmitting}
-                      className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm"
+                      disabled={isSubmitting || isProcessingSubmit}
+                      className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSubmitting ? (
+                      {isSubmitting || isProcessingSubmit ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
                       ) : (
                         <Send className="w-4 h-4" />
@@ -2818,89 +2849,100 @@ export default function ContinuousForm({
                     <button
                       type="button"
                       onClick={async () => {
-                        await refreshAutomaticMeterStart();
-                        const isValid = await trigger([
-                          "meterAwal",
-                          "meterAkhir",
-                        ]);
-                        if (!isValid) return;
-
-                        const currentMc = watch("nomorMc");
-                        const currentMeterAkhir = parseFloat(
-                          watch("meterAkhir") || "0",
-                        );
-
-                        // JIKA OPERATOR SEBELUMNYA BELUM FINISH DAN INI ADALAH LAPORAN OPER SHIFT:
-                        // Simpan serah terima shift secara otomatis agar header penutup tercatat atas nama operator lama!
-                        if (handoverWarning?.needsMeterAwal && watchJenisLaporan === "") {
-                          const lastMeter = handoverWarning?.lastMeter || 0;
-                          if (currentMeterAkhir < lastMeter) {
-                            setErrorMsg(`Counter meter tidak boleh lebih kecil dari ${lastMeter}m (meter tercatat sebelumnya).`);
+                        if (isSubmitting || isProcessingSubmit) return;
+                        setIsProcessingSubmit(true);
+                        try {
+                          await refreshAutomaticMeterStart();
+                          const isValid = await trigger([
+                            "meterAwal",
+                            "meterAkhir",
+                          ]);
+                          if (!isValid) {
+                            setIsProcessingSubmit(false);
                             return;
                           }
 
-                          try {
-                            setIsSubmitting(true);
-                            setErrorMsg(null);
-                            const res = await submitOperatorHandover({
-                              nomorMc: watch("nomorMc"),
-                              potonganKe: watch("potonganKe"),
-                              incomingOperator: getOperatorName(watch("operatorId")),
-                              handoverMeter: currentMeterAkhir,
-                            });
+                          const currentMc = watch("nomorMc");
+                          const currentMeterAkhir = parseFloat(
+                            watch("meterAkhir") || "0",
+                          );
 
-                            if (res.success) {
-                              setValue("meterAwal", String(res.handoverMeter), {
-                                shouldDirty: false,
-                                shouldValidate: false,
-                              });
-                              setValue("meterAkhir", "");
-                              setValue("hasilProduksiMeter", "");
-                              setIsMeterAwalLocked(true);
-                              setHandoverWarning(null);
-                              setIsMeterModalOpen(false);
-                              setSuccessMsg(`Serah terima shift berhasil! Shift ${res.lastOperatorName} telah ditutup pada meter ${res.handoverMeter}m. Shift Anda dimulai dari ${res.handoverMeter}m.`);
-                              return;
-                            } else {
-                              setErrorMsg(res.message || "Gagal melakukan serah terima shift.");
+                          // JIKA OPERATOR SEBELUMNYA BELUM FINISH DAN INI ADALAH LAPORAN OPER SHIFT:
+                          // Simpan serah terima shift secara otomatis agar header penutup tercatat atas nama operator lama!
+                          if (handoverWarning?.needsMeterAwal && watchJenisLaporan === "") {
+                            const lastMeter = handoverWarning?.lastMeter || 0;
+                            if (currentMeterAkhir < lastMeter) {
+                              setErrorMsg(`Counter meter tidak boleh lebih kecil dari ${lastMeter}m (meter tercatat sebelumnya).`);
+                              setIsProcessingSubmit(false);
                               return;
                             }
-                          } catch (err: any) {
-                            setErrorMsg(err?.message || "Terjadi kesalahan saat serah terima shift.");
-                            return;
-                          } finally {
-                            setIsSubmitting(false);
+
+                            try {
+                              setIsSubmitting(true);
+                              setErrorMsg(null);
+                              const res = await submitOperatorHandover({
+                                nomorMc: watch("nomorMc"),
+                                potonganKe: watch("potonganKe"),
+                                incomingOperator: getOperatorName(watch("operatorId")),
+                                handoverMeter: currentMeterAkhir,
+                              });
+
+                              if (res.success) {
+                                setValue("meterAwal", String(res.handoverMeter), {
+                                  shouldDirty: false,
+                                  shouldValidate: false,
+                                });
+                                setValue("meterAkhir", "");
+                                setValue("hasilProduksiMeter", "");
+                                setIsMeterAwalLocked(true);
+                                setHandoverWarning(null);
+                                setIsMeterModalOpen(false);
+                                setSuccessMsg(`Serah terima shift berhasil! Shift ${res.lastOperatorName} telah ditutup pada meter ${res.handoverMeter}m. Shift Anda dimulai dari ${res.handoverMeter}m.`);
+                                return;
+                              } else {
+                                setErrorMsg(res.message || "Gagal melakukan serah terima shift.");
+                                return;
+                              }
+                            } catch (err: any) {
+                              setErrorMsg(err?.message || "Terjadi kesalahan saat serah terima shift.");
+                              return;
+                            } finally {
+                              setIsSubmitting(false);
+                              setIsProcessingSubmit(false);
+                            }
                           }
+
+                          if (currentMc === "T2A" && currentMeterAkhir === 0) {
+                            setIsLastRoll(true);
+                            setValue(
+                              "tanggalPotong",
+                              getJakartaDateString(),
+                            );
+                          }
+
+                          const currentPcs = watch("pcsData") || [];
+                          const cleanPcs = currentPcs.map((pcs) => ({
+                            ...pcs,
+                            indikatorStop: false,
+                            kategoriMasalah: [],
+                            detailMasalahMap: undefined,
+                            detailMasalah: "",
+                            spesifikMasalah: "",
+                            keteranganCacat: "",
+                          }));
+                          setValue("pcsData", cleanPcs);
+                          setValue("totalDowntime", "");
+
+                          setIsMeterModalOpen(false);
+                          handleSubmit(onSubmit, onInvalid)();
+                        } catch (err) {
+                          setIsProcessingSubmit(false);
                         }
-
-                        if (currentMc === "T2A" && currentMeterAkhir === 0) {
-                          setIsLastRoll(true);
-                          setValue(
-                            "tanggalPotong",
-                            getJakartaDateString(),
-                          );
-                        }
-
-                        const currentPcs = watch("pcsData") || [];
-                        const cleanPcs = currentPcs.map((pcs) => ({
-                          ...pcs,
-                          indikatorStop: false,
-                          kategoriMasalah: [],
-                          detailMasalahMap: undefined,
-                          detailMasalah: "",
-                          spesifikMasalah: "",
-                          keteranganCacat: "",
-                        }));
-                        setValue("pcsData", cleanPcs);
-                        setValue("totalDowntime", "");
-
-                        setIsMeterModalOpen(false);
-                        handleSubmit(onSubmit, onInvalid)();
                       }}
-                      disabled={isSubmitting}
-                      className="flex-[2] py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm"
+                      disabled={isSubmitting || isProcessingSubmit}
+                      className="flex-[2] py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSubmitting ? (
+                      {isSubmitting || isProcessingSubmit ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
                       ) : (
                         <Save className="w-4 h-4" />
@@ -3335,6 +3377,52 @@ export default function ContinuousForm({
         currentPotonganKe={watch("potonganKe")}
         panelType="METERAN"
       />
+
+      {/* FULLSCREEN LOADING OVERLAY SAAT MENGIRIM DATA / KENDALA */}
+      {(isSubmitting || isProcessingSubmit) && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-md transition-all animate-fadeIn select-none p-4">
+          <div className="relative w-full max-w-sm bg-white rounded-3xl p-7 sm:p-8 shadow-2xl shadow-slate-950/20 border border-slate-200/80 overflow-hidden text-center flex flex-col items-center animate-scaleIn">
+            {/* Ambient Background Glow */}
+            <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-48 h-28 bg-sky-100/80 rounded-full blur-2xl pointer-events-none" />
+
+            {/* High-Tech Animated Radar / Dual-Ring Loader */}
+            <div className="relative w-20 h-20 flex items-center justify-center mb-5">
+              <div className="absolute inset-0 rounded-full bg-sky-400/15 blur-xl animate-pulse" />
+              <div className="absolute inset-0 rounded-full border-2 border-slate-100 border-t-[#0070bc] border-r-sky-400 animate-spin" />
+              <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0070bc] to-sky-500 text-white flex items-center justify-center shadow-lg shadow-sky-500/30">
+                <UploadCloud className="w-6 h-6 text-white" />
+              </div>
+            </div>
+
+            {/* Tag / Category Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200/80 text-slate-600 text-[10px] font-extrabold uppercase tracking-wider mb-2">
+              <Database className="w-3 h-3 text-[#0070bc]" />
+              <span>Sinkronisasi Data</span>
+            </div>
+
+            {/* Title & Description */}
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+              Mengirim Data Laporan...
+            </h3>
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium max-w-xs">
+              Mohon tunggu sebentar, sistem sedang merekam transaksi dan kendala ke server database.
+            </p>
+
+            {/* Shimmer Animated Progress Bar */}
+            <div className="w-full mt-5 mb-4">
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#0070bc] to-transparent w-full animate-progressShimmer" />
+              </div>
+            </div>
+
+            {/* Safety Notice Badge (Clean SVG Icon, No Emojis) */}
+            <div className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-500 text-[11px] font-semibold">
+              <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>Jangan tutup atau me-refresh halaman</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

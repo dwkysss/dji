@@ -972,6 +972,20 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
         console.error("Gagal mendapatkan PIC nama:", err);
       }
 
+      // Cek idempotency key agar tidak terjadi insert ganda akibat double-click / double-tap
+      if (headerData.idempotency_key) {
+        const { data: existingByKey } = await supabase
+          .from("production_headers")
+          .select("id")
+          .eq("idempotency_key", headerData.idempotency_key)
+          .maybeSingle();
+
+        if (existingByKey && existingByKey.id) {
+          console.warn(`[ContinuousForm] Idempotency duplicate detected (${headerData.idempotency_key}). Mengabaikan insert ganda.`);
+          return { success: true, productionId: existingByKey.id };
+        }
+      }
+
       // Check if this is a pure finish/meter update for an existing session to avoid inserting redundant duplicate headers
       let targetHeaderId = headerId;
       const isPureFinishReport = finishMeterNum !== null && finalDetailData.length === 0 && (!validated.downtimeEvents || validated.downtimeEvents.length === 0);

@@ -2220,6 +2220,52 @@ export default function EmployeeForm({
         currentPotonganKe={watchPotonganKe}
         panelType="PANEL"
       />
+
+      {/* FULLSCREEN LOADING OVERLAY SAAT MENGIRIM DATA PANEL */}
+      {isSubmitting && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-md transition-all animate-fadeIn select-none p-4">
+          <div className="relative w-full max-w-sm bg-white rounded-3xl p-7 sm:p-8 shadow-2xl shadow-slate-950/20 border border-slate-200/80 overflow-hidden text-center flex flex-col items-center animate-scaleIn">
+            {/* Ambient Background Glow */}
+            <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-48 h-28 bg-sky-100/80 rounded-full blur-2xl pointer-events-none" />
+
+            {/* High-Tech Animated Radar / Dual-Ring Loader */}
+            <div className="relative w-20 h-20 flex items-center justify-center mb-5">
+              <div className="absolute inset-0 rounded-full bg-sky-400/15 blur-xl animate-pulse" />
+              <div className="absolute inset-0 rounded-full border-2 border-slate-100 border-t-[#0070bc] border-r-sky-400 animate-spin" />
+              <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0070bc] to-sky-500 text-white flex items-center justify-center shadow-lg shadow-sky-500/30">
+                <UploadCloud className="w-6 h-6 text-white" />
+              </div>
+            </div>
+
+            {/* Tag / Category Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200/80 text-slate-600 text-[10px] font-extrabold uppercase tracking-wider mb-2">
+              <Database className="w-3 h-3 text-[#0070bc]" />
+              <span>Sinkronisasi Data</span>
+            </div>
+
+            {/* Title & Description */}
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+              Mengirim Laporan Panel...
+            </h3>
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium max-w-xs">
+              Mohon tunggu sebentar, sistem sedang merekam data produksi ke server database.
+            </p>
+
+            {/* Shimmer Animated Progress Bar */}
+            <div className="w-full mt-5 mb-4">
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#0070bc] to-transparent w-full animate-progressShimmer" />
+              </div>
+            </div>
+
+            {/* Safety Notice Badge (Clean SVG Icon, No Emojis) */}
+            <div className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-500 text-[11px] font-semibold">
+              <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>Jangan tutup atau me-refresh halaman</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

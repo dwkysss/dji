@@ -110,6 +110,7 @@ export default function DowntimeTracker({
   const [namaPenanganan, setNamaPenanganan] = useState<string>("");
   const [unresolvedDowntime, setUnresolvedDowntime] = useState<any>(null);
   const [isSavingMechanic, setIsSavingMechanic] = useState(false);
+  const [isSavingEvent, setIsSavingEvent] = useState(false);
   const [dynamicGroupMapping, setDynamicGroupMapping] = useState<Record<string, { groupName: string; items: string[] }[]>>(GROUPED_PROBLEM_DETAILS);
 
   // Khusus Form Panel: State alokasi nomor panel jika operator terlambat submit
@@ -686,6 +687,7 @@ export default function DowntimeTracker({
     setInputMeters({});
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
+    setIsSavingEvent(false);
   };
 
   const handleOpenGagalCacatModal = (index: number, fallbackEvent?: any) => {
@@ -900,9 +902,7 @@ export default function DowntimeTracker({
     updateFormDowntimeEvents(updatedList);
 
     if (onAutoSubmit && !isPanelType && !isEdit) {
-      setTimeout(() => {
-        onAutoSubmit();
-      }, 50);
+      onAutoSubmit();
     }
   };
 
@@ -941,6 +941,7 @@ export default function DowntimeTracker({
 
 
   const handleSaveNonDefectStop = () => {
+    if (isSavingEvent || isSavingMechanic) return;
     if (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) {
       alert("Wajib memilih minimal 1 PCS!");
       return;
@@ -949,6 +950,7 @@ export default function DowntimeTracker({
       alert("Wajib mengisi nilai meter untuk setiap PCS yang dipilih!");
       return;
     }
+    setIsSavingEvent(true);
 
     const pcsKeStr = dikerjakanOleh === "Operator"
       ? (selectedPcsKeList.length === pcsCount ? "Semua" : (selectedPcsKeList.length > 0 ? selectedPcsKeList.join(", ") : "Semua"))
@@ -1070,14 +1072,11 @@ export default function DowntimeTracker({
     }
 
     updateFormDowntimeEvents(updatedList);
+    if (onAutoSubmit && !isPanelType && !isEdit) {
+      onAutoSubmit();
+    }
     handleCloseModal();
     setShowGagalCacatModal(false);
-
-    if (onAutoSubmit && !isPanelType && !isEdit) {
-      setTimeout(() => {
-        onAutoSubmit();
-      }, 50);
-    }
 
     setEditingIndex(null);
     setShowModal(false);
@@ -1099,6 +1098,7 @@ export default function DowntimeTracker({
   };
 
   const handleSaveEvent = async () => {
+    if (isSavingEvent || isSavingMechanic) return;
     if (selectedCategories.length === 0) return;
     if (dikerjakanOleh === "Operator" && selectedPcsKeList.length === 0) return;
     if (hasMissingMeter) return;
@@ -1115,6 +1115,7 @@ export default function DowntimeTracker({
       }
     }
     setBlockValidationError(null);
+    setIsSavingEvent(true);
 
     const meterStr = pcsKeys.length === 1
       ? inputMeters[pcsKeys[0]]?.trim()
@@ -1350,13 +1351,10 @@ export default function DowntimeTracker({
     }
 
     updateFormDowntimeEvents(updatedList);
-    handleCloseModal();
-
     if (onAutoSubmit && !isPanelType && !isEdit) {
-      setTimeout(() => {
-        onAutoSubmit();
-      }, 50);
+      onAutoSubmit();
     }
+    handleCloseModal();
 
     if (activeBlock) {
       localStorage.removeItem(`dji_machine_block_${targetMc}`);
@@ -2605,16 +2603,28 @@ export default function DowntimeTracker({
               <button
                 type="button"
                 onClick={handleSaveNonDefectStop}
-                className="flex-1 h-12 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-extrabold text-xs sm:text-sm rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 px-3 text-center"
+                disabled={isSavingEvent || isSavingMechanic}
+                className="flex-1 h-12 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-extrabold text-xs sm:text-sm rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 px-3 text-center disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Simpan sebagai Gagal Cacat"
               >
-                <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Gagal Cacat</span>
+                {isSavingEvent ? (
+                  <div className="flex items-center justify-center gap-1.5">
+                    <RefreshCw className="w-4 h-4 animate-spin text-amber-600" />
+                    <span>Menyimpan...</span>
+                  </div>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Gagal Cacat</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
                 onClick={handleSaveEvent}
                 disabled={
+                  isSavingEvent ||
+                  isSavingMechanic ||
                   selectedCategories.length === 0 ||
                   selectedCategories.some(cat => {
                     const hasDetails = (selectedDetails[cat] || []).length > 0;
@@ -2626,7 +2636,14 @@ export default function DowntimeTracker({
                 }
                 className="flex-1 h-12 bg-sky-500 text-white font-bold text-xs sm:text-sm rounded-xl hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
               >
-                {isSavingMechanic ? "Mengirim..." : (unresolvedDowntime ? "Selesaikan Perbaikan" : "Simpan Masalah")}
+                {isSavingEvent || isSavingMechanic ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>{isSavingMechanic ? "Mengirim..." : "Menyimpan Masalah..."}</span>
+                  </div>
+                ) : (
+                  unresolvedDowntime ? "Selesaikan Perbaikan" : "Simpan Masalah"
+                )}
               </button>
             </div>
           </div>

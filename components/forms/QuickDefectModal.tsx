@@ -529,7 +529,7 @@ export default function QuickDefectModal({
                 Menyimpan...
               </span>
             ) : (
-              <span>Simpan Masalah (❌)</span>
+              <span>Simpan Masalah</span>
             )}
           </button>
         </div>

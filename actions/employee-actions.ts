@@ -582,6 +582,20 @@ export async function createProductionReport(
           }
         }
 
+        // Cek idempotency key agar tidak terjadi insert ganda akibat double-click / double-tap
+        if (headerData.idempotency_key) {
+          const { data: existingByKey } = await supabase
+            .from("production_headers")
+            .select("id")
+            .eq("idempotency_key", headerData.idempotency_key)
+            .maybeSingle();
+
+          if (existingByKey && existingByKey.id) {
+            console.warn(`[EmployeeForm] Idempotency duplicate detected (${headerData.idempotency_key}). Mengabaikan insert ganda.`);
+            return { success: true };
+          }
+        }
+
         // A. Insert ke Tabel Header
         const { error: insertHeaderError } = await supabase
           .from("production_headers")
