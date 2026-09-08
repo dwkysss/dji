@@ -1,6 +1,11 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import {
+  getEsp32MachineMappingConfig,
+  saveEsp32MachineMappingConfig,
+  resetEsp32MachineMappingConfig,
+} from "@/actions/machine-config-actions";
 
 // Multi-machine Wi-Fi Context (M1, M2, M3, M4)
 
@@ -83,8 +88,8 @@ interface WifiContextType {
 
   // Machine Mapping Management
   machineMapping: Record<string, MachineEspMapping>;
-  updateMachineMapping: (newMap: Record<string, MachineEspMapping>) => void;
-  resetMachineMapping: () => void;
+  updateMachineMapping: (newMap: Record<string, MachineEspMapping>) => Promise<boolean>;
+  resetMachineMapping: () => Promise<boolean>;
 
   // Logs & Actions
   logs: WifiLogEntry[];
@@ -194,20 +199,46 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Update Machine Mapping
-  const updateMachineMapping = useCallback((newMap: Record<string, MachineEspMapping>) => {
+  const updateMachineMapping = useCallback(async (newMap: Record<string, MachineEspMapping>): Promise<boolean> => {
     setMachineMapping(newMap);
     if (typeof window !== "undefined") {
       localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(newMap));
     }
-    addLog("INFO", "Pemetaan mesin ESP32 berhasil diperbarui", "SYSTEM");
+    addLog("INFO", "Menyimpan pemetaan mesin ke database...", "SYSTEM");
+    try {
+      const res = await saveEsp32MachineMappingConfig(newMap);
+      if (res.success) {
+        addLog("INFO", "Pemetaan mesin ESP32 berhasil disimpan ke database cloud", "SYSTEM");
+        return true;
+      } else {
+        addLog("ERROR", `Gagal simpan pemetaan ke database: ${res.error}`, "SYSTEM");
+        return false;
+      }
+    } catch (e: any) {
+      addLog("ERROR", `Gagal simpan pemetaan ke database: ${e?.message || e}`, "SYSTEM");
+      return false;
+    }
   }, [addLog]);
 
-  const resetMachineMapping = useCallback(() => {
+  const resetMachineMapping = useCallback(async (): Promise<boolean> => {
     setMachineMapping(DEFAULT_MACHINE_ESP_MAP);
     if (typeof window !== "undefined") {
       localStorage.removeItem(MAP_STORAGE_KEY);
     }
-    addLog("INFO", "Pemetaan mesin ESP32 di-reset ke standar pabrik", "SYSTEM");
+    addLog("INFO", "Mereset pemetaan mesin di database...", "SYSTEM");
+    try {
+      const res = await resetEsp32MachineMappingConfig();
+      if (res.success) {
+        addLog("INFO", "Pemetaan mesin ESP32 di-reset ke standar pabrik di database", "SYSTEM");
+        return true;
+      } else {
+        addLog("ERROR", `Gagal reset di database: ${res.error}`, "SYSTEM");
+        return false;
+      }
+    } catch (e: any) {
+      addLog("ERROR", `Gagal reset di database: ${e?.message || e}`, "SYSTEM");
+      return false;
+    }
   }, [addLog]);
 
   // Notify registered signal listeners
@@ -481,6 +512,20 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     }
 
     connect(savedHost);
+
+    // Ambil pemetaan terbaru dari database Supabase agar selalu tersinkronisasi di semua perangkat
+    getEsp32MachineMappingConfig()
+      .then((res) => {
+        if (res.success && res.data && Object.keys(res.data).length > 0) {
+          setMachineMapping(res.data);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(res.data));
+          }
+        }
+      })
+      .catch((err) => {
+        console.error("Gagal memuat konfigurasi ESP32 dari database:", err);
+      });
 
     return () => {
       if (autoReconnectTimerRef.current) {

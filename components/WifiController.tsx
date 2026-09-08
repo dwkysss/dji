@@ -15,6 +15,7 @@ import {
   Save,
   RotateCcw,
   Sliders,
+  Loader2,
 } from "lucide-react";
 import {
   useWifiContext,
@@ -55,6 +56,7 @@ export default function WifiController() {
   // State untuk edit pemetaan mesin
   const [editableMap, setEditableMap] = useState<Record<string, MachineEspMapping>>(machineMapping);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+  const [isSavingMapping, setIsSavingMapping] = useState<boolean>(false);
 
   // Sync saat machineMapping berubah
   useEffect(() => {
@@ -145,11 +147,17 @@ export default function WifiController() {
   const handleSaveMapping = () => {
     requestPinAuth(
       "Simpan Pemetaan Mesin",
-      "Masukkan PIN Supervisor untuk menyimpan pemetaan nomor mesin ke pin ESP32.",
-      () => {
-        updateMachineMapping(editableMap);
-        setSaveSuccessMsg("Pemetaan mesin berhasil disimpan!");
-        setTimeout(() => setSaveSuccessMsg(null), 3000);
+      "Masukkan PIN Supervisor untuk menyimpan pemetaan nomor mesin ke pin ESP32 ke database cloud.",
+      async () => {
+        setIsSavingMapping(true);
+        const ok = await updateMachineMapping(editableMap);
+        setIsSavingMapping(false);
+        if (ok) {
+          setSaveSuccessMsg("Pemetaan mesin berhasil disimpan ke database & disinkronkan ke seluruh perangkat!");
+        } else {
+          setSaveSuccessMsg("Tersimpan di perangkat ini (database gagal sinkron).");
+        }
+        setTimeout(() => setSaveSuccessMsg(null), 4000);
       }
     );
   };
@@ -157,12 +165,14 @@ export default function WifiController() {
   const handleResetMapping = () => {
     requestPinAuth(
       "Reset Pemetaan Mesin",
-      "Masukkan PIN Supervisor untuk mengembalikan pemetaan mesin ke pengaturan standar pabrik.",
-      () => {
-        resetMachineMapping();
+      "Masukkan PIN Supervisor untuk mengembalikan pemetaan mesin ke pengaturan standar pabrik di database.",
+      async () => {
+        setIsSavingMapping(true);
+        await resetMachineMapping();
+        setIsSavingMapping(false);
         setEditableMap(DEFAULT_MACHINE_ESP_MAP);
-        setSaveSuccessMsg("Pemetaan berhasil dikembalikan ke standar!");
-        setTimeout(() => setSaveSuccessMsg(null), 3000);
+        setSaveSuccessMsg("Pemetaan berhasil dikembalikan ke standar pabrik & diperbarui di database!");
+        setTimeout(() => setSaveSuccessMsg(null), 4000);
       }
     );
   };
@@ -472,7 +482,7 @@ export default function WifiController() {
       {activeTab === "mapping" && (
         <div className="flex flex-col gap-4">
           <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-800 leading-relaxed">
-            💡 <strong>Panduan Pemetaan:</strong> Atur nomor mesin yang terhubung ke masing-masing ESP32 serta channel pin fisiknya. Aplikasi akan otomatis menyambungkan ke IP ESP32 yang sesuai saat operator memilih mesin di form.
+            💡 <strong>Panduan Pemetaan:</strong> Atur nomor mesin yang terhubung ke masing-masing ESP32 serta channel pin fisiknya. Tersimpan otomatis di database Supabase sehingga langsung tersinkronisasi ke seluruh HP, tablet, dan PC operator pabrik.
           </div>
 
           {saveSuccessMsg && (
@@ -562,8 +572,9 @@ export default function WifiController() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                disabled={isSavingMapping}
                 onClick={handleResetMapping}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
                 <span>Reset Standar</span>
@@ -571,11 +582,21 @@ export default function WifiController() {
 
               <button
                 type="button"
+                disabled={isSavingMapping}
                 onClick={handleSaveMapping}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Save className="w-3.5 h-3.5" />
-                <span>Simpan Pemetaan</span>
+                {isSavingMapping ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Menyimpan ke Cloud...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Simpan Pemetaan</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

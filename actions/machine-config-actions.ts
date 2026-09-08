@@ -41,6 +41,7 @@ export async function getMachineConfigs(): Promise<{ success: boolean; data: Mac
           mcStr &&
           !mcStr.startsWith("REQUIRED_BLOCK:") &&
           !mcStr.startsWith("MAX_PANEL:") &&
+          !mcStr.startsWith("ESP32_") &&
           mcStr !== "PROBLEM_GROUP_MAPPING"
         ) {
           configMap.set(mcStr.toUpperCase(), {
@@ -334,3 +335,85 @@ export async function getAllMaxPanelConfigs(): Promise<{
     return { success: false, data: {} };
   }
 }
+
+export async function getEsp32MachineMappingConfig(): Promise<{
+  success: boolean;
+  data: Record<string, { host: string; channel: "M1" | "M2" | "M3" | "M4" }> | null;
+  error?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("machine_configs")
+      .select("input_type")
+      .eq("nomor_mc", "ESP32_MACHINE_MAPPING")
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116" && !error.message.includes("does not exist")) {
+      console.error("Error fetching ESP32 machine mapping:", error);
+    }
+
+    if (data && data.input_type) {
+      try {
+        const parsed = JSON.parse(data.input_type);
+        return { success: true, data: parsed };
+      } catch (parseErr) {
+        console.error("Error parsing ESP32 mapping JSON:", parseErr);
+      }
+    }
+
+    return { success: true, data: null };
+  } catch (err: any) {
+    console.error("Error in getEsp32MachineMappingConfig:", err);
+    return { success: false, data: null, error: err.message };
+  }
+}
+
+export async function saveEsp32MachineMappingConfig(
+  mapping: Record<string, { host: string; channel: "M1" | "M2" | "M3" | "M4" }>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const payload = {
+      nomor_mc: "ESP32_MACHINE_MAPPING",
+      default_pcs: Object.keys(mapping).length,
+      input_type: JSON.stringify(mapping),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("machine_configs")
+      .upsert(payload, { onConflict: "nomor_mc" });
+
+    if (error) {
+      console.error("Error saving ESP32 machine mapping:", error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error in saveEsp32MachineMappingConfig:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function resetEsp32MachineMappingConfig(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("machine_configs")
+      .delete()
+      .eq("nomor_mc", "ESP32_MACHINE_MAPPING");
+
+    if (error) {
+      console.error("Error deleting ESP32 machine mapping:", error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error in resetEsp32MachineMappingConfig:", err);
+    return { success: false, error: err.message };
+  }
+}
+
