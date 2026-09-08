@@ -348,6 +348,7 @@ export default function EmployeeForm({
   const [successData, setSuccessData] = useState<
     (ProductionFormInput & { id?: string }) | null
   >(null);
+  const [successAutoCloseSeconds, setSuccessAutoCloseSeconds] = useState<number>(3);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLastPanel, setIsLastPanel] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
@@ -1256,6 +1257,29 @@ export default function EmployeeForm({
     }
   };
 
+  const handleCloseSuccessRef = useRef(handleCloseSuccess);
+  useEffect(() => {
+    handleCloseSuccessRef.current = handleCloseSuccess;
+  });
+
+  useEffect(() => {
+    if (!successData) return;
+    setSuccessAutoCloseSeconds(3);
+
+    const timer = setTimeout(() => {
+      handleCloseSuccessRef.current();
+    }, 3000);
+
+    const interval = setInterval(() => {
+      setSuccessAutoCloseSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, [successData]);
+
   const currentTourStep = PANEL_TOUR_STEPS[tourStepIndex];
   const isLastTourStep = tourStepIndex === PANEL_TOUR_STEPS.length - 1;
   const viewportHeight =
@@ -1965,12 +1989,28 @@ export default function EmployeeForm({
             )}
             <button
               onClick={handleCloseSuccess}
-              className="w-full py-3 bg-[#0070bc] hover:bg-[#005a96] text-white font-bold rounded-xl active:scale-95 transition-all text-sm shadow-md shadow-blue-200"
+              className="w-full py-3 bg-[#0070bc] hover:bg-[#005a96] text-white font-bold rounded-xl active:scale-95 transition-all text-sm shadow-md shadow-blue-200 flex items-center justify-center gap-2 cursor-pointer"
             >
-              {(successData as any)?.wasTargetReached
-                ? `Mulai Potongan ${(successData as any).nextPotonganTarget} (Panel 1)`
-                : (isEdit ? "Kembali ke Riwayat" : "Input Panel Berikutnya")}
+              <span>
+                {(successData as any)?.wasTargetReached
+                  ? `Mulai Potongan ${(successData as any).nextPotonganTarget} (Panel 1)`
+                  : (isEdit ? "Kembali ke Riwayat" : "Input Panel Berikutnya")}
+              </span>
+              <span className="text-xs font-mono bg-white/20 px-1.5 py-0.5 rounded-md">
+                ({successAutoCloseSeconds}s)
+              </span>
             </button>
+            <div className="w-full mt-3">
+              <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#0070bc] transition-all duration-1000 ease-linear rounded-full"
+                  style={{ width: `${(successAutoCloseSeconds / 3) * 100}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                Menutup otomatis dalam {successAutoCloseSeconds} detik...
+              </p>
+            </div>
           </div>
         </div>
       )}
