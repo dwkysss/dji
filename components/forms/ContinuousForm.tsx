@@ -363,6 +363,7 @@ export default function ContinuousForm({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessingSubmit, setIsProcessingSubmit] = useState(false);
+  const pendingDowntimeEventsRef = useRef<any[]>([]);
   const [successData, setSuccessData] = useState<
     (ContinuousFormInput & { id?: string }) | null
   >(null);
@@ -1398,6 +1399,18 @@ export default function ContinuousForm({
     // Gunakan idempotency key dari ref yang stabil
     data.idempotencyKey = idempotencyKeyRef.current;
 
+    // Filter dan pisahkan event yang sudah selesai (resolved) vs antrean pending
+    const allDowntime = data.downtimeEvents || [];
+    const resolvedDowntime = allDowntime.filter(
+      (evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0))
+    );
+    const unclassifiedDowntime = allDowntime.filter(
+      (evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0))
+    );
+
+    pendingDowntimeEventsRef.current = unclassifiedDowntime;
+    data.downtimeEvents = resolvedDowntime;
+
     // Otomatis set isPanelGagal jika ada PCS yang BS
     if (data.pcsData?.some((p) => p.isBs)) {
       data.isPanelGagal = true;
@@ -1726,8 +1739,22 @@ export default function ContinuousForm({
       hasilProduksiMeter: "",
       tanggalPotong: "",
       targetMeter: wasLastRoll ? "" : watch("targetMeter"),
-      downtimeEvents: [],
+      downtimeEvents: pendingDowntimeEventsRef.current || [],
     });
+
+    const preservedPending = pendingDowntimeEventsRef.current || [];
+    pendingDowntimeEventsRef.current = [];
+
+    // Jika masih ada sisa antrean yang belum diklasifikasi, simpan ke draft agar tidak hilang saat reload
+    if (preservedPending.length > 0) {
+      try {
+        const currentDraft = {
+          ...watch(),
+          downtimeEvents: preservedPending,
+        };
+        localStorage.setItem("dji_form_draft_continuous", JSON.stringify(currentDraft));
+      } catch (e) { }
+    }
 
     // Refresh idempotency key setelah sukses submit
     idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -2183,8 +2210,8 @@ export default function ContinuousForm({
             {/* Tombol Kirim Titik Cacat Manual jika ada data di riwayat berhenti */}
             {(() => {
               const dtEvents = watch("downtimeEvents") || [];
-              const hasResolvedEvents = dtEvents.some((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
-              if (!hasResolvedEvents) return null;
+              const resolvedEvents = dtEvents.filter((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
+              if (resolvedEvents.length === 0) return null;
 
               return (
                 <div className="w-full mt-3 flex justify-end">
@@ -2203,7 +2230,7 @@ export default function ContinuousForm({
                     ) : (
                       <Send className="w-4 h-4" />
                     )}
-                    <span>Kirim Titik Cacat ({dtEvents.length} Kejadian)</span>
+                    <span>Kirim Titik Cacat ({resolvedEvents.length} Kejadian)</span>
                   </button>
                 </div>
               );
@@ -2613,7 +2640,7 @@ export default function ContinuousForm({
                       <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl mb-3 flex items-start gap-2.5 text-amber-900 text-xs shadow-xs">
                         <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                         <div className="leading-relaxed">
-                          <span className="font-bold block text-amber-950 mb-0.5">⚠️ Serah Terima Shift Otomatis</span>
+                          <span className="font-bold block text-amber-950 mb-0.5">Serah Terima Shift Otomatis</span>
                           Operator sebelumnya (<b>{handoverWarning.lastOperator}</b>) belum melaporkan finish shift.
                           Counter meter yang Anda masukkan di bawah akan otomatis <b>menutup shift {handoverWarning.lastOperator}</b>, dan shift Anda akan langsung dimulai dari counter tersebut.
                         </div>

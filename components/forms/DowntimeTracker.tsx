@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useFieldArray, Control, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info, Edit3 } from "lucide-react";
+import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info, Edit3, Link2, Lightbulb, Pin } from "lucide-react";
 import { ContinuousFormInput } from "@/lib/schemas";
 import { submitMechanicDowntime } from "@/actions/mechanic-actions";
 import { getProblemDetailsGrouped, createProblemDetail } from "@/actions/problem-detail-actions";
@@ -552,7 +552,7 @@ export default function DowntimeTracker({
     const newUnclassifiedEvent: any = {
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       durasiDetik: finalDuration,
-      pcsKe: "Semua",
+      pcsKe: pcsKeys.length === 1 ? (pcsKeys[0] || "1") : "",
       dikerjakanOleh: currentOperatorName || "Operator",
       problems: [],
       triggerSource: finalSource,
@@ -657,8 +657,10 @@ export default function DowntimeTracker({
 
     if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
       setSelectedPcsKeList([defaultPcsIndex]);
-    } else {
+    } else if (pcsKeys.length === 1) {
       setSelectedPcsKeList([...pcsKeys]);
+    } else {
+      setSelectedPcsKeList([]);
     }
     setIsPerPcsMeterMode(false);
     setLeaderPcsKey(null);
@@ -676,6 +678,8 @@ export default function DowntimeTracker({
   };
 
   const handleCloseModal = () => {
+    setIsSavingEvent(false);
+    setIsSavingMechanic(false);
     setShowModal(false);
     setShowGagalCacatModal(false);
     setEditingIndex(null);
@@ -693,6 +697,7 @@ export default function DowntimeTracker({
     setNamaPenanganan("");
     setCustomizedPcsKeys({});
     setLeaderPcsKey(null);
+    setSelectedPcsKeList([]);
   };
 
   const handlePcsMeterChange = (pcsKey: string, rawVal: string) => {
@@ -818,10 +823,12 @@ export default function DowntimeTracker({
     setLeaderPcsKey(null);
     setCustomizedPcsKeys({});
 
-    // Default: jika targetEvent punya pcsKe spesifik (bukan "Semua"), pakai itu. Jika tidak, DEFAULT KE SEMUA PCS!
+    // Khusus Gagal Cacat: default-nya adalah SEMUA PCS terpilih (karena mesin berhenti tanpa cacat pada seluruh roll)
     if (targetEvent.pcsKe && targetEvent.pcsKe !== "Semua") {
       const existingPcs = targetEvent.pcsKe.split(",").map((s: string) => s.trim());
       setSelectedPcsKeList(existingPcs);
+    } else if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
+      setSelectedPcsKeList([defaultPcsIndex]);
     } else {
       setSelectedPcsKeList([...pcsKeys]);
     }
@@ -876,7 +883,11 @@ export default function DowntimeTracker({
     setNamaPenanganan("");
     setIsUnblockingBlock(false);
     setIsPerPcsMeterMode(false);
-    setSelectedPcsKeList([...pcsKeys]);
+    if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
+      setSelectedPcsKeList([defaultPcsIndex]);
+    } else {
+      setSelectedPcsKeList([...pcsKeys]);
+    }
 
     const initialMeters: Record<string, string> = {};
     let extractedSingleMeter = "";
@@ -940,12 +951,16 @@ export default function DowntimeTracker({
     setNamaPenanganan("");
     setIsUnblockingBlock(false);
 
-    // Default: jika multi-PCS, pilih semua PCS secara otomatis
+    // Default: jika targetEvent punya pcsKe spesifik (bukan "Semua"), pakai itu. Jika tidak, jangan pilih semua otomatis jika multi-PCS
     if (targetEvent.pcsKe && targetEvent.pcsKe !== "Semua") {
       const existingPcs = targetEvent.pcsKe.split(",").map((s: string) => s.trim());
       setSelectedPcsKeList(existingPcs);
-    } else {
+    } else if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
+      setSelectedPcsKeList([defaultPcsIndex]);
+    } else if (pcsKeys.length === 1) {
       setSelectedPcsKeList([...pcsKeys]);
+    } else {
+      setSelectedPcsKeList([]);
     }
     setIsPerPcsMeterMode(false);
     setLeaderPcsKey(null);
@@ -1033,7 +1048,10 @@ export default function DowntimeTracker({
     setSelectedUnclassifiedIds([]);
     updateFormDowntimeEvents(updatedList);
 
-    if (onAutoSubmit && !isPanelType && !isEdit) {
+    const hasRemainingUnclassified = updatedList.some(
+      (evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0))
+    );
+    if (onAutoSubmit && !isPanelType && !isEdit && !hasRemainingUnclassified) {
       onAutoSubmit();
     }
   };
@@ -1075,9 +1093,9 @@ export default function DowntimeTracker({
   const handleSaveNonDefectStop = () => {
     if (isSavingEvent || isSavingMechanic) return;
 
-    // 1. Jika belum ada PCS yang dipilih pada mesin multi-PCS, default-kan ke SEMUA PCS
+    // 1. Jika belum ada PCS yang dipilih untuk Gagal Cacat, default-kan ke SEMUA PCS
     let currentSelectedPcs = [...selectedPcsKeList];
-    if (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && currentSelectedPcs.length === 0) {
+    if (currentSelectedPcs.length === 0) {
       currentSelectedPcs = [...pcsKeys];
       setSelectedPcsKeList([...pcsKeys]);
     }
@@ -1099,152 +1117,169 @@ export default function DowntimeTracker({
       alert("Wajib mengisi nilai meter sebelum menyimpan Gagal Cacat!");
       return;
     }
-    setIsSavingEvent(true);
+    try {
+      setIsSavingEvent(true);
 
-    const isAllPcs = currentSelectedPcs.length === pcsCount;
-    const pcsKeStr = dikerjakanOleh === "Operator"
-      ? (isAllPcs ? "Semua" : (currentSelectedPcs.length > 0 ? currentSelectedPcs.join(", ") : "Semua"))
-      : "Semua";
+      const isAllPcs = currentSelectedPcs.length === pcsCount;
+      const pcsKeStr = dikerjakanOleh === "Operator"
+        ? (isAllPcs ? "Semua" : (currentSelectedPcs.length > 0 ? currentSelectedPcs.join(", ") : "Semua"))
+        : "Semua";
 
-    const meterStr = pcsKeys.length === 1
-      ? (currentMeters[pcsKeys[0]]?.trim() || singleMeterInput.trim())
-      : Object.entries(currentMeters)
-        .filter(([k, v]) => currentSelectedPcs.includes(k) && v.trim() !== "")
-        .map(([pcs, val]) => `PCS ${pcs}: ${val.trim()}`)
-        .join(", ");
+      const meterStr = pcsKeys.length === 1
+        ? (currentMeters[pcsKeys[0]]?.trim() || singleMeterInput?.trim() || "")
+        : Object.entries(currentMeters)
+          .filter(([k, v]) => currentSelectedPcs.includes(k) && v && typeof v === "string" && v.trim() !== "")
+          .map(([pcs, val]) => `PCS ${pcs}: ${typeof val === "string" ? val.trim() : val}`)
+          .join(", ");
 
-    const dikerjakanGabungan = currentOperatorName || "Operator";
+      const dikerjakanGabungan = currentOperatorName || "Operator";
 
-    const nonDefectProblems = [
-      {
-        kategori: "G",
-        details: ["Gagal Cacat"],
-        meter: dikerjakanOleh === "Operator" && meterStr ? meterStr : undefined,
-      },
-    ];
+      const nonDefectProblems = [
+        {
+          kategori: "G",
+          details: ["Gagal Cacat"],
+          meter: dikerjakanOleh === "Operator" && meterStr ? meterStr : undefined,
+        },
+      ];
 
-    const currentList = watch("downtimeEvents") || fields || [];
-    const targetObj = editingIndex !== null ? currentList[editingIndex] : null;
+      const currentList = watch("downtimeEvents") || fields || [];
+      const targetObj = editingIndex !== null ? currentList[editingIndex] : null;
 
-    const finalEvent: any = {
-      id: targetObj?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      durasiDetik: tempDuration,
-      pcsKe: pcsKeStr,
-      meter: meterStr || undefined,
-      dikerjakanOleh: dikerjakanGabungan,
-      problems: nonDefectProblems,
-      triggerSource: targetObj?.triggerSource || currentTimerSource,
-      isResolved: true,
-      isSensorGlitch: true,
-    };
+      const finalEvent: any = {
+        id: targetObj?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        durasiDetik: tempDuration,
+        pcsKe: pcsKeStr,
+        meter: meterStr || undefined,
+        dikerjakanOleh: dikerjakanGabungan,
+        problems: nonDefectProblems,
+        triggerSource: targetObj?.triggerSource || currentTimerSource,
+        isResolved: true,
+        isSensorGlitch: true,
+      };
 
-    // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda
-    const currentPanelNo = String(watch("panelNo") || "1").trim();
-    const isDeferredToOtherPanel = isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
+      // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda
+      const currentPanelNo = String(watch("panelNo") || "1").trim();
+      const isDeferredToOtherPanel = isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
 
-    if (isDeferredToOtherPanel) {
-      const curMc = String(watch("nomorMc") || "").trim().toUpperCase();
-      const curPot = String(watch("potonganKe") || "").trim();
-      const storageKey = `dji_deferred_downtime_${curMc}_${curPot}_${targetPanelNo.trim()}`;
+      if (isDeferredToOtherPanel) {
+        const curMc = String(watch("nomorMc") || "").trim().toUpperCase();
+        const curPot = String(watch("potonganKe") || "").trim();
+        const storageKey = `dji_deferred_downtime_${curMc}_${curPot}_${targetPanelNo.trim()}`;
 
-      try {
-        const existingStr = localStorage.getItem(storageKey);
-        const existingList = existingStr ? JSON.parse(existingStr) : [];
+        try {
+          const existingStr = localStorage.getItem(storageKey);
+          const existingList = existingStr ? JSON.parse(existingStr) : [];
+          if (batchClassifyIds.length > 0) {
+            batchClassifyIds.forEach((targetId) => {
+              const item = currentList.find((e: any, idx: number) => (e.id || `evt-${idx}`) === targetId);
+              if (item) {
+                existingList.push({
+                  ...item,
+                  pcsKe: pcsKeStr,
+                  dikerjakanOleh: dikerjakanGabungan,
+                  problems: nonDefectProblems,
+                  isResolved: true,
+                  isSensorGlitch: true,
+                });
+              }
+            });
+          } else {
+            existingList.push(finalEvent);
+          }
+          localStorage.setItem(storageKey, JSON.stringify(existingList));
+        } catch (e) { }
+
         if (batchClassifyIds.length > 0) {
-          batchClassifyIds.forEach((targetId) => {
-            const item = currentList.find((e: any, idx: number) => (e.id || `evt-${idx}`) === targetId);
-            if (item) {
-              existingList.push({
-                ...item,
-                pcsKe: pcsKeStr,
-                dikerjakanOleh: dikerjakanGabungan,
-                problems: nonDefectProblems,
-                isResolved: true,
-                isSensorGlitch: true,
-              });
-            }
-          });
-        } else {
-          existingList.push(finalEvent);
+          const filtered = currentList.filter((e: any, idx: number) => !batchClassifyIds.includes(e.id || `evt-${idx}`));
+          try { replace(filtered); } catch (_) {}
+          updateFormDowntimeEvents(filtered);
+        } else if (editingIndex !== null) {
+          try { remove(editingIndex); } catch (_) {}
+          const filtered = currentList.filter((_: any, idx: number) => idx !== editingIndex);
+          updateFormDowntimeEvents(filtered);
         }
-        localStorage.setItem(storageKey, JSON.stringify(existingList));
-      } catch (e) { }
 
-      if (batchClassifyIds.length > 0) {
-        const filtered = currentList.filter((e: any, idx: number) => !batchClassifyIds.includes(e.id || `evt-${idx}`));
-        replace(filtered);
-        updateFormDowntimeEvents(filtered);
-      } else if (editingIndex !== null) {
-        remove(editingIndex);
-        const filtered = currentList.filter((_: any, idx: number) => idx !== editingIndex);
-        updateFormDowntimeEvents(filtered);
+        handleCloseModal();
+        setShowGagalCacatModal(false);
+        setDeferredToast(`Downtime (Gagal Cacat) berhasil dialokasikan untuk Panel ${targetPanelNo}. Data akan otomatis dimuat saat Anda menginput Panel ${targetPanelNo}.`);
+        setIsTimerRunning(false);
+        setTimerStartRef(null);
+        setLiveTimerSeconds(0);
+        accumulatedSecRef.current = 0;
+        setTempDuration(0);
+        localStorage.removeItem("dji_active_downtime_start");
+        return;
       }
 
+      let updatedList = [...currentList];
+      if (batchClassifyIds.length > 0) {
+        updatedList = currentList.map((e: any, i: number) => {
+          const id = e.id || `evt-${i}`;
+          if (batchClassifyIds.includes(id)) {
+            return {
+              ...e,
+              pcsKe: pcsKeStr,
+              meter: meterStr || undefined,
+              dikerjakanOleh: dikerjakanGabungan,
+              problems: nonDefectProblems,
+              isResolved: true,
+              isSensorGlitch: true,
+            };
+          }
+          return e;
+        });
+        batchClassifyIds.forEach((targetId) => {
+          const idx = currentList.findIndex((e: any, i: number) => (e.id || `evt-${i}`) === targetId);
+          if (idx !== -1 && idx < fields.length) {
+            try { update(idx, updatedList[idx]); } catch (_) {}
+          }
+        });
+      } else if (editingIndex !== null) {
+        updatedList[editingIndex] = finalEvent;
+        if (editingIndex < fields.length) {
+          try { update(editingIndex, finalEvent); } catch (_) {}
+        } else {
+          try { replace(updatedList); } catch (_) {}
+        }
+      } else {
+        updatedList.push(finalEvent);
+        try { append(finalEvent); } catch (_) {}
+      }
+
+      updateFormDowntimeEvents(updatedList);
+      const hasRemainingUnclassified = updatedList.some(
+        (evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0))
+      );
       handleCloseModal();
       setShowGagalCacatModal(false);
-      setDeferredToast(`Downtime (Gagal Cacat) berhasil dialokasikan untuk Panel ${targetPanelNo}. Data akan otomatis dimuat saat Anda menginput Panel ${targetPanelNo}.`);
+
+      if (onAutoSubmit && !isPanelType && !isEdit && !hasRemainingUnclassified) {
+        onAutoSubmit();
+      }
+
+      setEditingIndex(null);
+      setShowModal(false);
+
+      if (activeBlock) {
+        localStorage.removeItem(`dji_machine_block_${targetMc}`);
+        setActiveBlock(null);
+      }
+
       setIsTimerRunning(false);
       setTimerStartRef(null);
       setLiveTimerSeconds(0);
       accumulatedSecRef.current = 0;
       setTempDuration(0);
       localStorage.removeItem("dji_active_downtime_start");
-      return;
+      setIsUnblockingBlock(false);
+      setDikerjakanOleh("Operator");
+      setNamaPenanganan("");
+    } catch (err: any) {
+      console.error("Error saving non defect stop:", err);
+      alert("Gagal menyimpan gagal cacat: " + (err?.message || err));
+    } finally {
+      setIsSavingEvent(false);
     }
-
-    let updatedList = [...currentList];
-    if (batchClassifyIds.length > 0) {
-      updatedList = currentList.map((e: any, i: number) => {
-        const id = e.id || `evt-${i}`;
-        if (batchClassifyIds.includes(id)) {
-          return {
-            ...e,
-            pcsKe: pcsKeStr,
-            meter: meterStr || undefined,
-            dikerjakanOleh: dikerjakanGabungan,
-            problems: nonDefectProblems,
-            isResolved: true,
-            isSensorGlitch: true,
-          };
-        }
-        return e;
-      });
-      batchClassifyIds.forEach((targetId) => {
-        const idx = currentList.findIndex((e: any, i: number) => (e.id || `evt-${i}`) === targetId);
-        if (idx !== -1) update(idx, updatedList[idx]);
-      });
-    } else if (editingIndex !== null) {
-      updatedList[editingIndex] = finalEvent;
-      update(editingIndex, finalEvent);
-    } else {
-      updatedList.push(finalEvent);
-      append(finalEvent);
-    }
-
-    updateFormDowntimeEvents(updatedList);
-    if (onAutoSubmit && !isPanelType && !isEdit) {
-      onAutoSubmit();
-    }
-    handleCloseModal();
-    setShowGagalCacatModal(false);
-
-    setEditingIndex(null);
-    setShowModal(false);
-
-    if (activeBlock) {
-      localStorage.removeItem(`dji_machine_block_${targetMc}`);
-      setActiveBlock(null);
-    }
-
-    setIsTimerRunning(false);
-    setTimerStartRef(null);
-    setLiveTimerSeconds(0);
-    accumulatedSecRef.current = 0;
-    setTempDuration(0);
-    localStorage.removeItem("dji_active_downtime_start");
-    setIsUnblockingBlock(false);
-    setDikerjakanOleh("Operator");
-    setNamaPenanganan("");
   };
 
   const handleSaveEvent = async () => {
@@ -1286,260 +1321,274 @@ export default function DowntimeTracker({
       }
     }
     setBlockValidationError(null);
-    setIsSavingEvent(true);
+    try {
+      setIsSavingEvent(true);
 
-    const meterStr = pcsKeys.length === 1
-      ? (currentMeters[pcsKeys[0]]?.trim() || singleMeterInput.trim())
-      : Object.entries(currentMeters)
-        .filter(([k, v]) => selectedPcsKeList.includes(k) && v.trim() !== "")
-        .map(([pcs, val]) => `PCS ${pcs}: ${val.trim()}`)
-        .join(", ");
+      const meterStr = pcsKeys.length === 1
+        ? (currentMeters[pcsKeys[0]]?.trim() || singleMeterInput?.trim() || "")
+        : Object.entries(currentMeters)
+          .filter(([k, v]) => selectedPcsKeList.includes(k) && v && typeof v === "string" && v.trim() !== "")
+          .map(([pcs, val]) => `PCS ${pcs}: ${typeof val === "string" ? val.trim() : val}`)
+          .join(", ");
 
-    const problems = selectedCategories.map(catId => {
-      let details = [...(selectedDetails[catId] || [])];
-      const manualText = (manualInputDetails[catId] || "").trim();
-      if (manualText && !details.includes(manualText)) {
-        details.push(manualText);
-        try {
-          createProblemDetail({ kategori: catId, nama_detail: manualText });
-        } catch (e) { }
-      }
-      return {
-        kategori: catId,
-        details: details,
-        blok: inputBloks[catId]?.trim() !== "" ? inputBloks[catId]?.trim() : undefined,
-        meter: dikerjakanOleh === "Operator" && meterStr ? meterStr : undefined,
-      };
-    });
-
-    const pcsKeStr = dikerjakanOleh === "Operator"
-      ? (selectedPcsKeList.length === pcsCount ? "Semua" : selectedPcsKeList.join(", "))
-      : "Semua";
-
-    let dikerjakanGabungan = dikerjakanOleh;
-    if (dikerjakanOleh === "Operator") {
-      dikerjakanGabungan = currentOperatorName || "Operator";
-    } else {
-      const pj = namaPenanganan || currentOperatorName || "Operator";
-      dikerjakanGabungan = `Perbaikan Khusus (${pj})`;
-    }
-
-    const currentList = watch("downtimeEvents") || fields || [];
-    const targetObj = editingIndex !== null ? currentList[editingIndex] : null;
-
-    let finalEvent: any = {
-      id: targetObj?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      durasiDetik: tempDuration,
-      pcsKe: pcsKeStr,
-      dikerjakanOleh: dikerjakanGabungan,
-      problems: problems,
-      handoffLogs: activeBlock?.handoffLogs || undefined,
-      triggerSource: targetObj?.triggerSource || currentTimerSource,
-      isResolved: true,
-    };
-
-    // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda
-    const currentPanelNo = String(watch("panelNo") || "1").trim();
-    const isDeferredToOtherPanel = isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
-
-    if (isDeferredToOtherPanel) {
-      const curMc = String(watch("nomorMc") || "").trim().toUpperCase();
-      const curPot = String(watch("potonganKe") || "").trim();
-      const storageKey = `dji_deferred_downtime_${curMc}_${curPot}_${targetPanelNo.trim()}`;
-
-      try {
-        const existingStr = localStorage.getItem(storageKey);
-        const existingList = existingStr ? JSON.parse(existingStr) : [];
-        if (batchClassifyIds.length > 0) {
-          batchClassifyIds.forEach((targetId) => {
-            const item = currentList.find((e: any, idx: number) => (e.id || `evt-${idx}`) === targetId);
-            if (item) {
-              existingList.push({
-                ...item,
-                pcsKe: pcsKeStr,
-                dikerjakanOleh: dikerjakanGabungan,
-                problems: problems,
-                isResolved: true,
-              });
-            }
-          });
-        } else {
-          existingList.push(finalEvent);
+      const problems = selectedCategories.map(catId => {
+        let details = [...(selectedDetails[catId] || [])];
+        const manualText = (manualInputDetails[catId] || "").trim();
+        if (manualText && !details.includes(manualText)) {
+          details.push(manualText);
+          try {
+            createProblemDetail({ kategori: catId, nama_detail: manualText });
+          } catch (e) { }
         }
-        localStorage.setItem(storageKey, JSON.stringify(existingList));
-      } catch (e) { }
+        return {
+          kategori: catId,
+          details: details,
+          blok: inputBloks[catId]?.trim() !== "" ? inputBloks[catId]?.trim() : undefined,
+          meter: dikerjakanOleh === "Operator" && meterStr ? meterStr : undefined,
+        };
+      });
 
-      // Bersihkan event yang dialokasikan dari list form saat ini
-      if (batchClassifyIds.length > 0) {
-        const filtered = currentList.filter((e: any, idx: number) => !batchClassifyIds.includes(e.id || `evt-${idx}`));
-        replace(filtered);
-        updateFormDowntimeEvents(filtered);
-      } else if (editingIndex !== null) {
-        remove(editingIndex);
-        const filtered = currentList.filter((_: any, idx: number) => idx !== editingIndex);
-        updateFormDowntimeEvents(filtered);
+      const pcsKeStr = dikerjakanOleh === "Operator"
+        ? (selectedPcsKeList.length === pcsCount ? "Semua" : selectedPcsKeList.join(", "))
+        : "Semua";
+
+      let dikerjakanGabungan = dikerjakanOleh;
+      if (dikerjakanOleh === "Operator") {
+        dikerjakanGabungan = currentOperatorName || "Operator";
+      } else {
+        const pj = namaPenanganan || currentOperatorName || "Operator";
+        dikerjakanGabungan = `Perbaikan Khusus (${pj})`;
       }
 
+      const currentList = watch("downtimeEvents") || fields || [];
+      const targetObj = editingIndex !== null ? currentList[editingIndex] : null;
+
+      let finalEvent: any = {
+        id: targetObj?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        durasiDetik: tempDuration,
+        pcsKe: pcsKeStr,
+        dikerjakanOleh: dikerjakanGabungan,
+        problems: problems,
+        handoffLogs: activeBlock?.handoffLogs || undefined,
+        triggerSource: targetObj?.triggerSource || currentTimerSource,
+        isResolved: true,
+      };
+
+      // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda
+      const currentPanelNo = String(watch("panelNo") || "1").trim();
+      const isDeferredToOtherPanel = isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
+
+      if (isDeferredToOtherPanel) {
+        const curMc = String(watch("nomorMc") || "").trim().toUpperCase();
+        const curPot = String(watch("potonganKe") || "").trim();
+        const storageKey = `dji_deferred_downtime_${curMc}_${curPot}_${targetPanelNo.trim()}`;
+
+        try {
+          const existingStr = localStorage.getItem(storageKey);
+          const existingList = existingStr ? JSON.parse(existingStr) : [];
+          if (batchClassifyIds.length > 0) {
+            batchClassifyIds.forEach((targetId) => {
+              const item = currentList.find((e: any, idx: number) => (e.id || `evt-${idx}`) === targetId);
+              if (item) {
+                existingList.push({
+                  ...item,
+                  pcsKe: pcsKeStr,
+                  dikerjakanOleh: dikerjakanGabungan,
+                  problems: problems,
+                  isResolved: true,
+                });
+              }
+            });
+          } else {
+            existingList.push(finalEvent);
+          }
+          localStorage.setItem(storageKey, JSON.stringify(existingList));
+        } catch (e) { }
+
+        // Bersihkan event yang dialokasikan dari list form saat ini
+        if (batchClassifyIds.length > 0) {
+          const filtered = currentList.filter((e: any, idx: number) => !batchClassifyIds.includes(e.id || `evt-${idx}`));
+          try { replace(filtered); } catch (_) {}
+          updateFormDowntimeEvents(filtered);
+        } else if (editingIndex !== null) {
+          try { remove(editingIndex); } catch (_) {}
+          const filtered = currentList.filter((_: any, idx: number) => idx !== editingIndex);
+          updateFormDowntimeEvents(filtered);
+        }
+
+        handleCloseModal();
+        setDeferredToast(`Downtime berhasil dialokasikan untuk Panel ${targetPanelNo}. Data akan otomatis dimuat saat Anda menginput Panel ${targetPanelNo}.`);
+        setIsTimerRunning(false);
+        setTimerStartRef(null);
+        setLiveTimerSeconds(0);
+        accumulatedSecRef.current = 0;
+        setTempDuration(0);
+        localStorage.removeItem("dji_active_downtime_start");
+        return;
+      }
+
+      if (dikerjakanOleh !== "Operator") {
+        setIsSavingMechanic(true);
+        try {
+          if (activeBlock && activeBlock.handoffLogs && activeBlock.handoffLogs.length > 0) {
+            const logs = activeBlock.handoffLogs;
+            const unblockTime = Date.now();
+
+            for (let i = 0; i < logs.length; i++) {
+              const currentLog = logs[i];
+              const logStart = currentLog.startTime || activeBlock.startTime || (unblockTime - (tempDuration || 60) * 1000);
+              const nextTime = (i < logs.length - 1 && logs[i + 1]?.startTime) ? logs[i + 1].startTime : unblockTime;
+              const diff = Math.floor((nextTime - logStart) / 1000);
+              const segDurationSec = (isNaN(diff) || diff <= 0) ? (tempDuration || 1) : diff;
+
+              const splitEvent = {
+                id: `split-${Date.now()}-${i}`,
+                durasiDetik: segDurationSec,
+                pcsKe: "Semua",
+                dikerjakanOleh: `Perbaikan Khusus (${currentLog.operatorName || "Operator"})`,
+                problems: problems,
+                shift: currentLog.shift || watch("groupId") || "A",
+                notes: currentLog.notes
+              };
+
+              const res = await submitMechanicDowntime({
+                nomorMc: watch("nomorMc") || "",
+                operatorId: watch("operatorId") || "",
+                groupId: currentLog.shift || watch("groupId") || "A",
+                designId: watch("designId") || "",
+                tanggalProduksi: currentLog.dateIso || new Date().toISOString().split("T")[0],
+                potonganKe: watch("potonganKe") || "",
+                downtimeEvent: splitEvent,
+                createdTime: logStart,
+              });
+
+              if (!res.success) {
+                console.error("Error submitting split downtime segment:", res.error);
+              }
+            }
+
+            handleCloseModal();
+            localStorage.removeItem(`dji_machine_block_${targetMc}`);
+            setActiveBlock(null);
+            if (unresolvedDowntime) {
+              setUnresolvedDowntime(null);
+              localStorage.removeItem("dji_unresolved_downtime");
+            }
+            setIsTimerRunning(false);
+            setTimerStartRef(null);
+            setLiveTimerSeconds(0);
+            localStorage.removeItem("dji_active_downtime_start");
+            setIsSavingMechanic(false);
+            setIsUnblockingBlock(false);
+            setDikerjakanOleh("Operator");
+            setNamaPenanganan("");
+            return;
+          }
+
+          const res = await submitMechanicDowntime({
+            nomorMc: watch("nomorMc") || "",
+            operatorId: watch("operatorId") || "",
+            groupId: watch("groupId") || "",
+            designId: watch("designId") || "",
+            tanggalProduksi: watch("tanggalProduksi") || "",
+            potonganKe: watch("potonganKe") || "",
+            downtimeEvent: finalEvent,
+            createdTime: activeBlock?.startTime || undefined,
+          });
+          if (res.success) {
+            handleCloseModal();
+            if (activeBlock) {
+              localStorage.removeItem(`dji_machine_block_${targetMc}`);
+              setActiveBlock(null);
+            }
+            if (unresolvedDowntime) {
+              setUnresolvedDowntime(null);
+              localStorage.removeItem("dji_unresolved_downtime");
+            }
+            setIsTimerRunning(false);
+            setTimerStartRef(null);
+            setLiveTimerSeconds(0);
+            accumulatedSecRef.current = 0;
+            setTempDuration(0);
+            localStorage.removeItem("dji_active_downtime_start");
+            setIsSavingMechanic(false);
+            setIsUnblockingBlock(false);
+            setDikerjakanOleh("Operator");
+            setNamaPenanganan("");
+            return;
+          } else {
+            alert("Gagal mengirim downtime khusus: " + res.error);
+          }
+        } catch (err) {
+          alert("Gagal mengirim downtime khusus.");
+        }
+        setIsSavingMechanic(false);
+        return;
+      }
+
+      let updatedList = [...currentList];
+      if (batchClassifyIds.length > 0) {
+        updatedList = currentList.map((e: any, i: number) => {
+          const id = e.id || `evt-${i}`;
+          if (batchClassifyIds.includes(id)) {
+            return {
+              ...e,
+              pcsKe: pcsKeStr,
+              dikerjakanOleh: dikerjakanGabungan,
+              problems: problems,
+              handoffLogs: activeBlock?.handoffLogs || undefined,
+              triggerSource: e.triggerSource || currentTimerSource,
+              isResolved: true,
+            };
+          }
+          return e;
+        });
+        batchClassifyIds.forEach((targetId) => {
+          const idx = currentList.findIndex((e: any, i: number) => (e.id || `evt-${i}`) === targetId);
+          if (idx !== -1 && idx < fields.length) {
+            try { update(idx, updatedList[idx]); } catch (_) {}
+          }
+        });
+      } else if (editingIndex !== null) {
+        updatedList[editingIndex] = finalEvent;
+        if (editingIndex < fields.length) {
+          try { update(editingIndex, finalEvent); } catch (_) {}
+        } else {
+          try { replace(updatedList); } catch (_) {}
+        }
+      } else {
+        updatedList.push(finalEvent);
+        try { append(finalEvent); } catch (_) {}
+      }
+
+      updateFormDowntimeEvents(updatedList);
+      const hasRemainingUnclassified = updatedList.some(
+        (evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0))
+      );
       handleCloseModal();
-      setDeferredToast(`Downtime berhasil dialokasikan untuk Panel ${targetPanelNo}. Data akan otomatis dimuat saat Anda menginput Panel ${targetPanelNo}.`);
+      if (onAutoSubmit && !isPanelType && !isEdit && !hasRemainingUnclassified) {
+        onAutoSubmit();
+      }
+
+      if (activeBlock) {
+        localStorage.removeItem(`dji_machine_block_${targetMc}`);
+        setActiveBlock(null);
+      }
+
       setIsTimerRunning(false);
       setTimerStartRef(null);
       setLiveTimerSeconds(0);
       accumulatedSecRef.current = 0;
-      setTempDuration(0);
       localStorage.removeItem("dji_active_downtime_start");
-      return;
-    }
-
-    if (dikerjakanOleh !== "Operator") {
-      setIsSavingMechanic(true);
-      try {
-        if (activeBlock && activeBlock.handoffLogs && activeBlock.handoffLogs.length > 0) {
-          const logs = activeBlock.handoffLogs;
-          const unblockTime = Date.now();
-
-          for (let i = 0; i < logs.length; i++) {
-            const currentLog = logs[i];
-            const logStart = currentLog.startTime || activeBlock.startTime || (unblockTime - (tempDuration || 60) * 1000);
-            const nextTime = (i < logs.length - 1 && logs[i + 1]?.startTime) ? logs[i + 1].startTime : unblockTime;
-            const diff = Math.floor((nextTime - logStart) / 1000);
-            const segDurationSec = (isNaN(diff) || diff <= 0) ? (tempDuration || 1) : diff;
-
-            const splitEvent = {
-              id: `split-${Date.now()}-${i}`,
-              durasiDetik: segDurationSec,
-              pcsKe: "Semua",
-              dikerjakanOleh: `Perbaikan Khusus (${currentLog.operatorName || "Operator"})`,
-              problems: problems,
-              shift: currentLog.shift || watch("groupId") || "A",
-              notes: currentLog.notes
-            };
-
-            const res = await submitMechanicDowntime({
-              nomorMc: watch("nomorMc") || "",
-              operatorId: watch("operatorId") || "",
-              groupId: currentLog.shift || watch("groupId") || "A",
-              designId: watch("designId") || "",
-              tanggalProduksi: currentLog.dateIso || new Date().toISOString().split("T")[0],
-              potonganKe: watch("potonganKe") || "",
-              downtimeEvent: splitEvent,
-              createdTime: logStart,
-            });
-
-            if (!res.success) {
-              console.error("Error submitting split downtime segment:", res.error);
-            }
-          }
-
-          setShowModal(false);
-          setEditingIndex(null);
-          localStorage.removeItem(`dji_machine_block_${targetMc}`);
-          setActiveBlock(null);
-          if (unresolvedDowntime) {
-            setUnresolvedDowntime(null);
-            localStorage.removeItem("dji_unresolved_downtime");
-          }
-          setIsTimerRunning(false);
-          setTimerStartRef(null);
-          setLiveTimerSeconds(0);
-          localStorage.removeItem("dji_active_downtime_start");
-          setIsSavingMechanic(false);
-          setIsUnblockingBlock(false);
-          setDikerjakanOleh("Operator");
-          setNamaPenanganan("");
-          return;
-        }
-
-        const res = await submitMechanicDowntime({
-          nomorMc: watch("nomorMc") || "",
-          operatorId: watch("operatorId") || "",
-          groupId: watch("groupId") || "",
-          designId: watch("designId") || "",
-          tanggalProduksi: watch("tanggalProduksi") || "",
-          potonganKe: watch("potonganKe") || "",
-          downtimeEvent: finalEvent,
-          createdTime: activeBlock?.startTime || undefined,
-        });
-        if (res.success) {
-          setShowModal(false);
-          setEditingIndex(null);
-          if (activeBlock) {
-            localStorage.removeItem(`dji_machine_block_${targetMc}`);
-            setActiveBlock(null);
-          }
-          if (unresolvedDowntime) {
-            setUnresolvedDowntime(null);
-            localStorage.removeItem("dji_unresolved_downtime");
-          }
-          setIsTimerRunning(false);
-          setTimerStartRef(null);
-          setLiveTimerSeconds(0);
-          accumulatedSecRef.current = 0;
-          setTempDuration(0);
-          localStorage.removeItem("dji_active_downtime_start");
-          setIsSavingMechanic(false);
-          setIsUnblockingBlock(false);
-          setDikerjakanOleh("Operator");
-          setNamaPenanganan("");
-          return;
-        } else {
-          alert("Gagal mengirim downtime khusus: " + res.error);
-        }
-      } catch (err) {
-        alert("Gagal mengirim downtime khusus.");
+      if (unresolvedDowntime) {
+        setUnresolvedDowntime(null);
+        localStorage.removeItem("dji_unresolved_downtime");
       }
-      setIsSavingMechanic(false);
-      return;
-    }
-
-    let updatedList = [...currentList];
-    if (batchClassifyIds.length > 0) {
-      updatedList = currentList.map((e: any, i: number) => {
-        const id = e.id || `evt-${i}`;
-        if (batchClassifyIds.includes(id)) {
-          return {
-            ...e,
-            pcsKe: pcsKeStr,
-            dikerjakanOleh: dikerjakanGabungan,
-            problems: problems,
-            handoffLogs: activeBlock?.handoffLogs || undefined,
-            triggerSource: e.triggerSource || currentTimerSource,
-            isResolved: true,
-          };
-        }
-        return e;
-      });
-      batchClassifyIds.forEach((targetId) => {
-        const idx = currentList.findIndex((e: any, i: number) => (e.id || `evt-${i}`) === targetId);
-        if (idx !== -1) update(idx, updatedList[idx]);
-      });
-    } else if (editingIndex !== null) {
-      updatedList[editingIndex] = finalEvent;
-      update(editingIndex, finalEvent);
-    } else {
-      updatedList.push(finalEvent);
-      append(finalEvent);
-    }
-
-    updateFormDowntimeEvents(updatedList);
-    if (onAutoSubmit && !isPanelType && !isEdit) {
-      onAutoSubmit();
-    }
-    handleCloseModal();
-
-    if (activeBlock) {
-      localStorage.removeItem(`dji_machine_block_${targetMc}`);
-      setActiveBlock(null);
-    }
-
-    setIsTimerRunning(false);
-    setTimerStartRef(null);
-    setLiveTimerSeconds(0);
-    accumulatedSecRef.current = 0;
-    localStorage.removeItem("dji_active_downtime_start");
-    if (unresolvedDowntime) {
-      setUnresolvedDowntime(null);
-      localStorage.removeItem("dji_unresolved_downtime");
+    } catch (err: any) {
+      console.error("Error saving downtime event:", err);
+      alert("Terjadi kesalahan saat menyimpan downtime: " + (err?.message || err));
+    } finally {
+      setIsSavingEvent(false);
     }
   };
 
@@ -1955,8 +2004,9 @@ export default function DowntimeTracker({
                     {/* Batch Action Bar */}
                     {selectedUnclassifiedIds.length > 0 && (
                       <div className="flex flex-col bg-amber-100/90 border border-amber-300 rounded-2xl p-2 mb-2.5 gap-1.5 animate-fadeIn min-w-0">
-                        <span className="text-[10px] font-black text-amber-950">
-                          📌 Terpilih {selectedUnclassifiedIds.length} dari {unclassifiedItems.length} Event
+                        <span className="text-[10px] font-black text-amber-950 flex items-center gap-1">
+                          <Pin className="w-3 h-3 text-amber-700 shrink-0" />
+                          <span>Terpilih {selectedUnclassifiedIds.length} dari {unclassifiedItems.length} Event</span>
                         </span>
                         <div className="flex flex-col gap-1 w-full">
                           <button
@@ -2462,8 +2512,8 @@ export default function DowntimeTracker({
                             </span>
                           </div>
 
-                          <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                            <span>💡</span>
+                          <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                            <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                             <span>Titik posisi meter saat mesin berhenti khusus pada PCS {selectedPcsKeList[0]}.</span>
                           </p>
                         </div>
@@ -2480,7 +2530,8 @@ export default function DowntimeTracker({
                               className="text-[10px] font-bold text-sky-600 hover:text-sky-800 hover:underline cursor-pointer flex items-center gap-1 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200/70"
                               title="Samakan seluruh nilai meter dengan meter pertama yang terisi"
                             >
-                              <span>🔗 Samakan Semua</span>
+                              <Link2 className="w-3 h-3 text-sky-600 shrink-0" />
+                              <span>Samakan Semua</span>
                             </button>
                           </div>
 
@@ -2526,7 +2577,7 @@ export default function DowntimeTracker({
                             })}
                           </div>
                           <p className="text-[9.5px] text-slate-500 flex items-center gap-1.5">
-                            <span>💡</span>
+                            <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                             <span>Ketik pada salah satu PCS akan otomatis mengisi PCS lainnya. Kotak tetap bisa diedit masing-masing jika meternya berbeda.</span>
                           </p>
                         </div>
@@ -2535,15 +2586,18 @@ export default function DowntimeTracker({
                   )}
 
                   {selectedPcsKeList.length === 0 ? (
-                    <p className="text-[10px] text-red-500 font-bold mt-2 animate-pulse flex items-center gap-1">
-                      <span>⚠️</span> Wajib memilih minimal 1 PCS yang bermasalah!
+                    <p className="text-[10px] text-red-500 font-bold mt-2 animate-pulse flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span>Wajib memilih minimal 1 PCS yang bermasalah!</span>
                     </p>
                   ) : showMeterInput && hasMissingMeter ? (
-                    <p className="text-[10px] text-rose-500 font-bold mt-2 flex items-center gap-1">
-                      <span>⚠️</span>
-                      {selectedPcsKeList.length === 1
-                        ? `Nilai meter untuk PCS ${selectedPcsKeList[0]} belum diisi!`
-                        : "Lengkapi nilai meter untuk setiap PCS yang dipilih!"}
+                    <p className="text-[10px] text-rose-500 font-bold mt-2 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <span>
+                        {selectedPcsKeList.length === 1
+                          ? `Nilai meter untuk PCS ${selectedPcsKeList[0]} belum diisi!`
+                          : "Lengkapi nilai meter untuk setiap PCS yang dipilih!"}
+                      </span>
                     </p>
                   ) : null}
                 </div>
@@ -3261,8 +3315,8 @@ export default function DowntimeTracker({
                             </span>
                           </div>
 
-                          <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                            <span>💡</span>
+                          <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                            <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                             <span>Titik posisi meter saat mesin berhenti khusus pada PCS {selectedPcsKeList[0]}.</span>
                           </p>
                         </div>
@@ -3280,7 +3334,8 @@ export default function DowntimeTracker({
                                 className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 hover:underline cursor-pointer flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/70"
                                 title="Samakan seluruh nilai meter dengan meter pertama yang terisi"
                               >
-                                <span>🔗 Samakan Semua</span>
+                                <Link2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span>Samakan Semua</span>
                               </button>
                             )}
                           </div>
@@ -3327,7 +3382,7 @@ export default function DowntimeTracker({
                             })}
                           </div>
                           <p className="text-[9.5px] text-slate-500 flex items-center gap-1.5">
-                            <span>💡</span>
+                            <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                             <span>Ketik pada salah satu PCS akan otomatis mengisi PCS lainnya. Kotak tetap bisa diedit masing-masing jika meternya berbeda.</span>
                           </p>
                         </div>
@@ -3336,15 +3391,18 @@ export default function DowntimeTracker({
                   )}
 
                   {selectedPcsKeList.length === 0 ? (
-                    <p className="text-[10px] text-rose-500 font-bold mt-1 animate-pulse flex items-center gap-1">
-                      <span>⚠️</span> Wajib memilih minimal 1 PCS!
+                    <p className="text-[10px] text-rose-500 font-bold mt-1 animate-pulse flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <span>Wajib memilih minimal 1 PCS!</span>
                     </p>
                   ) : showMeterInput && selectedPcsKeList.some((k) => !inputMeters[k] || inputMeters[k].trim() === "") ? (
-                    <p className="text-[10px] text-rose-500 font-bold mt-1 flex items-center gap-1">
-                      <span>⚠️</span>
-                      {selectedPcsKeList.length === 1
-                        ? `Nilai meter untuk PCS ${selectedPcsKeList[0]} belum diisi!`
-                        : "Lengkapi nilai meter untuk setiap PCS yang dipilih!"}
+                    <p className="text-[10px] text-rose-500 font-bold mt-1 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <span>
+                        {selectedPcsKeList.length === 1
+                          ? `Nilai meter untuk PCS ${selectedPcsKeList[0]} belum diisi!`
+                          : "Lengkapi nilai meter untuk setiap PCS yang dipilih!"}
+                      </span>
                     </p>
                   ) : null}
                 </div>
@@ -3399,7 +3457,13 @@ export default function DowntimeTracker({
                 onClick={() => {
                   handleSaveNonDefectStop();
                 }}
-                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer"
+                disabled={
+                  isSavingEvent ||
+                  isSavingMechanic ||
+                  (pcsKeys.length > 1 && selectedPcsKeList.length === 0) ||
+                  hasMissingMeter
+                }
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Simpan Gagal Cacat</span>

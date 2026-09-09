@@ -28,6 +28,7 @@
 - untuk halaman Laporan Potong Kain, kolom Roll/Panel menyertakan panel BS ya
 - untuk penentuan Grade Keseluruhan (Overall Grade), perhitungan mengambil data SETELAH INSPECT (hasil mending), dan nilai panel BS AWAL serta BS AKHIR tidak disertakan dalam perhitungan total panel maupun total cacat.
 - untuk kain meteran, jika temuan cacat berupa titik tunggal, dihitung 1 meter/titik cacat. Jika temuan cacat berupa rentang (range), jumlah cacat dihitung dari selisih panjangnya (Meter Akhir - Meter Awal). Contoh: rentang 410 - 420 dihitung sebagai 10 meter cacat.
+- untuk halaman Laporan Bulanan mesin dengan jenis meteran (seperti R11, R12, T2A), jumlah cacat dihitung dari total temuan titik cacat dibagi dengan jumlah PCS mesin (misalnya di R11 dengan 3 PCS: 9 titik cacat / 3 = 3 cacat). Tidak ada desimal (jika pecahan < 0.5 dibulatkan ke bawah, jika >= 0.5 dibulatkan ke atas).
 
 # Cara Penampilan Data Tambahan QC & Mending
 - Semua data panel/titik cacat tambahan yang diinput dari halaman QC maupun Mending diseragamkan menggunakan badge "+ QC" (tidak ada badge + MND).

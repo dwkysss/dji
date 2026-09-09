@@ -43,6 +43,21 @@ export async function getMonthlyMachineReport(
   try {
     const supabase = await createClient();
 
+    // Fetch machine configuration to check input_type & default_pcs
+    const { data: mcConfig } = await supabase
+      .from("machine_configs")
+      .select("default_pcs, input_type")
+      .eq("nomor_mc", machineId)
+      .maybeSingle();
+
+    const isConfiguredMeter =
+      mcConfig?.input_type === "METER" ||
+      mcConfig?.input_type === "METERAN" ||
+      machineId.toUpperCase() === "R11" ||
+      machineId.toUpperCase() === "R12";
+    const defaultPcsForMachine =
+      Number(mcConfig?.default_pcs) > 0 ? Number(mcConfig?.default_pcs) : (isConfiguredMeter ? 3 : 1);
+
     // Construct start and end dates for the month
     const startDate = new Date(year, month - 1, 1).toISOString().split("T")[0];
     const endDate = new Date(year, month, 0).toISOString().split("T")[0];
@@ -219,13 +234,13 @@ export async function getMonthlyMachineReport(
     const processedPanels = new Map<string, { countedForTeam: string | null, isFailed: boolean }>();
     const processedDefectivePanels = new Set<string>();
 
-    let isMeterMachine = false;
+    let isMeterMachine = isConfiguredMeter;
 
     data?.forEach((row: any) => {
       const header = row.production_headers;
       if (!header || !header.tgl) return;
       
-      if (header.panel_no === "METERAN") {
+      if (header.panel_no === "METERAN" || isConfiguredMeter) {
         isMeterMachine = true;
       }
 
@@ -419,10 +434,11 @@ export async function getMonthlyMachineReport(
           });
         }
 
-        // Count 1 defective panel (menghitung jumlah panel cacat, bukan frekuensi detail masalah)
+        // Count 1 defective panel / point (untuk panel dihitung per panel unik, untuk meter dibagi jumlah pcs)
         if (hasRealDefectsOnRow) {
-          if (header.panel_no === "METERAN") {
-            team.jumlah_cacat += 1;
+          if (header.panel_no === "METERAN" || isConfiguredMeter || isMeterMachine) {
+            const pcsCount = Number(header.pcs) > 0 ? Number(header.pcs) : defaultPcsForMachine;
+            team.jumlah_cacat += (1 / pcsCount);
           } else {
             const cutScope = header.potongan_ke || header.design_id || header.id;
             const defectPanelKey = `${day}-${groupName}-${cutScope}-${panelNoStr}`;
@@ -633,6 +649,14 @@ export async function getMonthlyMachineReport(
         shift1Team = getShift1TeamFromRecord(rec.team, rec.timestamp);
         lastKnownShift1Team = shift1Team;
       }
+
+      ["A", "B", "C"].forEach((teamName) => {
+        const td = dayData.teamData[teamName];
+        if (td && (isMeterMachine || isConfiguredMeter)) {
+          // Pembulatan ke bilangan bulat terdekat tanpa desimal (< 0.5 ke bawah, >= 0.5 ke atas)
+          td.jumlah_cacat = Math.round(td.jumlah_cacat);
+        }
+      });
 
       const cycle = getTeamCycle(shift1Team);
       const orderedTeams = cycle.map((t) => ({

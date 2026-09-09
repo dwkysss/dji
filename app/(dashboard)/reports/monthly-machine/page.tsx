@@ -1249,7 +1249,17 @@ export default function MonthlyMachineReportPage() {
                       <FormulaTooltip position="bottom" title="Persentase dari 100%" formula="(Hasil Produksi / Eff 100%) x 100%" example="Contoh: (38 / 65) x 100% = 58.46%" />
                     </div>
                   </th>
-                  <th className="border border-slate-300 p-2 min-w-[70px]">Jumlah Cacat</th>
+                  <th className="border border-slate-300 p-2 min-w-[70px]">
+                    <div className="inline-flex items-center justify-center">
+                      Jumlah Cacat
+                      <FormulaTooltip
+                        position="bottom"
+                        title="Jumlah Cacat"
+                        formula={isMeterMachine ? "ROUND(Total Titik Cacat / Jumlah PCS)" : "Jumlah Panel Cacat Unik"}
+                        example={isMeterMachine ? "Contoh: 9/3 = 3 cacat; 7/3 = 2.33 dibulatkan jadi 2 cacat" : "Akumulasi panel cacat (selain BS/Gagal)"}
+                      />
+                    </div>
+                  </th>
                   <th className="border border-slate-300 p-2 min-w-[80px]">
                     <div className="inline-flex items-center justify-center">
                       Persentase Cacat
@@ -1388,7 +1398,11 @@ export default function MonthlyMachineReportPage() {
                       <FormulaTooltip dark title="Total Efisiensi Mesin" formula="SUM(Persentase dari 100%) / (Jumlah Hari x 3 Shift)" example="Rata-rata persentase efisiensi shift selama hari kerja aktif" />
                     </td>
                     <td className="border border-slate-700 p-1.5 text-center bg-rose-900/80 font-mono text-rose-200 font-black whitespace-nowrap">
-                      <span>{summaryMetrics.totalJumlahCacat.toLocaleString("id-ID")}</span>
+                      <span>
+                        {Math.abs(summaryMetrics.totalJumlahCacat - Math.round(summaryMetrics.totalJumlahCacat)) < 0.001
+                          ? Math.round(summaryMetrics.totalJumlahCacat).toLocaleString("id-ID")
+                          : Number(summaryMetrics.totalJumlahCacat.toFixed(2)).toLocaleString("id-ID")}
+                      </span>
                       <FormulaTooltip dark title="Total Jumlah Cacat" formula="SUM(Jumlah Cacat Seluruh Shift)" example="Akumulasi seluruh temuan cacat produksi sebulan" />
                     </td>
                     <td className="border border-slate-700 p-1.5 text-center text-rose-300 font-mono font-black whitespace-nowrap">
