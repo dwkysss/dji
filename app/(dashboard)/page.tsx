@@ -1628,6 +1628,7 @@ export default function DashboardPage() {
       cumulativeSum += value;
       const cumulativePct = total > 0 ? (cumulativeSum / total) * 100 : 0;
       const roundedCumPct = parseFloat(cumulativePct.toFixed(1));
+      const individualPct = total > 0 ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
 
       const isVital80 = !crossed80;
       if (roundedCumPct >= 80) {
@@ -1637,6 +1638,7 @@ export default function DashboardPage() {
       return {
         ...item,
         value,
+        individualPct,
         cumulativePct: roundedCumPct,
         isVital80,
       };
@@ -5716,7 +5718,7 @@ export default function DashboardPage() {
                 {/* Header */}
                 <div className="border-b border-slate-100 pb-4 mb-5 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl border border-amber-100/60 shadow-xs">
+                    <div className="p-2.5 bg-sky-50 text-[#0070bc] rounded-2xl border border-sky-100 shadow-xs">
                       <BarChart2 className="w-5 h-5" />
                     </div>
                     <div>
@@ -5724,7 +5726,7 @@ export default function DashboardPage() {
                         <h3 className="text-lg font-extrabold text-slate-800">
                           Analisis Pareto (Aturan 80/20)
                         </h3>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 uppercase tracking-wide">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-[#0070bc] border border-sky-200/80 uppercase tracking-wide">
                           Prinsip 80/20
                         </span>
                       </div>
@@ -5735,13 +5737,13 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Filter Controls Group */}
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                     {/* Group By Selector */}
-                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                    <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/80">
                       <button
                         onClick={() => setParetoGroupBy("KATEGORI")}
                         className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoGroupBy === "KATEGORI"
-                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
                           }`}
                       >
@@ -5750,7 +5752,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => setParetoGroupBy("MESIN")}
                         className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoGroupBy === "MESIN"
-                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
                           }`}
                       >
@@ -5763,7 +5765,7 @@ export default function DashboardPage() {
                       <select
                         value={selectedParetoMachine}
                         onChange={(e) => setSelectedParetoMachine(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-extrabold py-1.5 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                        className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-extrabold py-1.5 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0070bc] cursor-pointer"
                       >
                         <option value="ALL">Semua Mesin</option>
                         {availableParetoMachines.map((m) => (
@@ -5774,12 +5776,15 @@ export default function DashboardPage() {
                       </select>
                     )}
 
+                    {/* Divider */}
+                    <div className="hidden sm:block w-px h-6 bg-slate-200 mx-0.5" />
+
                     {/* Metric Mode Selector */}
-                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                    <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/80">
                       <button
                         onClick={() => setParetoMode("COUNT")}
                         className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoMode === "COUNT"
-                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
                           }`}
                       >
@@ -5788,7 +5793,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => setParetoMode("DURATION")}
                         className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoMode === "DURATION"
-                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
                           }`}
                       >
@@ -5800,42 +5805,75 @@ export default function DashboardPage() {
 
                 {/* Vital Few Banner */}
                 {vitalFewItems.length > 0 && (
-                  <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/50 to-amber-50 border border-amber-200/80 flex items-start gap-3 text-xs shadow-xs">
-                    <div className="p-2 bg-amber-500 text-white rounded-xl shrink-0 font-black text-xs shadow-sm">
-                      80%
-                    </div>
-                    <div className="flex-1">
-                      <span className="font-extrabold text-amber-950 text-sm block mb-1">
-                        Vital Few (Penyebab Dominan Utama):
+                  <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-sky-500/[0.08] via-blue-500/[0.04] to-[#0070bc]/[0.08] border border-sky-200/90 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-sky-200/60">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#0070bc] to-sky-600 text-white font-black text-xs flex items-center justify-center shadow-xs shadow-[#0070bc]/25">
+                          80%
+                        </div>
+                        <div>
+                          <span className="font-extrabold text-slate-900 text-sm block">
+                            Vital Few (Penyebab Dominan Utama)
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-500">
+                            Faktor prioritas yang menyumbang 80% total masalah pabrik
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-extrabold text-[#0070bc] bg-sky-100/90 px-2.5 py-1 rounded-lg border border-sky-200/80 self-start sm:self-auto">
+                        {vitalFewItems.length} {paretoGroupBy === "KATEGORI" ? "Masalah" : "Mesin"} Teratas
                       </span>
-                      <p className="text-amber-900/90 text-xs leading-relaxed">
-                        {paretoGroupBy === "KATEGORI" ? "Kategori " : "Mesin "}
-                        <span className="font-black text-amber-950 underline decoration-amber-400 decoration-2">
-                          {vitalFewItems.map((i) => i.friendlyName).join(", ")}
-                        </span>{" "}
-                        bertanggung jawab atas <strong className="font-black">80% dari total masalah/downtime</strong>. Fokus perbaikan pada {paretoGroupBy === "KATEGORI" ? "kategori" : "mesin"} ini akan memberikan hasil perbaikan terbesar!
-                      </p>
                     </div>
+
+                    {/* Ranked Chips */}
+                    <div className="flex flex-wrap gap-2 my-3">
+                      {vitalFewItems.map((item, i) => (
+                        <div
+                          key={item.code}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                            i === 0
+                              ? "bg-[#0070bc] text-white border-[#005a96] shadow-xs"
+                              : "bg-white text-slate-800 border-sky-200 shadow-2xs hover:border-[#0070bc]"
+                          }`}
+                        >
+                          <span
+                            className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${
+                              i === 0 ? "bg-white text-[#0070bc]" : "bg-sky-100 text-[#0070bc]"
+                            }`}
+                          >
+                            {i + 1}
+                          </span>
+                          <span>{item.friendlyName}</span>
+                          <span className={`text-[10.5px] font-extrabold ${i === 0 ? "text-sky-100" : "text-[#0070bc]"}`}>
+                            {item.individualPct}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-[11.5px] text-slate-600 font-medium">
+                      Fokus penanganan pada <strong className="text-[#0070bc]">{vitalFewItems.length} {paretoGroupBy === "KATEGORI" ? "kategori masalah" : "mesin"} di atas</strong> akan memberikan dampak penurunan masalah hingga <strong className="text-[#0070bc]">80%</strong>.
+                    </p>
                   </div>
                 )}
 
                 {/* Main Full-Width SVG Pareto Chart */}
-                <div className="relative w-full h-72 mx-auto flex items-center justify-center my-4 overflow-x-auto custom-scrollbar">
+                <div className="relative w-full h-80 mx-auto flex items-center justify-center my-4 overflow-x-auto custom-scrollbar">
                   {list.length > 0 ? (
                     (() => {
                       const displayList = showAllParetoCards ? list : list.slice(0, 12);
                       const maxValue = Math.max(...displayList.map((item) => item.value), 1);
-                      const svgWidth = Math.max(750, displayList.length * 80);
-                      const svgHeight = 240;
-                      const paddingLeft = 50;
-                      const paddingRight = 50;
-                      const paddingTop = 30;
-                      const paddingBottom = 40;
+                      const svgWidth = Math.max(800, displayList.length * 85);
+                      const svgHeight = 280;
+                      const paddingLeft = 55;
+                      const paddingRight = 65;
+                      const paddingTop = 32;
+                      const paddingBottom = 75;
 
                       const chartWidth = svgWidth - paddingLeft - paddingRight;
                       const chartHeight = svgHeight - paddingTop - paddingBottom;
                       const barSpacing = chartWidth / displayList.length;
-                      const barWidth = Math.max(16, Math.min(48, barSpacing * 0.5));
+                      const barWidth = Math.max(18, Math.min(46, barSpacing * 0.48));
 
                       const y80 = paddingTop + chartHeight - 0.8 * chartHeight;
 
@@ -5872,7 +5910,7 @@ export default function DashboardPage() {
 
                       return (
                         <div style={{ minWidth: `${svgWidth}px` }} className="w-full h-full">
-                          <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-full">
+                          <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-full overflow-visible">
                             {/* Left Y Axis Grid Lines & Labels */}
                             {yTicks.map((tick) => (
                               <g key={`ytick-${tick.val}`}>
@@ -5903,28 +5941,41 @@ export default function DashboardPage() {
                               y1={y80}
                               x2={svgWidth - paddingRight}
                               y2={y80}
-                              stroke="#ef4444"
+                              stroke="#e11d48"
                               strokeWidth="1.5"
-                              strokeDasharray="5 4"
+                              strokeDasharray="4 3"
+                              opacity="0.85"
+                            />
+                            {/* Dedicated 80% Cutoff Pill on Right Margin (No Collision in Middle) */}
+                            <rect
+                              x={svgWidth - paddingRight - 84}
+                              y={y80 - 10}
+                              width="78"
+                              height="18"
+                              rx="5"
+                              fill="#fff1f2"
+                              stroke="#fecdd3"
+                              strokeWidth="1"
                             />
                             <text
-                              x={paddingLeft + 8}
-                              y={y80 - 6}
-                              fontSize="9"
+                              x={svgWidth - paddingRight - 45}
+                              y={y80 + 3}
+                              textAnchor="middle"
+                              fontSize="8.5"
                               fontWeight="black"
-                              fill="#ef4444"
+                              fill="#be123c"
                             >
-                              Batas Pareto 80%
+                              Batas 80%
                             </text>
 
                             {/* Right Y Axis Ticks (Cumulative %) */}
-                            <text x={svgWidth - paddingRight + 8} y={paddingTop + 4} textAnchor="start" fontSize="9" fontWeight="bold" fill="#ef4444">
+                            <text x={svgWidth - paddingRight + 8} y={paddingTop + 4} textAnchor="start" fontSize="9" fontWeight="bold" fill="#4f46e5">
                               100%
                             </text>
-                            <text x={svgWidth - paddingRight + 8} y={y80 + 3} textAnchor="start" fontSize="9" fontWeight="black" fill="#ef4444">
+                            <text x={svgWidth - paddingRight + 8} y={y80 + 3} textAnchor="start" fontSize="9" fontWeight="black" fill="#be123c">
                               80%
                             </text>
-                            <text x={svgWidth - paddingRight + 8} y={paddingTop + chartHeight + 3} textAnchor="start" fontSize="9" fontWeight="bold" fill="#ef4444">
+                            <text x={svgWidth - paddingRight + 8} y={paddingTop + chartHeight + 3} textAnchor="start" fontSize="9" fontWeight="bold" fill="#4f46e5">
                               0%
                             </text>
 
@@ -5934,34 +5985,97 @@ export default function DashboardPage() {
                               const barHeight = item.value > 0 ? Math.max(10, calcHeight) : 0;
                               const x = paddingLeft + barSpacing * idx + (barSpacing - barWidth) / 2;
                               const y = paddingTop + chartHeight - barHeight;
-                              const barColor = item.isVital80 ? (idx === 0 ? "#f59e0b" : "#fbbf24") : "#94a3b8";
+                              // Theme harmonious colors:
+                              // Rank 1: #0070bc (Brand Core Blue)
+                              // Other Vital Few: #0284c7 (Sky Blue)
+                              // Non-Vital: #94a3b8 (Slate 400)
+                              const barColor = item.isVital80
+                                ? (idx === 0 ? "#0070bc" : "#0284c7")
+                                : "#94a3b8";
 
                               return (
                                 <g key={item.code} className="group/pareto-bar cursor-pointer">
-                                  <rect x={x} y={y} width={barWidth} height={barHeight} rx="4" fill={barColor} opacity="0.9" className="transition-all hover:opacity-100 hover:brightness-105" />
-                                  <text x={x + barWidth / 2} y={y - 6} textAnchor="middle" fontSize="9" fontWeight="black" fill="#334155">
+                                  <rect
+                                    x={x}
+                                    y={y}
+                                    width={barWidth}
+                                    height={barHeight}
+                                    rx="5"
+                                    fill={barColor}
+                                    opacity="0.92"
+                                    className="transition-all hover:opacity-100 hover:brightness-110"
+                                  >
+                                    <title>{`${item.friendlyName}: ${item.value} (${item.individualPct}%)`}</title>
+                                  </rect>
+                                  <text
+                                    x={x + barWidth / 2}
+                                    y={y - 6}
+                                    textAnchor="middle"
+                                    fontSize="9.5"
+                                    fontWeight="black"
+                                    fill={item.isVital80 ? (idx === 0 ? "#004777" : "#0369a1") : "#475569"}
+                                  >
                                     {paretoMode === "COUNT" ? item.value : `${Math.round(item.value / 60)}m`}
                                   </text>
-                                  <text x={x + barWidth / 2} y={paddingTop + chartHeight + 16} textAnchor="middle" fontSize="9" fontWeight="extrabold" fill={item.isVital80 ? "#b45309" : "#64748b"}>
-                                    {paretoGroupBy === "KATEGORI"
-                                      ? (item.name.length > 14 ? item.name.substring(0, 12) + "..." : item.name)
-                                      : (item.code.startsWith("Mesin") ? item.code : `M-${item.code}`)}
-                                  </text>
+                                  {/* Rotated X-Axis Label (-35deg) for full readability */}
+                                  <g transform={`translate(${x + barWidth / 2}, ${paddingTop + chartHeight + 14}) rotate(-35)`}>
+                                    <text
+                                      x={0}
+                                      y={0}
+                                      textAnchor="end"
+                                      fontSize="9.5"
+                                      fontWeight={item.isVital80 ? "900" : "700"}
+                                      fill={item.isVital80 ? (idx === 0 ? "#0070bc" : "#0369a1") : "#64748b"}
+                                      className="select-none"
+                                    >
+                                      <title>{item.friendlyName}</title>
+                                      {item.friendlyName.length > 20
+                                        ? item.friendlyName.substring(0, 18) + "…"
+                                        : item.friendlyName}
+                                    </text>
+                                  </g>
                                 </g>
                               );
                             })}
 
-                            {/* Line & Dots */}
+                            {/* Cumulative Line & Dots (Indigo aesthetic) */}
                             {displayList.length > 0 && (
                               <>
-                                <polyline points={pointsStr} fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                <polyline
+                                  points={pointsStr}
+                                  fill="none"
+                                  stroke="#4f46e5"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
                                 {displayList.map((item, idx) => {
                                   const x = paddingLeft + barSpacing * idx + barSpacing / 2;
                                   const y = paddingTop + chartHeight - (item.cumulativePct / 100) * chartHeight;
                                   return (
                                     <g key={`dot-${item.code}`} className="group/dot cursor-pointer">
-                                      <circle cx={x} cy={y} r="4" fill="#ffffff" stroke="#ef4444" strokeWidth="2.5" />
-                                      <text x={x} y={y - 10} textAnchor="middle" fontSize="9" fontWeight="black" fill="#ef4444" className="opacity-90 group-hover/dot:opacity-100 transition-opacity bg-white">
+                                      <circle cx={x} cy={y} r="4.5" fill="#ffffff" stroke="#4f46e5" strokeWidth="2.5" />
+                                      {/* Pill Badge for Cumulative % */}
+                                      <rect
+                                        x={x - 17}
+                                        y={y - 20}
+                                        width="34"
+                                        height="14"
+                                        rx="4"
+                                        fill="#ffffff"
+                                        stroke="#c7d2fe"
+                                        strokeWidth="1"
+                                        className="shadow-xs pointer-events-none"
+                                      />
+                                      <text
+                                        x={x}
+                                        y={y - 9.5}
+                                        textAnchor="middle"
+                                        fontSize="8"
+                                        fontWeight="black"
+                                        fill="#4338ca"
+                                        className="pointer-events-none"
+                                      >
                                         {item.cumulativePct}%
                                       </text>
                                     </g>
@@ -5989,58 +6103,82 @@ export default function DashboardPage() {
                   return (
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-6">
-                        {visibleCards.map((item, idx) => (
-                          <div
-                            key={item.code}
-                            className={`p-3.5 rounded-2xl transition-all border ${item.isVital80
-                              ? "bg-amber-50/50 border-amber-200/80 shadow-xs hover:border-amber-300"
-                              : "bg-slate-50/40 border-slate-200/60 hover:border-slate-300"
+                        {visibleCards.map((item, idx) => {
+                          const isRank1 = idx === 0 && item.isVital80;
+                          return (
+                            <div
+                              key={item.code}
+                              className={`p-4 rounded-2xl transition-all border ${
+                                isRank1
+                                  ? "bg-gradient-to-br from-sky-500/[0.08] via-sky-500/[0.03] to-white border-sky-300 shadow-xs ring-1 ring-[#0070bc]/20"
+                                  : item.isVital80
+                                  ? "bg-sky-50/40 border-sky-200/80 shadow-2xs hover:border-[#0070bc]/50"
+                                  : "bg-slate-50/40 border-slate-200/60 hover:border-slate-300"
                               }`}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] ${item.isVital80 ? "bg-amber-500 text-white shadow-xs" : "bg-slate-300 text-slate-700"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span
+                                    className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
+                                      isRank1
+                                        ? "bg-[#0070bc] text-white shadow-xs"
+                                        : item.isVital80
+                                        ? "bg-sky-100 text-[#0070bc]"
+                                        : "bg-slate-200 text-slate-700"
                                     }`}
-                                >
-                                  {idx + 1}
-                                </span>
-                                <div className="flex flex-col">
-                                  <span className="text-xs font-black text-slate-800">
-                                    {item.friendlyName}
+                                  >
+                                    {idx + 1}
                                   </span>
-                                  {paretoGroupBy === "KATEGORI" && (item as any).category && (item as any).category !== "X" && (
-                                    <span className="text-[9px] font-bold text-slate-400">
-                                      Kategori {(item as any).category}
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-xs font-black text-slate-800 truncate" title={item.friendlyName}>
+                                      {item.friendlyName}
+                                    </span>
+                                    {paretoGroupBy === "KATEGORI" && (item as any).category && (item as any).category !== "X" && (
+                                      <span className="text-[9px] font-bold text-slate-400">
+                                        Kategori {(item as any).category}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {isRank1 ? (
+                                  <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-[#0070bc] text-white shadow-xs shrink-0">
+                                    #1 Dominan
+                                  </span>
+                                ) : item.isVital80 ? (
+                                  <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-sky-100 text-[#0070bc] border border-sky-200 shrink-0">
+                                    Vital 80%
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 text-slate-500 shrink-0">
+                                    Trivial
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center justify-between pt-2 border-t border-slate-200/50 mt-2.5">
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-bold text-slate-700">
+                                    Kontribusi: <span className="text-[#0070bc] font-black">{item.individualPct}%</span>
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 font-semibold">
+                                    Kumulatif: {item.cumulativePct}%
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  {paretoMode === "COUNT" ? (
+                                    <span className="text-sm font-black text-slate-800">
+                                      {item.count} <span className="text-[10px] text-slate-400 font-bold">kejadian</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-sm font-black text-slate-800">
+                                      {Math.round(item.downtime / 60)} <span className="text-[10px] text-slate-400 font-bold">menit</span>
                                     </span>
                                   )}
                                 </div>
                               </div>
-                              {item.isVital80 && (
-                                <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300/80">
-                                  Vital 80%
-                                </span>
-                              )}
                             </div>
-
-                            <div className="flex items-baseline justify-between pt-1 border-t border-slate-200/40 mt-2">
-                              <span className="text-[10px] text-slate-400 font-semibold">
-                                Kumulatif: <strong className="text-slate-700 font-extrabold">{item.cumulativePct}%</strong>
-                              </span>
-                              <div className="text-right">
-                                {paretoMode === "COUNT" ? (
-                                  <span className="text-sm font-black text-slate-800">
-                                    {item.count} <span className="text-[10px] text-slate-400 font-bold">kejadian</span>
-                                  </span>
-                                ) : (
-                                  <span className="text-sm font-black text-slate-800">
-                                    {Math.round(item.downtime / 60)} <span className="text-[10px] text-slate-400 font-bold">menit</span>
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {list.length > maxInitialVisible && (
@@ -6058,7 +6196,7 @@ export default function DashboardPage() {
                             ) : (
                               <>
                                 <ChevronDown className="w-4 h-4 text-slate-500" />
-                                Lihat Lebih Banyak ({remainingCount} detail masalah lagi)
+                                Lihat Lebih Banyak ({remainingCount} {paretoGroupBy === "KATEGORI" ? "detail masalah" : "mesin"} lagi)
                               </>
                             )}
                           </button>
