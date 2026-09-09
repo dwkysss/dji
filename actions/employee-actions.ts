@@ -951,7 +951,7 @@ export async function searchEmployeeHistory(filters: {
     const supabase = await createClient();
     const selectFields = filters.includeDetails
       ? "id, tgl, tanggal_jam, pic, potongan_ke, pcs, no_order_barang, no_customer, panel_no, nomor_mc, total_downtime_detik, operator_backup, operators(nama_operator), groups(nama_grup), design_id, production_details(id, pcs_index, kategori_masalah, detail_masalah, keterangan_cacat, jml_hasil_produksi, meter_kain, production_defects(*)), created_by_name, tanggal_potong, pick, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, downtime_records(*)"
-      : "id, tgl, tanggal_jam, pic, potongan_ke, pcs, no_order_barang, no_customer, panel_no, nomor_mc, total_downtime_detik, operator_backup, operators(nama_operator), groups(nama_grup), design_id, created_by_name, tanggal_potong, pick, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, meter_awal, meter_akhir";
+      : "id, tgl, tanggal_jam, pic, potongan_ke, pcs, no_order_barang, no_customer, panel_no, nomor_mc, total_downtime_detik, operator_backup, operators(nama_operator), groups(nama_grup), design_id, created_by_name, tanggal_potong, pick, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, meter_awal, meter_akhir, downtime_events, production_details(id, meter_kain)";
 
     // Prepare base query with exact count
     let query: any = (supabase.from("production_headers") as any).select(
@@ -1135,8 +1135,9 @@ export async function searchEmployeeHistory(filters: {
       let currentMaxPanel = 0;
       const pStr = String(row.panel_no || "");
       const isBsRow = pStr.includes("BS") || pStr.includes("AWAL") || pStr.includes("AKHIR");
+      const isMeteranRow = pStr.toUpperCase() === "METERAN";
       
-      if (!isBsRow) {
+      if (!isBsRow && !isMeteranRow) {
         if (row.panel_no && !isNaN(parseInt(row.panel_no))) {
           currentMaxPanel = Math.max(currentMaxPanel, parseInt(row.panel_no));
         }
@@ -1150,8 +1151,8 @@ export async function searchEmployeeHistory(filters: {
         if (row.pcs && !isNaN(parseInt(row.pcs))) {
           currentMaxPanel = Math.max(currentMaxPanel, parseInt(row.pcs));
         }
+        batch.total_panels = Math.max(batch.total_panels, currentMaxPanel);
       }
-      batch.total_panels = Math.max(batch.total_panels, currentMaxPanel);
 
       let dtDetik = row.total_downtime_detik || 0;
       if (dtDetik === 0 && row.downtime_records && Array.isArray(row.downtime_records) && row.downtime_records.length > 0) {
@@ -1166,12 +1167,58 @@ export async function searchEmployeeHistory(filters: {
         } catch (e) {}
       }
       batch.total_downtime_detik += dtDetik;
-      if (row.panel_no === "METERAN") {
+      if (isMeteranRow) {
         batch.is_meter = true;
-        const meterAkhir = parseFloat(row.meter_akhir);
+        let rowMaxMeter = 0;
+        const meterAkhir = parseFloat(String(row.meter_akhir || "").replace(/[^0-9.]/g, ""));
         if (!isNaN(meterAkhir)) {
-          batch.total_meter = Math.max(batch.total_meter, meterAkhir);
+          rowMaxMeter = Math.max(rowMaxMeter, meterAkhir);
         }
+        const meterAwal = parseFloat(String(row.meter_awal || "").replace(/[^0-9.]/g, ""));
+        if (!isNaN(meterAwal)) {
+          rowMaxMeter = Math.max(rowMaxMeter, meterAwal);
+        }
+
+        // Cek juga dari production_details (meter_kain)
+        if (row.production_details && Array.isArray(row.production_details)) {
+          row.production_details.forEach((det: any) => {
+            if (det.meter_kain) {
+              const mVal = parseFloat(String(det.meter_kain).replace(/[^0-9.]/g, ""));
+              if (!isNaN(mVal)) {
+                rowMaxMeter = Math.max(rowMaxMeter, mVal);
+              }
+            }
+          });
+        }
+
+        // Cek juga dari downtime_events (misal meter saat cacat/istirahat/gagal cacat/opershift, contoh: "PCS 3: 82")
+        if (row.downtime_events) {
+          try {
+            const events = typeof row.downtime_events === "string" ? JSON.parse(row.downtime_events) : row.downtime_events;
+            if (Array.isArray(events)) {
+              events.forEach((ev: any) => {
+                if (ev.problems && Array.isArray(ev.problems)) {
+                  ev.problems.forEach((prob: any) => {
+                    if (prob.meter) {
+                      const str = String(prob.meter);
+                      const parts = str.split(",");
+                      for (const part of parts) {
+                        const raw = part.includes(":") ? part.split(":")[1] : part;
+                        const clean = raw.replace(/[^0-9.]/g, "");
+                        const val = parseFloat(clean);
+                        if (!isNaN(val)) {
+                          rowMaxMeter = Math.max(rowMaxMeter, val);
+                        }
+                      }
+                    }
+                  });
+                }
+              });
+            }
+          } catch (e) {}
+        }
+
+        batch.total_meter = Math.max(batch.total_meter, rowMaxMeter);
       }
 
       const opName = row.created_by_name || row.pic || (row.operators ? row.operators.nama_operator : null);

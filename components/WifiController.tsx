@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Wifi,
   WifiOff,
@@ -57,6 +57,17 @@ export default function WifiController() {
   const [editableMap, setEditableMap] = useState<Record<string, MachineEspMapping>>(machineMapping);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [isSavingMapping, setIsSavingMapping] = useState<boolean>(false);
+
+  // IP Default yang dinamis mengikuti konfigurasi database / pemetaan mesin
+  const defaultDatabaseIp = useMemo(() => {
+    return (
+      editableMap["R1"]?.host ||
+      machineMapping["R1"]?.host ||
+      Object.values(editableMap)[0]?.host ||
+      Object.values(machineMapping)[0]?.host ||
+      "192.168.2.171"
+    );
+  }, [editableMap, machineMapping]);
 
   // Sync saat machineMapping berubah
   useEffect(() => {
@@ -130,7 +141,7 @@ export default function WifiController() {
     setEditableMap((prev) => ({
       ...prev,
       [newCode]: {
-        host: targetHost || "192.168.2.171",
+        host: targetHost || defaultDatabaseIp,
         channel: "M1",
       },
     }));
@@ -154,6 +165,13 @@ export default function WifiController() {
         setIsSavingMapping(false);
         if (ok) {
           setSaveSuccessMsg("Pemetaan mesin berhasil disimpan ke database & disinkronkan ke seluruh perangkat!");
+          // Otomatis sinkronkan targetHost & inputHost ke host R1 / mesin pertama
+          const primaryHost = editableMap["R1"]?.host || Object.values(editableMap)[0]?.host;
+          if (primaryHost) {
+            setInputHost(primaryHost);
+            setTargetHost(primaryHost);
+            connect(primaryHost);
+          }
         } else {
           setSaveSuccessMsg("Tersimpan di perangkat ini (database gagal sinkron).");
         }
@@ -171,6 +189,10 @@ export default function WifiController() {
         await resetMachineMapping();
         setIsSavingMapping(false);
         setEditableMap(DEFAULT_MACHINE_ESP_MAP);
+        const defHost = DEFAULT_MACHINE_ESP_MAP["R1"]?.host || "192.168.2.171";
+        setInputHost(defHost);
+        setTargetHost(defHost);
+        connect(defHost);
         setSaveSuccessMsg("Pemetaan berhasil dikembalikan ke standar pabrik & diperbarui di database!");
         setTimeout(() => setSaveSuccessMsg(null), 4000);
       }
@@ -211,30 +233,32 @@ export default function WifiController() {
 
         {/* Status Badge */}
         <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+          <div
+            className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border transition-all ${
               connectionStatus === "terhubung"
-                ? "bg-emerald-500/10 text-emerald-700 border border-emerald-500/30"
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                 : connectionStatus === "menghubungkan"
-                ? "bg-amber-500/10 text-amber-700 border border-amber-500/30 animate-pulse"
-                : "bg-rose-500/10 text-rose-700 border border-rose-500/30"
+                ? "bg-amber-50 text-amber-700 border-amber-200"
+                : "bg-slate-100 text-slate-600 border-slate-200"
             }`}
           >
             <span
               className={`w-2 h-2 rounded-full ${
                 connectionStatus === "terhubung"
-                  ? "bg-emerald-500 animate-ping"
+                  ? "bg-emerald-500 animate-pulse"
                   : connectionStatus === "menghubungkan"
-                  ? "bg-amber-500 animate-pulse"
-                  : "bg-rose-500"
+                  ? "bg-amber-500 animate-ping"
+                  : "bg-slate-400"
               }`}
             />
-            {connectionStatus === "terhubung"
-              ? "TERHUBUNG"
-              : connectionStatus === "menghubungkan"
-              ? "MENGHUBUNGKAN..."
-              : "TERPUTUS"}
-          </span>
+            <span>
+              {connectionStatus === "terhubung"
+                ? "TERHUBUNG"
+                : connectionStatus === "menghubungkan"
+                ? "MENGHUBUNGKAN..."
+                : "TERPUTUS"}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -285,16 +309,18 @@ export default function WifiController() {
                     handleConnect(e);
                   }
                 }}
-                placeholder="IP Address ESP32 (contoh: 192.168.2.171)"
+                placeholder={`IP Address ESP32 (contoh: ${defaultDatabaseIp})`}
                 className="w-full pl-10 pr-24 py-2.5 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all"
               />
               <button
                 type="button"
                 onClick={() => {
-                  setInputHost("192.168.2.171");
-                  setTargetHost("192.168.2.171");
+                  setInputHost(defaultDatabaseIp);
+                  setTargetHost(defaultDatabaseIp);
+                  connect(defaultDatabaseIp);
                 }}
                 className="absolute inset-y-1 right-1 px-2.5 text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors cursor-pointer"
+                title={`Gunakan IP default database: ${defaultDatabaseIp}`}
               >
                 IP Default
               </button>
@@ -524,7 +550,7 @@ export default function WifiController() {
                         type="text"
                         value={cfg.host}
                         onChange={(e) => handleUpdateMachineEntry(mCode, mCode, "host", e.target.value)}
-                        placeholder="192.168.2.171"
+                        placeholder={defaultDatabaseIp}
                         className="w-full min-w-[120px] px-2 py-1 rounded-lg border border-slate-200 bg-white font-mono text-xs focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
                       />
                     </td>

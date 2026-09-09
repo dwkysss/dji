@@ -46,14 +46,15 @@ export const MACHINE_ESP32_MAP = DEFAULT_MACHINE_ESP_MAP;
 
 export function getEsp32ConfigForMachine(machineCode?: string, customMap?: Record<string, MachineEspMapping>) {
   const map = customMap || DEFAULT_MACHINE_ESP_MAP;
+  const fallbackHost = map["R1"]?.host || Object.values(map)[0]?.host || DEFAULT_HOSTNAME;
   if (!machineCode) {
     const peers = Object.entries(map)
-      .filter(([_, cfg]) => cfg.host === "192.168.2.171")
+      .filter(([_, cfg]) => cfg.host === fallbackHost)
       .map(([mCode, cfg]) => ({ machineCode: mCode, channel: cfg.channel }));
-    return { host: "192.168.2.171", channel: "M1" as MachineChannel, peers };
+    return { host: fallbackHost, channel: "M1" as MachineChannel, peers };
   }
   const normalized = machineCode.trim().toUpperCase();
-  const config = map[normalized] || { host: "192.168.2.171", channel: "M1" as MachineChannel };
+  const config = map[normalized] || { host: fallbackHost, channel: "M1" as MachineChannel };
   
   const peers = Object.entries(map)
     .filter(([_, cfg]) => cfg.host === config.host)
@@ -204,6 +205,14 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(newMap));
     }
+    // Otomatis sinkronkan targetHost utama ke host mesin pertama / R1
+    const primaryHost = newMap["R1"]?.host || Object.values(newMap)[0]?.host;
+    if (primaryHost) {
+      setTargetHostState(primaryHost);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, primaryHost);
+      }
+    }
     addLog("INFO", "Menyimpan pemetaan mesin ke database...", "SYSTEM");
     try {
       const res = await saveEsp32MachineMappingConfig(newMap);
@@ -224,6 +233,11 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     setMachineMapping(DEFAULT_MACHINE_ESP_MAP);
     if (typeof window !== "undefined") {
       localStorage.removeItem(MAP_STORAGE_KEY);
+    }
+    const defHost = DEFAULT_MACHINE_ESP_MAP["R1"]?.host || DEFAULT_HOSTNAME;
+    setTargetHostState(defHost);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, defHost);
     }
     addLog("INFO", "Mereset pemetaan mesin di database...", "SYSTEM");
     try {
@@ -520,6 +534,14 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           setMachineMapping(res.data);
           if (typeof window !== "undefined") {
             localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(res.data));
+          }
+          const primaryHost = res.data["R1"]?.host || Object.values(res.data)[0]?.host;
+          if (primaryHost) {
+            setTargetHostState(primaryHost);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(STORAGE_KEY, primaryHost);
+            }
+            connect(primaryHost);
           }
         }
       })

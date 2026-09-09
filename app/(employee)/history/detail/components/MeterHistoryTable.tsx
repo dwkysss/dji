@@ -161,15 +161,16 @@ export default function MeterHistoryTable({
         }
       }
       const hasIstirahatRaw = (
+        Boolean(h.operator_backup) ||
         (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
         (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
       );
-      const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
-      const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
-      const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
+      const hasIstirahat = hasIstirahatRaw;
+      const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G" || item.detail_masalah?.toUpperCase().includes("GAGAL CACAT"));
+      const isFinishReport = !hasIstirahat && h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
       const hasDefect = !!item.kategori_masalah || !!item.detail_masalah || (item.keterangan_cacat && item.keterangan_cacat !== "START" && item.keterangan_cacat !== "FINISH" && !isIstirahat);
 
       // Remove early filtering so that we don't lose the START row injection for operators who have no defects in a specific PCS
@@ -205,13 +206,20 @@ export default function MeterHistoryTable({
           hasRealDefectsMap = true;
         }
       }
-      const hasIstirahatRaw = (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT");
-      const hasIstirahat = hasIstirahatRaw && !hasRealDefectsMap;
+      const hasIstirahatRaw = (
+        Boolean(h.operator_backup) ||
+        (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
+        (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") ||
+        (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") ||
+        (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") ||
+        (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
+      );
+      const hasIstirahat = hasIstirahatRaw;
       const isIstirahat = hasIstirahat && !item.kategori_masalah && !item.detail_masalah;
       
-      const isFinish = item.keterangan_cacat === "FINISH" || item.production_headers?.panel_no === "FINISH" || item.production_headers?.meter_akhir;
+      const isFinish = !hasIstirahat && (item.keterangan_cacat === "FINISH" || item.production_headers?.panel_no === "FINISH" || item.production_headers?.meter_akhir);
       const isStart = item.keterangan_cacat === "START" || item.production_headers?.panel_no === "START";
-      const isGradable = !isIstirahat && !isFinish && !isStart;
+      const isGradable = !hasIstirahat && !isFinish && !isStart;
 
       return {
         item,
@@ -229,7 +237,7 @@ export default function MeterHistoryTable({
     });
 
     const getMeterNumericVal = (p: any) => {
-      const { item, isIstirahat } = p;
+      const { item, isIstirahat, hasIstirahat } = p;
       const h = item.production_headers || {};
       const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
 
@@ -244,7 +252,7 @@ export default function MeterHistoryTable({
       }
 
       let meterDisplay = "-";
-      if (isIstirahat || isFinishReport) {
+      if (hasIstirahat || isFinishReport) {
         if (h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "") {
           meterDisplay = cleanMeterVal(h.meter_akhir);
         } else if (h.meter_awal !== null && h.meter_awal !== undefined && String(h.meter_awal).trim() !== "") {
@@ -504,11 +512,11 @@ export default function MeterHistoryTable({
         }
       }
 
-      const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
+      const isFinishReport = !hasIstirahat && h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
       const isStartRow = item.keterangan_cacat === "START" || (!item.kategori_masalah && !item.detail_masalah && item.meter_kain === 0 && !isIstirahat);
 
       let meterDisplay = "-";
-      if (isIstirahat || isFinishReport) {
+      if (hasIstirahat || isFinishReport) {
         if (h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "") {
           meterDisplay = cleanMeterVal(h.meter_akhir);
         } else if (h.meter_awal !== null && h.meter_awal !== undefined && String(h.meter_awal).trim() !== "") {
@@ -723,25 +731,59 @@ export default function MeterHistoryTable({
             if (d.meter) metersInThisRow.add(cleanMeterVal(d.meter));
           });
           if (defectMeterStr) metersInThisRow.add(cleanMeterVal(defectMeterStr));
+          if (meterDisplay && meterDisplay !== "-") {
+            metersInThisRow.add(cleanMeterVal(meterDisplay));
+          }
 
           if (metersInThisRow.size > 0) {
             dtEvents.forEach((e: any) => {
               if (!e.problems || !Array.isArray(e.problems)) return;
               const hasMatch = e.problems.some((p: any) => {
-                if (!p.meter) return false;
-                return metersInThisRow.has(cleanMeterVal(p.meter));
+                const rawMeter = p?.meter || e?.meter;
+                if (!rawMeter) return false;
+
+                // 1. Cek jika meter cocok langsung
+                if (metersInThisRow.has(cleanMeterVal(rawMeter))) return true;
+
+                // 2. Cek jika rawMeter berisi format "PCS X: meter"
+                if (String(rawMeter).includes("PCS")) {
+                  const pcsMatch = String(rawMeter).match(new RegExp(`PCS\\s*${pcsKey}:\\s*([^,]+)`, "i"));
+                  if (pcsMatch && metersInThisRow.has(cleanMeterVal(pcsMatch[1]))) {
+                    return true;
+                  }
+                }
+
+                // 3. Cek jika rawMeter berisi daftar meter yang dipisahkan koma
+                const meterTokens = String(rawMeter).split(",").map((s) => cleanMeterVal(s));
+                if (meterTokens.some((token) => metersInThisRow.has(token))) {
+                  return true;
+                }
+
+                return false;
               });
               if (hasMatch) {
                 totalDowntimeSecs += parseInt(e.durasiDetik, 10) || 0;
               }
             });
-          } else {
+          }
+
+          // Fallback: Jika totalDowntimeSecs masih 0, tetapi ini baris aktif pertama untuk header ini
+          if (totalDowntimeSecs === 0) {
             const firstActiveIdx = sortedProcessed.findIndex((pp: any) => {
               const ppH = pp.item.production_headers || {};
               return ppH.id === h.id && !pp.isIstirahat;
             });
             if (idx === firstActiveIdx) {
-              totalDowntimeSecs = dtEvents.reduce((acc: number, e: any) => acc + (parseInt(e.durasiDetik, 10) || 0), 0);
+              const matchedEventsForPcs = dtEvents.filter(
+                (e: any) =>
+                  !e.pcsKe ||
+                  e.pcsKe === "Semua" ||
+                  e.pcsKe.split(",").map((x: any) => x.trim()).includes(pcsKey)
+              );
+              totalDowntimeSecs = (matchedEventsForPcs.length > 0 ? matchedEventsForPcs : dtEvents).reduce(
+                (acc: number, e: any) => acc + (parseInt(e.durasiDetik, 10) || 0),
+                0
+              );
             }
           }
         } else if (actualDowntimeRecords && actualDowntimeRecords.length > 0) {

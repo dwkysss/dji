@@ -48,15 +48,16 @@ export default function MeterHistoryTable({
         }
       }
       const hasIstirahatRaw = (
+        Boolean(h.operator_backup) ||
         (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
         (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
       );
-      const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
-      const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
-      const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
+      const hasIstirahat = hasIstirahatRaw;
+      const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G" || item.detail_masalah?.toUpperCase().includes("GAGAL CACAT"));
+      const isFinishReport = !hasIstirahat && h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
       const hasDefect = !!item.kategori_masalah || !!item.detail_masalah || (item.keterangan_cacat && item.keterangan_cacat !== "START" && item.keterangan_cacat !== "FINISH" && !isIstirahat);
 
       if (!isIstirahat && !isFinishReport && !hasDefect && (item.meter_kain === null || item.meter_kain === undefined || String(item.meter_kain).trim() === "")) {
@@ -162,15 +163,16 @@ export default function MeterHistoryTable({
         }
       }
       const hasIstirahatRaw = (
+        Boolean(h.operator_backup) ||
         (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
         (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
       );
-      const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
-      const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
-      const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
+      const hasIstirahat = hasIstirahatRaw;
+      const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G" || item.detail_masalah?.toUpperCase().includes("GAGAL CACAT"));
+      const isFinishReport = !hasIstirahat && h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
       const hasDefect = !!item.kategori_masalah || !!item.detail_masalah || (item.keterangan_cacat && item.keterangan_cacat !== "START" && item.keterangan_cacat !== "FINISH" && !isIstirahat);
 
       const opr = h.operators?.nama_operator || h.pic || "";

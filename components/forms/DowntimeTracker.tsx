@@ -100,7 +100,10 @@ export default function DowntimeTracker({
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
   const [inputMeters, setInputMeters] = useState<Record<string, string>>({});
   const [singleMeterInput, setSingleMeterInput] = useState<string>("");
+  const [isPerPcsMeterMode, setIsPerPcsMeterMode] = useState<boolean>(false);
   const [selectedPcsKeList, setSelectedPcsKeList] = useState<string[]>([]);
+  const [customizedPcsKeys, setCustomizedPcsKeys] = useState<Record<string, boolean>>({});
+  const [leaderPcsKey, setLeaderPcsKey] = useState<string | null>(null);
   const [selectedUnclassifiedIds, setSelectedUnclassifiedIds] = useState<string[]>([]);
   const [batchClassifyIds, setBatchClassifyIds] = useState<string[]>([]);
 
@@ -405,7 +408,7 @@ export default function DowntimeTracker({
     dikerjakanOleh === "Operator" &&
     !isUnblockingBlock &&
     (pcsKeys.length === 1
-      ? (!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "")
+      ? (!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (!singleMeterInput || singleMeterInput.trim() === "")
       : (selectedPcsKeList.length > 0 && selectedPcsKeList.some((k) => !inputMeters[k] || inputMeters[k].trim() === "")))
   );
 
@@ -592,16 +595,12 @@ export default function DowntimeTracker({
 
   // Pre-fill meter input when the modal opens and defaultMeter is provided
   useEffect(() => {
-    if (showModal && defaultMeter) {
+    if ((showModal || showGagalCacatModal) && defaultMeter) {
       const preFilledMeters: Record<string, string> = {};
-      if (pcsKeys.length === 1) {
-        preFilledMeters[pcsKeys[0]] = defaultMeter;
-      } else {
-        // Fill all PCS slots with the default meter as a suggestion
-        pcsKeys.forEach(k => {
-          preFilledMeters[k] = defaultMeter;
-        });
-      }
+      pcsKeys.forEach(k => {
+        preFilledMeters[k] = defaultMeter;
+      });
+      setSingleMeterInput(prev => prev && prev.trim() ? prev : defaultMeter);
       setInputMeters(prev => {
         // Only pre-fill slots that are currently empty
         const merged: Record<string, string> = { ...preFilledMeters };
@@ -611,7 +610,7 @@ export default function DowntimeTracker({
         return merged;
       });
     }
-  }, [showModal, defaultMeter, pcsKeysJoined]);
+  }, [showModal, showGagalCacatModal, defaultMeter, pcsKeysJoined]);
 
   // Khusus Form Panel: Pemuatan otomatis data downtime yang sebelumnya dialokasikan untuk panel ini
   useEffect(() => {
@@ -658,11 +657,12 @@ export default function DowntimeTracker({
 
     if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
       setSelectedPcsKeList([defaultPcsIndex]);
-    } else if (pcsKeys.length === 1) {
-      setSelectedPcsKeList([...pcsKeys]);
     } else {
-      setSelectedPcsKeList([]);
+      setSelectedPcsKeList([...pcsKeys]);
     }
+    setIsPerPcsMeterMode(false);
+    setLeaderPcsKey(null);
+    setCustomizedPcsKeys({});
 
     setShowModal(true);
   };
@@ -677,17 +677,128 @@ export default function DowntimeTracker({
 
   const handleCloseModal = () => {
     setShowModal(false);
+    setShowGagalCacatModal(false);
     setEditingIndex(null);
     setTempDuration(0);
     setIsUnblockingBlock(false);
     setBatchClassifyIds([]);
+    setSelectedUnclassifiedIds([]);
     setSelectedCategories([]);
     setSelectedDetails({});
     setInputBloks({});
     setInputMeters({});
+    setSingleMeterInput("");
+    setIsPerPcsMeterMode(false);
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
-    setIsSavingEvent(false);
+    setCustomizedPcsKeys({});
+    setLeaderPcsKey(null);
+  };
+
+  const handlePcsMeterChange = (pcsKey: string, rawVal: string) => {
+    const val = rawVal.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+    setSingleMeterInput(val);
+
+    let currentLeader = leaderPcsKey;
+    if (!currentLeader) {
+      currentLeader = pcsKey;
+      setLeaderPcsKey(pcsKey);
+    }
+
+    if (pcsKey === currentLeader) {
+      // Sedang mengedit PCS acuan: salin nilai ke PCS lain yang belum pernah diedit mandiri
+      setInputMeters((prev) => {
+        const next = { ...prev, [pcsKey]: val };
+        selectedPcsKeList.forEach((otherKey) => {
+          if (otherKey !== pcsKey && !customizedPcsKeys[otherKey]) {
+            next[otherKey] = val;
+          }
+        });
+        return next;
+      });
+    } else {
+      // Sedang mengedit kotak PCS yang BUKAN leader (misal mengedit hasil otomatis):
+      // HANYA ubah kotak PCS ini sendiri! JANGAN ubah kotak leader ataupun PCS lainnya!
+      setInputMeters((prev) => ({
+        ...prev,
+        [pcsKey]: val,
+      }));
+      setCustomizedPcsKeys((prev) => ({
+        ...prev,
+        [pcsKey]: true,
+      }));
+    }
+  };
+
+  const handleSyncAllMeters = () => {
+    const firstVal = Object.values(inputMeters).find((v) => v && v.trim() !== "")?.trim() || singleMeterInput.trim() || "";
+    if (firstVal) {
+      setInputMeters((prev) => {
+        const next = { ...prev };
+        selectedPcsKeList.forEach((k) => {
+          next[k] = firstVal;
+        });
+        return next;
+      });
+      setSingleMeterInput(firstVal);
+      setLeaderPcsKey(null);
+      setCustomizedPcsKeys({});
+    }
+  };
+
+  const handleSingleMeterChange = (val: string) => {
+    const cleanVal = val.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+    setSingleMeterInput(cleanVal);
+    setInputMeters((prev) => {
+      const next = { ...prev };
+      pcsKeys.forEach((k) => {
+        next[k] = cleanVal;
+      });
+      return next;
+    });
+  };
+
+  const handleToggleSelectAllPcs = () => {
+    setLeaderPcsKey(null);
+    setCustomizedPcsKeys({});
+    if (selectedPcsKeList.length === pcsCount) {
+      setSelectedPcsKeList([]);
+    } else {
+      setSelectedPcsKeList([...pcsKeys]);
+      const anyMeterVal = singleMeterInput.trim() || Object.values(inputMeters).find(v => v && v.trim() !== "")?.trim() || "";
+      if (anyMeterVal) {
+        setSingleMeterInput(anyMeterVal);
+        setInputMeters((prev) => {
+          const next = { ...prev };
+          pcsKeys.forEach((k) => {
+            next[k] = anyMeterVal;
+          });
+          return next;
+        });
+      }
+    }
+  };
+
+  const handleTogglePcs = (pcsKey: string) => {
+    setSelectedPcsKeList((prev) => {
+      if (prev.includes(pcsKey)) {
+        setInputMeters((m) => {
+          const next = { ...m };
+          delete next[pcsKey];
+          return next;
+        });
+        return prev.filter((x) => x !== pcsKey);
+      } else {
+        const defaultVal = singleMeterInput.trim() || Object.values(inputMeters).find(v => v && v.trim() !== "")?.trim() || "";
+        if (defaultVal) {
+          setInputMeters((m) => ({
+            ...m,
+            [pcsKey]: defaultVal,
+          }));
+        }
+        return [...prev, pcsKey];
+      }
+    });
   };
 
   const handleOpenGagalCacatModal = (index: number, fallbackEvent?: any) => {
@@ -703,19 +814,21 @@ export default function DowntimeTracker({
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
     setIsUnblockingBlock(false);
+    setIsPerPcsMeterMode(false);
+    setLeaderPcsKey(null);
+    setCustomizedPcsKeys({});
 
-    // Default: kosong jika multi-PCS, kecuali mengedit event yang sudah punya pcsKe
+    // Default: jika targetEvent punya pcsKe spesifik (bukan "Semua"), pakai itu. Jika tidak, DEFAULT KE SEMUA PCS!
     if (targetEvent.pcsKe && targetEvent.pcsKe !== "Semua") {
       const existingPcs = targetEvent.pcsKe.split(",").map((s: string) => s.trim());
       setSelectedPcsKeList(existingPcs);
-    } else if (pcsKeys.length === 1) {
-      setSelectedPcsKeList([...pcsKeys]);
     } else {
-      setSelectedPcsKeList([]);
+      setSelectedPcsKeList([...pcsKeys]);
     }
 
     // Parse existing meters
     const initialMeters: Record<string, string> = {};
+    let extractedSingleMeter = "";
     const rawMeter = targetEvent.meter || targetEvent.problems?.[0]?.meter || "";
     if (rawMeter) {
       if (rawMeter.includes("PCS")) {
@@ -723,15 +836,24 @@ export default function DowntimeTracker({
           const match = m.match(/PCS (\d+):\s*(.+)/);
           if (match) {
             initialMeters[match[1]] = match[2].trim();
+            if (!extractedSingleMeter) extractedSingleMeter = match[2].trim();
           }
         });
       } else {
+        extractedSingleMeter = rawMeter.trim();
         pcsKeys.forEach((k) => {
           initialMeters[k] = rawMeter.trim();
         });
       }
+    } else if (defaultMeter) {
+      extractedSingleMeter = String(defaultMeter).trim();
+      pcsKeys.forEach((k) => {
+        initialMeters[k] = String(defaultMeter).trim();
+      });
     }
+
     setInputMeters(initialMeters);
+    setSingleMeterInput(extractedSingleMeter);
     setShowGagalCacatModal(true);
     setShowModal(false);
   };
@@ -753,12 +875,19 @@ export default function DowntimeTracker({
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
     setIsUnblockingBlock(false);
-    if (pcsKeys.length === 1) {
-      setSelectedPcsKeList([...pcsKeys]);
-    } else {
-      setSelectedPcsKeList([]);
+    setIsPerPcsMeterMode(false);
+    setSelectedPcsKeList([...pcsKeys]);
+
+    const initialMeters: Record<string, string> = {};
+    let extractedSingleMeter = "";
+    if (defaultMeter) {
+      extractedSingleMeter = String(defaultMeter).trim();
+      pcsKeys.forEach((k) => {
+        initialMeters[k] = String(defaultMeter).trim();
+      });
     }
-    setInputMeters({});
+    setInputMeters(initialMeters);
+    setSingleMeterInput(extractedSingleMeter);
     setShowGagalCacatModal(true);
     setShowModal(false);
   };
@@ -811,15 +940,16 @@ export default function DowntimeTracker({
     setNamaPenanganan("");
     setIsUnblockingBlock(false);
 
-    // Default: kosong jika multi-PCS, kecuali mengedit event yang sudah punya pcsKe
+    // Default: jika multi-PCS, pilih semua PCS secara otomatis
     if (targetEvent.pcsKe && targetEvent.pcsKe !== "Semua") {
       const existingPcs = targetEvent.pcsKe.split(",").map((s: string) => s.trim());
       setSelectedPcsKeList(existingPcs);
-    } else if (pcsKeys.length === 1) {
-      setSelectedPcsKeList([...pcsKeys]);
     } else {
-      setSelectedPcsKeList([]);
+      setSelectedPcsKeList([...pcsKeys]);
     }
+    setIsPerPcsMeterMode(false);
+    setLeaderPcsKey(null);
+    setCustomizedPcsKeys({});
 
     // Parse existing meters
     const initialMeters: Record<string, string> = {};
@@ -839,6 +969,8 @@ export default function DowntimeTracker({
       }
     }
     setInputMeters(initialMeters);
+    const firstMeterVal = rawMeter && !rawMeter.includes("PCS") ? rawMeter.trim() : (Object.values(initialMeters)[0] || "");
+    setSingleMeterInput(firstMeterVal);
 
     setShowModal(true);
   };
@@ -942,24 +1074,42 @@ export default function DowntimeTracker({
 
   const handleSaveNonDefectStop = () => {
     if (isSavingEvent || isSavingMechanic) return;
-    if (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) {
-      alert("Wajib memilih minimal 1 PCS!");
-      return;
+
+    // 1. Jika belum ada PCS yang dipilih pada mesin multi-PCS, default-kan ke SEMUA PCS
+    let currentSelectedPcs = [...selectedPcsKeList];
+    if (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && currentSelectedPcs.length === 0) {
+      currentSelectedPcs = [...pcsKeys];
+      setSelectedPcsKeList([...pcsKeys]);
     }
-    if (showMeterInput && hasMissingMeter) {
-      alert("Wajib mengisi nilai meter untuk setiap PCS yang dipilih!");
+
+    // 2. Smart auto-fill meter: jika ada salah satu meter terisi, gunakan nilai tersebut untuk PCS yang masih kosong
+    let currentMeters = { ...inputMeters };
+    const anyFilledVal = singleMeterInput.trim() || Object.values(currentMeters).find((v) => v && v.trim() !== "")?.trim() || "";
+    if (anyFilledVal) {
+      currentSelectedPcs.forEach((k) => {
+        if (!currentMeters[k] || currentMeters[k].trim() === "") {
+          currentMeters[k] = anyFilledVal;
+        }
+      });
+      setInputMeters(currentMeters);
+      if (!singleMeterInput) setSingleMeterInput(anyFilledVal);
+    }
+
+    if (showMeterInput && currentSelectedPcs.length > 0 && currentSelectedPcs.some((k) => !currentMeters[k] || currentMeters[k].trim() === "")) {
+      alert("Wajib mengisi nilai meter sebelum menyimpan Gagal Cacat!");
       return;
     }
     setIsSavingEvent(true);
 
+    const isAllPcs = currentSelectedPcs.length === pcsCount;
     const pcsKeStr = dikerjakanOleh === "Operator"
-      ? (selectedPcsKeList.length === pcsCount ? "Semua" : (selectedPcsKeList.length > 0 ? selectedPcsKeList.join(", ") : "Semua"))
+      ? (isAllPcs ? "Semua" : (currentSelectedPcs.length > 0 ? currentSelectedPcs.join(", ") : "Semua"))
       : "Semua";
 
     const meterStr = pcsKeys.length === 1
-      ? inputMeters[pcsKeys[0]]?.trim()
-      : Object.entries(inputMeters)
-        .filter(([k, v]) => selectedPcsKeList.includes(k) && v.trim() !== "")
+      ? (currentMeters[pcsKeys[0]]?.trim() || singleMeterInput.trim())
+      : Object.entries(currentMeters)
+        .filter(([k, v]) => currentSelectedPcs.includes(k) && v.trim() !== "")
         .map(([pcs, val]) => `PCS ${pcs}: ${val.trim()}`)
         .join(", ");
 
@@ -1101,7 +1251,28 @@ export default function DowntimeTracker({
     if (isSavingEvent || isSavingMechanic) return;
     if (selectedCategories.length === 0) return;
     if (dikerjakanOleh === "Operator" && selectedPcsKeList.length === 0) return;
-    if (hasMissingMeter) return;
+
+    // Smart auto-fill meter jika semua PCS dipilih atau jika dalam 1 meter bersama
+    let currentMeters = { ...inputMeters };
+    const anyFilledVal = singleMeterInput.trim() || Object.values(currentMeters).find((v) => v && v.trim() !== "")?.trim() || "";
+    if ((selectedPcsKeList.length === pcsCount && !isPerPcsMeterMode) || (anyFilledVal && selectedPcsKeList.length === pcsCount)) {
+      if (anyFilledVal) {
+        pcsKeys.forEach((k) => {
+          if (!currentMeters[k] || currentMeters[k].trim() === "") {
+            currentMeters[k] = anyFilledVal;
+          }
+        });
+        setInputMeters(currentMeters);
+      }
+    }
+
+    if (showMeterInput && dikerjakanOleh === "Operator" && !isUnblockingBlock) {
+      if (pcsKeys.length === 1) {
+        if ((!currentMeters[pcsKeys[0]] || currentMeters[pcsKeys[0]].trim() === "") && (!singleMeterInput || singleMeterInput.trim() === "")) return;
+      } else {
+        if (selectedPcsKeList.some((k) => !currentMeters[k] || currentMeters[k].trim() === "")) return;
+      }
+    }
 
     for (const catId of selectedCategories) {
       const details = selectedDetails[catId] || [];
@@ -1118,8 +1289,8 @@ export default function DowntimeTracker({
     setIsSavingEvent(true);
 
     const meterStr = pcsKeys.length === 1
-      ? inputMeters[pcsKeys[0]]?.trim()
-      : Object.entries(inputMeters)
+      ? (currentMeters[pcsKeys[0]]?.trim() || singleMeterInput.trim())
+      : Object.entries(currentMeters)
         .filter(([k, v]) => selectedPcsKeList.includes(k) && v.trim() !== "")
         .map(([pcs, val]) => `PCS ${pcs}: ${val.trim()}`)
         .join(", ");
@@ -2222,9 +2393,18 @@ export default function DowntimeTracker({
 
               {dikerjakanOleh === "Operator" && !isUnblockingBlock && pcsCount > 1 && (
                 <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 shadow-inner mt-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1 block">
-                    Masalah terjadi pada PCS ke-berapa?
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                      Masalah terjadi pada PCS ke-berapa?
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectAllPcs}
+                      className="text-[10px] font-bold text-sky-600 hover:text-sky-800 hover:underline cursor-pointer"
+                    >
+                      {selectedPcsKeList.length === pcsCount ? "Batal Pilih Semua" : "Pilih Semua PCS"}
+                    </button>
+                  </div>
                   <div className={`grid gap-2 w-full ${pcsCount === 2 ? "grid-cols-2" :
                     pcsCount === 3 ? "grid-cols-3" :
                       pcsCount === 4 ? "grid-cols-4" :
@@ -2233,59 +2413,137 @@ export default function DowntimeTracker({
                     }`}>
                     {pcsKeys.map((pcsKey) => {
                       const isSelected = selectedPcsKeList.includes(pcsKey);
-                      const isMeterEmpty = isSelected && showMeterInput && (!inputMeters[pcsKey] || inputMeters[pcsKey].trim() === "");
                       return (
-                        <div key={pcsKey} className="flex flex-col gap-1.5 w-full">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedPcsKeList((prev) => {
-                                if (prev.includes(pcsKey)) {
-                                  setInputMeters((m) => {
-                                    const next = { ...m };
-                                    delete next[pcsKey];
-                                    return next;
-                                  });
-                                  return prev.filter((x) => x !== pcsKey);
-                                } else {
-                                  return [...prev, pcsKey];
-                                }
-                              });
-                            }}
-                            className={`w-full h-11 flex items-center justify-center rounded-xl text-xs font-black transition-all border shadow-sm cursor-pointer active:scale-95 ${isSelected
-                              ? "bg-sky-500 border-sky-500 text-white"
-                              : "bg-white border-slate-200 text-slate-650 hover:bg-slate-50"
-                              }`}
-                          >
-                            PCS {pcsKey}
-                          </button>
-                          {showMeterInput && isSelected && (
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={inputMeters[pcsKey] || ""}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
-                                setInputMeters(prev => ({ ...prev, [pcsKey]: val }));
-                              }}
-                              placeholder="Meter..."
-                              className={`w-full h-8 px-2 text-center rounded-lg border text-[10px] font-bold font-mono transition-all animate-fadeIn ${isMeterEmpty
-                                ? "border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500 text-rose-700 bg-rose-50 placeholder:text-rose-300"
-                                : "border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-emerald-50"
-                                }`}
-                            />
-                          )}
-                        </div>
+                        <button
+                          key={pcsKey}
+                          type="button"
+                          onClick={() => handleTogglePcs(pcsKey)}
+                          className={`w-full h-11 flex items-center justify-center rounded-xl text-xs font-black transition-all border shadow-sm cursor-pointer active:scale-95 ${isSelected
+                            ? "bg-sky-500 border-sky-500 text-white"
+                            : "bg-white border-slate-200 text-slate-650 hover:bg-slate-50"
+                            }`}
+                        >
+                          PCS {pcsKey}
+                        </button>
                       );
                     })}
                   </div>
+
+                  {/* Input Meter jika kain jenis meteran */}
+                  {showMeterInput && selectedPcsKeList.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-200/70">
+                      {selectedPcsKeList.length === 1 ? (
+                        <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2 transition-all animate-fadeIn">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                              <Box className="w-4 h-4 text-sky-600" />
+                              Posisi Letak Meter (PCS {selectedPcsKeList[0]})
+                            </label>
+                            <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                              * Wajib Diisi
+                            </span>
+                          </div>
+
+                          <div className="relative flex items-center">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={inputMeters[selectedPcsKeList[0]] || ""}
+                              onChange={(e) => handlePcsMeterChange(selectedPcsKeList[0], e.target.value)}
+                              placeholder="Contoh: 18.5"
+                              className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${
+                                !inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
+                                  ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
+                                  : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-emerald-50/30 text-emerald-900"
+                              }`}
+                            />
+                            <span className="absolute right-3.5 px-2 py-0.5 bg-slate-100 rounded-md text-xs font-bold text-slate-500 pointer-events-none border border-slate-200">
+                              meter
+                            </span>
+                          </div>
+
+                          <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                            <span>💡</span>
+                            <span>Titik posisi meter saat mesin berhenti khusus pada PCS {selectedPcsKeList[0]}.</span>
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2.5 transition-all animate-fadeIn">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                              <Box className="w-4 h-4 text-sky-600" />
+                              Posisi Letak Meter ({selectedPcsKeList.length === pcsCount ? "Semua PCS" : `${selectedPcsKeList.length} PCS Terpilih`})
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleSyncAllMeters}
+                              className="text-[10px] font-bold text-sky-600 hover:text-sky-800 hover:underline cursor-pointer flex items-center gap-1 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200/70"
+                              title="Samakan seluruh nilai meter dengan meter pertama yang terisi"
+                            >
+                              <span>🔗 Samakan Semua</span>
+                            </button>
+                          </div>
+
+                          <div className={`grid gap-2.5 w-full ${
+                            selectedPcsKeList.length === 2 ? "grid-cols-2" :
+                            selectedPcsKeList.length === 3 ? "grid-cols-3" :
+                            "grid-cols-2 sm:grid-cols-4"
+                          }`}>
+                            {selectedPcsKeList.map((pcsKey) => {
+                              const val = inputMeters[pcsKey] || "";
+                              const isMeterEmpty = !val || val.trim() === "";
+                              const isCustom = Boolean(customizedPcsKeys[pcsKey]);
+                              const isAutoFilled = !isCustom && Boolean(leaderPcsKey) && pcsKey !== leaderPcsKey && Boolean(val);
+                              return (
+                                <div key={pcsKey} className="flex flex-col gap-1.5 p-2 rounded-xl border border-slate-200/80 bg-slate-50/60">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black text-slate-700">PCS {pcsKey}</span>
+                                    {isCustom ? (
+                                      <span className="text-[8.5px] font-bold text-violet-700 bg-violet-100/80 px-1.5 py-0.5 rounded border border-violet-200">Kustom</span>
+                                    ) : isAutoFilled ? (
+                                      <span className="text-[8.5px] font-bold text-sky-600 bg-sky-100/80 px-1.5 py-0.5 rounded border border-sky-200">Otomatis</span>
+                                    ) : null}
+                                  </div>
+                                  <div className="relative flex items-center">
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={val}
+                                      onChange={(e) => handlePcsMeterChange(pcsKey, e.target.value)}
+                                      placeholder="0.0"
+                                      className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${
+                                        isMeterEmpty
+                                          ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 placeholder:text-slate-400"
+                                          : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-emerald-900 bg-emerald-50/50"
+                                      }`}
+                                    />
+                                    <span className="absolute right-2 text-[10px] font-bold text-slate-400 pointer-events-none">
+                                      m
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[9.5px] text-slate-500 flex items-center gap-1.5">
+                            <span>💡</span>
+                            <span>Ketik pada salah satu PCS akan otomatis mengisi PCS lainnya. Kotak tetap bisa diedit masing-masing jika meternya berbeda.</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {selectedPcsKeList.length === 0 ? (
-                    <p className="text-[10px] text-red-500 font-bold mt-2 animate-pulse">
-                      * Wajib memilih minimal 1 PCS yang bermasalah!
+                    <p className="text-[10px] text-red-500 font-bold mt-2 animate-pulse flex items-center gap-1">
+                      <span>⚠️</span> Wajib memilih minimal 1 PCS yang bermasalah!
                     </p>
-                  ) : showMeterInput && selectedPcsKeList.some((k) => !inputMeters[k] || inputMeters[k].trim() === "") ? (
-                    <p className="text-[10px] text-rose-600 font-bold mt-2 animate-pulse flex items-center gap-1">
-                      Wajib mengisi nilai meter untuk setiap PCS yang dipilih!
+                  ) : showMeterInput && hasMissingMeter ? (
+                    <p className="text-[10px] text-rose-500 font-bold mt-2 flex items-center gap-1">
+                      <span>⚠️</span>
+                      {selectedPcsKeList.length === 1
+                        ? `Nilai meter untuk PCS ${selectedPcsKeList[0]} belum diisi!`
+                        : "Lengkapi nilai meter untuk setiap PCS yang dipilih!"}
                     </p>
                   ) : null}
                 </div>
@@ -2917,70 +3175,176 @@ export default function DowntimeTracker({
 
               {/* Pilihan PCS & Input Meter di bawah PCS */}
               {pcsCount > 1 && (
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
-                  <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block">
-                    Pilih PCS:
-                  </label>
-                  <p className="text-[9px] text-slate-400 font-semibold mb-2">
-                    Ketuk untuk memilih nomor PCS:
-                  </p>
-                  <div className={`grid gap-2 w-full ${pcsCount === 2 ? "grid-cols-2" : pcsCount === 3 ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-4"}`}>
-                    {pcsKeys.map((pcsKey) => {
-                      const isSelected = selectedPcsKeList.includes(pcsKey);
-                      const isMeterEmpty = isSelected && showMeterInput && (!inputMeters[pcsKey] || inputMeters[pcsKey].trim() === "");
-                      return (
-                        <div key={pcsKey} className="flex flex-col gap-1.5 w-full">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                  {/* Top Bar: Target PCS & Tombol Pilih Semua PCS */}
+                  <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200/70">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block">
+                        Target PCS:
+                      </label>
+                      <span className="text-[11px] font-semibold text-slate-500">
+                        {selectedPcsKeList.length === pcsCount
+                          ? "Berlaku untuk SEMUA PCS"
+                          : selectedPcsKeList.length === 0
+                            ? "Belum ada PCS dipilih"
+                            : `${selectedPcsKeList.length} dari ${pcsCount} PCS dipilih`}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectAllPcs}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5 ${selectedPcsKeList.length === pcsCount
+                          ? "bg-emerald-600 text-white shadow-emerald-600/20"
+                          : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-100"
+                        }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{selectedPcsKeList.length === pcsCount ? "Semua PCS" : "Pilih Semua PCS"}</span>
+                    </button>
+                  </div>
+
+                  {/* Tombol Nomor PCS Individual */}
+                  <div>
+                    <p className="text-[9px] text-slate-400 font-semibold mb-1.5">
+                      Ketuk nomor PCS untuk memilih atau membatalkan:
+                    </p>
+                    <div className={`grid gap-2 w-full ${pcsCount === 2 ? "grid-cols-2" : pcsCount === 3 ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-4"}`}>
+                      {pcsKeys.map((pcsKey) => {
+                        const isSelected = selectedPcsKeList.includes(pcsKey);
+                        return (
                           <button
                             key={pcsKey}
                             type="button"
-                            onClick={() => {
-                              setSelectedPcsKeList((prev) => {
-                                if (prev.includes(pcsKey)) {
-                                  setInputMeters((m) => {
-                                    const next = { ...m };
-                                    delete next[pcsKey];
-                                    return next;
-                                  });
-                                  return prev.filter((x) => x !== pcsKey);
-                                } else {
-                                  return [...prev, pcsKey];
-                                }
-                              });
-                            }}
-                            className={`w-full h-11 flex items-center justify-center rounded-xl text-xs font-black transition-all border shadow-xs cursor-pointer active:scale-95 ${isSelected
-                              ? "bg-emerald-600 border-emerald-600 text-white shadow-emerald-600/20"
-                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                            onClick={() => handleTogglePcs(pcsKey)}
+                            className={`w-full h-10 flex items-center justify-center rounded-xl text-xs font-black transition-all border shadow-xs cursor-pointer active:scale-95 ${isSelected
+                                ? "bg-emerald-600 border-emerald-600 text-white shadow-emerald-600/20 ring-2 ring-emerald-400/30"
+                                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
                               }`}
                           >
                             PCS {pcsKey}
                           </button>
-                          {showMeterInput && isSelected && (
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Input Meter jika kain jenis meteran */}
+                  {showMeterInput && selectedPcsKeList.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-200/70">
+                      {selectedPcsKeList.length === 1 ? (
+                        <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2 transition-all animate-fadeIn">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                              <Box className="w-4 h-4 text-emerald-600" />
+                              Posisi Letak Meter (PCS {selectedPcsKeList[0]})
+                            </label>
+                            <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                              * Wajib Diisi
+                            </span>
+                          </div>
+
+                          <div className="relative flex items-center">
                             <input
                               type="text"
                               inputMode="decimal"
-                              value={inputMeters[pcsKey] || ""}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
-                                setInputMeters((prev) => ({ ...prev, [pcsKey]: val }));
-                              }}
-                              placeholder="Meter..."
-                              className={`w-full h-8 px-2 text-center rounded-lg border text-[10px] font-bold font-mono transition-all animate-fadeIn ${isMeterEmpty
-                                ? "border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500 text-rose-700 bg-rose-50 placeholder:text-rose-300"
-                                : "border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-emerald-50"
-                                }`}
+                              value={inputMeters[selectedPcsKeList[0]] || ""}
+                              onChange={(e) => handlePcsMeterChange(selectedPcsKeList[0], e.target.value)}
+                              placeholder="Contoh: 18.5"
+                              className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${
+                                !inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
+                                  ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
+                                  : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-emerald-50/30 text-emerald-900"
+                              }`}
                             />
-                          )}
+                            <span className="absolute right-3.5 px-2 py-0.5 bg-slate-100 rounded-md text-xs font-bold text-slate-500 pointer-events-none border border-slate-200">
+                              meter
+                            </span>
+                          </div>
+
+                          <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                            <span>💡</span>
+                            <span>Titik posisi meter saat mesin berhenti khusus pada PCS {selectedPcsKeList[0]}.</span>
+                          </p>
                         </div>
-                      );
-                    })}
-                  </div>
+                      ) : (
+                        <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2.5 transition-all animate-fadeIn">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                              <Box className="w-4 h-4 text-emerald-600" />
+                              Posisi Letak Meter ({selectedPcsKeList.length === pcsCount ? "Semua PCS" : `${selectedPcsKeList.length} PCS Terpilih`})
+                            </label>
+                            {selectedPcsKeList.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={handleSyncAllMeters}
+                                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 hover:underline cursor-pointer flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/70"
+                                title="Samakan seluruh nilai meter dengan meter pertama yang terisi"
+                              >
+                                <span>🔗 Samakan Semua</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <div className={`grid gap-2.5 w-full ${
+                            selectedPcsKeList.length === 2 ? "grid-cols-2" :
+                            selectedPcsKeList.length === 3 ? "grid-cols-3" :
+                            "grid-cols-2 sm:grid-cols-4"
+                          }`}>
+                            {selectedPcsKeList.map((pcsKey) => {
+                              const val = inputMeters[pcsKey] || "";
+                              const isMeterEmpty = !val || val.trim() === "";
+                              const isCustom = Boolean(customizedPcsKeys[pcsKey]);
+                              const isAutoFilled = !isCustom && Boolean(leaderPcsKey) && pcsKey !== leaderPcsKey && Boolean(val);
+                              return (
+                                <div key={pcsKey} className="flex flex-col gap-1.5 p-2 rounded-xl border border-slate-200/80 bg-slate-50/60">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black text-slate-700">PCS {pcsKey}</span>
+                                    {isCustom ? (
+                                      <span className="text-[8.5px] font-bold text-violet-700 bg-violet-100/80 px-1.5 py-0.5 rounded border border-violet-200">Kustom</span>
+                                    ) : isAutoFilled ? (
+                                      <span className="text-[8.5px] font-bold text-emerald-600 bg-emerald-100/80 px-1.5 py-0.5 rounded border border-emerald-200">Otomatis</span>
+                                    ) : null}
+                                  </div>
+                                  <div className="relative flex items-center">
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={val}
+                                      onChange={(e) => handlePcsMeterChange(pcsKey, e.target.value)}
+                                      placeholder="0.0"
+                                      className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${
+                                        isMeterEmpty
+                                          ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-white text-slate-800 placeholder:text-slate-400"
+                                          : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-emerald-900 bg-emerald-50/50"
+                                      }`}
+                                    />
+                                    <span className="absolute right-2 text-[10px] font-bold text-slate-400 pointer-events-none">
+                                      m
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[9.5px] text-slate-500 flex items-center gap-1.5">
+                            <span>💡</span>
+                            <span>Ketik pada salah satu PCS akan otomatis mengisi PCS lainnya. Kotak tetap bisa diedit masing-masing jika meternya berbeda.</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {selectedPcsKeList.length === 0 ? (
-                    <p className="text-[10px] text-rose-500 font-bold mt-1 animate-pulse">
-                      * Wajib memilih minimal 1 PCS!
+                    <p className="text-[10px] text-rose-500 font-bold mt-1 animate-pulse flex items-center gap-1">
+                      <span>⚠️</span> Wajib memilih minimal 1 PCS!
                     </p>
                   ) : showMeterInput && selectedPcsKeList.some((k) => !inputMeters[k] || inputMeters[k].trim() === "") ? (
-                    <p className="text-[10px] text-rose-500 font-bold mt-1 animate-pulse">
-                      * Wajib mengisi nilai meter untuk setiap PCS yang dipilih!
+                    <p className="text-[10px] text-rose-500 font-bold mt-1 flex items-center gap-1">
+                      <span>⚠️</span>
+                      {selectedPcsKeList.length === 1
+                        ? `Nilai meter untuk PCS ${selectedPcsKeList[0]} belum diisi!`
+                        : "Lengkapi nilai meter untuk setiap PCS yang dipilih!"}
                     </p>
                   ) : null}
                 </div>
@@ -2988,9 +3352,9 @@ export default function DowntimeTracker({
 
               {/* Jika hanya 1 PCS dan showMeterInput */}
               {pcsCount === 1 && showMeterInput && (
-                <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn ${!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === ""
-                  ? "bg-rose-50/70 border-rose-300"
-                  : "bg-emerald-50 border-emerald-200/60"
+                <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn ${(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (!singleMeterInput || singleMeterInput.trim() === "")
+                    ? "bg-rose-50/70 border-rose-300"
+                    : "bg-emerald-50 border-emerald-200/60"
                   }`}>
                   <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
                     <Box className="w-4 h-4 text-emerald-600" />
@@ -2999,15 +3363,16 @@ export default function DowntimeTracker({
                   <input
                     type="text"
                     inputMode="decimal"
-                    value={inputMeters[pcsKeys[0]] || ""}
+                    value={inputMeters[pcsKeys[0]] || singleMeterInput || ""}
                     onChange={(e) => {
                       const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+                      setSingleMeterInput(val);
                       setInputMeters((prev) => ({ ...prev, [pcsKeys[0]]: val }));
                     }}
                     placeholder="Contoh: 12.5"
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm font-bold font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                   />
-                  {(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (
+                  {(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (!singleMeterInput || singleMeterInput.trim() === "") && (
                     <p className="text-[10px] font-bold text-rose-600 mt-2 flex items-center gap-1 animate-pulse">
                       Nilai meter wajib diisi sebelum menyimpan!
                     </p>
