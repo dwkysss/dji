@@ -701,7 +701,7 @@ export default function DowntimeTracker({
   };
 
   const handlePcsMeterChange = (pcsKey: string, rawVal: string) => {
-    const val = rawVal.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+    const val = rawVal.replace(/[^0-9]/g, "");
     setSingleMeterInput(val);
 
     let currentLeader = leaderPcsKey;
@@ -2497,10 +2497,10 @@ export default function DowntimeTracker({
                           <div className="relative flex items-center">
                             <input
                               type="text"
-                              inputMode="decimal"
+                              inputMode="numeric"
                               value={inputMeters[selectedPcsKeList[0]] || ""}
                               onChange={(e) => handlePcsMeterChange(selectedPcsKeList[0], e.target.value)}
-                              placeholder="Contoh: 18.5"
+                              placeholder="Contoh: 18"
                               className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${
                                 !inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
                                   ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
@@ -2558,10 +2558,10 @@ export default function DowntimeTracker({
                                   <div className="relative flex items-center">
                                     <input
                                       type="text"
-                                      inputMode="decimal"
+                                      inputMode="numeric"
                                       value={val}
                                       onChange={(e) => handlePcsMeterChange(pcsKey, e.target.value)}
-                                      placeholder="0.0"
+                                      placeholder="0"
                                       className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${
                                         isMeterEmpty
                                           ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 placeholder:text-slate-400"
@@ -2614,13 +2614,13 @@ export default function DowntimeTracker({
                   </label>
                   <input
                     type="text"
-                    inputMode="decimal"
+                    inputMode="numeric"
                     value={inputMeters[pcsKeys[0]] || ""}
                     onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+                      const val = e.target.value.replace(/[^0-9]/g, "");
                       setInputMeters(prev => ({ ...prev, [pcsKeys[0]]: val }));
                     }}
-                    placeholder="Contoh: 12.5"
+                    placeholder="Contoh: 12"
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm font-bold font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                   />
                   {(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (
@@ -3300,10 +3300,10 @@ export default function DowntimeTracker({
                           <div className="relative flex items-center">
                             <input
                               type="text"
-                              inputMode="decimal"
+                              inputMode="numeric"
                               value={inputMeters[selectedPcsKeList[0]] || ""}
                               onChange={(e) => handlePcsMeterChange(selectedPcsKeList[0], e.target.value)}
-                              placeholder="Contoh: 18.5"
+                              placeholder="Contoh: 18"
                               className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${
                                 !inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
                                   ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
@@ -3363,10 +3363,10 @@ export default function DowntimeTracker({
                                   <div className="relative flex items-center">
                                     <input
                                       type="text"
-                                      inputMode="decimal"
+                                      inputMode="numeric"
                                       value={val}
                                       onChange={(e) => handlePcsMeterChange(pcsKey, e.target.value)}
-                                      placeholder="0.0"
+                                      placeholder="0"
                                       className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${
                                         isMeterEmpty
                                           ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-white text-slate-800 placeholder:text-slate-400"
@@ -3420,14 +3420,14 @@ export default function DowntimeTracker({
                   </label>
                   <input
                     type="text"
-                    inputMode="decimal"
+                    inputMode="numeric"
                     value={inputMeters[pcsKeys[0]] || singleMeterInput || ""}
                     onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+                      const val = e.target.value.replace(/[^0-9]/g, "");
                       setSingleMeterInput(val);
                       setInputMeters((prev) => ({ ...prev, [pcsKeys[0]]: val }));
                     }}
-                    placeholder="Contoh: 12.5"
+                    placeholder="Contoh: 12"
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm font-bold font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                   />
                   {(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (!singleMeterInput || singleMeterInput.trim() === "") && (

@@ -303,7 +303,7 @@ export async function submitOperatorHandover(input: {
     // Ambil header pada potongan ini
     const { data: recentHeaders, error } = await supabase
       .from("production_headers")
-      .select("id, tgl, operator_id, group_id, design_id, pic, meter_awal, meter_akhir, total_produksi_meter, tanggal_jam, operator_backup")
+      .select("id, tgl, operator_id, group_id, design_id, pic, meter_awal, meter_akhir, total_produksi_meter, tanggal_jam, operator_backup, pcs")
       .ilike("nomor_mc", nomorMcClean)
       .eq("potongan_ke", potonganKeNum)
       .order("tanggal_jam", { ascending: false })
@@ -396,7 +396,7 @@ export async function submitOperatorHandover(input: {
           nomor_mc: nomorMcClean,
           potongan_ke: potonganKeNum,
           panel_no: "METERAN",
-          pcs: 1,
+          pcs: Number(lastOpLatest.pcs) || 1,
           meter_awal: closingStart,
           meter_akhir: closingEnd,
           total_produksi_meter: closingTotal,

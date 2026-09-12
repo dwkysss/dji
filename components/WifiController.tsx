@@ -65,7 +65,7 @@ export default function WifiController() {
       machineMapping["R1"]?.host ||
       Object.values(editableMap)[0]?.host ||
       Object.values(machineMapping)[0]?.host ||
-      "192.168.2.171"
+      "192.168.1.171"
     );
   }, [editableMap, machineMapping]);
 
@@ -189,7 +189,7 @@ export default function WifiController() {
         await resetMachineMapping();
         setIsSavingMapping(false);
         setEditableMap(DEFAULT_MACHINE_ESP_MAP);
-        const defHost = DEFAULT_MACHINE_ESP_MAP["R1"]?.host || "192.168.2.171";
+        const defHost = DEFAULT_MACHINE_ESP_MAP["R1"]?.host || "192.168.1.171";
         setInputHost(defHost);
         setTargetHost(defHost);
         connect(defHost);

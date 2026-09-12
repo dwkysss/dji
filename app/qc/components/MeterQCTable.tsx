@@ -376,9 +376,18 @@ export default function MeterQCTable({
           return true;
         })
         .join("\n");
-      const cacatText = isIstirahatOnly ? "-" : (isFinishReport && !hasErrorDetail ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
 
-      const isPlaceholder = (meterDisplay === "-" && !hasErrorDetail && !isIstirahatOnly && !isFinishReport) || isStartMarker;
+      const isLastItemOfOp = detailsToDisplay.slice(idx + 1).every((nextItem: any) => {
+        const nextH = nextItem.production_headers || {};
+        const nextOpr = nextH.operators?.nama_operator || nextH.pic || "";
+        return nextOpr !== opr;
+      });
+      const isLastItemOfTable = idx === detailsToDisplay.length - 1;
+      const isTrueFinish = isFinishReport && !hasErrorDetail && !isIstirahatOnly && (isLastItemOfOp || isLastItemOfTable);
+
+      const cacatText = isIstirahatOnly ? "-" : (isTrueFinish ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
+
+      const isPlaceholder = (meterDisplay === "-" && !hasErrorDetail && !isIstirahatOnly && !isTrueFinish) || isStartMarker;
       const isDuplicateFinish = (cacatText === "FINISH") && items.some(
         (it) => !it.isTotalRow && it.oprStr === finalOprStr && it.cacatDisplay === "FINISH"
       );

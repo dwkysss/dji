@@ -1233,10 +1233,28 @@ export async function searchEmployeeHistory(filters: {
       batch.panels.push(row);
     });
 
-    let batches = Array.from(batchesMap.values()).map(b => ({
-      ...b,
-      operators_list: Array.from(b.operators).join(", ")
-    }));
+    let batches = Array.from(batchesMap.values()).map(b => {
+      let finalTotalMeter = b.total_meter;
+      if (b.is_meter && b.panels && b.panels.length > 0) {
+        let maxOfficialMeter = 0;
+        b.panels.forEach((p: any) => {
+          const mA = parseFloat(String(p.meter_akhir || "").replace(/[^0-9.]/g, ""));
+          if (!isNaN(mA) && mA > maxOfficialMeter) {
+            maxOfficialMeter = mA;
+          }
+        });
+        // Jika ada laporan meter_akhir resmi, utamakan nilai meter_akhir resmi agar tidak tergelembung oleh salah ketik titik cacat
+        if (maxOfficialMeter > 0) {
+          finalTotalMeter = maxOfficialMeter;
+        }
+      }
+
+      return {
+        ...b,
+        total_meter: finalTotalMeter,
+        operators_list: Array.from(b.operators).join(", ")
+      };
+    });
 
     // Re-apply sorting on the grouped batches
     const batchSortField = filters.sortBy === "downtime" ? "total_downtime_detik" : "waktu_input_terakhir";

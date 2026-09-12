@@ -685,7 +685,7 @@ export default function MeterHistoryTable({
       const isLastItemOfTable = idx === sortedProcessed.length - 1;
       const isIstirahatFinish = hasIstirahat && isFinishReport && (isLastItemOfThisOp || isLastItemOfTable);
 
-      const isTrueFinish = isFinishReport && !hasIstirahat;
+      const isTrueFinish = isFinishReport && !hasIstirahat && (isLastItemOfThisOp || isLastItemOfTable);
 
       let cacatText = isStartRow 
         ? "START" 
@@ -842,7 +842,7 @@ export default function MeterHistoryTable({
         });
         globalRowCount += 1;
 
-        if (isFinishReport && !hasIstirahat && cleanedCacatLines.length > 0) {
+        if (isFinishReport && !hasIstirahat && cleanedCacatLines.length > 0 && (isLastItemOfThisOp || isLastItemOfTable)) {
           const isDuplicateFinish = items.some(
             (it) => !it.isTotalRow && it.oprStr === opr && it.cacatDisplay === "FINISH"
           );

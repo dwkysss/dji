@@ -2608,8 +2608,14 @@ export default function ContinuousForm({
                       </label>
                       <input
                         type="number"
-                        step="any"
+                        step="1"
+                        inputMode="numeric"
                         onWheel={(e) => (e.target as HTMLElement).blur()}
+                        onKeyDown={(e) => {
+                          if (e.key === "," || e.key === "." || e.key === "e" || e.key === "E" || e.key === "+" || e.key === "-") {
+                            e.preventDefault();
+                          }
+                        }}
                         {...register("meterAkhir")}
                         className="h-12 px-4 rounded-xl bg-white border border-slate-200 text-base font-semibold focus:border-emerald-400 outline-none transition-all text-right"
                         placeholder="Masukkan angka di mesin saat ini"
@@ -2680,8 +2686,14 @@ export default function ContinuousForm({
                       </label>
                       <input
                         type="number"
-                        step="any"
+                        step="1"
+                        inputMode="numeric"
                         onWheel={(e) => (e.target as HTMLElement).blur()}
+                        onKeyDown={(e) => {
+                          if (e.key === "," || e.key === "." || e.key === "e" || e.key === "E" || e.key === "+" || e.key === "-") {
+                            e.preventDefault();
+                          }
+                        }}
                         {...register("meterAkhir")}
                         className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
                         placeholder="Contoh: 250"

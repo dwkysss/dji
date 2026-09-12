@@ -199,10 +199,24 @@ function groupByPcs(rawPanels: any[]) {
     if (!oldestPanelIdByOperator.has(operatorStr)) oldestPanelIdByOperator.set(operatorStr, p.id);
   });
 
+  // Dapatkan jumlah max PCS pada potongan ini agar counter meter mesin didistribusikan ke seluruh PCS
+  let maxBatchPcs = 1;
+  finalPanels.forEach((p: any) => {
+    const pPcs = parseInt(p.pcs || "1");
+    if (pPcs > maxBatchPcs) maxBatchPcs = pPcs;
+    if (p.production_details && Array.isArray(p.production_details)) {
+      p.production_details.forEach((d: any) => {
+        const dPcs = d.pcs_index ? parseInt(d.pcs_index) : 1;
+        if (dPcs > maxBatchPcs) maxBatchPcs = dPcs;
+      });
+    }
+  });
+
   // Build pcsGroups
   finalPanels.forEach((panel: any) => {
     if (panel.panel_no === "Downtime Mekanik (Direct)" || panel.pcs === 0 || panel.pcs === "0") return;
-    const totalPcs = parseInt(panel.pcs ?? "1");
+    const isMeterInput = panel.panel_no === "METERAN";
+    const totalPcs = isMeterInput ? Math.max(maxBatchPcs, parseInt(panel.pcs ?? "1")) : parseInt(panel.pcs ?? "1");
     for (let i = 1; i <= totalPcs; i++) {
       const pcsKey = i.toString();
       if (!pcsGroups[pcsKey]) pcsGroups[pcsKey] = [];
@@ -469,8 +483,8 @@ function buildMeterRows(panels: any[], shiftName: string, hasNextPotongan?: bool
     const isLastItemOfTable = idx === filtered.length - 1;
     const isIstirahatFinish = hasIstirahat && isFinishReport && (isLastItemOfOp || isLastItemOfTable);
 
-    const isTrueFinish = isFinish;
-    const displayCacat = isFinish
+    const isTrueFinish = isFinish && (isLastItemOfOp || isLastItemOfTable);
+    const displayCacat = isTrueFinish
       ? "FINISH"
       : isIstirahat
       ? (isIstirahatFinish ? (backupOpName ? `${backupOpName} (FINISH)` : "FINISH") : (backupOpName || "-"))

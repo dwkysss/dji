@@ -1575,9 +1575,17 @@ export default function FinalInspectionPage() {
         backupOpName = extractedBackupOp;
       }
 
-      const cacatText = hasIstirahat && !hasErrorDetail ? "ISTIRAHAT" : (isFinishReport && !hasErrorDetail ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
+      const isLastItemOfOp = detailsToDisplay.slice(idx + 1).every((nextItem: any) => {
+        const nextH = nextItem.production_headers || {};
+        const nextOpr = nextH.operators?.nama_operator || nextH.pic || "";
+        return nextOpr !== opr;
+      });
+      const isLastItemOfTable = idx === detailsToDisplay.length - 1;
+      const isTrueFinish = isFinishReport && !hasErrorDetail && (isLastItemOfOp || isLastItemOfTable);
 
-      const isPlaceholder = (meterDisplay === "-" && !hasErrorDetail && !isIstirahat && !isFinishReport) || isStartMarker;
+      const cacatText = hasIstirahat && !hasErrorDetail ? "ISTIRAHAT" : (isTrueFinish ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
+
+      const isPlaceholder = (meterDisplay === "-" && !hasErrorDetail && !isIstirahat && !isTrueFinish) || isStartMarker;
       const isDuplicateFinish = (cacatText === "FINISH") && items.some(
         (it) => !it.isTotalRow && it.oprStr === finalOprStr && it.cacatDisplay === "FINISH"
       );

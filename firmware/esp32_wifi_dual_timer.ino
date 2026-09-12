@@ -33,8 +33,8 @@
 #include <WiFiManager.h> // Library WiFiManager untuk Captive Portal via HP
 
 // --- KONFIGURASI STATIC IP DEFAULT (IP Tetap Permanen ESP32 di Pabrik) ---
-IPAddress local_IP(192, 168, 2, 171);
-IPAddress gateway(192, 168, 2, 1);
+IPAddress local_IP(192, 168, 1, 171);
+IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);

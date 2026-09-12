@@ -436,7 +436,15 @@ export default function MeterHistoryTable({
         backupOpName = extractedBackupOp;
       }
 
-      const cacatText = hasIstirahat && !hasErrorDetail ? "ISTIRAHAT" : (isFinishReport && !hasErrorDetail ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
+      const isLastItemOfOp = sortedDetails.slice(idx + 1).every((nextItem: any) => {
+        const nextH = nextItem.production_headers || {};
+        const nextOpr = nextH.operators?.nama_operator || nextH.pic || "";
+        return nextOpr !== opr;
+      });
+      const isLastItemOfTable = idx === sortedDetails.length - 1;
+      const isTrueFinish = isFinishReport && !hasErrorDetail && (isLastItemOfOp || isLastItemOfTable);
+
+      const cacatText = hasIstirahat && !hasErrorDetail ? "ISTIRAHAT" : (isTrueFinish ? "FINISH" : (hasErrorDetail && cacatForMeter ? cacatForMeter : "-"));
 
       const isPlaceholder = (meterDisplay === "-" && !hasErrorDetail && !isIstirahat && !isFinishReport) || isStartMarker;
       const isDuplicateFinish = (cacatText === "FINISH") && items.some(

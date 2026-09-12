@@ -30,16 +30,16 @@ export interface MachineEspMapping {
 
 // Pemetaan Standar Mesin ke Target Host ESP32 & Channel Pin
 export const DEFAULT_MACHINE_ESP_MAP: Record<string, MachineEspMapping> = {
-  "R1": { host: "192.168.2.171", channel: "M1" },
-  "R11": { host: "192.168.2.171", channel: "M2" },
-  "R2": { host: "192.168.2.171", channel: "M3" },
-  "R12": { host: "192.168.2.172", channel: "M1" },
-  "R1C": { host: "192.168.2.172", channel: "M2" },
-  "R2C": { host: "192.168.2.172", channel: "M3" },
-  "R3B": { host: "192.168.2.172", channel: "M4" },
-  "T1C": { host: "192.168.2.173", channel: "M1" },
-  "T2A": { host: "192.168.2.173", channel: "M2" },
-  "R16": { host: "192.168.2.173", channel: "M3" },
+  "R1": { host: "192.168.1.171", channel: "M1" },
+  "R11": { host: "192.168.1.171", channel: "M2" },
+  "R2": { host: "192.168.1.171", channel: "M3" },
+  "R12": { host: "192.168.1.172", channel: "M1" },
+  "R1C": { host: "192.168.1.172", channel: "M2" },
+  "R2C": { host: "192.168.1.172", channel: "M3" },
+  "R3B": { host: "192.168.1.172", channel: "M4" },
+  "T1C": { host: "192.168.1.173", channel: "M1" },
+  "T2A": { host: "192.168.1.173", channel: "M2" },
+  "R16": { host: "192.168.1.173", channel: "M3" },
 };
 
 export const MACHINE_ESP32_MAP = DEFAULT_MACHINE_ESP_MAP;
@@ -119,7 +119,7 @@ interface WifiContextType {
 
 const WifiContext = createContext<WifiContextType | undefined>(undefined);
 
-const DEFAULT_HOSTNAME = "192.168.2.171";
+const DEFAULT_HOSTNAME = "192.168.1.171";
 const STORAGE_KEY = "wifi_esp32_target";
 const MAP_STORAGE_KEY = "wifi_machine_esp32_map";
 
