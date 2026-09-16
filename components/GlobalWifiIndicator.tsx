@@ -56,46 +56,70 @@ export default function GlobalWifiIndicator() {
         {/* Machine 1 Status Pill (R1) */}
         <span
           className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-            statusM1 === "NYALA"
-              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-              : statusM1 === "MATI"
+            connectionStatus !== "terhubung"
+              ? "bg-slate-800 text-slate-500 border-slate-700"
+              : statusM1 === "NYALA"
               ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+              : statusM1 === "MATI"
+              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
               : "bg-slate-800 text-slate-400 border-slate-700"
           }`}
           title="Mesin 1 (GPIO 4) - R1"
         >
           <span className="text-[9px] opacity-70">R1:</span>
-          {statusM1 === "NYALA" ? "NYALA" : statusM1 === "MATI" ? "MATI" : "N/A"}
+          {connectionStatus !== "terhubung"
+            ? "N/A"
+            : statusM1 === "NYALA"
+            ? "STOP"
+            : statusM1 === "MATI"
+            ? "JALAN"
+            : "N/A"}
         </span>
 
         {/* Machine 2 Status Pill (R11) */}
         <span
           className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-            statusM2 === "NYALA"
-              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-              : statusM2 === "MATI"
+            connectionStatus !== "terhubung"
+              ? "bg-slate-800 text-slate-500 border-slate-700"
+              : statusM2 === "NYALA"
               ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+              : statusM2 === "MATI"
+              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
               : "bg-slate-800 text-slate-400 border-slate-700"
           }`}
           title="Mesin 2 (GPIO 5) - R11"
         >
           <span className="text-[9px] opacity-70">R11:</span>
-          {statusM2 === "NYALA" ? "NYALA" : statusM2 === "MATI" ? "MATI" : "N/A"}
+          {connectionStatus !== "terhubung"
+            ? "N/A"
+            : statusM2 === "NYALA"
+            ? "STOP"
+            : statusM2 === "MATI"
+            ? "JALAN"
+            : "N/A"}
         </span>
 
         {/* Machine 3 Status Pill (R12) */}
         <span
           className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-            statusM3 === "NYALA"
-              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-              : statusM3 === "MATI"
+            connectionStatus !== "terhubung"
+              ? "bg-slate-800 text-slate-500 border-slate-700"
+              : statusM3 === "NYALA"
               ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+              : statusM3 === "MATI"
+              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
               : "bg-slate-800 text-slate-400 border-slate-700"
           }`}
           title="Mesin 3 (GPIO 18) - R12"
         >
           <span className="text-[9px] opacity-70">R12:</span>
-          {statusM3 === "NYALA" ? "NYALA" : statusM3 === "MATI" ? "MATI" : "N/A"}
+          {connectionStatus !== "terhubung"
+            ? "N/A"
+            : statusM3 === "NYALA"
+            ? "STOP"
+            : statusM3 === "MATI"
+            ? "JALAN"
+            : "N/A"}
         </span>
 
         <button
