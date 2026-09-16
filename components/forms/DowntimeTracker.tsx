@@ -1924,35 +1924,14 @@ export default function DowntimeTracker({
                     </span>
                   </div>
                   {currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32") ? (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex flex-col items-center justify-center p-3 bg-amber-100/90 border border-amber-300 rounded-2xl text-center gap-1">
-                        <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
-                          <span>Sensor ESP32 Berjalan</span>
-                        </div>
-                        <p className="text-[10px] text-amber-800 font-medium leading-tight">
-                          Timer akan berhenti & membuka form secara otomatis saat mesin nyala kembali.
-                        </p>
+                    <div className="flex flex-col items-center justify-center p-3 bg-amber-100/90 border border-amber-300 rounded-2xl text-center gap-1">
+                      <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                        <span>Sensor ESP32 Berjalan</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleStopTimer}
-                          className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
-                        >
-                          <Play className="w-4 h-4 fill-current" />
-                          <span>Stop & Simpan</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCancelTimer}
-                          className="px-3 h-11 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
-                          title="Batalkan timer dan reset ke 0"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          <span>Batalkan</span>
-                        </button>
-                      </div>
+                      <p className="text-[10px] text-amber-800 font-medium leading-tight">
+                        Timer akan berhenti & membuka form secara otomatis saat mesin nyala kembali.
+                      </p>
                     </div>
                   ) : (
                     <button

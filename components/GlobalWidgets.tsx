@@ -14,7 +14,6 @@ export default function GlobalWidgets() {
       <AnnouncementTicker />
       <DirectUserMessageModal />
       <OfflineSyncManager />
-      <GlobalWifiIndicator />
       <PwaInstallPrompt />
     </>
   );
