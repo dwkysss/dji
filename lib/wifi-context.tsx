@@ -436,9 +436,9 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data.m3 === "START") {
-            triggerM3Start("ESP32 HTTP API");
+            triggerM3Stop("ESP32 HTTP API (Inversi NC)");
           } else if (data.m3 === "STOP") {
-            triggerM3Stop("ESP32 HTTP API");
+            triggerM3Start("ESP32 HTTP API (Inversi NC)");
           }
 
           return true;
@@ -512,10 +512,13 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
                   triggerM2Stop("ESP32 GPIO 5");
                 }
               } else if (machine === "M3") {
+                // Inversi logika untuk M3 (R12): Kontak relay di mesin terpasang Normally Closed (NC).
+                // Saat mesin berjalan, kontak menutup (LOW) -> ESP32 mengirim START -> Diartikan Downtime SELESAI (Mesin Jalan).
+                // Saat mesin berhenti, kontak membuka (HIGH) -> ESP32 mengirim STOP -> Diartikan Downtime DIMULAI (Mesin Berhenti).
                 if (status === "START") {
-                  triggerM3Start("ESP32 GPIO 18");
+                  triggerM3Stop("ESP32 GPIO 18 (Inversi NC)");
                 } else if (status === "STOP") {
-                  triggerM3Stop("ESP32 GPIO 18");
+                  triggerM3Start("ESP32 GPIO 18 (Inversi NC)");
                 }
               }
             }
