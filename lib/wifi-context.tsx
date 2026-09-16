@@ -407,6 +407,50 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     addLog("DISCONNECTED", "Koneksi WebSocket diputuskan oleh pengguna", "SYSTEM");
   }, [addLog]);
 
+  // HTTP Fallback Polling Function (Port 80 /api/status)
+  const pollHttpFallback = useCallback(
+    async (host: string): Promise<boolean> => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`http://${host}/api/status`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        clearTimeout(timeoutId);
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (data && (data.status === "OK" || data.ip)) {
+          setConnectionStatus("terhubung");
+
+          if (data.m1 === "START") {
+            triggerM1Start("ESP32 HTTP API");
+          } else if (data.m1 === "STOP") {
+            triggerM1Stop("ESP32 HTTP API");
+          }
+
+          if (data.m2 === "START") {
+            triggerM2Stop("ESP32 HTTP API (Inversi NC)");
+          } else if (data.m2 === "STOP") {
+            triggerM2Start("ESP32 HTTP API (Inversi NC)");
+          }
+
+          if (data.m3 === "START") {
+            triggerM3Stop("ESP32 HTTP API (Inversi NC)");
+          } else if (data.m3 === "STOP") {
+            triggerM3Start("ESP32 HTTP API (Inversi NC)");
+          }
+
+          return true;
+        }
+      } catch {
+        // Offline / unreachable
+      }
+      return false;
+    },
+    [triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop, triggerM3Start, triggerM3Stop]
+  );
+
   // Connect WebSocket function
   const connect = useCallback(
     (customHost?: string) => {
@@ -462,16 +506,20 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
                   triggerM1Stop("ESP32 GPIO 4");
                 }
               } else if (machine === "M2") {
+                // Inversi logika untuk M2 (R11): Mesin jenis meteran dengan kontak relay NC
                 if (status === "START") {
-                  triggerM2Start("ESP32 GPIO 5");
+                  triggerM2Stop("ESP32 GPIO 5 (Inversi NC)");
                 } else if (status === "STOP") {
-                  triggerM2Stop("ESP32 GPIO 5");
+                  triggerM2Start("ESP32 GPIO 5 (Inversi NC)");
                 }
               } else if (machine === "M3") {
+                // Inversi logika untuk M3 (R12): Kontak relay di mesin terpasang Normally Closed (NC).
+                // Saat mesin berjalan, kontak menutup (LOW) -> ESP32 mengirim START -> Diartikan Downtime SELESAI (Mesin Jalan).
+                // Saat mesin berhenti, kontak membuka (HIGH) -> ESP32 mengirim STOP -> Diartikan Downtime DIMULAI (Mesin Berhenti).
                 if (status === "START") {
-                  triggerM3Start("ESP32 GPIO 18");
+                  triggerM3Stop("ESP32 GPIO 18 (Inversi NC)");
                 } else if (status === "STOP") {
-                  triggerM3Stop("ESP32 GPIO 18");
+                  triggerM3Start("ESP32 GPIO 18 (Inversi NC)");
                 }
               }
             }
@@ -481,12 +529,18 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
         };
 
         ws.onerror = () => {
-          // Silent error in background to avoid spamming React state
+          // Jika WebSocket error (misal slot ESP32 stuck / ECONNRESET), segera coba fallback HTTP
+          pollHttpFallback(host);
         };
 
         ws.onclose = () => {
-          setConnectionStatus("terputus");
           socketRef.current = null;
+          // Coba fallback HTTP terlebih dahulu sebelum menyatakan 'terputus'
+          pollHttpFallback(host).then((success) => {
+            if (!success) {
+              setConnectionStatus("terputus");
+            }
+          });
 
           if (!isManualDisconnectRef.current) {
             reconnectAttemptsRef.current += 1;
@@ -500,11 +554,30 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           }
         };
       } catch (err: any) {
-        setConnectionStatus("terputus");
+        pollHttpFallback(host).then((success) => {
+          if (!success) {
+            setConnectionStatus("terputus");
+          }
+        });
       }
     },
-    [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop, triggerM3Start, triggerM3Stop]
+    [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop, triggerM3Start, triggerM3Stop, pollHttpFallback]
   );
+
+  // Polling HTTP Fallback secara berkala (setiap 3 detik) jika WebSocket belum terhubung
+  useEffect(() => {
+    if (connectionStatus === "terhubung" && socketRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (!isManualDisconnectRef.current) {
+        pollHttpFallback(targetHost);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [connectionStatus, targetHost, pollHttpFallback]);
 
   // Load Hostname, Machine Map & Auto-connect on mount
   useEffect(() => {
@@ -544,7 +617,7 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           if (typeof window !== "undefined") {
             localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(dbData));
           }
-          const primaryHost = res.data["R1"]?.host || Object.values(res.data)[0]?.host;
+          const primaryHost = dbData["R1"]?.host || Object.values(dbData)[0]?.host;
           if (primaryHost) {
             setTargetHostState(primaryHost);
             if (typeof window !== "undefined") {
