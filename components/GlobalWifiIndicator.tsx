@@ -5,13 +5,8 @@ import { useWifiContext } from "@/lib/wifi-context";
 import { Wifi, WifiOff, Power, PowerOff, ChevronUp, ChevronDown, Radio } from "lucide-react";
 
 export default function GlobalWifiIndicator() {
-  const { connectionStatus, targetHost, statusM1, statusM2, statusM3 } = useWifiContext();
+  const { connectionStatus, targetHost, statusM1, statusM2, statusM3, connect } = useWifiContext();
   const [isExpanded, setIsExpanded] = useState(false);
-
-  // Only hide floating pill if status is completely disconnected and not interacted with
-  if (connectionStatus === "terputus") {
-    return null;
-  }
 
   return (
     <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end">
@@ -19,21 +14,44 @@ export default function GlobalWifiIndicator() {
         <span className="relative flex h-2.5 w-2.5">
           <span
             className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-              connectionStatus === "terhubung" ? "bg-emerald-400" : "bg-amber-400"
+              connectionStatus === "terhubung"
+                ? "bg-emerald-400"
+                : connectionStatus === "menghubungkan"
+                ? "bg-amber-400"
+                : "bg-rose-400 opacity-25"
             }`}
           />
           <span
             className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-              connectionStatus === "terhubung" ? "bg-emerald-500" : "bg-amber-500"
+              connectionStatus === "terhubung"
+                ? "bg-emerald-500"
+                : connectionStatus === "menghubungkan"
+                ? "bg-amber-500"
+                : "bg-rose-500"
             }`}
           />
         </span>
 
-        <Wifi className="w-4 h-4 text-emerald-400 shrink-0" />
+        {connectionStatus === "terhubung" ? (
+          <Wifi className="w-4 h-4 text-emerald-400 shrink-0" />
+        ) : (
+          <WifiOff className="w-4 h-4 text-rose-400 shrink-0" />
+        )}
 
         <span className="font-semibold max-w-[120px] truncate text-[11px]">
-          {targetHost || "esp32-timer.local"}
+          {connectionStatus === "terputus" ? "ESP32 Terputus" : (targetHost || "esp32-timer.local")}
         </span>
+
+        {connectionStatus === "terputus" && (
+          <button
+            type="button"
+            onClick={() => connect()}
+            className="px-2 py-0.5 bg-rose-500/30 hover:bg-rose-500/50 text-rose-200 border border-rose-500/40 rounded-full text-[10px] font-bold transition-all cursor-pointer"
+            title="Klik untuk mencoba menghubungkan kembali ke ESP32"
+          >
+            Hubungkan
+          </button>
+        )}
 
         {/* Machine 1 Status Pill (R1) */}
         <span
