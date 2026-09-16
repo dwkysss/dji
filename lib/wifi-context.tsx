@@ -430,15 +430,15 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data.m2 === "START") {
-            triggerM2Stop("ESP32 HTTP API (Inversi NC)");
+            triggerM2Start("ESP32 HTTP API");
           } else if (data.m2 === "STOP") {
-            triggerM2Start("ESP32 HTTP API (Inversi NC)");
+            triggerM2Stop("ESP32 HTTP API");
           }
 
           if (data.m3 === "START") {
-            triggerM3Stop("ESP32 HTTP API (Inversi NC)");
+            triggerM3Start("ESP32 HTTP API");
           } else if (data.m3 === "STOP") {
-            triggerM3Start("ESP32 HTTP API (Inversi NC)");
+            triggerM3Stop("ESP32 HTTP API");
           }
 
           return true;
@@ -506,20 +506,16 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
                   triggerM1Stop("ESP32 GPIO 4");
                 }
               } else if (machine === "M2") {
-                // Inversi logika untuk M2 (R11): Mesin jenis meteran dengan kontak relay NC
                 if (status === "START") {
-                  triggerM2Stop("ESP32 GPIO 5 (Inversi NC)");
+                  triggerM2Start("ESP32 GPIO 22");
                 } else if (status === "STOP") {
-                  triggerM2Start("ESP32 GPIO 5 (Inversi NC)");
+                  triggerM2Stop("ESP32 GPIO 22");
                 }
               } else if (machine === "M3") {
-                // Inversi logika untuk M3 (R12): Kontak relay di mesin terpasang Normally Closed (NC).
-                // Saat mesin berjalan, kontak menutup (LOW) -> ESP32 mengirim START -> Diartikan Downtime SELESAI (Mesin Jalan).
-                // Saat mesin berhenti, kontak membuka (HIGH) -> ESP32 mengirim STOP -> Diartikan Downtime DIMULAI (Mesin Berhenti).
                 if (status === "START") {
-                  triggerM3Stop("ESP32 GPIO 18 (Inversi NC)");
+                  triggerM3Start("ESP32 GPIO 21");
                 } else if (status === "STOP") {
-                  triggerM3Start("ESP32 GPIO 18 (Inversi NC)");
+                  triggerM3Stop("ESP32 GPIO 21");
                 }
               }
             }

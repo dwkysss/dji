@@ -4,8 +4,8 @@
  *         (WIFIMANAGER + DYNAMIC CAPTIVE PORTAL + STATIC IP + HEARTBEAT WS)
  * Deskripsi: Program ESP32 untuk memantau hingga 3 Mesin sekaligus via Wi-Fi Lokal & WebSocket.
  *            - Mesin 1 (M1): GPIO 4  (Relay Sakelar M1)
- *            - Mesin 2 (M2): GPIO 5  (Relay Sakelar M2)
- *            - Mesin 3 (M3): GPIO 18 (Relay Sakelar M3)
+ *            - Mesin 2 (M2): GPIO 22 (Relay Sakelar M2 - Bebas Boot Strap)
+ *            - Mesin 3 (M3): GPIO 21 (Relay Sakelar M3 - Bebas Noise/SPI)
  *            - GND: Sambungkan kabel Ground (GND) ketiga relay secara paralel ke pin GND ESP32
  * 
  * Aturan Trigger Sinyal Mesin:
@@ -44,8 +44,8 @@ const char* mdns_hostname = "esp32-timer";
 
 // --- KONFIGURASI HARDWARE PIN ---
 const int MESIN_1_PIN = 4;   // GPIO 4  (Input Relay Mesin 1)
-const int MESIN_2_PIN = 5;   // GPIO 5  (Input Relay Mesin 2)
-const int MESIN_3_PIN = 18;  // GPIO 18 (Input Relay Mesin 3)
+const int MESIN_2_PIN = 22;  // GPIO 22 (Input Relay Mesin 2 - Pin IO Murni Bebas Strapping)
+const int MESIN_3_PIN = 21;  // GPIO 21 (Input Relay Mesin 3 - Pin IO Murni Bebas Noise)
 const int LED_M1_PIN  = 2;   // Onboard LED ESP32 (Indikator Status Sinyal M1)
 
 // --- SERVER INSTANCES ---
@@ -266,7 +266,7 @@ void loop() {
   }
 
   // -------------------------------------------------------------
-  // MONITORING MESIN 2 (GPIO 5)
+  // MONITORING MESIN 2 (GPIO 22)
   // -------------------------------------------------------------
   int currentM2State = digitalRead(MESIN_2_PIN);
   if (currentM2State != m2_lastRawState) {
@@ -287,7 +287,7 @@ void loop() {
   }
 
   // -------------------------------------------------------------
-  // MONITORING MESIN 3 (GPIO 18)
+  // MONITORING MESIN 3 (GPIO 21)
   // -------------------------------------------------------------
   int currentM3State = digitalRead(MESIN_3_PIN);
   if (currentM3State != m3_lastRawState) {

@@ -391,7 +391,7 @@ export default function WifiController() {
             {/* Channel M2 */}
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-1">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Channel M2 (GPIO 5)</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Channel M2 (GPIO 22)</span>
                 <span
                   className={`w-2 h-2 rounded-full ${
                     statusM2 === "NYALA" ? "bg-emerald-500 animate-ping" : "bg-slate-300"
@@ -408,7 +408,7 @@ export default function WifiController() {
             {/* Channel M3 */}
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-1">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Channel M3 (GPIO 18)</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Channel M3 (GPIO 21)</span>
                 <span
                   className={`w-2 h-2 rounded-full ${
                     statusM3 === "NYALA" ? "bg-emerald-500 animate-ping" : "bg-slate-300"
@@ -563,8 +563,8 @@ export default function WifiController() {
                         className="px-2 py-1 rounded-lg border border-slate-200 bg-white font-semibold text-xs text-slate-700 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
                       >
                         <option value="M1">M1 (GPIO 4)</option>
-                        <option value="M2">M2 (GPIO 5)</option>
-                        <option value="M3">M3 (GPIO 18)</option>
+                        <option value="M2">M2 (GPIO 22)</option>
+                        <option value="M3">M3 (GPIO 21)</option>
                         <option value="M4">M4 (GPIO 19)</option>
                       </select>
                     </td>

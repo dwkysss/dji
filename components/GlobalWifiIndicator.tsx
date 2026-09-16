@@ -87,7 +87,7 @@ export default function GlobalWifiIndicator() {
               ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
               : "bg-slate-800 text-slate-400 border-slate-700"
           }`}
-          title="Mesin 2 (GPIO 5) - R11"
+          title="Mesin 2 (GPIO 22) - R11"
         >
           <span className="text-[9px] opacity-70">R11:</span>
           {connectionStatus !== "terhubung"
@@ -110,7 +110,7 @@ export default function GlobalWifiIndicator() {
               ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
               : "bg-slate-800 text-slate-400 border-slate-700"
           }`}
-          title="Mesin 3 (GPIO 18) - R12"
+          title="Mesin 3 (GPIO 21) - R12"
         >
           <span className="text-[9px] opacity-70">R12:</span>
           {connectionStatus !== "terhubung"
@@ -143,8 +143,8 @@ export default function GlobalWifiIndicator() {
           </p>
           <div className="pt-1.5 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400 font-mono gap-1">
             <span>R1 (P4): {statusM1}</span>
-            <span>R11 (P5): {statusM2}</span>
-            <span>R12 (P18): {statusM3}</span>
+            <span>R11 (P22): {statusM2}</span>
+            <span>R12 (P21): {statusM3}</span>
           </div>
         </div>
       )}
