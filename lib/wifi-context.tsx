@@ -32,8 +32,8 @@ export interface MachineEspMapping {
 export const DEFAULT_MACHINE_ESP_MAP: Record<string, MachineEspMapping> = {
   "R1": { host: "192.168.1.171", channel: "M1" },
   "R11": { host: "192.168.1.171", channel: "M2" },
-  "R2": { host: "192.168.1.171", channel: "M3" },
-  "R12": { host: "192.168.1.172", channel: "M1" },
+  "R12": { host: "192.168.1.171", channel: "M3" },
+  "R2": { host: "192.168.1.172", channel: "M1" },
   "R1C": { host: "192.168.1.172", channel: "M2" },
   "R2C": { host: "192.168.1.172", channel: "M3" },
   "R3B": { host: "192.168.1.172", channel: "M4" },
@@ -518,7 +518,12 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
       const storedMap = localStorage.getItem(MAP_STORAGE_KEY);
       if (storedMap) {
         try {
-          setMachineMapping(JSON.parse(storedMap));
+          const parsed = JSON.parse(storedMap);
+          if (parsed && (parsed["R12"]?.host === "192.168.1.172" || parsed["R12"]?.channel === "M1")) {
+            parsed["R12"] = { host: "192.168.1.171", channel: "M3" };
+            localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(parsed));
+          }
+          setMachineMapping(parsed);
         } catch (e) {
           console.error("Gagal parse stored machine map:", e);
         }
@@ -531,11 +536,15 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     getEsp32MachineMappingConfig()
       .then((res) => {
         if (res.success && res.data && Object.keys(res.data).length > 0) {
-          setMachineMapping(res.data);
-          if (typeof window !== "undefined") {
-            localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(res.data));
+          const dbData = { ...res.data };
+          if (dbData["R12"]?.host === "192.168.1.172" || dbData["R12"]?.channel === "M1") {
+            dbData["R12"] = { host: "192.168.1.171", channel: "M3" };
           }
-          const primaryHost = res.data["R1"]?.host || Object.values(res.data)[0]?.host;
+          setMachineMapping(dbData);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(dbData));
+          }
+          const primaryHost = dbData["R1"]?.host || Object.values(dbData)[0]?.host;
           if (primaryHost) {
             setTargetHostState(primaryHost);
             if (typeof window !== "undefined") {
