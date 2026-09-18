@@ -199,11 +199,11 @@ void setup() {
   httpServer.begin();
   Serial.println("[HTTP] Server berjalan di Port 80 (/api/status)");
 
-  // 4. Jalankan WebSocket Server & Aktifkan Heartbeat (Ping 15s)
+  // 4. Jalankan WebSocket Server (Heartbeat dimatikan agar koneksi tablet stabil dan tidak diputus paksa saat sinyal Wi-Fi goyang/delay)
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-  webSocket.enableHeartbeat(15000, 3000, 2); // Auto ping client per 15 detik
-  Serial.println("[WebSocket] Server berjalan di Port 81 (Heartbeat Enabled)");
+  // webSocket.enableHeartbeat(15000, 3000, 2); // Dinonaktifkan: Menghindari pemutusan sepihak akibat jitter sinyal atau sleep mode tablet
+  Serial.println("[WebSocket] Server berjalan di Port 81 (Ultra-Stable Standby Mode)");
 }
 
 void loop() {

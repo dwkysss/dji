@@ -33,13 +33,13 @@ export const DEFAULT_MACHINE_ESP_MAP: Record<string, MachineEspMapping> = {
   "R1": { host: "192.168.1.171", channel: "M1" },
   "R11": { host: "192.168.1.171", channel: "M2" },
   "R12": { host: "192.168.1.171", channel: "M3" },
-  "R2": { host: "192.168.1.172", channel: "M1" },
-  "R1C": { host: "192.168.1.172", channel: "M2" },
-  "R2C": { host: "192.168.1.172", channel: "M3" },
-  "R3B": { host: "192.168.1.172", channel: "M4" },
-  "T1C": { host: "192.168.1.173", channel: "M1" },
-  "T2A": { host: "192.168.1.173", channel: "M2" },
-  "R16": { host: "192.168.1.173", channel: "M3" },
+  "R2": { host: "192.168.1.171", channel: "M1" },
+  "R1C": { host: "192.168.1.171", channel: "M2" },
+  "R2C": { host: "192.168.1.171", channel: "M3" },
+  "R3B": { host: "192.168.1.171", channel: "M1" },
+  "T1C": { host: "192.168.1.171", channel: "M1" },
+  "T2A": { host: "192.168.1.171", channel: "M2" },
+  "R16": { host: "192.168.1.171", channel: "M3" },
 };
 
 export const MACHINE_ESP32_MAP = DEFAULT_MACHINE_ESP_MAP;
@@ -525,52 +525,41 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
         };
 
         ws.onerror = () => {
-          // Jika WebSocket error (misal slot ESP32 stuck / ECONNRESET), segera coba fallback HTTP
-          pollHttpFallback(host);
+          // Silent error handler agar tidak membebani koneksi
         };
 
         ws.onclose = () => {
+          setConnectionStatus("terputus");
           socketRef.current = null;
-          // Coba fallback HTTP terlebih dahulu sebelum menyatakan 'terputus'
-          pollHttpFallback(host).then((success) => {
-            if (!success) {
-              setConnectionStatus("terputus");
-            }
-          });
 
           if (!isManualDisconnectRef.current) {
-            reconnectAttemptsRef.current += 1;
-            // Exponential backoff: 5s, 10s, 15s... max 30s to save tablet CPU/Battery
-            const delay = Math.min(30000, 5000 + Math.min(reconnectAttemptsRef.current * 3000, 25000));
+            // Reconnect cepat 2.5 detik tanpa delay berjenjang hingga 30 detik
             autoReconnectTimerRef.current = setTimeout(() => {
               if (!isManualDisconnectRef.current) {
                 connect(host);
               }
-            }, delay);
+            }, 2500);
           }
         };
       } catch (err: any) {
-        pollHttpFallback(host).then((success) => {
-          if (!success) {
-            setConnectionStatus("terputus");
-          }
-        });
+        setConnectionStatus("terputus");
       }
     },
-    [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop, triggerM3Start, triggerM3Stop, pollHttpFallback]
+    [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop, triggerM3Start, triggerM3Stop]
   );
 
-  // Polling HTTP Fallback secara berkala (setiap 3 detik) jika WebSocket belum terhubung
+  // Polling HTTP Fallback lembut (setiap 10 detik) HANYA jika WebSocket benar-benar terputus
   useEffect(() => {
-    if (connectionStatus === "terhubung" && socketRef.current?.readyState === WebSocket.OPEN) {
+    // Jika WebSocket sudah terhubung / ready, jangan tembak HTTP agar soket ESP32 tetap ringan
+    if (connectionStatus === "terhubung" || socketRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
 
     const interval = setInterval(() => {
-      if (!isManualDisconnectRef.current) {
+      if (!isManualDisconnectRef.current && connectionStatus === "terputus") {
         pollHttpFallback(targetHost);
       }
-    }, 3000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [connectionStatus, targetHost, pollHttpFallback]);
@@ -588,8 +577,18 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
       if (storedMap) {
         try {
           const parsed = JSON.parse(storedMap);
-          if (parsed && (parsed["R12"]?.host === "192.168.1.172" || parsed["R12"]?.channel === "M1")) {
-            parsed["R12"] = { host: "192.168.1.171", channel: "M3" };
+          let mapChanged = false;
+          Object.keys(parsed).forEach((key) => {
+            if (parsed[key]?.host === "192.168.1.172" || parsed[key]?.host === "192.168.1.173") {
+              parsed[key].host = "192.168.1.171";
+              mapChanged = true;
+            }
+          });
+          if (parsed && parsed["R12"]?.channel === "M1") {
+            parsed["R12"].channel = "M3";
+            mapChanged = true;
+          }
+          if (mapChanged) {
             localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(parsed));
           }
           setMachineMapping(parsed);
@@ -606,11 +605,19 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
       .then((res) => {
         if (res.success && res.data && Object.keys(res.data).length > 0) {
           const dbData = { ...res.data };
-          if (dbData["R12"]?.host === "192.168.1.172" || dbData["R12"]?.channel === "M1") {
-            dbData["R12"] = { host: "192.168.1.171", channel: "M3" };
+          let dbChanged = false;
+          Object.keys(dbData).forEach((key) => {
+            if (dbData[key]?.host === "192.168.1.172" || dbData[key]?.host === "192.168.1.173") {
+              dbData[key].host = "192.168.1.171";
+              dbChanged = true;
+            }
+          });
+          if (dbData["R12"]?.channel === "M1") {
+            dbData["R12"].channel = "M3";
+            dbChanged = true;
           }
           setMachineMapping(dbData);
-          if (typeof window !== "undefined") {
+          if (typeof window !== "undefined" && dbChanged) {
             localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(dbData));
           }
           const primaryHost = dbData["R1"]?.host || Object.values(dbData)[0]?.host;
