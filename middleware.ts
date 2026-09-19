@@ -2,11 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-  // Paksa redirect ke HTTPS jika diakses lewat HTTP (misal: dji-v20.vercel.app)
   const proto = request.headers.get("x-forwarded-proto");
   const host = request.headers.get("host");
 
-  if (proto === "http" && host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
+  // Paksa redirect ke HTTPS jika diakses lewat HTTP domain publik (kecuali IP atau localhost)
+  const isIpAddress = host ? /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(host) : false;
+
+  if (proto === "http" && host && !host.includes("localhost") && !host.includes("127.0.0.1") && !isIpAddress) {
     return NextResponse.redirect(`https://${host}${request.nextUrl.pathname}${request.nextUrl.search}`, 301);
   }
 
