@@ -14,7 +14,7 @@ import {
   checkOperatorHandoverStatus,
   submitOperatorHandover,
 } from "@/actions/continuous-actions";
-import { getProductionPlan } from "@/actions/plan-actions";
+import { getProductionPlan, getLatestMachineHeader } from "@/actions/plan-actions";
 import { getMachineConfigs } from "@/actions/machine-config-actions";
 import { getOperatorsList } from "@/actions/operator-actions";
 import { createClient } from "@/lib/supabase/client";
@@ -3436,6 +3436,7 @@ export default function ContinuousForm({
         register={register}
         errors={errors}
         watch={watch}
+        setValue={setValue}
         groups={groups}
         operators={activeOperators.length > 0 ? activeOperators : operators}
         activeShiftName={activeShiftName}

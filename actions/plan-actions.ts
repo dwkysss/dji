@@ -190,14 +190,20 @@ export async function deleteProductionPlan(id: string) {
 export async function getRecentPlansByMachine(nomorMc: string) {
   try {
     const supabase = await createClient();
+    const cleanMc = nomorMc?.trim();
+    if (!cleanMc) return { success: true, data: [] };
     
-    // Fetch last 20 records from ACTUAL production history
+    // Fetch records from ACTUAL production history
     const { data, error } = await supabase
       .from("production_headers")
-      .select("potongan_ke, design_id, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, rpm, tanggal_jam")
-      .eq("nomor_mc", nomorMc)
+      .select("potongan_ke, design_id, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, rpm, status_matching, pcs, tanggal_jam")
+      .eq("nomor_mc", cleanMc)
+      .not("design_id", "is", null)
+      .neq("design_id", "")
+      .neq("panel_no", "Downtime Mekanik (Direct)")
+      .neq("panel_no", "BERHENTI")
       .order("tanggal_jam", { ascending: false })
-      .limit(20);
+      .limit(25);
 
     if (error) throw error;
 
@@ -212,7 +218,7 @@ export async function getRecentPlansByMachine(nomorMc: string) {
           seen.add(key);
           uniquePlans.push({
             id: row.potongan_ke + "-" + (row.design_id || ""), // synthetic ID for the dropdown
-            nomor_mc: nomorMc,
+            nomor_mc: cleanMc,
             potongan_ke: row.potongan_ke,
             design_id: row.design_id,
             pick: row.pick,
@@ -225,8 +231,10 @@ export async function getRecentPlansByMachine(nomorMc: string) {
             shadow: row.shadow,
             pinggiran: row.pinggiran,
             rpm: row.rpm ? String(row.rpm) : "",
+            status_matching: row.status_matching || "",
+            pcs: row.pcs || null,
           });
-          if (uniquePlans.length >= 3) break;
+          if (uniquePlans.length >= 5) break;
         }
       }
     }
@@ -237,3 +245,124 @@ export async function getRecentPlansByMachine(nomorMc: string) {
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Mengambil data header terakhir untuk suatu mesin (nomorMc).
+ * Jika potonganKe ditentukan:
+ * 1. Mengambil dari production_plans jika admin sudah mengatur jadwal khusus potongan tersebut.
+ * 2. Mengambil dari production_headers untuk potongan tersebut jika sudah pernah diisi.
+ * Jika tidak ditemukan atau potonganKe tidak ditentukan:
+ * 3. Mengambil record valid terakhir dari production_headers untuk mesin tersebut (potongan terakhir).
+ * 4. Fallback ke production_plans terakhir jika tabel history masih kosong.
+ */
+export async function getLatestMachineHeader(nomorMc: string, potonganKe?: number) {
+  try {
+    const supabase = await createClient();
+    const cleanMc = nomorMc?.trim();
+    if (!cleanMc) {
+      return { success: true, data: null };
+    }
+
+    // 1. Jika potonganKe ditentukan, utamakan production_plans khusus potongan ini
+    if (potonganKe && !isNaN(potonganKe)) {
+      const { data: planData } = await supabase
+        .from("production_plans")
+        .select("*")
+        .eq("nomor_mc", cleanMc)
+        .eq("potongan_ke", potonganKe)
+        .maybeSingle();
+
+      if (planData) {
+        const maxPanelRes = await getMaxPanelConfig(cleanMc, potonganKe);
+        return {
+          success: true,
+          data: {
+            ...planData,
+            max_panel: maxPanelRes !== null ? maxPanelRes : planData.max_panel || null,
+            source: "plan",
+          },
+        };
+      }
+
+      // Cek apakah ada riwayat untuk potongan_ke yang sama persis
+      const { data: headerForPotongan } = await supabase
+        .from("production_headers")
+        .select("potongan_ke, design_id, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, rpm, status_matching, pcs")
+        .eq("nomor_mc", cleanMc)
+        .eq("potongan_ke", potonganKe)
+        .not("design_id", "is", null)
+        .neq("design_id", "")
+        .neq("panel_no", "Downtime Mekanik (Direct)")
+        .neq("panel_no", "BERHENTI")
+        .order("tanggal_jam", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (headerForPotongan) {
+        const maxPanelRes = await getMaxPanelConfig(cleanMc, potonganKe);
+        return {
+          success: true,
+          data: {
+            ...headerForPotongan,
+            max_panel: maxPanelRes,
+            source: "history_exact_potongan",
+          },
+        };
+      }
+    }
+
+    // 2. Ambil data produksi riwayat terakhir dari mesin ini
+    const { data: latestHeader } = await supabase
+      .from("production_headers")
+      .select("potongan_ke, design_id, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, rpm, status_matching, pcs, tanggal_jam")
+      .eq("nomor_mc", cleanMc)
+      .not("design_id", "is", null)
+      .neq("design_id", "")
+      .neq("panel_no", "Downtime Mekanik (Direct)")
+      .neq("panel_no", "BERHENTI")
+      .order("tanggal_jam", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestHeader) {
+      const potNo = Number(latestHeader.potongan_ke) || undefined;
+      const maxPanelRes = potNo ? await getMaxPanelConfig(cleanMc, potNo) : null;
+      return {
+        success: true,
+        data: {
+          ...latestHeader,
+          max_panel: maxPanelRes,
+          source: "latest_history",
+        },
+      };
+    }
+
+    // 3. Fallback: ambil dari production_plans terakhir untuk mesin ini jika tabel production_headers kosong
+    const { data: latestPlan } = await supabase
+      .from("production_plans")
+      .select("*")
+      .eq("nomor_mc", cleanMc)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestPlan) {
+      const potNo = Number(latestPlan.potongan_ke) || undefined;
+      const maxPanelRes = potNo ? await getMaxPanelConfig(cleanMc, potNo) : null;
+      return {
+        success: true,
+        data: {
+          ...latestPlan,
+          max_panel: maxPanelRes !== null ? maxPanelRes : latestPlan.max_panel || null,
+          source: "latest_plan",
+        },
+      };
+    }
+
+    return { success: true, data: null };
+  } catch (err: any) {
+    console.error("Error in getLatestMachineHeader:", err);
+    return { success: false, error: err.message };
+  }
+}
+
