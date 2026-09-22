@@ -43,7 +43,8 @@ export default function MeterQCTable({
       if (val === null || val === undefined) return "";
       const str = String(val);
       const clean = str.replace(/PCS\s*\d+\s*:\s*/gi, "");
-      return clean.replace(/[a-zA-Z\s]+$/g, "").trim();
+      const trimmed = clean.replace(/[a-zA-Z\s]+$/g, "").trim();
+      return trimmed.replace(/\b0+(\d+)\b/g, "$1");
     };
 
     detailsToDisplay.forEach((item, idx) => {

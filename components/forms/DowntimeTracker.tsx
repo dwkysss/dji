@@ -701,7 +701,10 @@ export default function DowntimeTracker({
   };
 
   const handlePcsMeterChange = (pcsKey: string, rawVal: string) => {
-    const val = rawVal.replace(/[^0-9]/g, "");
+    let val = rawVal.replace(/[^0-9]/g, "");
+    if (/^0\d+/.test(val)) {
+      val = val.replace(/^0+/, "");
+    }
     setSingleMeterInput(val);
 
     let currentLeader = leaderPcsKey;
@@ -752,7 +755,10 @@ export default function DowntimeTracker({
   };
 
   const handleSingleMeterChange = (val: string) => {
-    const cleanVal = val.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+    let cleanVal = val.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+    if (/^0\d+/.test(cleanVal)) {
+      cleanVal = cleanVal.replace(/^0+/, "");
+    }
     setSingleMeterInput(cleanVal);
     setInputMeters((prev) => {
       const next = { ...prev };
@@ -1125,11 +1131,17 @@ export default function DowntimeTracker({
         ? (isAllPcs ? "Semua" : (currentSelectedPcs.length > 0 ? currentSelectedPcs.join(", ") : "Semua"))
         : "Semua";
 
+      const cleanMeterInputVal = (v: any) => {
+        if (!v) return "";
+        const s = String(v).trim();
+        return s.replace(/\b0+(\d+)\b/g, "$1");
+      };
+
       const meterStr = pcsKeys.length === 1
-        ? (currentMeters[pcsKeys[0]]?.trim() || singleMeterInput?.trim() || "")
+        ? cleanMeterInputVal(currentMeters[pcsKeys[0]] || singleMeterInput)
         : Object.entries(currentMeters)
           .filter(([k, v]) => currentSelectedPcs.includes(k) && v && typeof v === "string" && v.trim() !== "")
-          .map(([pcs, val]) => `PCS ${pcs}: ${typeof val === "string" ? val.trim() : val}`)
+          .map(([pcs, val]) => `PCS ${pcs}: ${cleanMeterInputVal(val)}`)
           .join(", ");
 
       const dikerjakanGabungan = currentOperatorName || "Operator";
@@ -1324,11 +1336,17 @@ export default function DowntimeTracker({
     try {
       setIsSavingEvent(true);
 
+      const cleanMeterInputVal = (v: any) => {
+        if (!v) return "";
+        const s = String(v).trim();
+        return s.replace(/\b0+(\d+)\b/g, "$1");
+      };
+
       const meterStr = pcsKeys.length === 1
-        ? (currentMeters[pcsKeys[0]]?.trim() || singleMeterInput?.trim() || "")
+        ? cleanMeterInputVal(currentMeters[pcsKeys[0]] || singleMeterInput)
         : Object.entries(currentMeters)
           .filter(([k, v]) => selectedPcsKeList.includes(k) && v && typeof v === "string" && v.trim() !== "")
-          .map(([pcs, val]) => `PCS ${pcs}: ${typeof val === "string" ? val.trim() : val}`)
+          .map(([pcs, val]) => `PCS ${pcs}: ${cleanMeterInputVal(val)}`)
           .join(", ");
 
       const problems = selectedCategories.map(catId => {

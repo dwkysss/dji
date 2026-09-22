@@ -1582,6 +1582,9 @@ export async function updateProductionReport(
                     const match = p.meter.match(new RegExp(`PCS ${idx + 1}:\\s*([^,]+)`));
                     if (match) meterForThisPcs = match[1].trim();
                   }
+                  if (meterForThisPcs) {
+                    meterForThisPcs = meterForThisPcs.replace(/\b0+(\d+)\b/g, "$1");
+                  }
                 }
 
                 if (p.details && Array.isArray(p.details)) {

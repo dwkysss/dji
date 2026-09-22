@@ -66,7 +66,7 @@ function formatFullDateTime(dateVal?: string): string {
 
 const cleanMeterVal = (val: any) =>
   val === null || val === undefined ? "" :
-  String(val).replace(/PCS\s*\d+\s*:\s*/gi, "").replace(/[a-zA-Z\s]+$/g, "").trim();
+  String(val).replace(/PCS\s*\d+\s*:\s*/gi, "").replace(/[a-zA-Z\s]+$/g, "").trim().replace(/\b0+(\d+)\b/g, "$1");
 
 const buildCacatText = (item: any): string => {
   const lines: string[] = [];

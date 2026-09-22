@@ -806,6 +806,9 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
                   const match = p.meter.match(new RegExp(`PCS ${actualPcsKey}:\\s*([^,]+)`));
                   if (match) meterForThisPcs = match[1].trim();
                 }
+                if (meterForThisPcs) {
+                  meterForThisPcs = meterForThisPcs.replace(/\b0+(\d+)\b/g, "$1");
+                }
               }
 
               if (p.details && Array.isArray(p.details)) {
@@ -1282,6 +1285,9 @@ export async function updateContinuousReport(
                   } else {
                     const match = p.meter.match(new RegExp(`PCS ${actualPcsKey}:\\s*([^,]+)`));
                     if (match) meterForThisPcs = match[1].trim();
+                  }
+                  if (meterForThisPcs) {
+                    meterForThisPcs = meterForThisPcs.replace(/\b0+(\d+)\b/g, "$1");
                   }
                 }
 

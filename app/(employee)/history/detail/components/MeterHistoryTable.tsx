@@ -44,7 +44,9 @@ const cleanMeterVal = (val: any) => {
   if (val === null || val === undefined) return "";
   const str = String(val);
   const clean = str.replace(/PCS\s*\d+\s*:\s*/gi, "");
-  return clean.replace(/[a-zA-Z\s]+$/g, "").trim();
+  const trimmed = clean.replace(/[a-zA-Z\s]+$/g, "").trim();
+  // Hilangkan leading zero (misal "01" -> "1", "05" -> "5", "01 - 05" -> "1 - 5")
+  return trimmed.replace(/\b0+(\d+)\b/g, "$1");
 };
 
 export default function MeterHistoryTable({
