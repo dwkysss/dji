@@ -18,6 +18,8 @@ import {
   HelpCircle,
   History,
   ChevronDown,
+  ChevronLeft,
+  Pin,
   Factory,
   Wrench,
   MoreHorizontal,
@@ -431,172 +433,347 @@ function SidebarInner({
 }: any) {
   const [openGroups, setOpenGroups] =
     useState<Record<string, boolean>>(getInitialOpenGroups);
-  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isTouchOpen, setIsTouchOpen] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+
+  // Load pinned preference from localStorage
+  useEffect(() => {
+    try {
+      const savedPin = localStorage.getItem("dji_sidebar_pinned");
+      if (savedPin === "true") {
+        setIsPinned(true);
+      }
+    } catch (e) {}
+  }, []);
+
+  // Automatically close unpinned touch sidebar and mobile drawer upon navigation
+  useEffect(() => {
+    if (!isPinned) {
+      setIsTouchOpen(false);
+    }
+    setIsMobileOpen(false);
+  }, [pathname, isPinned, setIsMobileOpen]);
+
+  const togglePin = () => {
+    setIsPinned((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("dji_sidebar_pinned", String(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
+  const isDesktopExpanded = isPinned || isHovered || isTouchOpen;
 
   const toggleGroup = (label: string) => {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-[#f0f2f5] text-slate-800 md:border md:border-[#dbe1eb] md:rounded-[32px] md:shadow-[0_8px_30px_rgba(0,0,0,0.02)] overflow-hidden">
-      <div className="h-20 flex items-center px-5 md:group-hover:px-6 border-b border-[#dbe1eb] gap-3 transition-all duration-300">
-        <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 transition-all duration-500 md:group-hover:scale-110 overflow-hidden shadow-xs">
-          <img
-            src="/assets/dji-logo.png"
-            alt="DJI Logo"
-            className="w-6 h-6 object-contain"
-          />
-        </div>
-        <div className="flex flex-col whitespace-nowrap transition-all duration-300 md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto overflow-hidden">
-          <span className="font-extrabold tracking-tight text-slate-900 leading-tight text-base">
-            DJI
-          </span>
-          <span className="text-[8px] text-slate-400 font-extrabold tracking-widest uppercase mt-0.5">
-            Portal & Dashboard
-          </span>
-        </div>
-      </div>
+  const handleGroupClick = (groupLabel: string, isExpandedContext: boolean) => {
+    if (!isExpandedContext) {
+      // If sidebar was collapsed (touch or unhovered), tap expands the sidebar and opens that group
+      setIsTouchOpen(true);
+      setOpenGroups((prev) => ({ ...prev, [groupLabel]: true }));
+    } else {
+      toggleGroup(groupLabel);
+    }
+  };
 
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {menuGroups.map((group: any) => {
-          const visibleItems = group.items.filter((item: any) =>
-            item.roles.includes(user.role),
-          );
-          if (visibleItems.length === 0) return null;
+  const renderSidebarContent = (isDrawer = false) => {
+    const isExpanded = isDrawer || isDesktopExpanded;
 
-          const isGroupOpen = openGroups[group.label] ?? false;
-          const hasActiveChild = visibleItems.some((item: any) =>
-            isNavItemActive(item.href, pathname, allNavItems),
-          );
-
-          return (
-            <div key={group.label} className="overflow-hidden">
-              <button
-                onClick={() => toggleGroup(group.label)}
-                className="w-full flex items-center justify-between gap-3 px-3.5 h-10 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
-              >
-                <div className="flex items-center gap-3">
-                  {(() => {
-                    const GIcon = group.groupIcon;
-                    return (
-                      <GIcon
-                        className={`w-5 h-5 shrink-0 transition-colors ${hasActiveChild ? "text-[#0070bc]" : "text-slate-400"}`}
-                      />
-                    );
-                  })()}
-                  <span
-                    className={`whitespace-nowrap text-[11px] font-extrabold tracking-wider uppercase transition-all duration-300 md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto overflow-hidden ${hasActiveChild ? "text-[#0070bc]" : ""}`}
-                  >
-                    {group.label}
-                  </span>
-                </div>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 shrink-0 transition-all duration-300 md:opacity-0 md:group-hover:opacity-100
-                    ${isGroupOpen ? "rotate-180" : "rotate-0"}`}
-                />
-              </button>
-
-              <div
-                className={`overflow-hidden transition-all duration-300 ease-in-out md:hidden md:group-hover:block ${isGroupOpen ? "max-h-96 opacity-100 mt-0.5" : "max-h-0 opacity-0"}`}
-              >
-                <nav className="space-y-0.5 pl-4 border-l-2 border-slate-200/80 ml-5 mb-1">
-                  {visibleItems.map((item: any) => {
-                    const Icon = item.icon;
-                    const isActive = isNavItemActive(item.href, pathname, allNavItems);
-                    if (item.isModal) {
-                      return (
-                        <button
-                          key={item.name}
-                          type="button"
-                          onClick={() => {
-                            setIsMobileOpen(false);
-                            setIsAnnouncementModalOpen(true);
-                          }}
-                          className="w-full flex items-center gap-3 px-3 h-9 rounded-xl text-xs font-semibold text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-all duration-200 group/item cursor-pointer text-left"
-                        >
-                          <Icon className="w-4 h-4 shrink-0 transition-transform group-hover/item:scale-105 text-amber-500" />
-                          <span className="whitespace-nowrap transition-all duration-300 md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto overflow-hidden">
-                            {item.name}
-                          </span>
-                        </button>
-                      );
-                    }
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setIsMobileOpen(false)}
-                        className={`flex items-center gap-3 px-3 h-9 rounded-xl text-xs font-semibold transition-all duration-200 group/item
-                          ${
-                            isActive
-                              ? "bg-white shadow-sm text-[#0070bc]"
-                              : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/60"
-                          }`}
-                      >
-                        <Icon
-                          className={`w-4 h-4 shrink-0 transition-transform group-hover/item:scale-105 ${isActive ? "text-[#0070bc]" : "text-slate-400"}`}
-                        />
-                        <span className="whitespace-nowrap transition-all duration-300 md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto overflow-hidden">
-                          {item.name}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </nav>
-              </div>
+    return (
+      <div className="flex flex-col h-full bg-[#f0f2f5] text-slate-800 md:border md:border-[#dbe1eb] md:rounded-[32px] md:shadow-[0_8px_30px_rgba(0,0,0,0.02)] overflow-hidden">
+        {/* HEADER */}
+        <div className="h-16 md:h-20 flex items-center justify-between px-3.5 md:px-4 border-b border-[#dbe1eb] transition-all duration-300 gap-2 shrink-0">
+          <div
+            onClick={() => {
+              if (!isDrawer && !isPinned) {
+                setIsTouchOpen((prev) => !prev);
+              }
+            }}
+            className={`flex items-center gap-3 min-w-0 ${!isDrawer && !isPinned ? "cursor-pointer" : ""}`}
+            title={!isDrawer ? (isExpanded ? "Perkecil Menu" : "Buka Menu") : undefined}
+          >
+            <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 transition-all duration-300 hover:scale-105 overflow-hidden shadow-xs">
+              <img
+                src="/assets/dji-logo.png"
+                alt="DJI Logo"
+                className="w-6 h-6 object-contain"
+              />
             </div>
-          );
-        })}
+            <div
+              className={`flex flex-col whitespace-nowrap transition-all duration-300 overflow-hidden ${
+                isExpanded
+                  ? "opacity-100 w-auto"
+                  : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
+              }`}
+            >
+              <span className="font-extrabold tracking-tight text-slate-900 leading-tight text-base">
+                DJI
+              </span>
+              <span className="text-[8px] text-slate-400 font-extrabold tracking-widest uppercase mt-0.5">
+                Portal & Dashboard
+              </span>
+            </div>
+          </div>
 
-        {filteredGeneralItems.length > 0 && (
-          <div className="h-px bg-slate-200/80 mx-2 my-2 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300" />
-        )}
+          {/* Desktop/Tablet Controls (Pin & Collapse) */}
+          {!isDrawer && (
+            <div
+              className={`flex items-center gap-1 transition-all duration-300 shrink-0 ${
+                isExpanded
+                  ? "opacity-100"
+                  : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto overflow-hidden pointer-events-none md:group-hover:pointer-events-auto"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePin();
+                }}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isPinned
+                    ? "bg-sky-100 text-[#0070bc]"
+                    : "text-slate-400 hover:text-slate-700 hover:bg-slate-200/60"
+                }`}
+                title={isPinned ? "Lepas Pin (Auto-Collapse)" : "Pin Sidebar (Tetap Terbuka)"}
+              >
+                <Pin className={`w-4 h-4 ${isPinned ? "fill-current" : ""}`} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsTouchOpen(false);
+                  setIsPinned(false);
+                  try {
+                    localStorage.setItem("dji_sidebar_pinned", "false");
+                  } catch (err) {}
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                title="Tutup Menu"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
-        <div className="space-y-0.5">
-          {filteredGeneralItems.map((item: any) => {
-            const Icon = item.icon;
-            const isActive = isNavItemActive(item.href, pathname, allNavItems);
+          {/* Mobile Drawer Close Button */}
+          {isDrawer && (
+            <button
+              type="button"
+              onClick={() => setIsMobileOpen(false)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+              title="Tutup Menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        {/* MENU ITEMS */}
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+          {menuGroups.map((group: any) => {
+            const visibleItems = group.items.filter((item: any) =>
+              item.roles.includes(user.role),
+            );
+            if (visibleItems.length === 0) return null;
+
+            const isGroupOpen = openGroups[group.label] ?? false;
+            const hasActiveChild = visibleItems.some((item: any) =>
+              isNavItemActive(item.href, pathname, allNavItems),
+            );
+
             return (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={() => setIsMobileOpen(false)}
-                className={`flex items-center gap-4 px-3.5 h-10 rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-200 group/item
-                  ${
-                    isActive
-                      ? "bg-white shadow-sm text-[#0070bc]"
+              <div key={group.label} className="overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => handleGroupClick(group.label, isExpanded)}
+                  className={`w-full flex items-center justify-between gap-3 px-3.5 h-10 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                    hasActiveChild
+                      ? "text-[#0070bc] bg-sky-50/80"
                       : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
                   }`}
-              >
-                <Icon
-                  className={`w-5 h-5 shrink-0 transition-transform group-hover/item:scale-105 ${isActive ? "text-[#0070bc]" : "text-slate-400"}`}
-                />
-                <span className="whitespace-nowrap transition-all duration-300 md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto overflow-hidden">
-                  {item.name}
-                </span>
-              </Link>
+                  title={group.label}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {(() => {
+                      const GIcon = group.groupIcon;
+                      return (
+                        <GIcon
+                          className={`w-5 h-5 shrink-0 transition-colors ${
+                            hasActiveChild ? "text-[#0070bc]" : "text-slate-400"
+                          }`}
+                        />
+                      );
+                    })()}
+                    <span
+                      className={`whitespace-nowrap text-[11px] font-extrabold tracking-wider uppercase transition-all duration-300 overflow-hidden ${
+                        isExpanded
+                          ? "opacity-100 w-auto"
+                          : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
+                      } ${hasActiveChild ? "text-[#0070bc]" : ""}`}
+                    >
+                      {group.label}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 shrink-0 transition-all duration-300 ${
+                      isExpanded
+                        ? "opacity-100"
+                        : "md:opacity-0 md:group-hover:opacity-100"
+                    } ${isGroupOpen ? "rotate-180" : "rotate-0"}`}
+                  />
+                </button>
+
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isExpanded
+                      ? isGroupOpen
+                        ? "max-h-96 opacity-100 mt-0.5 block"
+                        : "max-h-0 opacity-0 hidden"
+                      : `md:hidden md:group-hover:block ${
+                          isGroupOpen ? "max-h-96 opacity-100 mt-0.5" : "max-h-0 opacity-0"
+                        }`
+                  }`}
+                >
+                  <nav className="space-y-0.5 pl-4 border-l-2 border-slate-200/80 ml-5 mb-1">
+                    {visibleItems.map((item: any) => {
+                      const Icon = item.icon;
+                      const isActive = isNavItemActive(item.href, pathname, allNavItems);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => {
+                            setIsMobileOpen(false);
+                            if (!isPinned) setIsTouchOpen(false);
+                          }}
+                          className={`flex items-center gap-3 px-3 h-9 rounded-xl text-xs font-semibold transition-all duration-200 group/item cursor-pointer
+                            ${
+                              isActive
+                                ? "bg-white shadow-sm text-[#0070bc]"
+                                : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/60"
+                            }`}
+                          title={item.name}
+                        >
+                          <Icon
+                            className={`w-4 h-4 shrink-0 transition-transform group-hover/item:scale-105 ${
+                              isActive ? "text-[#0070bc]" : "text-slate-400"
+                            }`}
+                          />
+                          <span
+                            className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
+                              isExpanded
+                                ? "opacity-100 w-auto"
+                                : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
+                            }`}
+                          >
+                            {item.name}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                </div>
+              </div>
             );
           })}
 
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-4 px-3.5 h-10 rounded-2xl text-xs sm:text-sm font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50/80 transition-all duration-200 cursor-pointer group/logout"
-          >
-            <LogOut className="w-5 h-5 text-slate-400 group-hover/logout:text-red-500 shrink-0 transition-transform duration-200 group-hover/logout:translate-x-0.5" />
-            <span className="whitespace-nowrap transition-all duration-300 md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto overflow-hidden">
-              Logout
-            </span>
-          </button>
+          {filteredGeneralItems.length > 0 && (
+            <div
+              className={`h-px bg-slate-200/80 mx-2 my-2 transition-all duration-300 ${
+                isExpanded
+                  ? "opacity-100"
+                  : "md:opacity-0 md:group-hover:opacity-100"
+              }`}
+            />
+          )}
+
+          <div className="space-y-0.5">
+            {filteredGeneralItems.map((item: any) => {
+              const Icon = item.icon;
+              const isActive = isNavItemActive(item.href, pathname, allNavItems);
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  onClick={() => {
+                    setIsMobileOpen(false);
+                    if (!isPinned) setIsTouchOpen(false);
+                  }}
+                  className={`flex items-center gap-4 px-3.5 h-10 rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-200 group/item cursor-pointer
+                    ${
+                      isActive
+                        ? "bg-white shadow-sm text-[#0070bc]"
+                        : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                    }`}
+                  title={item.name}
+                >
+                  <Icon
+                    className={`w-5 h-5 shrink-0 transition-transform group-hover/item:scale-105 ${
+                      isActive ? "text-[#0070bc]" : "text-slate-400"
+                    }`}
+                  />
+                  <span
+                    className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
+                      isExpanded
+                        ? "opacity-100 w-auto"
+                        : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
+                    }`}
+                  >
+                    {item.name}
+                  </span>
+                </Link>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={logout}
+              className="w-full flex items-center gap-4 px-3.5 h-10 rounded-2xl text-xs sm:text-sm font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50/80 transition-all duration-200 cursor-pointer group/logout"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5 text-slate-400 group-hover/logout:text-red-500 shrink-0 transition-transform duration-200 group-hover/logout:translate-x-0.5" />
+              <span
+                className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
+                  isExpanded
+                    ? "opacity-100 w-auto"
+                    : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
+                }`}
+              >
+                Logout
+              </span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <>
-      {/* DESKTOP SIDEBAR */}
-      <aside className="print:hidden no-print hidden md:flex flex-col w-20 hover:w-64 h-[calc(100vh-2rem)] fixed top-4 left-4 z-30 transition-all duration-300 ease-in-out group">
-        {SidebarContent()}
+      {/* DESKTOP / TABLET BACKDROP (Tap outside to close when opened on touch) */}
+      {isTouchOpen && !isPinned && (
+        <div
+          onClick={() => setIsTouchOpen(false)}
+          className="print:hidden no-print hidden md:block fixed inset-0 bg-black/10 backdrop-blur-[1px] z-30 animate-fadeIn"
+        />
+      )}
+
+      {/* DESKTOP / TABLET SIDEBAR */}
+      <aside
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`print:hidden no-print hidden md:flex flex-col h-[calc(100vh-2rem)] fixed top-4 left-4 z-40 transition-all duration-300 ease-in-out group ${
+          isDesktopExpanded ? "w-64 shadow-2xl" : "w-20 hover:w-64"
+        }`}
+      >
+        {renderSidebarContent(false)}
       </aside>
 
       {/* MOBILE HEADER */}
@@ -641,8 +818,9 @@ function SidebarInner({
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {SidebarContent()}
+        {renderSidebarContent(true)}
       </div>
     </>
   );
 }
+
