@@ -435,6 +435,8 @@ function HistoryDetailContent() {
                               panels={panels}
                               pcsKey={pcsKey}
                               hasNextPotongan={Boolean(detailData?.has_next_potongan || detailData?.tanggal_potong)}
+                              onDataUpdated={fetchDetail}
+                              onRefresh={fetchDetail}
                             />
                           ) : (
                             <PanelHistoryTable panels={panels} pcsKey={pcsKey} onRefresh={fetchDetail} />

@@ -1,10 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Edit, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
+import QuickEditMeterModal from "@/components/forms/QuickEditMeterModal";
 
 const formatWibTime = (dateVal?: string): string => {
   if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
@@ -59,6 +61,8 @@ export default function MeterHistoryTable({
   onToggleSelectAll,
   onRequestBulkDelete,
   hasNextPotongan,
+  onDataUpdated,
+  onRefresh,
 }: {
   panels: any[];
   pcsKey: string;
@@ -69,7 +73,11 @@ export default function MeterHistoryTable({
   onToggleSelectAll?: (ids: string[]) => void;
   onRequestBulkDelete?: () => void;
   hasNextPotongan?: boolean;
+  onDataUpdated?: () => void;
+  onRefresh?: () => void;
 }) {
+  const router = useRouter();
+  const [editingRowItem, setEditingRowItem] = useState<any | null>(null);
   const header = panels[0] || {};
   const actualDowntimeRecords = downtimeRecords || panels.flatMap(p => p.downtime_records || []);
   const hasNext = hasNextPotongan ?? panels.some((p: any) => Boolean(p.has_next_potongan || p.tanggal_potong || p.production_headers?.tanggal_potong));
@@ -589,6 +597,7 @@ export default function MeterHistoryTable({
             isIstirahat: false,
             hasIstirahat: false,
             downtimeDisplay: "-",
+            db_id: `finish-${lastOpHeader.id}`,
             header_id: lastOpHeader.id,
             pcs_index: pcsKey,
           });
@@ -941,6 +950,7 @@ export default function MeterHistoryTable({
     selectableIds.some((id) => selectedDetailIds?.includes(id)) && !isAllSelected;
 
   return (
+    <>
     <table className="w-full text-left border-collapse text-xs">
       <thead>
         <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -1037,6 +1047,16 @@ export default function MeterHistoryTable({
                 </td>
                 <td className="px-1 py-1.5 text-center w-12 border-b border-slate-100">
                   <div className="flex items-center justify-center gap-1">
+                    {item.header_id && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingRowItem(item)}
+                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors cursor-pointer"
+                        title="Edit Start Meter"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {setDetailToDelete && item.db_id && (
                       <button
                         type="button"
@@ -1236,14 +1256,15 @@ export default function MeterHistoryTable({
                </td>
                <td className="px-1 py-1.5 text-center w-12 border-b border-slate-100">
                   <div className="flex items-center justify-center gap-1">
-                    {item.header_id && !item.isStartRow && item.cacatDisplay !== "START" && (
-                      <Link
-                        href={`/edit/${item.header_id}${item.meterDisplay && item.meterDisplay !== '-' ? `?meter=${encodeURIComponent(item.meterDisplay)}&pcs=${item.pcs_index}` : `?pcs=${item.pcs_index}`}`}
-                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
-                        title="Edit Data"
+                    {item.header_id && !item.isStartRow && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingRowItem(item)}
+                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors cursor-pointer"
+                        title="Edit Meter & Data Baris"
                       >
                         <Edit className="w-3.5 h-3.5" />
-                      </Link>
+                      </button>
                     )}
                     {setDetailToDelete && item.db_id && !item.isStartRow && item.cacatDisplay !== "START" && (
                       <button
@@ -1280,5 +1301,18 @@ export default function MeterHistoryTable({
         })}
       </tbody>
     </table>
+
+    <QuickEditMeterModal
+      isOpen={Boolean(editingRowItem)}
+      rowItem={editingRowItem}
+      onClose={() => setEditingRowItem(null)}
+      onSuccess={() => {
+        setEditingRowItem(null);
+        if (onDataUpdated) onDataUpdated();
+        else if (onRefresh) onRefresh();
+        else router.refresh();
+      }}
+    />
+    </>
   );
 }

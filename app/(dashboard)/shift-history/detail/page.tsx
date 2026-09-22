@@ -662,6 +662,8 @@ function ShiftHistoryDetailContent() {
                               setPendingBulkDeleteMode(null);
                               setIsBulkDeleteModalOpen(true);
                             }}
+                            onDataUpdated={fetchDetail}
+                            onRefresh={fetchDetail}
                           />
                         ) : (
                           <PanelHistoryTable

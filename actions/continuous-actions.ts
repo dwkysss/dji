@@ -1817,3 +1817,189 @@ export async function cleanupDuplicateMeterFinishHeaders(params: {
   }
 }
 
+export async function updateQuickMeterValue(params: {
+  headerId: string;
+  detailId?: string;
+  newMeter: string | number;
+  rowType: "START" | "FINISH" | "DEFECT";
+  pcsIndex?: string | number;
+  newKategori?: string;
+  newDetailMasalah?: string;
+  newBlok?: string;
+  newDurasiDetik?: number;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createAdminClient();
+    const meterNum = typeof params.newMeter === "string" ? parseFloat(params.newMeter) : params.newMeter;
+    if (isNaN(meterNum)) {
+      return { success: false, error: "Nilai meter tidak valid (harus berupa angka)." };
+    }
+
+    // 1. Ambil data header saat ini
+    const { data: header, error: hErr } = await supabase
+      .from("production_headers")
+      .select("*")
+      .eq("id", params.headerId)
+      .single();
+
+    if (hErr || !header) {
+      return { success: false, error: "Header produksi tidak ditemukan: " + (hErr?.message || "") };
+    }
+
+    if (params.rowType === "START") {
+      // Update Start Meter
+      const updatePayload: any = {
+        meter_awal: meterNum,
+        is_synced_to_sheet: false,
+      };
+      if (header.meter_akhir !== null && header.meter_akhir !== undefined) {
+        updatePayload.total_produksi_meter = Math.abs(Number(header.meter_akhir) - meterNum);
+      }
+      const { error: updErr } = await supabase
+        .from("production_headers")
+        .update(updatePayload)
+        .eq("id", params.headerId);
+      if (updErr) throw updErr;
+    } else if (params.rowType === "FINISH") {
+      // Update Finish Meter
+      const updatePayload: any = {
+        meter_akhir: meterNum,
+        is_synced_to_sheet: false,
+      };
+      if (header.meter_awal !== null && header.meter_awal !== undefined) {
+        updatePayload.total_produksi_meter = Math.abs(meterNum - Number(header.meter_awal));
+      }
+      const { error: updErr } = await supabase
+        .from("production_headers")
+        .update(updatePayload)
+        .eq("id", params.headerId);
+      if (updErr) throw updErr;
+    } else if (params.rowType === "DEFECT") {
+      // 1. Update downtime_events JSON pada production_headers
+      let dtEvents: any[] = [];
+      try {
+        dtEvents = typeof header.downtime_events === "string"
+          ? JSON.parse(header.downtime_events)
+          : (header.downtime_events || []);
+      } catch (e) {}
+
+      const pcsTarget = params.pcsIndex ? String(params.pcsIndex).trim() : "";
+
+      dtEvents = dtEvents.map((evt: any) => {
+        if (!evt.problems || !Array.isArray(evt.problems)) return evt;
+        const updatedProblems = evt.problems.map((prob: any) => {
+          const matchesPcs = !pcsTarget || !evt.pcsKe || evt.pcsKe === "Semua" || evt.pcsKe.includes(pcsTarget);
+          if (matchesPcs) {
+            let updatedMeter = prob.meter || "";
+            if (updatedMeter.includes("PCS")) {
+              if (pcsTarget && updatedMeter.includes(`PCS ${pcsTarget}:`)) {
+                updatedMeter = updatedMeter.replace(new RegExp(`(PCS\\s*${pcsTarget}:\\s*)([^,]+)`), `$1${meterNum}`);
+              } else {
+                updatedMeter = `PCS ${pcsTarget || 1}: ${meterNum}`;
+              }
+            } else {
+              updatedMeter = pcsTarget ? `PCS ${pcsTarget}: ${meterNum}` : String(meterNum);
+            }
+
+            return {
+              ...prob,
+              meter: updatedMeter,
+              kategori: params.newKategori !== undefined && params.newKategori !== "" ? params.newKategori : prob.kategori,
+              details: params.newDetailMasalah !== undefined && params.newDetailMasalah !== "" ? [params.newDetailMasalah] : prob.details,
+              blok: params.newBlok !== undefined ? (params.newBlok || undefined) : prob.blok,
+            };
+          }
+          return prob;
+        });
+
+        return {
+          ...evt,
+          durasiDetik: params.newDurasiDetik !== undefined ? params.newDurasiDetik : evt.durasiDetik,
+          problems: updatedProblems,
+        };
+      });
+
+      await supabase
+        .from("production_headers")
+        .update({
+          downtime_events: JSON.stringify(dtEvents),
+          is_synced_to_sheet: false,
+        })
+        .eq("id", params.headerId);
+
+      // 2. Cari dan update production_details yang bersangkutan
+      let targetDetailId = params.detailId && !params.detailId.startsWith("dtevent::") ? params.detailId : null;
+      if (!targetDetailId) {
+        let query = supabase.from("production_details").select("id").eq("header_id", params.headerId);
+        if (pcsTarget) {
+          query = query.eq("pcs_index", parseInt(pcsTarget) || 1);
+        }
+        const { data: detList } = await query;
+        if (detList && detList.length > 0) {
+          targetDetailId = detList[0].id;
+        }
+      }
+
+      if (targetDetailId) {
+        const { data: curDetail } = await supabase
+          .from("production_details")
+          .select("*")
+          .eq("id", targetDetailId)
+          .single();
+
+        let rawDetailText = params.newDetailMasalah || curDetail?.detail_masalah || "";
+        rawDetailText = rawDetailText.replace(/\(Titik:\s*[^)]+\)/gi, "").trim();
+        const finalDetailText = rawDetailText ? `${rawDetailText} (Titik: ${meterNum}m)` : `(Titik: ${meterNum}m)`;
+
+        const detailUpdatePayload: any = {
+          meter_kain: meterNum,
+          detail_masalah: finalDetailText,
+          is_synced_to_sheet: false,
+        };
+        if (params.newKategori !== undefined && params.newKategori !== "") detailUpdatePayload.kategori_masalah = params.newKategori;
+        if (params.newBlok !== undefined) detailUpdatePayload.keterangan_cacat = params.newBlok ? `Blok ${params.newBlok}` : null;
+
+        await supabase
+          .from("production_details")
+          .update(detailUpdatePayload)
+          .eq("id", targetDetailId);
+
+        // 3. Update production_defects
+        const defectUpdatePayload: any = {
+          meter: String(meterNum),
+        };
+        if (params.newKategori !== undefined && params.newKategori !== "") defectUpdatePayload.kategori = params.newKategori;
+        if (params.newDetailMasalah !== undefined && params.newDetailMasalah !== "") defectUpdatePayload.detail = params.newDetailMasalah;
+        if (params.newBlok !== undefined) defectUpdatePayload.blok = params.newBlok || null;
+
+        await supabase
+          .from("production_defects")
+          .update(defectUpdatePayload)
+          .eq("production_detail_id", targetDetailId);
+      }
+
+      // 4. Update downtime_records jika ada
+      if (params.newBlok !== undefined || params.newKategori !== undefined || params.newDetailMasalah !== undefined) {
+        const dtRecPayload: any = {};
+        if (params.newBlok !== undefined) dtRecPayload.blok = params.newBlok || null;
+        if (params.newKategori !== undefined && params.newKategori !== "") dtRecPayload.kategori = params.newKategori;
+        if (params.newDetailMasalah !== undefined && params.newDetailMasalah !== "") dtRecPayload.detail = params.newDetailMasalah;
+        if (Object.keys(dtRecPayload).length > 0) {
+          await supabase.from("downtime_records").update(dtRecPayload).eq("header_id", params.headerId);
+        }
+      }
+    }
+
+    revalidatePath("/(dashboard)/shift-history/detail");
+    revalidatePath("/shift-history/detail");
+    revalidatePath("/(employee)/history/detail");
+    revalidatePath("/history/detail");
+    revalidatePath("/history");
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error updateQuickMeterValue:", err);
+    return { success: false, error: err.message || "Gagal memperbarui nilai meter." };
+  }
+}
+
