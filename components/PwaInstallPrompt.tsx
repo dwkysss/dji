@@ -11,7 +11,7 @@ export default function PwaInstallPrompt() {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    // 1. Explicit Service Worker Registration
+    // 1. Explicit Service Worker Registration & Auto-Update
     if (
       typeof window !== "undefined" &&
       "serviceWorker" in navigator &&
@@ -21,10 +21,30 @@ export default function PwaInstallPrompt() {
         .register("/sw.js")
         .then((reg) => {
           console.log("PWA Service Worker registered:", reg.scope);
+          // Deteksi pembaruan versi Service Worker otomatis agar tablet tidak memegang cache basi
+          reg.onupdatefound = () => {
+            const installingWorker = reg.installing;
+            if (installingWorker) {
+              installingWorker.onstatechange = () => {
+                if (installingWorker.state === "installed" && navigator.serviceWorker.controller) {
+                  installingWorker.postMessage({ type: "SKIP_WAITING" });
+                }
+              };
+            }
+          };
         })
         .catch((err) => {
           console.warn("PWA Service Worker registration skipped or failed:", err);
         });
+
+      // Reload otomatis saat versi Service Worker baru mengambil alih
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
     }
 
     // 2. Check if already running in standalone mode (installed PWA)

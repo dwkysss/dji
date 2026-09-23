@@ -529,8 +529,25 @@ export default function DashboardPage() {
   // Active chart bar for mobile tap
   const [activeChartBar, setActiveChartBar] = useState<number | null>(null);
 
+  // Role Protection: Redirect non-admin/manager roles away from the heavy dashboard
+  useEffect(() => {
+    if (user) {
+      if (user.role === "operator") {
+        window.location.replace("/input");
+      } else if (user.role === "inspeksi" || user.role === "qc") {
+        window.location.replace("/qc");
+      } else if (user.role === "mending") {
+        window.location.replace("/mending");
+      }
+    }
+  }, [user]);
+
   // Load real production data from Supabase
   useEffect(() => {
+    // Jangan load data berat jika user bukan admin/manager
+    if (user && (user.role === "operator" || user.role === "inspeksi" || user.role === "qc" || user.role === "mending")) {
+      return;
+    }
     async function loadLiveData() {
       try {
         const res = await getRealProductionsData();
@@ -546,7 +563,7 @@ export default function DashboardPage() {
       }
     }
     loadLiveData();
-  }, []);
+  }, [user]);
 
   // Machines Grouped by Type (Mesin R vs Mesin T vs Lainnya) - all 10 registered machines + transactions
   const machinesByType = useMemo(() => {

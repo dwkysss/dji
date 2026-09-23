@@ -207,18 +207,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase, router]);
 
-  const isPublic = pathname === "/login" || pathname === "/change-password" || pathname.includes("/print");
+  const isPublic =
+    pathname === "/login" ||
+    pathname === "/change-password" ||
+    pathname.includes("/print") ||
+    pathname.startsWith("/~offline");
 
   useEffect(() => {
     if (!isLoading && !isLoggedIn && !isPublic) {
-      // Cek apakah ada cached user di localStorage sebelum redirect untuk mencegah false negative di localhost
       try {
-        const cached = localStorage.getItem("dji_cached_user");
-        if (cached) return;
+        localStorage.removeItem("dji_cached_user");
       } catch (e) {}
       router.push("/login");
     }
   }, [isLoading, isLoggedIn, isPublic, pathname, router]);
+
+  // Auto-redirect jika operator, qc, atau mending membuka halaman utama (misal dari shortcut PWA /?source=pwa)
+  useEffect(() => {
+    if (!isLoading && isLoggedIn && user && pathname === "/") {
+      if (user.role === "operator") {
+        router.replace("/input");
+      } else if (user.role === "inspeksi" || user.role === "qc") {
+        router.replace("/qc");
+      } else if (user.role === "mending") {
+        router.replace("/mending");
+      }
+    }
+  }, [isLoading, isLoggedIn, user, pathname, router]);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);

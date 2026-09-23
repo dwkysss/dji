@@ -17,7 +17,8 @@ export async function updateSession(request: NextRequest) {
     pathname === "/change-password" ||
     pathname.includes("/print") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api");
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/~offline");
 
   let response = NextResponse.next({
     request: {
@@ -55,15 +56,12 @@ export async function updateSession(request: NextRequest) {
     // hapus semua cookie Supabase yang rusak dan redirect paksa ke /login.
     // Ini mencegah tablet menampilkan layar kosong "This page couldn't load".
     if (error && !isPublicPath) {
-      const isTokenError =
-        error.message?.toLowerCase().includes("invalid") ||
-        error.message?.toLowerCase().includes("expired") ||
-        error.message?.toLowerCase().includes("jwt") ||
-        error.status === 401 ||
-        error.status === 403;
+      const hasSupabaseCookies = request.cookies.getAll().some((c) => isSupabaseCookie(c.name));
 
-      if (isTokenError) {
-        // Buat response redirect ke halaman login
+      // Jika ada error autentikasi saat membuka halaman privat dan ada sisa cookie Supabase,
+      // hapus SEMUA cookie Supabase yang rusak dan redirect paksa ke /login.
+      // Ini mencegah tablet menampilkan layar kosong "This page couldn't load" akibat token korup.
+      if (hasSupabaseCookies || error.status === 401 || error.status === 403) {
         const loginUrl = request.nextUrl.clone();
         loginUrl.pathname = "/login";
         loginUrl.searchParams.set("session_expired", "1");
