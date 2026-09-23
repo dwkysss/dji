@@ -904,16 +904,16 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
       let keteranganStr: string | null = blokStr || null;
       const hasSpecificEvents = validated.downtimeEvents && validated.downtimeEvents.length > 0;
       if (!hasSpecificEvents || matchedEvents.length > 0) {
-        if (validated.jenisLaporan === "Mulai Istirahat") {
+        if (validated.jenisLaporan === "Mulai Istirahat" || validated.jenisLaporan === "Istirahat") {
           keteranganStr = keteranganStr ? keteranganStr + " [SEBELUM ISTIRAHAT]" : "[SEBELUM ISTIRAHAT]";
         }
-        if (validated.jenisLaporan === "Selesai Istirahat") {
+        if (validated.jenisLaporan === "Selesai Istirahat" || validated.jenisLaporan === "Masuk") {
           keteranganStr = keteranganStr ? keteranganStr + " [LAPORAN ISTIRAHAT]" : "[LAPORAN ISTIRAHAT]";
         }
       }
 
       let meterKainVal = pcsItem.meterKain || null;
-      if (!meterKainVal && !hasSpecificEvents && (validated.jenisLaporan === "Mulai Istirahat" || validated.jenisLaporan === "Selesai Istirahat")) {
+      if (!meterKainVal && !hasSpecificEvents && (validated.jenisLaporan === "Mulai Istirahat" || validated.jenisLaporan === "Selesai Istirahat" || validated.jenisLaporan === "Istirahat" || validated.jenisLaporan === "Masuk")) {
         meterKainVal = pcsDataToProcess[0]?.meterKain || (finishMeterNum !== null ? String(finishMeterNum) : null);
       }
 
@@ -1346,10 +1346,10 @@ export async function updateContinuousReport(
         if (blokStr) {
           keteranganStr = blokStr;
         }
-        if (data.jenisLaporan === "Mulai Istirahat") {
+        if (data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Istirahat") {
           keteranganStr = keteranganStr ? keteranganStr + " [SEBELUM ISTIRAHAT]" : "[SEBELUM ISTIRAHAT]";
         }
-        if (data.jenisLaporan === "Selesai Istirahat") {
+        if (data.jenisLaporan === "Selesai Istirahat" || data.jenisLaporan === "Masuk") {
           keteranganStr = keteranganStr ? keteranganStr + " [LAPORAN ISTIRAHAT]" : "[LAPORAN ISTIRAHAT]";
         }
 
@@ -1367,7 +1367,7 @@ export async function updateContinuousReport(
           kategori_masalah: kategoriStr,
           detail_masalah: detailStr,
           keterangan_cacat: keteranganStr || null,
-          meter_kain: pcsItem.meterKain || ((data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat") ? data.meterAkhir : null) || null,
+          meter_kain: pcsItem.meterKain || ((data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat" || data.jenisLaporan === "Istirahat" || data.jenisLaporan === "Masuk") ? data.meterAkhir : null) || null,
           roll_no: pcsItem.rollNo || oldDetail.roll_no || null,
         };
       });

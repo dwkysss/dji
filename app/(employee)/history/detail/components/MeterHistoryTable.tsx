@@ -321,7 +321,7 @@ export default function MeterHistoryTable({
       }
     });
 
-    // Sort items within each operator shift by meter ascending
+    // Sort items within each operator shift by meter ascending and determine Istirahat vs Masuk
     shiftGroups.forEach((sg) => {
       sg.items.sort((a, b) => {
         const mA = getMeterNumericVal(a);
@@ -330,6 +330,34 @@ export default function MeterHistoryTable({
         const rawJamA = String(a.rawJam || a.item.created_at || "");
         const rawJamB = String(b.rawJam || b.item.created_at || "");
         return rawJamA.localeCompare(rawJamB);
+      });
+
+      // Menentukan apakah sebuah baris istirahat adalah Mulai Istirahat ("Istirahat") atau Selesai Istirahat ("Masuk")
+      let istirahatSeqInShift = 0;
+      sg.items.forEach((p) => {
+        if (p.hasIstirahat) {
+          const ket = (p.item.keterangan_cacat || "").toUpperCase();
+          const det = (p.item.detail_masalah || "").toUpperCase();
+          const isExplicitSebelum = ket.includes("SEBELUM ISTIRAHAT") || det.includes("SEBELUM ISTIRAHAT") || ket.includes("MULAI ISTIRAHAT") || det.includes("MULAI ISTIRAHAT");
+          const isExplicitLaporan = ket.includes("LAPORAN ISTIRAHAT") || det.includes("LAPORAN ISTIRAHAT") || ket.includes("SELESAI ISTIRAHAT") || det.includes("SELESAI ISTIRAHAT") || ket.includes("[MASUK]") || det.includes("[MASUK]");
+
+          let isMasuk = false;
+          if (isExplicitLaporan) {
+            isMasuk = true;
+          } else if (isExplicitSebelum) {
+            isMasuk = false;
+          } else {
+            // Fallback kronologis: genap (0, 2..) = Istirahat, ganjil (1, 3..) = Masuk
+            isMasuk = istirahatSeqInShift % 2 === 1;
+          }
+
+          p.isMasuk = isMasuk;
+          p.isMulaiIstirahat = !isMasuk;
+          istirahatSeqInShift++;
+        } else {
+          p.isMasuk = false;
+          p.isMulaiIstirahat = false;
+        }
       });
     });
 
@@ -844,6 +872,8 @@ export default function MeterHistoryTable({
           hasErrorDetail,
           isIstirahat,
           hasIstirahat,
+          isMasuk: Boolean(p.isMasuk),
+          isMulaiIstirahat: Boolean(p.isMulaiIstirahat),
           isIstirahatFinish,
           isLastItemOfTable,
           downtimeDisplay,
@@ -1138,8 +1168,10 @@ export default function MeterHistoryTable({
             ? "bg-rose-50/70 hover:bg-rose-100/60 border-y border-rose-200"
             : isRowQcModified
             ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+            : item.isMasuk
+            ? "bg-emerald-50/30 hover:bg-emerald-100/30"
             : item.hasIstirahat
-            ? "bg-amber-50/30"
+            ? "bg-amber-50/30 hover:bg-amber-100/30"
             : "hover:bg-slate-50";
 
           const cacatRawLines = (item.cacatDisplay && item.cacatDisplay !== "-")
@@ -1190,8 +1222,22 @@ export default function MeterHistoryTable({
               <td className={`px-1 py-1.5 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100 font-medium text-slate-700`}>
                 {item.showGrp ? item.grpStr : ""}
               </td>
-              <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${(item.hasIstirahat && !item.showOpr) ? "italic font-bold text-slate-500" : "font-medium text-slate-700"}`}>
-                {item.showOpr ? item.oprStr : (item.hasIstirahat ? (item.isIstirahatFinish ? "Istirahat / FINISH" : "Istirahat") : "")}
+              <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${(item.hasIstirahat && !item.showOpr) ? "italic font-bold" : "font-medium text-slate-700"}`}>
+                {item.showOpr ? (
+                  item.oprStr
+                ) : item.hasIstirahat ? (
+                  item.isMasuk ? (
+                    <span className="text-emerald-700 font-bold italic tracking-wide">
+                      {item.isIstirahatFinish ? "Masuk / FINISH" : "Masuk"}
+                    </span>
+                  ) : (
+                    <span className="text-amber-700 font-bold italic tracking-wide">
+                      {item.isIstirahatFinish ? "Istirahat / FINISH" : "Istirahat"}
+                    </span>
+                  )
+                ) : (
+                  ""
+                )}
               </td>
               <td className="px-1 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100 border-b border-slate-100">
                 {item.meterDisplay}

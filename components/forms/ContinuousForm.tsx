@@ -2097,11 +2097,11 @@ export default function ContinuousForm({
                         <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100/90 text-emerald-900 border border-emerald-300 shadow-2xs">
                           Oper Shift
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100/90 text-emerald-900 border border-emerald-300 shadow-2xs">
-                          Meter Istirahat
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-100/90 text-amber-900 border border-amber-300 shadow-2xs">
+                          Istirahat
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100/90 text-emerald-900 border border-emerald-300 shadow-2xs">
-                          Masuk Istirahat
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-teal-100/90 text-teal-900 border border-teal-300 shadow-2xs">
+                          Masuk
                         </span>
                       </div>
                     )}
@@ -2679,9 +2679,9 @@ export default function ContinuousForm({
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-bold text-slate-600 uppercase">
                         {watchJenisLaporan === "Mulai Istirahat"
-                          ? "Meter Ketika Istirahat"
+                          ? "Meter Saat Istirahat"
                           : watchJenisLaporan === "Selesai Istirahat"
-                            ? "Meter Selesai Istirahat"
+                            ? "Meter Saat Masuk Kembali"
                             : (handoverWarning?.needsMeterAwal ? "Counter Meter Serah Terima Shift" : "Finish Meter")}
                       </label>
                       <input
@@ -2759,23 +2759,25 @@ export default function ContinuousForm({
                       <button
                         type="button"
                         onClick={() => setValue("jenisLaporan", "Mulai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${watchJenisLaporan === "Mulai Istirahat"
+                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-sm active:scale-[0.98] ${watchJenisLaporan === "Mulai Istirahat"
                           ? "border-amber-500 bg-amber-50 text-amber-700 scale-[1.01]"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                       >
-                        <span className="block font-black uppercase">Mulai Istirahat</span>
+                        <span className="block font-black uppercase">Istirahat</span>
+                        <span className="block text-[9px] font-semibold opacity-75">Mau Istirahat</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setValue("jenisLaporan", "Selesai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm ${watchJenisLaporan === "Selesai Istirahat"
+                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-sm active:scale-[0.98] ${watchJenisLaporan === "Selesai Istirahat"
                           ? "border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.01]"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                       >
-                        <span className="block font-black uppercase">Selesai Istirahat</span>
+                        <span className="block font-black uppercase">Masuk</span>
+                        <span className="block text-[9px] font-semibold opacity-75">Masuk Kembali</span>
                       </button>
                     </div>
 

@@ -230,10 +230,15 @@ export default function PanelHistoryTable({
       const isStart = item.keterangan_cacat === "START" || item.production_headers?.panel_no === "START";
       const isGradable = !isFinish && !isStart;
 
+      const ketUpper = (item.keterangan_cacat || "").toUpperCase();
+      const detUpper = (item.detail_masalah || "").toUpperCase();
+      const isMasuk = hasIstirahat && (ketUpper.includes("LAPORAN ISTIRAHAT") || detUpper.includes("LAPORAN ISTIRAHAT") || ketUpper.includes("SELESAI ISTIRAHAT") || detUpper.includes("SELESAI ISTIRAHAT") || ketUpper.includes("[MASUK]") || detUpper.includes("[MASUK]"));
+
       return {
         item,
         isIstirahatOnly,
         hasIstirahat,
+        isMasuk,
         isGradable,
         opr,
         grp,
@@ -286,6 +291,7 @@ export default function PanelHistoryTable({
         isStartRow: false,
         isIstirahatOnly,
         hasIstirahat,
+        isMasuk: p.isMasuk,
         isFinishReport: false,
         displayNo: item.production_headers?.panel_no || "-",
         meterDisplay: "-",
@@ -804,8 +810,18 @@ export default function PanelHistoryTable({
               <td className={`px-1 py-1 font-medium text-center text-slate-700 border-r border-slate-100`}>
                 {displayGrp}
               </td>
-              <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(hasIstirahat && !item.showOpr) ? "italic font-bold text-slate-500 text-center" : "font-medium text-slate-700"}`}>
-                {item.showOpr ? (item.oprStr || "-") : (hasIstirahat ? "Istirahat" : "")}
+              <td className={`px-1 py-1 leading-tight border-r border-slate-100 ${(hasIstirahat && !item.showOpr) ? "italic font-bold text-center" : "font-medium text-slate-700"}`}>
+                {item.showOpr ? (
+                  item.oprStr || "-"
+                ) : hasIstirahat ? (
+                  item.isMasuk ? (
+                    <span className="text-emerald-700 font-bold italic tracking-wide">Masuk</span>
+                  ) : (
+                    <span className="text-amber-700 font-bold italic tracking-wide">Istirahat</span>
+                  )
+                ) : (
+                  ""
+                )}
               </td>
               <td className="px-1 py-1 text-center border-r border-slate-100 font-bold text-sm select-none">
                 {isDeleted ? (

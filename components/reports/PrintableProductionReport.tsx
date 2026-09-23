@@ -450,6 +450,32 @@ function buildMeterRows(panels: any[], shiftName: string, hasNextPotongan?: bool
     const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
     const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G");
 
+    const ketUpper = (item.keterangan_cacat || "").toUpperCase();
+    const detUpper = (item.detail_masalah || "").toUpperCase();
+    const isExplicitSebelum = ketUpper.includes("SEBELUM ISTIRAHAT") || detUpper.includes("SEBELUM ISTIRAHAT") || ketUpper.includes("MULAI ISTIRAHAT") || detUpper.includes("MULAI ISTIRAHAT");
+    const isExplicitLaporan = ketUpper.includes("LAPORAN ISTIRAHAT") || detUpper.includes("LAPORAN ISTIRAHAT") || ketUpper.includes("SELESAI ISTIRAHAT") || detUpper.includes("SELESAI ISTIRAHAT") || ketUpper.includes("[MASUK]") || detUpper.includes("[MASUK]");
+
+    let isMasuk = false;
+    if (hasIstirahat || isIstirahat) {
+      if (isExplicitLaporan) {
+        isMasuk = true;
+      } else if (isExplicitSebelum) {
+        isMasuk = false;
+      } else {
+        const curCount = (filtered.slice(0, idx).filter((it: any) => {
+          const itH = it.production_headers || {};
+          const itOpr = `${itH.groups?.nama_grup || shiftName || "-"} ${itH.operators?.nama_operator || itH.pic || "-"}`;
+          const itHasIstirahat = (
+            (it.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") ||
+            (it.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") ||
+            Boolean(itH.operator_backup)
+          );
+          return itOpr === oprStr && itHasIstirahat;
+        })).length;
+        isMasuk = curCount % 2 === 1;
+      }
+    }
+
     const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
     const cacatText = buildCacatText({ ...item, production_defects: item.production_defects || [] });
 
@@ -526,7 +552,7 @@ function buildMeterRows(panels: any[], shiftName: string, hasNextPotongan?: bool
     const isPlaceholder = meterDisplay === "-" && !item.kategori_masalah && !item.detail_masalah && !isIstirahat && !isFinishReport;
     if (!isPlaceholder) {
       globalNo += 1;
-      rows.push({ isStartRow: false, displayNo: globalNo, tglStr: tgl, grpStr: grp, oprStr: opr, meterDisplay, cacatDisplay: displayCacat, showTgl, showGrp, showOpr, isIstirahat, isFinish, hasIstirahat, hasDefect: !isIstirahat && !isFinish && cacatText !== "-", grade, backupOpName });
+      rows.push({ isStartRow: false, displayNo: globalNo, tglStr: tgl, grpStr: grp, oprStr: opr, meterDisplay, cacatDisplay: displayCacat, showTgl, showGrp, showOpr, isIstirahat, isFinish, hasIstirahat, isMasuk, hasDefect: !isIstirahat && !isFinish && cacatText !== "-", grade, backupOpName });
     }
   });
 
@@ -670,7 +696,7 @@ function MeterPrintTable({ rows }: { rows: any[] }) {
                 <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-medium">{row.grpStr}</td>
                 <td className={`py-0.5 px-0.5 border-r border-slate-300 truncate max-w-[64px] ${row.hasIstirahat || row.isIstirahat ? "italic font-bold text-slate-600" : "font-medium text-slate-950"}`}>
                   {row.hasIstirahat || row.isIstirahat ? (
-                    <span className="italic font-bold">Istirahat</span>
+                    <span className="italic font-bold">{row.isMasuk ? "Masuk" : "Istirahat"}</span>
                   ) : (
                     row.showOpr ? row.oprStr : ""
                   )}
