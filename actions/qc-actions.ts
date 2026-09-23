@@ -1182,6 +1182,81 @@ export async function deleteProductionDetailRow(detailId: string, mode: "permane
       return { success: true };
     }
 
+    // 0. Check if detailId is a finish row deletion (e.g. "finish-1234abcd")
+    if (detailIdStr.startsWith("finish-")) {
+      const finishHeaderId = detailIdStr.replace(/^finish-/, "");
+
+      const { data: header, error: hErr } = await supabase
+        .from("production_headers")
+        .select("id, meter_awal, meter_akhir, total_downtime_detik, downtime_events")
+        .eq("id", finishHeaderId)
+        .maybeSingle();
+
+      if (hErr || !header) {
+        return { success: false, error: "Data header FINISH tidak ditemukan: " + (hErr?.message || "") };
+      }
+
+      // Cek apakah header ini memiliki rincian cacat riil
+      const { data: childDetails } = await supabase
+        .from("production_details")
+        .select("id, kategori_masalah, detail_masalah, keterangan_cacat")
+        .eq("header_id", finishHeaderId);
+
+      const hasRealDefects = (childDetails || []).some(
+        (d: any) =>
+          (d.kategori_masalah && d.kategori_masalah !== "G") ||
+          (d.detail_masalah &&
+            !d.detail_masalah.toUpperCase().includes("GAGAL CACAT") &&
+            !d.detail_masalah.toUpperCase().includes("START") &&
+            !d.detail_masalah.toUpperCase().includes("FINISH"))
+      );
+
+      const hasDowntime = (header.total_downtime_detik || 0) > 0 || (header.downtime_events && header.downtime_events !== "[]");
+
+      if (hasRealDefects || hasDowntime) {
+        // Jika memiliki cacat riil atau downtime, hanya kosongkan meter_akhir agar data cacat tidak hilang
+        const { error: updErr } = await supabase
+          .from("production_headers")
+          .update({
+            meter_akhir: null,
+            total_produksi_meter: null,
+          })
+          .eq("id", finishHeaderId);
+
+        if (updErr) {
+          return { success: false, error: "Gagal menghapus status FINISH: " + updErr.message };
+        }
+        return { success: true };
+      } else {
+        // Jika header ini hanya berupa pelaporan meter akhir (tidak ada cacat/downtime)
+        if (childDetails && childDetails.length > 0) {
+          const childIds = childDetails.map((d: any) => d.id);
+          await supabase.from("mending_items").delete().in("production_detail_id", childIds);
+          await supabase.from("qc_inspection_items").delete().in("production_detail_id", childIds);
+          await supabase.from("production_defects").delete().in("production_detail_id", childIds);
+          await supabase.from("production_details").delete().in("id", childIds);
+        }
+        await supabase.from("downtime_records").delete().eq("header_id", finishHeaderId);
+
+        const { error: delHdrErr } = await supabase
+          .from("production_headers")
+          .delete()
+          .eq("id", finishHeaderId);
+
+        if (delHdrErr) {
+          // Fallback jika ada constraint foreign key lain
+          await supabase
+            .from("production_headers")
+            .update({
+              meter_akhir: null,
+              total_produksi_meter: null,
+            })
+            .eq("id", finishHeaderId);
+        }
+        return { success: true };
+      }
+    }
+
     // 0. Check if detailId is a header deletion (e.g. "header-1234abcd") or direct header id
     let headerIdToDelete = detailIdStr.startsWith("header-") ? detailIdStr.replace(/^header-/, "") : null;
     if (!headerIdToDelete) {
@@ -1280,10 +1355,14 @@ export async function deleteProductionDetailRow(detailId: string, mode: "permane
       .from("production_details")
       .select("header_id, pcs_index, jml_hasil_produksi")
       .eq("id", detailId)
-      .single();
+      .maybeSingle();
 
     if (detailErr) {
       return { success: false, error: "Gagal menemukan detail: " + detailErr.message };
+    }
+
+    if (!detail) {
+      return { success: false, error: "Data detail tidak ditemukan atau sudah dihapus." };
     }
 
     const headerId = detail?.header_id;
@@ -2293,6 +2372,7 @@ export async function bulkDeleteProductionDetailRows(
 
     const headerIdsToDelete = new Set<string>();
     const dtEventIdsToDelete: string[] = [];
+    const finishIdsToDelete: string[] = [];
     const regularDetailIds: string[] = [];
 
     for (const id of detailIds) {
@@ -2300,6 +2380,8 @@ export async function bulkDeleteProductionDetailRows(
         dtEventIdsToDelete.push(id);
       } else if (id.startsWith("header-")) {
         headerIdsToDelete.add(id.replace(/^header-/, ""));
+      } else if (id.startsWith("finish-")) {
+        finishIdsToDelete.push(id);
       } else {
         regularDetailIds.push(id);
       }
@@ -2313,7 +2395,15 @@ export async function bulkDeleteProductionDetailRows(
       }
     }
 
-    // 1. Delete headers first
+    // Delete finish items
+    for (const finishId of finishIdsToDelete) {
+      const res = await deleteProductionDetailRow(finishId, mode);
+      if (!res.success) {
+        return { success: false, error: res.error };
+      }
+    }
+
+    // 1. Delete headers
     for (const hdrId of Array.from(headerIdsToDelete)) {
       const res = await deleteProductionDetailRow(`header-${hdrId}`, mode);
       if (!res.success) {

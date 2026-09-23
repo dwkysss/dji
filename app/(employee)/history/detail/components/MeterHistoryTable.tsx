@@ -949,6 +949,7 @@ export default function MeterHistoryTable({
           isIstirahat: false,
           hasIstirahat: false,
           downtimeDisplay: "-",
+          db_id: `finish-${lastOpHeader.id}`,
           header_id: lastOpHeader.id,
           pcs_index: pcsKey,
         });
