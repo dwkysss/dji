@@ -230,15 +230,10 @@ export default function PanelHistoryTable({
       const isStart = item.keterangan_cacat === "START" || item.production_headers?.panel_no === "START";
       const isGradable = !isFinish && !isStart;
 
-      const ketUpper = (item.keterangan_cacat || "").toUpperCase();
-      const detUpper = (item.detail_masalah || "").toUpperCase();
-      const isMasuk = hasIstirahat && (ketUpper.includes("LAPORAN ISTIRAHAT") || detUpper.includes("LAPORAN ISTIRAHAT") || ketUpper.includes("SELESAI ISTIRAHAT") || detUpper.includes("SELESAI ISTIRAHAT") || ketUpper.includes("[MASUK]") || detUpper.includes("[MASUK]"));
-
       return {
         item,
         isIstirahatOnly,
         hasIstirahat,
-        isMasuk,
         isGradable,
         opr,
         grp,
@@ -291,7 +286,6 @@ export default function PanelHistoryTable({
         isStartRow: false,
         isIstirahatOnly,
         hasIstirahat,
-        isMasuk: p.isMasuk,
         isFinishReport: false,
         displayNo: item.production_headers?.panel_no || "-",
         meterDisplay: "-",
@@ -814,11 +808,7 @@ export default function PanelHistoryTable({
                 {item.showOpr ? (
                   item.oprStr || "-"
                 ) : hasIstirahat ? (
-                  item.isMasuk ? (
-                    <span className="text-emerald-700 font-bold italic tracking-wide">Masuk</span>
-                  ) : (
-                    <span className="text-amber-700 font-bold italic tracking-wide">Istirahat</span>
-                  )
+                  <span className="text-amber-700 font-bold italic tracking-wide">Istirahat</span>
                 ) : (
                   ""
                 )}

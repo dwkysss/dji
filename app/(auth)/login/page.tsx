@@ -3,36 +3,184 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import LoginForm from "@/components/forms/LoginForm";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Info, Bug } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Peta alasan redirect yang diterima dari middleware
+// Setiap alasan dicatat ke localStorage agar admin bisa melihat polanya
+// ─────────────────────────────────────────────────────────────────────────────
+const REDIRECT_REASONS: Record<string, { label: string; detail: string; color: string }> = {
+  cookie_overflow: {
+    label: "Cookie Terlalu Besar (Overflow)",
+    detail:
+      "Header cookie melebihi 20KB. Cookie Supabase yang menumpuk sudah dibersihkan. Silakan login kembali.",
+    color: "rose",
+  },
+  default: {
+    label: "Sesi Berakhir / Cookie Rusak",
+    detail:
+      "Sesi Anda telah habis atau cookie browser bermasalah. Silakan masuk kembali untuk melanjutkan.",
+    color: "amber",
+  },
+};
 
 function SessionExpiredNotice() {
   const searchParams = useSearchParams();
   const sessionExpired = searchParams.get("session_expired") === "1";
+  const rawReason = searchParams.get("reason") || "default";
+  const reason = REDIRECT_REASONS[rawReason] ?? REDIRECT_REASONS["default"];
 
-  // Bersihkan cache user lama di localStorage jika sesi kedaluwarsa/rusak
+  // Catat ke localStorage untuk analisis pola di kemudian hari
   useEffect(() => {
-    if (sessionExpired) {
-      try {
-        localStorage.removeItem("dji_cached_user");
-      } catch (e) {}
-    }
-  }, [sessionExpired]);
+    if (!sessionExpired) return;
+
+    try {
+      localStorage.removeItem("dji_cached_user");
+
+      // Simpan log redirect ke localStorage (max 20 entri terakhir)
+      const logKey = "dji_redirect_log";
+      const existing: any[] = JSON.parse(localStorage.getItem(logKey) || "[]");
+      const entry = {
+        time: new Date().toLocaleString("id-ID", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        }),
+        reason: rawReason,
+        url: typeof window !== "undefined" ? window.location.href : "",
+        userAgent:
+          typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : "",
+      };
+      const updated = [entry, ...existing].slice(0, 20); // Simpan max 20 entri
+      localStorage.setItem(logKey, JSON.stringify(updated));
+    } catch (e) {}
+  }, [sessionExpired, rawReason]);
 
   if (!sessionExpired) return null;
 
+  const colorMap: Record<string, string> = {
+    rose: "bg-rose-50 border-rose-300 shadow-rose-100",
+    amber: "bg-amber-50 border-amber-300 shadow-amber-100",
+  };
+  const textMap: Record<string, string> = {
+    rose: "text-rose-900",
+    amber: "text-amber-900",
+  };
+  const subTextMap: Record<string, string> = {
+    rose: "text-rose-700",
+    amber: "text-amber-700",
+  };
+  const iconMap: Record<string, string> = {
+    rose: "text-rose-600",
+    amber: "text-amber-600",
+  };
+
+  const IconComponent = rawReason === "cookie_overflow" ? Bug : AlertTriangle;
+
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4">
-      <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-300 shadow-lg shadow-amber-100 animate-fadeIn">
-        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+      <div
+        className={`flex items-start gap-3 px-4 py-3 rounded-2xl border shadow-lg animate-fadeIn ${colorMap[reason.color]}`}
+      >
+        <IconComponent
+          className={`w-5 h-5 shrink-0 mt-0.5 ${iconMap[reason.color]}`}
+        />
         <div>
-          <div className="text-xs font-black text-amber-900">Sesi Berakhir / Cookie Rusak</div>
-          <div className="text-[11px] font-medium text-amber-700 mt-0.5 leading-relaxed">
-            Sesi Anda telah habis atau cookie browser bermasalah. Silakan masuk kembali untuk melanjutkan.
+          <div className={`text-xs font-black ${textMap[reason.color]}`}>
+            {reason.label}
+          </div>
+          <div
+            className={`text-[11px] font-medium mt-0.5 leading-relaxed ${subTextMap[reason.color]}`}
+          >
+            {reason.detail}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Komponen kecil untuk admin: tampilkan log redirect tersimpan di localStorage
+// Hanya tampil jika ada log (tidak tampil di kondisi normal)
+// ─────────────────────────────────────────────────────────────────────────────
+function DiagnosticLogPanel() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("dji_redirect_log");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.length > 0) setLogs(parsed);
+      }
+    } catch (e) {}
+  }, []);
+
+  if (logs.length === 0) return null;
+
+  return (
+    <div className="fixed bottom-16 right-4 z-40">
+      <button
+        onClick={() => setShow((v) => !v)}
+        className="flex items-center gap-1.5 bg-slate-800/80 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg border border-slate-600 hover:bg-slate-700 transition-colors cursor-pointer"
+        title="Lihat log diagnostik redirect"
+      >
+        <Info className="w-3 h-3" />
+        Log Redirect ({logs.length})
+      </button>
+
+      {show && (
+        <div className="absolute bottom-9 right-0 w-80 bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden animate-fadeIn">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-700">
+            <span className="text-xs font-black text-white">
+              Log Redirect Tablet
+            </span>
+            <button
+              onClick={() => {
+                try {
+                  localStorage.removeItem("dji_redirect_log");
+                } catch (e) {}
+                setLogs([]);
+                setShow(false);
+              }}
+              className="text-[10px] text-rose-400 hover:text-rose-300 font-bold cursor-pointer"
+            >
+              Hapus Log
+            </button>
+          </div>
+          <div className="max-h-60 overflow-y-auto divide-y divide-slate-800">
+            {logs.map((entry, i) => (
+              <div key={i} className="px-4 py-2.5">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      entry.reason === "cookie_overflow"
+                        ? "bg-rose-900/60 text-rose-300"
+                        : "bg-amber-900/60 text-amber-300"
+                    }`}
+                  >
+                    {entry.reason || "session_expired"}
+                  </span>
+                  <span className="text-[10px] text-slate-500">{entry.time}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-2 bg-slate-800/50 border-t border-slate-700">
+            <p className="text-[10px] text-slate-500">
+              Log ini hanya tersimpan di perangkat ini (localStorage).
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -87,6 +235,9 @@ export default function LoginPage() {
       <Suspense fallback={null}>
         <SessionExpiredNotice />
       </Suspense>
+
+      {/* Diagnostic Log Panel (hanya tampil jika ada log tersimpan) */}
+      <DiagnosticLogPanel />
 
       {/* Top Bar: Digital Clock & Date */}
       <header className="w-full max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 z-10">

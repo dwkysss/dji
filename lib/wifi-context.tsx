@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import {
   getEsp32MachineMappingConfig,
   saveEsp32MachineMappingConfig,
@@ -124,6 +125,18 @@ const STORAGE_KEY = "wifi_esp32_target";
 const MAP_STORAGE_KEY = "wifi_machine_esp32_map";
 
 export function WifiProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isMachineRoute = Boolean(
+    pathname && (
+      pathname.startsWith("/input") ||
+      pathname.startsWith("/edit")
+    )
+  );
+  const isMachineRouteRef = useRef<boolean>(isMachineRoute);
+  useEffect(() => {
+    isMachineRouteRef.current = isMachineRoute;
+  }, [isMachineRoute]);
+
   const [targetHost, setTargetHostState] = useState<string>(DEFAULT_HOSTNAME);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("terputus");
   const [isSimulationMode, setIsSimulationMode] = useState<boolean>(false);
@@ -453,7 +466,7 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
 
   // Connect WebSocket function
   const connect = useCallback(
-    (customHost?: string) => {
+    (customHost?: string, isAutoRetry: boolean = false) => {
       let host = customHost;
       if (!host && typeof window !== "undefined") {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -462,6 +475,11 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
       host = (host || targetHost).trim() || DEFAULT_HOSTNAME;
       if (customHost && customHost !== targetHost) {
         setTargetHost(host);
+      }
+
+      // Jika koneksi dipicu manual oleh user / form, reset counter retry
+      if (!isAutoRetry) {
+        reconnectAttemptsRef.current = 0;
       }
 
       // Close existing socket if any
@@ -532,13 +550,33 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           setConnectionStatus("terputus");
           socketRef.current = null;
 
-          if (!isManualDisconnectRef.current) {
-            // Reconnect cepat 2.5 detik tanpa delay berjenjang hingga 30 detik
-            autoReconnectTimerRef.current = setTimeout(() => {
-              if (!isManualDisconnectRef.current) {
-                connect(host);
-              }
-            }, 2500);
+          // Hanya reconnect otomatis jika bukan manual disconnect dan sedang di halaman mesin
+          if (!isManualDisconnectRef.current && isMachineRouteRef.current) {
+            // Hindari reconnect jika tab sedang tersembunyi / layar mati
+            if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+              return;
+            }
+
+            reconnectAttemptsRef.current += 1;
+            const attempts = reconnectAttemptsRef.current;
+
+            // Progressive backoff: 3s -> 5s -> 10s -> 15s -> 30s
+            let delay = 3000;
+            if (attempts === 2) delay = 5000;
+            else if (attempts === 3) delay = 10000;
+            else if (attempts === 4) delay = 15000;
+            else if (attempts >= 5) delay = 30000;
+
+            // Batasi auto-reconnect maksimal 10 kali jika ESP32 offline
+            if (attempts <= 10) {
+              autoReconnectTimerRef.current = setTimeout(() => {
+                if (!isManualDisconnectRef.current && isMachineRouteRef.current) {
+                  connect(host, true);
+                }
+              }, delay);
+            } else {
+              addLog("INFO", "Auto-reconnect ESP32 dijeda setelah 10 percobaan gagal. Klik 'Hubungkan' untuk mencoba lagi.", "SYSTEM");
+            }
           }
         };
       } catch (err: any) {
@@ -548,29 +586,42 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     [targetHost, setTargetHost, addLog, triggerM1Start, triggerM1Stop, triggerM2Start, triggerM2Stop, triggerM3Start, triggerM3Stop]
   );
 
-  // Polling HTTP Fallback lembut (setiap 10 detik) HANYA jika WebSocket benar-benar terputus
+  // Polling HTTP Fallback HANYA di lingkungan HTTP (bukan HTTPS produksi yang memblokir mixed-content)
+  // dan HANYA di halaman mesin saat WebSocket terputus
   useEffect(() => {
-    // Jika WebSocket sudah terhubung / ready, jangan tembak HTTP agar soket ESP32 tetap ringan
+    // 1. Browser di HTTPS akan memblokir http://192.168.1.171 (Mixed Content Violation)
+    if (typeof window !== "undefined" && window.location.protocol === "https:") {
+      return;
+    }
+
+    // 2. Hanya polling jika berada di halaman mesin
+    if (!isMachineRoute) {
+      return;
+    }
+
+    // 3. Jangan polling jika sudah terhubung atau tab tidak aktif
     if (connectionStatus === "terhubung" || socketRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
 
     const interval = setInterval(() => {
-      if (!isManualDisconnectRef.current && connectionStatus === "terputus") {
+      if (
+        !isManualDisconnectRef.current &&
+        connectionStatus === "terputus" &&
+        (typeof document === "undefined" || document.visibilityState === "visible")
+      ) {
         pollHttpFallback(targetHost);
       }
-    }, 10000);
+    }, 20000);
 
     return () => clearInterval(interval);
-  }, [connectionStatus, targetHost, pollHttpFallback]);
+  }, [connectionStatus, targetHost, pollHttpFallback, isMachineRoute]);
 
-  // Load Hostname, Machine Map & Auto-connect on mount
+  // Load Hostname, Machine Map on mount (tanpa auto-connect global)
   useEffect(() => {
-    let savedHost = DEFAULT_HOSTNAME;
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        savedHost = stored;
         setTargetHostState(stored);
       }
       const storedMap = localStorage.getItem(MAP_STORAGE_KEY);
@@ -598,8 +649,6 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    connect(savedHost);
-
     // Ambil pemetaan terbaru dari database Supabase agar selalu tersinkronisasi di semua perangkat
     getEsp32MachineMappingConfig()
       .then((res) => {
@@ -626,7 +675,6 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
             if (typeof window !== "undefined") {
               localStorage.setItem(STORAGE_KEY, primaryHost);
             }
-            connect(primaryHost);
           }
         }
       })
@@ -643,6 +691,47 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
       }
     };
   }, []);
+
+  // Hubungkan ke ESP32 hanya jika berada di halaman mesin (/input, /edit)
+  useEffect(() => {
+    if (isMachineRoute) {
+      if (!isManualDisconnectRef.current && (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN)) {
+        connect(targetHost);
+      }
+    } else {
+      // Putuskan koneksi saat berpindah ke halaman non-mesin (login, qc, mending, rekap, dll)
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+      if (autoReconnectTimerRef.current) {
+        clearTimeout(autoReconnectTimerRef.current);
+        autoReconnectTimerRef.current = null;
+      }
+      setConnectionStatus("terputus");
+    }
+  }, [isMachineRoute, targetHost, connect]);
+
+  // Saat tablet dibuka kembali dari mode standby (layar nyala), sambungkan kembali jika di halaman mesin
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible" &&
+        isMachineRoute &&
+        !isManualDisconnectRef.current &&
+        (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN)
+      ) {
+        reconnectAttemptsRef.current = 0;
+        connect(targetHost);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isMachineRoute, targetHost, connect]);
 
   const registerSignalListener = useCallback((listener: WifiSignalListener) => {
     signalListenersRef.current.add(listener);

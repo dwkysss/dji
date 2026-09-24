@@ -20,6 +20,62 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/api") ||
     pathname.startsWith("/~offline");
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // FIX MASALAH 1: Deteksi penumpukan cookie yang bisa menyebabkan HTTP 431.
+  //
+  // Nginx memiliki batas default 32KB (4 buffer × 8KB) untuk seluruh request
+  // header. Cookie Supabase (sb-*) bisa menumpuk hingga melebihi batas ini
+  // terutama di tablet yang tidak pernah dibersihkan, menyebabkan Nginx
+  // menolak request dan Chrome menampilkan "This page couldn't load".
+  //
+  // Solusi: Periksa ukuran header Cookie di sisi Next.js SEBELUM Nginx
+  // berkesempatan menolak. Jika sudah > 20KB, paksa bersihkan cookie Supabase
+  // dan arahkan ulang ke /login untuk sesi baru yang bersih.
+  // ─────────────────────────────────────────────────────────────────────────
+  const COOKIE_SIZE_LIMIT_BYTES = 20 * 1024; // 20KB — batas aman sebelum 431
+  const rawCookieHeader = request.headers.get("cookie") || "";
+  const cookieSizeBytes = new TextEncoder().encode(rawCookieHeader).length;
+
+  if (cookieSizeBytes > COOKIE_SIZE_LIMIT_BYTES) {
+    if (!isPublicPath) {
+      // Cookie sudah terlalu besar — bersihkan semua sb-* dan redirect ke login
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.searchParams.set("session_expired", "1");
+      loginUrl.searchParams.set("reason", "cookie_overflow");
+
+      const overflowResponse = NextResponse.redirect(loginUrl);
+
+      // Hapus semua cookie Supabase yang menumpuk agar browser mendapat sesi bersih
+      request.cookies.getAll().forEach(({ name }) => {
+        if (isSupabaseCookie(name)) {
+          overflowResponse.cookies.set(name, "", {
+            maxAge: 0,
+            path: "/",
+            sameSite: "lax",
+            secure: true,
+          });
+        }
+      });
+
+      return overflowResponse;
+    } else {
+      // Jika sudah di halaman publik (seperti /login), bersihkan cookie langsung di response tanpa redirect loop
+      const cleanResponse = NextResponse.next();
+      request.cookies.getAll().forEach(({ name }) => {
+        if (isSupabaseCookie(name)) {
+          cleanResponse.cookies.set(name, "", {
+            maxAge: 0,
+            path: "/",
+            sameSite: "lax",
+            secure: true,
+          });
+        }
+      });
+      return cleanResponse;
+    }
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -71,7 +127,12 @@ export async function updateSession(request: NextRequest) {
         // Hapus SEMUA cookie Supabase yang ada agar tidak ada sisa token rusak
         request.cookies.getAll().forEach(({ name }) => {
           if (isSupabaseCookie(name)) {
-            redirectResponse.cookies.delete(name);
+            redirectResponse.cookies.set(name, "", {
+              maxAge: 0,
+              path: "/",
+              sameSite: "lax",
+              secure: true,
+            });
           }
         });
 

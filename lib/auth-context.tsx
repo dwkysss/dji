@@ -117,22 +117,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return false;
     };
 
-    // Check initial session with fallback timeout
+    // ─────────────────────────────────────────────────────────────────────
+    // FIX MASALAH 2: Pastikan isLoading SELALU jadi false dalam batas waktu.
+    //
+    // Tanpa batas keras, jika getSession() + silentAutoLogin() sama-sama
+    // lambat/gagal (misal sinyal Wi-Fi lemah), layar "Memverifikasi Sesi..."
+    // bisa macet sampai Chrome sendiri timeout (~30 detik) dan menampilkan
+    // "This page couldn't load".
+    //
+    // Solusi: 3 lapis batas waktu:
+    //   1. getSession() → tunggu maks 6 detik (naik dari 4 detik)
+    //   2. silentAutoLogin() → dibatasi maks 8 detik via Promise.race
+    //   3. Hard deadline 10 detik mutlak — apapun yang terjadi, isLoading
+    //      pasti false setelah 10 detik. Ini mencegah layar macet total.
+    // ─────────────────────────────────────────────────────────────────────
+
+    // Batas keras mutlak: setelah 10 detik, loading PASTI berhenti
+    const hardDeadline = setTimeout(() => {
+      setIsLoading(false);
+    }, 10000);
+
+    // Helper: bungkus silentAutoLogin dengan timeout 8 detik
+    const silentAutoLoginWithTimeout = (): Promise<boolean> => {
+      const timeoutPromise = new Promise<boolean>((resolve) =>
+        setTimeout(() => resolve(false), 8000)
+      );
+      return Promise.race([silentAutoLogin(), timeoutPromise]);
+    };
+
+    // Check initial session dengan fallback 6 detik
     const sessionTimeout = setTimeout(async () => {
-      const autoLoggedIn = await silentAutoLogin();
+      const autoLoggedIn = await silentAutoLoginWithTimeout();
       if (!autoLoggedIn) {
         setIsLoading(false);
       }
-    }, 4000);
+    }, 6000);
 
     supabase.auth
       .getSession()
       .then(async ({ data: { session } }) => {
         clearTimeout(sessionTimeout);
+        clearTimeout(hardDeadline);
         if (session) {
           fetchUser(session);
         } else {
-          const autoLoggedIn = await silentAutoLogin();
+          const autoLoggedIn = await silentAutoLoginWithTimeout();
           if (!autoLoggedIn) {
             fetchUser(null);
           }
@@ -140,8 +169,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(async (err) => {
         clearTimeout(sessionTimeout);
+        clearTimeout(hardDeadline);
         console.warn("Auth getSession network fetch failed:", err);
-        const autoLoggedIn = await silentAutoLogin();
+        const autoLoggedIn = await silentAutoLoginWithTimeout();
         if (!autoLoggedIn) {
           fetchUser(null);
         }
@@ -203,6 +233,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => {
+      clearTimeout(hardDeadline);
+      clearTimeout(sessionTimeout);
       authListener.subscription.unsubscribe();
     };
   }, [supabase, router]);
