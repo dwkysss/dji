@@ -388,24 +388,32 @@ export default function MeterHistoryTable({
         item.production_defects.forEach((defect: any) => {
           if ((defect.kategori || "").toUpperCase().includes("ISTIRAHAT") || (defect.detail || "").toUpperCase().includes("ISTIRAHAT")) return;
           const k = defect.kategori || "";
-          const det = defect.detail || "";
-          const key = k && det ? `${k} - ${det}` : (k || det);
-          if (!key) return;
+          const rawDet = defect.detail || "";
+          
+          // Split jika ada beberapa jenis cacat yang tergabung dalam satu string (dipisahkan koma atau baris baru)
+          const splitDetails = (rawDet.includes(",") || rawDet.includes("\n"))
+            ? rawDet.split(/,|\n/).map((s: string) => s.replace(/^\d+[\.\-]\s*/, "").trim()).filter(Boolean)
+            : [rawDet];
 
-          if (!groupedMap.has(key)) {
-            groupedMap.set(key, new Set<string>());
-            orderList.push(key);
-          }
+          splitDetails.forEach((det: string) => {
+            const key = k && det ? `${k} - ${det}` : (k || det);
+            if (!key) return;
 
-          if (defect.blok) {
-            const cleanB = String(defect.blok).replace(/blok\s*/gi, "").trim();
-            if (cleanB) {
-              cleanB.split(",").forEach((bStr) => {
-                const trimmed = bStr.trim();
-                if (trimmed) groupedMap.get(key)!.add(trimmed);
-              });
+            if (!groupedMap.has(key)) {
+              groupedMap.set(key, new Set<string>());
+              orderList.push(key);
             }
-          }
+
+            if (defect.blok) {
+              const cleanB = String(defect.blok).replace(/blok\s*/gi, "").trim();
+              if (cleanB) {
+                cleanB.split(",").forEach((bStr) => {
+                  const trimmed = bStr.trim();
+                  if (trimmed) groupedMap.get(key)!.add(trimmed);
+                });
+              }
+            }
+          });
 
           if (defect.meter) defectMeterStr = defect.meter;
         });
@@ -466,26 +474,29 @@ export default function MeterHistoryTable({
               pushDetailsForCat(k, d);
             }
           } else if (cleanD) {
-            if (kats.length === 1) {
-              pushDetailsForCat(kats[0], cleanD);
-            } else {
-              const dets = cleanD.split(", ");
-              if (kats.length === dets.length) {
-                for (let i = 0; i < kats.length; i++) {
-                  pushDetailsForCat(kats[i], dets[i]);
-                }
-              } else {
-                dets.forEach((det: string) => {
-                  let foundKat = "Unknown";
-                  for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
-                    if ((detList as string[]).some((d: string) => det.toLowerCase().includes(d.toLowerCase()))) {
-                      foundKat = kat;
-                      break;
-                    }
-                  }
-                  cacatLines.push(`${foundKat !== "Unknown" ? foundKat + " - " : ""}${det}`);
-                });
+            const dets = (cleanD.includes(",") || cleanD.includes("\n"))
+              ? cleanD.split(/,|\n/).map((s: string) => s.replace(/^\d+[\.\-]\s*/, "").trim()).filter(Boolean)
+              : [cleanD];
+
+            if (kats.length === 1 && dets.length > 1) {
+              dets.forEach((d: string) => {
+                pushDetailsForCat(kats[0], d);
+              });
+            } else if (kats.length === dets.length) {
+              for (let i = 0; i < kats.length; i++) {
+                pushDetailsForCat(kats[i], dets[i]);
               }
+            } else {
+              dets.forEach((det: string) => {
+                let foundKat = "Unknown";
+                for (const [kat, detList] of Object.entries(PROBLEM_DETAILS || {})) {
+                  if ((detList as string[]).some((d: string) => det.toLowerCase().includes(d.toLowerCase()))) {
+                    foundKat = kat;
+                    break;
+                  }
+                }
+                cacatLines.push(`${foundKat !== "Unknown" ? foundKat + " - " : ""}${det}`);
+              });
             }
           } else {
             cacatLines.push(kats.join(", "));

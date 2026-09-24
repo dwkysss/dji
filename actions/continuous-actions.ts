@@ -1901,11 +1901,20 @@ export async function updateQuickMeterValue(params: {
               updatedMeter = pcsTarget ? `PCS ${pcsTarget}: ${meterNum}` : String(meterNum);
             }
 
+            let updatedDetails = prob.details;
+            if (params.newDetailMasalah !== undefined && params.newDetailMasalah !== "") {
+              const split = params.newDetailMasalah
+                .split(/,|\n/)
+                .map((s: string) => s.replace(/^\d+[\.\-]\s*/, "").trim())
+                .filter(Boolean);
+              updatedDetails = split.length > 0 ? split : [params.newDetailMasalah];
+            }
+
             return {
               ...prob,
               meter: updatedMeter,
               kategori: params.newKategori !== undefined && params.newKategori !== "" ? params.newKategori : prob.kategori,
-              details: params.newDetailMasalah !== undefined && params.newDetailMasalah !== "" ? [params.newDetailMasalah] : prob.details,
+              details: updatedDetails,
               blok: params.newBlok !== undefined ? (params.newBlok || undefined) : prob.blok,
             };
           }
@@ -1965,17 +1974,50 @@ export async function updateQuickMeterValue(params: {
           .eq("id", targetDetailId);
 
         // 3. Update production_defects
-        const defectUpdatePayload: any = {
-          meter: String(meterNum),
-        };
-        if (params.newKategori !== undefined && params.newKategori !== "") defectUpdatePayload.kategori = params.newKategori;
-        if (params.newDetailMasalah !== undefined && params.newDetailMasalah !== "") defectUpdatePayload.detail = params.newDetailMasalah;
-        if (params.newBlok !== undefined) defectUpdatePayload.blok = params.newBlok || null;
+        if (params.newDetailMasalah !== undefined && params.newDetailMasalah !== "") {
+          const splitDetails = params.newDetailMasalah
+            .split(/,|\n/)
+            .map((s: string) => s.replace(/^\d+[\.\-]\s*/, "").trim())
+            .filter(Boolean);
 
-        await supabase
-          .from("production_defects")
-          .update(defectUpdatePayload)
-          .eq("production_detail_id", targetDetailId);
+          const { data: existingDefects } = await supabase
+            .from("production_defects")
+            .select("id")
+            .eq("production_detail_id", targetDetailId);
+
+          if (splitDetails.length > 0 && existingDefects && existingDefects.length === splitDetails.length) {
+            for (let i = 0; i < existingDefects.length; i++) {
+              const payload: any = {
+                meter: String(meterNum),
+                detail: splitDetails[i],
+              };
+              if (params.newKategori !== undefined && params.newKategori !== "") payload.kategori = params.newKategori;
+              if (params.newBlok !== undefined) payload.blok = params.newBlok || null;
+              await supabase
+                .from("production_defects")
+                .update(payload)
+                .eq("id", existingDefects[i].id);
+            }
+          } else {
+            const defectUpdatePayload: any = {
+              meter: String(meterNum),
+            };
+            if (params.newKategori !== undefined && params.newKategori !== "") defectUpdatePayload.kategori = params.newKategori;
+            if (splitDetails.length === 1) defectUpdatePayload.detail = splitDetails[0];
+            if (params.newBlok !== undefined) defectUpdatePayload.blok = params.newBlok || null;
+
+            await supabase
+              .from("production_defects")
+              .update(defectUpdatePayload)
+              .eq("production_detail_id", targetDetailId);
+          }
+        } else {
+          // Hanya update meter tanpa mengubah detail defect
+          await supabase
+            .from("production_defects")
+            .update({ meter: String(meterNum) })
+            .eq("production_detail_id", targetDetailId);
+        }
       }
 
       // 4. Update downtime_records jika ada

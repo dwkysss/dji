@@ -60,6 +60,12 @@ export default function QuickEditMeterModal({
     ? "FINISH"
     : "DEFECT";
 
+  const [initialData, setInitialData] = useState<{
+    kategori: string;
+    detail: string;
+    blok: string;
+  }>({ kategori: "A", detail: "", blok: "" });
+
   useEffect(() => {
     if (!rowItem) return;
     setErrorMsg(null);
@@ -79,7 +85,14 @@ export default function QuickEditMeterModal({
     // Parse blok
     const rawBlok = rowItem.keterangan_cacat || "";
     const matchBlok = rawBlok.match(/Blok\s*([^\s,]+)/i);
-    setBlok(matchBlok ? matchBlok[1] : rawBlok.replace(/[^0-9]/g, ""));
+    const parsedBlok = matchBlok ? matchBlok[1] : rawBlok.replace(/[^0-9]/g, "");
+    setBlok(parsedBlok);
+
+    setInitialData({
+      kategori: kat,
+      detail: cleanDetail,
+      blok: parsedBlok,
+    });
   }, [rowItem, isOpen]);
 
   if (!isOpen || !rowItem) return null;
@@ -105,6 +118,12 @@ export default function QuickEditMeterModal({
     setIsSaving(true);
     setErrorMsg(null);
 
+    // Cek apakah user benar-benar mengubah data cacat/blok/kategori
+    const isDefectChanged =
+      detailMasalah.trim() !== initialData.detail.trim() ||
+      kategori !== initialData.kategori ||
+      blok.trim() !== initialData.blok.trim();
+
     try {
       const res = await updateQuickMeterValue({
         headerId: rowItem.header_id,
@@ -112,9 +131,10 @@ export default function QuickEditMeterModal({
         newMeter: num,
         rowType,
         pcsIndex: rowItem.pcs_index,
-        newKategori: rowType === "DEFECT" ? kategori : undefined,
-        newDetailMasalah: rowType === "DEFECT" ? detailMasalah : undefined,
-        newBlok: rowType === "DEFECT" ? blok : undefined,
+        // Jangan kirim field cacat jika user hanya mengedit meter agar daftar cacat bertingkat tidak tertimpa/hilang
+        newKategori: rowType === "DEFECT" && isDefectChanged ? kategori : undefined,
+        newDetailMasalah: rowType === "DEFECT" && isDefectChanged ? detailMasalah : undefined,
+        newBlok: rowType === "DEFECT" && isDefectChanged ? blok : undefined,
       });
 
       if (res.success) {
