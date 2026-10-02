@@ -101,7 +101,52 @@ export async function getRealProductionsData(options?: {
 
     const data = allData;
 
-    // Query 2: Fetch header timestamps for exact shift date attribution in batches of 500
+    // Query 2: Fetch header timestamps for exact shift date attribution via fast range pagination (avoids 502 Bad Gateway)
+    const headerTimeMap = new Map<string, string>();
+    const HEADER_PAGE_SIZE = 1000;
+    let headerFrom = 0;
+    let headerHasMore = true;
+
+    while (headerHasMore) {
+      let hQuery = supabase
+        .from("production_headers")
+        .select("id, tanggal_jam")
+        .order("tgl", { ascending: false });
+
+      if (options?.startDate) {
+        hQuery = hQuery.gte("tgl", options.startDate);
+      }
+      if (options?.endDate) {
+        hQuery = hQuery.lte("tgl", options.endDate);
+      }
+
+      const { data: hChunk, error: hError } = await hQuery.range(
+        headerFrom,
+        headerFrom + HEADER_PAGE_SIZE - 1
+      );
+
+      if (hError) {
+        console.error("Dashboard error fetching headers chunk:", hError);
+        break;
+      }
+
+      if (hChunk && hChunk.length > 0) {
+        hChunk.forEach((h: any) => {
+          if (h.id && h.tanggal_jam) {
+            headerTimeMap.set(String(h.id), String(h.tanggal_jam));
+          }
+        });
+        if (hChunk.length < HEADER_PAGE_SIZE) {
+          headerHasMore = false;
+        } else {
+          headerFrom += HEADER_PAGE_SIZE;
+        }
+      } else {
+        headerHasMore = false;
+      }
+    }
+
+    // Safety fallback: if any specific header_ids in data are missing, fetch in small batches of 50
     const headerIds = Array.from(
       new Set(
         (data || [])
@@ -109,19 +154,18 @@ export async function getRealProductionsData(options?: {
           .filter(Boolean),
       ),
     );
-
-    const headerTimeMap = new Map<string, string>();
-    if (headerIds.length > 0) {
-      const CHUNK_SIZE = 500;
-      for (let i = 0; i < headerIds.length; i += CHUNK_SIZE) {
-        const batch = headerIds.slice(i, i + CHUNK_SIZE);
-        const { data: headersData, error: hError } = await supabase
+    const missingIds = headerIds.filter((id) => !headerTimeMap.has(String(id)));
+    if (missingIds.length > 0) {
+      const SAFE_BATCH_SIZE = 50;
+      for (let i = 0; i < missingIds.length; i += SAFE_BATCH_SIZE) {
+        const batch = missingIds.slice(i, i + SAFE_BATCH_SIZE);
+        const { data: missingHeaders, error: mError } = await supabase
           .from("production_headers")
           .select("id, tanggal_jam")
           .in("id", batch);
 
-        if (!hError && headersData) {
-          headersData.forEach((h: any) => {
+        if (!mError && missingHeaders) {
+          missingHeaders.forEach((h: any) => {
             if (h.id && h.tanggal_jam) {
               headerTimeMap.set(String(h.id), String(h.tanggal_jam));
             }

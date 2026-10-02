@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { WifiProvider } from "@/lib/wifi-context";
 import GlobalWidgets from "@/components/GlobalWidgets";
+import NavigationProgressBar from "@/components/layout/NavigationProgressBar";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -69,6 +70,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
       <body className="min-h-full bg-[var(--background)] text-[#1f2d3d] flex flex-col font-sans">
+        <NavigationProgressBar />
         <AuthProvider>
           <WifiProvider>
             <GlobalWidgets />

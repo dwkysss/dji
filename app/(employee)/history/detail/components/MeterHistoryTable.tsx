@@ -171,14 +171,13 @@ export default function MeterHistoryTable({
         }
       }
       const hasIstirahatRaw = (
-        Boolean(h.operator_backup) ||
         (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
         (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
       );
-      const hasIstirahat = hasIstirahatRaw;
+      const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
       const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G" || item.detail_masalah?.toUpperCase().includes("GAGAL CACAT"));
       const isFinishReport = !hasIstirahat && h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
       const hasDefect = !!item.kategori_masalah || !!item.detail_masalah || (item.keterangan_cacat && item.keterangan_cacat !== "START" && item.keterangan_cacat !== "FINISH" && !isIstirahat);
@@ -217,14 +216,13 @@ export default function MeterHistoryTable({
         }
       }
       const hasIstirahatRaw = (
-        Boolean(h.operator_backup) ||
         (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") ||
         (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") ||
         (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") ||
         (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
       );
-      const hasIstirahat = hasIstirahatRaw;
+      const hasIstirahat = hasIstirahatRaw && !hasRealDefectsMap;
       const isIstirahat = hasIstirahat && !item.kategori_masalah && !item.detail_masalah;
       
       const isFinish = !hasIstirahat && (item.keterangan_cacat === "FINISH" || item.production_headers?.panel_no === "FINISH" || item.production_headers?.meter_akhir);
@@ -572,6 +570,8 @@ export default function MeterHistoryTable({
           meterDisplay = cleanMeterVal(h.meter_awal);
         } else if (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "") {
           meterDisplay = cleanMeterVal(item.meter_kain);
+        } else if (defectMeterStr) {
+          meterDisplay = cleanMeterVal(defectMeterStr);
         }
       } else {
         if (item.detail_masalah) {
@@ -742,15 +742,15 @@ export default function MeterHistoryTable({
         : (cleanedCacatLines.length > 0 ? cleanedCacatLines.join("\n") : (isTrueFinish ? "FINISH" : "-"));
 
       let backupOpName = "";
-      if (hasIstirahat) {
-        if (backupOp) {
-          backupOpName = backupOp;
-        } else {
-          const searchStr = `${h.operator_backup || ""} ${h.pic || ""} ${h.jenis_laporan || ""} ${item.keterangan_cacat || ""} ${item.detail_masalah || ""}`;
-          const match = searchStr.match(/Backup:\s*([^)\],]+)/i);
-          if (match && match[1]) {
-            backupOpName = match[1].trim();
-          }
+      if (backupOp) {
+        backupOpName = backupOp;
+      } else if (h.operator_backup) {
+        backupOpName = h.operator_backup;
+      } else if (hasIstirahat) {
+        const searchStr = `${h.operator_backup || ""} ${h.pic || ""} ${h.jenis_laporan || ""} ${item.keterangan_cacat || ""} ${item.detail_masalah || ""}`;
+        const match = searchStr.match(/Backup:\s*([^)\],]+)/i);
+        if (match && match[1]) {
+          backupOpName = match[1].trim();
         }
       }
 
@@ -1267,7 +1267,7 @@ export default function MeterHistoryTable({
                 })()}
               </td>
               <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? 'text-slate-500' : 'text-slate-700'}`}>
-                {item.hasIstirahat && (
+                {(item.hasIstirahat || (item.backupOpName && item.backupOpName.trim().toLowerCase() !== (item.oprStr || "").trim().toLowerCase())) && (
                   <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                     {(item.backupOpName && item.backupOpName.trim().toLowerCase() !== (item.oprStr || "").trim().toLowerCase()) ? (
                       <span className="text-slate-700 font-bold">{item.backupOpName}</span>

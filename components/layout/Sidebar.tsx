@@ -38,6 +38,7 @@ import {
   UserCheck,
   Package,
   TableProperties,
+  Loader2,
 } from "lucide-react";
 
 const MACHINE_INPUT_TYPES: Record<string, string> = {
@@ -436,6 +437,7 @@ function SidebarInner({
   const [isHovered, setIsHovered] = useState(false);
   const [isTouchOpen, setIsTouchOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   // Load pinned preference from localStorage
   useEffect(() => {
@@ -447,12 +449,13 @@ function SidebarInner({
     } catch (e) {}
   }, []);
 
-  // Automatically close unpinned touch sidebar and mobile drawer upon navigation
+  // Automatically close unpinned touch sidebar and mobile drawer upon navigation, and reset pending link
   useEffect(() => {
     if (!isPinned) {
       setIsTouchOpen(false);
     }
     setIsMobileOpen(false);
+    setPendingHref(null);
   }, [pathname, isPinned, setIsMobileOpen]);
 
   const togglePin = () => {
@@ -645,36 +648,54 @@ function SidebarInner({
                     {visibleItems.map((item: any) => {
                       const Icon = item.icon;
                       const isActive = isNavItemActive(item.href, pathname, allNavItems);
+                      const isPending = pendingHref === item.href;
                       return (
                         <Link
                           key={item.href}
                           href={item.href}
+                          prefetch={false}
                           onClick={() => {
+                            if (item.href !== pathname && !item.href.startsWith("#")) {
+                              setPendingHref(item.href);
+                            }
                             setIsMobileOpen(false);
                             if (!isPinned) setIsTouchOpen(false);
                           }}
-                          className={`flex items-center gap-3 px-3 h-9 rounded-xl text-xs font-semibold transition-all duration-200 group/item cursor-pointer
+                          className={`flex items-center justify-between gap-2 px-3 h-9 rounded-xl text-xs font-semibold transition-all duration-200 group/item cursor-pointer
                             ${
-                              isActive
+                              isPending
+                                ? "bg-sky-100/90 text-[#0070bc] shadow-xs ring-1 ring-[#0070bc]/30"
+                                : isActive
                                 ? "bg-white shadow-sm text-[#0070bc]"
                                 : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/60"
                             }`}
                           title={item.name}
                         >
-                          <Icon
-                            className={`w-4 h-4 shrink-0 transition-transform group-hover/item:scale-105 ${
-                              isActive ? "text-[#0070bc]" : "text-slate-400"
-                            }`}
-                          />
-                          <span
-                            className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
-                              isExpanded
-                                ? "opacity-100 w-auto"
-                                : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
-                            }`}
-                          >
-                            {item.name}
-                          </span>
+                          <div className="flex items-center gap-3 min-w-0">
+                            {isPending ? (
+                              <Loader2 className="w-4 h-4 shrink-0 animate-spin text-[#0070bc]" />
+                            ) : (
+                              <Icon
+                                className={`w-4 h-4 shrink-0 transition-transform group-hover/item:scale-105 ${
+                                  isActive ? "text-[#0070bc]" : "text-slate-400"
+                                }`}
+                              />
+                            )}
+                            <span
+                              className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
+                                isExpanded
+                                  ? "opacity-100 w-auto"
+                                  : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
+                              }`}
+                            >
+                              {item.name}
+                            </span>
+                          </div>
+                          {isPending && isExpanded && (
+                            <span className="text-[10px] font-bold text-[#0070bc] animate-pulse shrink-0">
+                              Memuat...
+                            </span>
+                          )}
                         </Link>
                       );
                     })}
@@ -698,36 +719,54 @@ function SidebarInner({
             {filteredGeneralItems.map((item: any) => {
               const Icon = item.icon;
               const isActive = isNavItemActive(item.href, pathname, allNavItems);
+              const isPending = pendingHref === item.href;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
+                  prefetch={false}
                   onClick={() => {
+                    if (item.href !== pathname && !item.href.startsWith("#")) {
+                      setPendingHref(item.href);
+                    }
                     setIsMobileOpen(false);
                     if (!isPinned) setIsTouchOpen(false);
                   }}
-                  className={`flex items-center gap-4 px-3.5 h-10 rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-200 group/item cursor-pointer
+                  className={`flex items-center justify-between gap-2 px-3.5 h-10 rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-200 group/item cursor-pointer
                     ${
-                      isActive
+                      isPending
+                        ? "bg-sky-100/90 text-[#0070bc] shadow-xs ring-1 ring-[#0070bc]/30"
+                        : isActive
                         ? "bg-white shadow-sm text-[#0070bc]"
                         : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
                     }`}
                   title={item.name}
                 >
-                  <Icon
-                    className={`w-5 h-5 shrink-0 transition-transform group-hover/item:scale-105 ${
-                      isActive ? "text-[#0070bc]" : "text-slate-400"
-                    }`}
-                  />
-                  <span
-                    className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
-                      isExpanded
-                        ? "opacity-100 w-auto"
-                        : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
-                    }`}
-                  >
-                    {item.name}
-                  </span>
+                  <div className="flex items-center gap-4 min-w-0">
+                    {isPending ? (
+                      <Loader2 className="w-5 h-5 shrink-0 animate-spin text-[#0070bc]" />
+                    ) : (
+                      <Icon
+                        className={`w-5 h-5 shrink-0 transition-transform group-hover/item:scale-105 ${
+                          isActive ? "text-[#0070bc]" : "text-slate-400"
+                        }`}
+                      />
+                    )}
+                    <span
+                      className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
+                        isExpanded
+                          ? "opacity-100 w-auto"
+                          : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
+                      }`}
+                    >
+                      {item.name}
+                    </span>
+                  </div>
+                  {isPending && isExpanded && (
+                    <span className="text-[10px] font-bold text-[#0070bc] animate-pulse shrink-0">
+                      Memuat...
+                    </span>
+                  )}
                 </Link>
               );
             })}

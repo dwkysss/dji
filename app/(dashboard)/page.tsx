@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
   ArrowUpRight,
@@ -413,16 +414,23 @@ const getNiceChartMax = (rawValue: number, minimum = 5) => {
   return niceNormalized * magnitude * 4;
 };
 
+// In-memory cache to persist dashboard transactions across client navigation without reloading
+let cachedDashboardTransactions: Transaction[] | null = null;
+let cachedDashboardIsLive = false;
+let isFetchingDashboardData = false;
+
 export default function DashboardPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<
     "ALL" | "LOLOS" | "EFISIENSI" | "PROBLEMS" | "NOL_PRODUKSI"
   >("ALL");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>(() => cachedDashboardTransactions || []);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [showAllParetoCards, setShowAllParetoCards] = useState(false);
-  const [isLive, setIsLive] = useState(false);
+  const [isLive, setIsLive] = useState<boolean>(() => cachedDashboardIsLive);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Dashboard View Mode (Produksi vs Kehadiran)
   const [dashboardMode, setDashboardMode] = useState<"PRODUKSI" | "KEHADIRAN">(
@@ -533,34 +541,51 @@ export default function DashboardPage() {
   useEffect(() => {
     if (user) {
       if (user.role === "operator") {
-        window.location.replace("/input");
+        router.replace("/input");
       } else if (user.role === "inspeksi" || user.role === "qc") {
-        window.location.replace("/qc");
+        router.replace("/qc");
       } else if (user.role === "mending") {
-        window.location.replace("/mending");
+        router.replace("/mending");
       }
     }
-  }, [user]);
+  }, [user, router]);
 
-  // Load real production data from Supabase
+  // Load real production data from Supabase (with client-side navigation caching)
+  const loadLiveData = async (forceRefresh = false) => {
+    if (isFetchingDashboardData && !forceRefresh) return;
+    if (!forceRefresh && cachedDashboardTransactions && cachedDashboardTransactions.length > 0) {
+      return;
+    }
+    isFetchingDashboardData = true;
+    if (forceRefresh) setIsRefreshing(true);
+
+    try {
+      const res = await getRealProductionsData();
+      console.log("Dashboard Live Data Response:", res);
+      if (res.success && res.data) {
+        cachedDashboardTransactions = res.data as Transaction[];
+        cachedDashboardIsLive = true;
+        setTransactions(res.data as Transaction[]);
+        setIsLive(true);
+      } else if (!res.success) {
+        console.error("Failed to load dashboard data:", res.error);
+      }
+    } catch (err) {
+      console.error("Error calling getRealProductionsData:", err);
+    } finally {
+      isFetchingDashboardData = false;
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     // Jangan load data berat jika user bukan admin/manager
     if (user && (user.role === "operator" || user.role === "inspeksi" || user.role === "qc" || user.role === "mending")) {
       return;
     }
-    async function loadLiveData() {
-      try {
-        const res = await getRealProductionsData();
-        console.log("Dashboard Live Data Response:", res);
-        if (res.success && res.data) {
-          setTransactions(res.data);
-          setIsLive(true);
-        } else if (!res.success) {
-          console.error("Failed to load dashboard data:", res.error);
-        }
-      } catch (err) {
-        console.error("Error calling getRealProductionsData:", err);
-      }
+    // Jika data sudah pernah di-load di sesi ini, jangan reload lagi saat pindah halaman!
+    if (cachedDashboardTransactions && cachedDashboardTransactions.length > 0) {
+      return;
     }
     loadLiveData();
   }, [user]);
@@ -805,7 +830,7 @@ export default function DashboardPage() {
     // Hitung total panel unik hasil produksi (sesuai dengan standar Laporan Produksi & Chart)
     const uniquePanelsSet = new Set<string>();
     productionOnly.forEach((item) => {
-      if ((item.hasil_meter || 0) > 0) return;
+      if ((item.hasil_meter || 0) > 0 || isMeterItem(item)) return;
       if (isBsAwalAkhir(item)) return;
       const panelStr = String(item.panel_no_str || item.panel_no || "").toUpperCase().trim();
       if (
@@ -2428,11 +2453,20 @@ export default function DashboardPage() {
             </div>
 
             <button
+              onClick={() => loadLiveData(true)}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group disabled:opacity-50"
+              title="Segarkan data dari server"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 transition-transform duration-500 ${isRefreshing ? "animate-spin text-sky-600" : "group-hover:rotate-180"}`} />
+              {isRefreshing ? "Memuat..." : "Segarkan"}
+            </button>
+
+            <button
               onClick={handleResetFilters}
               className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group"
               title="Reset Slicer"
             >
-              <RefreshCw className="w-3.5 h-3.5 transition-transform duration-500 group-hover:rotate-180" />
               Reset
             </button>
           </div>

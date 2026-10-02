@@ -1422,20 +1422,34 @@ export default function ContinuousForm({
     data.designName = getDesignName(data.designId);
     data.created_by_name = user?.fullName || null;
 
-    if (data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat") {
-      if (!backupOperator) {
-        setIsSubmitting(false);
-        setIsProcessingSubmit(false);
-        setErrorMsg(`Wajib memilih Operator Backup yang menjaga mesin saat ${data.jenisLaporan}.`);
-        return;
+    const meterAkhirNum = parseFormMeterValue(data.meterAkhir);
+    const hasMeterAkhirInput = Boolean(data.meterAkhir && String(data.meterAkhir).trim() !== "");
+
+    if (!hasMeterAkhirInput) {
+      // Jika ini pelaporan titik cacat / downtime murni (tanpa mengisi meter akhir):
+      // Jangan set jenisLaporan sebagai checkpoint istirahat/masuk
+      data.jenisLaporan = "";
+      // Namun jika sedang dalam masa istirahat (ada backup operator), tetap sertakan backupOperator agar tercatat
+      if (backupOperator) {
+        data.backupOperator = backupOperator;
+      } else {
+        data.backupOperator = undefined;
       }
-      data.backupOperator = backupOperator;
     } else {
-      data.backupOperator = undefined;
+      if (data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat") {
+        if (!backupOperator) {
+          setIsSubmitting(false);
+          setIsProcessingSubmit(false);
+          setErrorMsg(`Wajib memilih Operator Backup yang menjaga mesin saat ${data.jenisLaporan}.`);
+          return;
+        }
+        data.backupOperator = backupOperator;
+      } else {
+        data.backupOperator = undefined;
+      }
     }
 
-    const isIstirahatReport = data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat";
-    const meterAkhirNum = parseFormMeterValue(data.meterAkhir);
+    const isIstirahatReport = hasMeterAkhirInput && (data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat");
     const isT2ACutSubmit = data.nomorMc === "T2A" && meterAkhirNum === 0;
     const effectiveIsLastRoll = isLastRoll || isT2ACutSubmit || Boolean(data.tanggalPotong);
 
@@ -1704,17 +1718,22 @@ export default function ContinuousForm({
         ? String(currentPotongan + 1)
         : watch("potonganKe");
 
+    const submittedMeterAkhir = successData?.meterAkhir;
+    const isMeterCheckpointSubmitted = Boolean(submittedMeterAkhir && String(submittedMeterAkhir).trim() !== "");
+
     let nextJenisLaporan = watch("jenisLaporan");
-    if (nextJenisLaporan === "Mulai Istirahat") {
-      nextJenisLaporan = "Selesai Istirahat";
-    } else if (nextJenisLaporan === "Selesai Istirahat") {
-      nextJenisLaporan = "";
-      localStorage.removeItem("dji_last_backup_operator");
-      setBackupOperator("");
+    // Transisi status istirahat/masuk HANYA dilakukan jika yang baru saja disubmit adalah laporan checkpoint meter akhir
+    if (isMeterCheckpointSubmitted) {
+      if (submittedJenis === "Mulai Istirahat") {
+        nextJenisLaporan = "Selesai Istirahat";
+      } else if (submittedJenis === "Selesai Istirahat") {
+        nextJenisLaporan = "";
+        localStorage.removeItem("dji_last_backup_operator");
+        setBackupOperator("");
+      }
     }
 
-    const submittedMeterAkhir = successData?.meterAkhir;
-    const nextMeterAwal = (submittedMeterAkhir && String(submittedMeterAkhir).trim() !== "" && !wasLastRoll)
+    const nextMeterAwal = (isMeterCheckpointSubmitted && submittedMeterAkhir && String(submittedMeterAkhir).trim() !== "" && !wasLastRoll)
       ? String(submittedMeterAkhir)
       : (wasLastRoll ? "" : watch("meterAwal"));
 
