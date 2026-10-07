@@ -14,7 +14,7 @@ export default function LoginForm() {
   const [isAutoLoggingIn, setIsAutoLoggingIn] = useState<boolean>(false);
   const autoLoginTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Restore remembered credentials & trigger auto-login on mount
+  // Restore remembered credentials on mount
   useEffect(() => {
     try {
       const savedNip = localStorage.getItem("dji_remembered_nip");
@@ -26,18 +26,24 @@ export default function LoginForm() {
         setRememberMe(false);
       }
 
-      if (savedNip && savedPwdEnc) {
-        const decodedPwd = atob(savedPwdEnc);
+      if (savedNip) {
         setNip(savedNip);
-        setPassword(decodedPwd);
+      }
 
-        // Hanya jalankan AUTO LOGIN jika BUKAN karena pengguna sengaja menekan tombol "Logout"
-        // (misal tablet baru dibuka, refresh, atau session expired)
-        if (manualLogout !== "1") {
-          setIsAutoLoggingIn(true);
-          autoLoginTimerRef.current = setTimeout(() => {
-            performLogin(savedNip, decodedPwd, true);
-          }, 400);
+      if (savedNip && savedPwdEnc) {
+        try {
+          const decodedPwd = atob(savedPwdEnc);
+          setPassword(decodedPwd);
+
+          // Auto-login jika bukan logout manual
+          if (manualLogout !== "1") {
+            setIsAutoLoggingIn(true);
+            autoLoginTimerRef.current = setTimeout(() => {
+              performLogin(savedNip, decodedPwd, true);
+            }, 500);
+          }
+        } catch (e) {
+          console.warn("Gagal mendekode remembered password:", e);
         }
       }
     } catch (e) {
@@ -80,7 +86,6 @@ export default function LoginForm() {
         setIsAutoLoggingIn(false);
         if (result.error?.toLowerCase().includes("invalid login credentials")) {
           setError("NIP/Email atau Password yang Anda masukkan salah.");
-          // Jika salah, bersihkan credential yang tersimpan agar tidak terus-terusan auto-login gagal
           if (isAuto) {
             localStorage.removeItem("dji_remembered_pwd");
           }

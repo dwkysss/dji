@@ -3,6 +3,7 @@ import {
   getDailyInspectMendingScheduleSettings, 
   syncAllDailyInspectMending 
 } from "@/actions/google-sheet-actions";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 menit timeout untuk Vercel / serverless
@@ -16,6 +17,9 @@ export async function POST(req: Request) {
 }
 
 async function handleSync(req: Request) {
+  const authResponse = checkCronAuth(req);
+  if (authResponse) return authResponse;
+
   try {
     const schedule = await getDailyInspectMendingScheduleSettings();
 

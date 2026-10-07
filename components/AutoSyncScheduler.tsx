@@ -62,7 +62,20 @@ export default function AutoSyncScheduler() {
     return () => clearInterval(configInterval);
   }, []);
 
-  // 2. Heartbeat check every 5 seconds
+  // 2. Cross-tab Atomic Concurrency Lock untuk mencegah duplicate execution jika user membuka banyak tab
+  const claimSyncLock = (type: string, key: string): boolean => {
+    try {
+      const lockKey = `dji_sync_lock_${type}`;
+      const existing = localStorage.getItem(lockKey);
+      if (existing === key) return false; // Sudah dijalankan oleh tab lain pada menit ini
+      localStorage.setItem(lockKey, key);
+      return true;
+    } catch (e) {
+      return true;
+    }
+  };
+
+  // 3. Heartbeat check every 5 seconds
   useEffect(() => {
     const heartbeatInterval = setInterval(async () => {
       if (isSyncingRef.current) return;
@@ -76,11 +89,11 @@ export default function AutoSyncScheduler() {
       // Check Monthly Machine Schedule
       if (monthlyScheduleState?.enabled && monthlyScheduleState.time === currentTime) {
         const syncKeyMonthly = `monthly_${todayDate}_${currentTime}`;
-        if (lastSyncedKeyRef.current !== syncKeyMonthly) {
+        if (lastSyncedKeyRef.current !== syncKeyMonthly && claimSyncLock("monthly", syncKeyMonthly)) {
           lastSyncedKeyRef.current = syncKeyMonthly;
           isSyncingRef.current = true;
 
-          console.log(`[Auto-Sync Localhost] ⏰ [Laporan Bulanan] Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi...`);
+          console.log(`[Auto-Sync] ⏰ [Laporan Bulanan] Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi...`);
           try {
             const res = await fetch("/api/cron/sync-monthly-machine", {
               method: "POST",
@@ -104,11 +117,11 @@ export default function AutoSyncScheduler() {
       // Check Potong Kain Schedule
       if (potongScheduleState?.enabled && potongScheduleState.time === currentTime) {
         const syncKeyPotong = `potong_${todayDate}_${currentTime}`;
-        if (lastSyncedKeyRef.current !== syncKeyPotong) {
+        if (lastSyncedKeyRef.current !== syncKeyPotong && claimSyncLock("potong", syncKeyPotong)) {
           lastSyncedKeyRef.current = syncKeyPotong;
           isSyncingRef.current = true;
 
-          console.log(`[Auto-Sync Localhost] ⏰ [Potong Kain] Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi...`);
+          console.log(`[Auto-Sync] ⏰ [Potong Kain] Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi...`);
           try {
             const res = await fetch("/api/cron/sync-potong-kain", {
               method: "POST",
@@ -132,11 +145,11 @@ export default function AutoSyncScheduler() {
       // Check Daily Inspect & Mending Schedule
       if (dailyScheduleState?.enabled && dailyScheduleState.time === currentTime) {
         const syncKeyDaily = `daily_${todayDate}_${currentTime}`;
-        if (lastSyncedKeyRef.current !== syncKeyDaily) {
+        if (lastSyncedKeyRef.current !== syncKeyDaily && claimSyncLock("daily", syncKeyDaily)) {
           lastSyncedKeyRef.current = syncKeyDaily;
           isSyncingRef.current = true;
 
-          console.log(`[Auto-Sync Localhost] ⏰ [Inspect & Mending] Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi...`);
+          console.log(`[Auto-Sync] ⏰ [Inspect & Mending] Waktu ${currentTime} WIB tercapai! Memulai sinkronisasi...`);
           try {
             const res = await fetch("/api/cron/sync-daily-inspect-mending", {
               method: "POST",

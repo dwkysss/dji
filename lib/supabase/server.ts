@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-const SESSION_MAX_AGE = 60 * 60 * 8; // 8 jam
+const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 hari
 
 export async function createClient() {
   let cookieStore: any = null;

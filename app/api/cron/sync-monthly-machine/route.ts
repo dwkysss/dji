@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { syncAllMonthlyMachines, getAutoSyncScheduleSettings } from "@/actions/google-sheet-actions";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 /**
  * CRON ENDPOINT: Otomatis Sinkronisasi Seluruh Mesin ke Google Sheets
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleSync(request: NextRequest) {
+  const authResponse = checkCronAuth(request);
+  if (authResponse) return authResponse;
+
   try {
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");

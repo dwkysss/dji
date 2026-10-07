@@ -62,6 +62,12 @@ export async function resolveLoginEmail(identifier: string): Promise<string> {
 
 export async function listAdminUsers() {
   try {
+    // 🔐 Hanya admin atau manager yang boleh melihat daftar seluruh akun
+    const { user: caller, role: callerRole } = await getAuthenticatedUser();
+    if (!caller || (callerRole !== "admin" && callerRole !== "manager")) {
+      return { success: false, error: "Unauthorized: hanya admin atau manager yang dapat melihat daftar pengguna." };
+    }
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const supabase = createClient(supabaseUrl, supabaseKey, {

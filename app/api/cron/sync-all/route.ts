@@ -7,6 +7,7 @@ import {
   syncAllDailyInspectMending,
   getDailyInspectMendingScheduleSettings
 } from "@/actions/google-sheet-actions";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 /**
  * MASTER CRON ENDPOINT: Sinkronisasi Semua Laporan ke Google Sheets Sekaligus
@@ -30,6 +31,9 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleSyncAll(request: NextRequest) {
+  const authResponse = checkCronAuth(request);
+  if (authResponse) return authResponse;
+
   const overallStartTime = Date.now();
   const { searchParams } = new URL(request.url);
   const forceParam = searchParams.get("force") === "true";
