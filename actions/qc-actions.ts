@@ -488,15 +488,18 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
 
     if (detailsError) return { success: false, error: detailsError.message };
 
-    const detailIds = (details || []).map((d: any) => d.id);
+    const detailIds = (details || []).map((d: any) => d.id).filter(Boolean);
     const submittedIds = new Set<string>();
     if (detailIds.length > 0) {
-      const { data: submittedItems } = await supabase
-        .from("qc_inspection_items")
-        .select("production_detail_id")
-        .in("production_detail_id", detailIds);
-      if (submittedItems && submittedItems.length > 0) {
-        submittedItems.forEach((it: any) => submittedIds.add(it.production_detail_id));
+      const detailChunks = chunkArray(detailIds, 50);
+      for (const chunk of detailChunks) {
+        const { data: submittedItems } = await supabase
+          .from("qc_inspection_items")
+          .select("production_detail_id")
+          .in("production_detail_id", chunk);
+        if (submittedItems && submittedItems.length > 0) {
+          submittedItems.forEach((it: any) => submittedIds.add(it.production_detail_id));
+        }
       }
     }
 
@@ -507,10 +510,13 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
     const falselyCompleted = pendingDetails.filter((d: any) => d.final_inspection_id !== null);
     if (falselyCompleted.length > 0) {
       const falselyIds = falselyCompleted.map((d: any) => d.id);
-      await supabase
-        .from("production_details")
-        .update({ final_inspection_id: null })
-        .in("id", falselyIds);
+      const falseChunks = chunkArray(falselyIds, 50);
+      for (const chunk of falseChunks) {
+        await supabase
+          .from("production_details")
+          .update({ final_inspection_id: null })
+          .in("id", chunk);
+      }
     }
 
     const detailsWithHeader = pendingDetails.map((d: any) => {
@@ -524,6 +530,14 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
   } catch (err: any) {
     return { success: false, error: err.message };
   }
+}
+
+function chunkArray<T>(arr: T[], size = 50): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    result.push(arr.slice(i, i + size));
+  }
+  return result;
 }
 
 export async function getAllPendingQCDetails(
@@ -552,75 +566,80 @@ export async function getAllPendingQCDetails(
       potongan = potonganParam;
     }
 
-    let query = supabase
-      .from("production_headers")
-      .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, groups(nama_grup), operators(nama_operator), tanggal_jam")
-      .order("tgl", { ascending: false });
-
     const sDate = startDate || tanggal;
     const eDate = endDate || startDate || tanggal;
 
+    // Gunakan inner join ke production_headers untuk menghindari query .in() dengan ribuan ID yang memicu buffer limit Nginx 502
+    let query = supabase
+      .from("production_details")
+      .select(`
+        id,
+        pcs_index,
+        jml_hasil_produksi,
+        kategori_masalah,
+        detail_masalah,
+        keterangan_cacat,
+        keterangan_qc,
+        meter_kain,
+        roll_no,
+        indikator_stop,
+        final_inspection_id,
+        header_id,
+        production_headers!inner (
+          id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, groups(nama_grup), operators(nama_operator), tanggal_jam
+        )
+      `)
+      .is("status_inspeksi", null)
+      .neq("is_deleted", true);
+
     if (sDate && eDate) {
       if (sDate === eDate) {
-        query = query.eq("tgl", sDate);
+        query = query.eq("production_headers.tgl", sDate);
       } else {
-        query = query.gte("tgl", sDate).lte("tgl", eDate);
+        query = query.gte("production_headers.tgl", sDate).lte("production_headers.tgl", eDate);
       }
     } else if (sDate) {
-      query = query.eq("tgl", sDate);
+      query = query.eq("production_headers.tgl", sDate);
     }
 
     if (mesin) {
-      query = query.eq("nomor_mc", mesin);
+      query = query.eq("production_headers.nomor_mc", mesin);
     }
     if (potongan) {
       const parsedPotongan = typeof potongan === "number" ? potongan : parseInt(String(potongan), 10);
       if (!isNaN(parsedPotongan)) {
-        query = query.eq("potongan_ke", parsedPotongan);
+        query = query.eq("production_headers.potongan_ke", parsedPotongan);
       }
     }
 
-    // Only limit when no search filters are provided at all
-    if (!sDate && !mesin && !potongan) {
-      query = query.limit(300);
-    }
+    const limit = (!sDate && !mesin && !potongan) ? 1000 : 2500;
+    query = query.order("id", { ascending: false }).limit(limit);
 
-    const { data: headers, error: headerError } = await query;
-
-    if (headerError) return { success: false, error: headerError.message };
-    if (!headers || headers.length === 0) return { success: true, data: [] };
-
-    const headerIds = headers.map((h: any) => h.id);
-
-    const { data: details, error: detailsError } = await supabase
-      .from("production_details")
-      .select("id, pcs_index, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, keterangan_qc, meter_kain, roll_no, indikator_stop, final_inspection_id, header_id")
-      .in("header_id", headerIds);
+    const { data: details, error: detailsError } = await query;
 
     if (detailsError) return { success: false, error: detailsError.message };
+    if (!details || details.length === 0) return { success: true, data: [] };
 
-    const detailIds = (details || []).map((d: any) => d.id);
+    // Validasi double-check dengan qc_inspection_items secara chunked (maks 50 id per request)
+    const detailIds = details.map((d: any) => d.id).filter(Boolean);
     const submittedIds = new Set<string>();
-    if (detailIds.length > 0) {
+    const chunks = chunkArray(detailIds, 50);
+
+    for (const chunk of chunks) {
       const { data: submittedItems } = await supabase
         .from("qc_inspection_items")
         .select("production_detail_id")
-        .in("production_detail_id", detailIds);
+        .in("production_detail_id", chunk);
       if (submittedItems && submittedItems.length > 0) {
         submittedItems.forEach((it: any) => submittedIds.add(it.production_detail_id));
       }
     }
 
-    const pendingDetails = (details || []).filter((d: any) => !submittedIds.has(d.id));
+    const pendingDetails = submittedIds.size > 0
+      ? details.filter((d: any) => !submittedIds.has(d.id))
+      : details;
 
-    const detailsWithHeader = pendingDetails.map((d: any) => {
-      const h = headers.find((h: any) => h.id === d.header_id);
-      return { ...d, production_headers: h };
-    });
-
-    const filteredDetails = detailsWithHeader;
-
-    return { success: true, data: filteredDetails };
+    return { success: true, data: pendingDetails };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
@@ -676,12 +695,19 @@ export async function getAvailableHistoryQCDesignPotongan() {
     if (error) return { success: false, error: error.message };
     if (!details || details.length === 0) return { success: true, data: [] };
 
-    const headerIds = Array.from(new Set(details.map((d: any) => d.header_id)));
+    const headerIds = Array.from(new Set(details.map((d: any) => d.header_id))).filter(Boolean);
+    const allHeaders: any[] = [];
+    const chunks = chunkArray(headerIds, 50);
+    for (const chunk of chunks) {
+      const { data: headers, error: headersError } = await supabase
+        .from("production_headers")
+        .select("id, design_id, potongan_ke")
+        .in("id", chunk);
+      if (headersError) return { success: false, error: headersError.message };
+      if (headers) allHeaders.push(...headers);
+    }
 
-    const { data: headers, error: headersError } = await supabase.from("production_headers").select("id, design_id, potongan_ke").in("id", headerIds);
-    if (headersError) return { success: false, error: headersError.message };
-
-    return { success: true, data: headers };
+    return { success: true, data: allHeaders };
   } catch (err: any) {
     return { success: false, error: err.message };
   }

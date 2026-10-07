@@ -1488,6 +1488,27 @@ export async function updateProductionReport(
 
     if (headerError) throw new Error(headerError.message);
 
+    // 1b. Jika yang di-update adalah Panel 1, otomatis sinkronkan data header (operator, group, design) ke BS AWAL
+    const isPanelOne = parseInt(String(data.panelNo || "0")) === 1 || data.panelNo === "1";
+    if (isPanelOne && data.nomorMc && potonganKeNum) {
+      const newOperatorId =
+        data.operatorId && !isNaN(parseInt(data.operatorId))
+          ? parseInt(data.operatorId)
+          : null;
+      await supabase
+        .from("production_headers")
+        .update({
+          operator_id: newOperatorId,
+          group_id: data.groupId,
+          design_id: data.designId,
+          pic: data.pic || null,
+          created_by_name: data.created_by_name || null,
+        })
+        .eq("nomor_mc", data.nomorMc)
+        .eq("potongan_ke", potonganKeNum)
+        .eq("panel_no", "BS AWAL");
+    }
+
     // 2. Fetch old details to preserve downstream data (inspeksi, mending, etc)
     const { data: oldDetails } = await supabase
       .from("production_details")

@@ -529,7 +529,11 @@ export default function QCPage() {
     if (res.success && res.data) {
       setAllDetails(res.data);
     } else {
-      setErrorMsg(res.error || "Gagal mencari data.");
+      let msg = res.error || "Gagal mencari data.";
+      if (typeof msg === "string" && (msg.includes("502") || msg.includes("Bad Gateway") || msg.includes("<html") || msg.includes("<!DOCTYPE"))) {
+        msg = "Koneksi ke server terputus (502 Bad Gateway). Silakan coba lagi atau gunakan filter tanggal/mesin yang lebih spesifik.";
+      }
+      setErrorMsg(msg);
     }
     setIsSearching(false);
   };
@@ -2435,9 +2439,19 @@ export default function QCPage() {
   return (
     <div className="w-full max-w-6xl mx-auto pb-24 sm:pb-28">
       {errorMsg && (
-        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 shrink-0" />
-          {errorMsg}
+        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
+            <span>{errorMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMsg(null)}
+            className="text-red-400 hover:text-red-700 transition-colors p-1 rounded-lg hover:bg-red-100/50 cursor-pointer"
+            title="Tutup pesan"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
