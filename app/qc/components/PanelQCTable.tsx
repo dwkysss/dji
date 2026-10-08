@@ -675,6 +675,7 @@ export default function PanelQCTable({
                           .replace(/\[QC\]/gi, "")
                           .replace(/\[TAMBAHAN QC\]/gi, "")
                           .replace(/\[TAMBAHAN MENDING\]/gi, "")
+                          .trim()
                           .replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "")
                           .trim();
                         return {
@@ -696,7 +697,9 @@ export default function PanelQCTable({
                               <div
                                 key={idx}
                                 className={
-                                  (isIstirahatOnly || isGagalCacatOnly)
+                                  cItem.isLineQc
+                                    ? "text-[#0070bc] font-medium"
+                                    : (isIstirahatOnly || isGagalCacatOnly)
                                     ? "text-slate-500 font-medium"
                                     : "text-rose-600 font-medium"
                                 }

@@ -131,6 +131,7 @@ export default function MeterFinalInspectionTable({
               .replace(/\[QC\]/gi, "")
               .replace(/\[TAMBAHAN QC\]/gi, "")
               .replace(/\[TAMBAHAN MENDING\]/gi, "")
+              .trim()
               .replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "")
               .trim();
             return { isLineQc, text: cleanText };
@@ -210,7 +211,9 @@ export default function MeterFinalInspectionTable({
                             <div
                               key={lIdx}
                               className={
-                                item.isGagalCacatOnly
+                                cItem.isLineQc
+                                  ? "text-[#0070bc] font-medium"
+                                  : item.isGagalCacatOnly
                                   ? "text-slate-500 font-medium"
                                   : "text-rose-600 font-medium"
                               }
