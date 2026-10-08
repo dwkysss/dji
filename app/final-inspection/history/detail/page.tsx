@@ -53,10 +53,12 @@ function FinalInspectionDetailContent() {
 
   const overallGradeData = React.useMemo(() => {
     return calculateOverallGradeData(
-      items.map((i: any) => ({
-        ...i.production_details,
-        hasil_final: i.hasil_final || "A",
-      })),
+      items
+        .filter((i: any) => !i.production_details?.is_deleted && i.production_details?.status_inspeksi !== "Dihapus")
+        .map((i: any) => ({
+          ...i.production_details,
+          hasil_final: i.hasil_final || "A",
+        })),
       isMeteran
     );
   }, [items, isMeteran]);
@@ -309,10 +311,16 @@ function FinalInspectionDetailContent() {
         <h2 className="text-lg font-bold text-red-800">Gagal Memuat Data</h2>
         <p className="text-sm text-red-600">{errorMsg || "Data batch tidak ditemukan."}</p>
         <button
-          onClick={() => router.push("/final-inspection/history")}
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/final-inspection/history");
+            }
+          }}
           className="px-5 py-2.5 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition-all shadow-sm cursor-pointer"
         >
-          Kembali ke Riwayat
+          Kembali
         </button>
       </div>
     );
@@ -323,11 +331,18 @@ function FinalInspectionDetailContent() {
       {/* Top Navigation */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => router.push("/final-inspection/history")}
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/final-inspection/history");
+            }
+          }}
           className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all shadow-xs cursor-pointer"
+          title="Kembali ke halaman sebelumnya"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Kembali ke Riwayat</span>
+          <span>Kembali</span>
         </button>
         <span className="text-xs text-slate-400 font-bold">ID Batch: #{batch.id}</span>
       </div>

@@ -169,16 +169,28 @@ export default function MachineBlockAnalyticsPage({ params }: PageProps) {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => router.push("/machines")}
-            className="w-10 h-10 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-all shadow-xs"
-            title="Kembali ke Monitoring Mesin"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/machines");
+              }
+            }}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-all shadow-xs cursor-pointer"
+            title="Kembali ke halaman sebelumnya"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-0.5">
               <span
-                onClick={() => router.push("/machines")}
+                onClick={() => {
+                  if (typeof window !== "undefined" && window.history.length > 1) {
+                    router.back();
+                  } else {
+                    router.push("/machines");
+                  }
+                }}
                 className="hover:text-blue-600 cursor-pointer transition-colors"
               >
                 Monitoring Mesin

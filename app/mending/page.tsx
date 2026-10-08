@@ -34,6 +34,8 @@ import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import MendingModal from "@/components/forms/MendingModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
+import DeletePanelModal from "@/components/forms/DeletePanelModal";
+import InsertPanelModal, { InsertPanelPayload } from "@/components/forms/InsertPanelModal";
 import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import HeaderSummaryCard from "@/components/forms/HeaderSummaryCard";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
@@ -57,6 +59,7 @@ import { REGISTERED_MACHINES, GROUPED_PROBLEM_DETAILS, DEFAULT_PROBLEM_DETAILS, 
 import MeterMendingTable from "./components/MeterMendingTable";
 import PanelMendingTable from "./components/PanelMendingTable";
 import { formatDefectLinesWithNumbering, getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
+import { isPanelGagalCacatAja } from "@/lib/mending-grade-utils";
 
 const DEFAULT_PROBLEM_CATEGORIES = [
   { id: "A", name: "Cacat Kain / Benang" },
@@ -386,18 +389,6 @@ export default function MendingPage() {
 
   // Tambah Panel Modal State
   const [insertPanelMode, setInsertPanelMode] = useState<"insert" | "append" | null>(null);
-  const [insertPanelAt, setInsertPanelAt] = useState<string>("");
-  const [isInsertingPanel, setIsInsertingPanel] = useState(false);
-  const [insertPanelError, setInsertPanelError] = useState<string | null>(null);
-  const [insertPanelHasDefect, setInsertPanelHasDefect] = useState(false);
-  const [insertPanelIsBs, setInsertPanelIsBs] = useState(false);
-
-  // States for defect selection within Insert Panel Modal
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedDetails, setSelectedDetails] = useState<Record<string, string[]>>({});
-  const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
-  const [insertPanelKeterangan, setInsertPanelKeterangan] = useState<string>("");
-  const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
   const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([]);
 
   // Add Defect Modal State (METERAN only)
@@ -604,126 +595,65 @@ export default function MendingPage() {
     return () => window.removeEventListener("storage_dji_required_block_defects", loadRequiredDefects);
   }, []);
 
-  const handleAddPanelManualDetail = (catId: string) => {
-    const text = (manualInputDetails[catId] || "").trim();
-    if (!text) return;
-    setSelectedDetails((prev) => {
-      const current = prev[catId] || [];
-      if (current.includes(text)) return prev;
-      return { ...prev, [catId]: [...current, text] };
+  const handleInsertPanelSubmit = async (payload: InsertPanelPayload) => {
+    if (!fullActiveMendingDetails || fullActiveMendingDetails.length === 0 || !activeMendingPcs) {
+      throw new Error("Tidak ditemukan rincian data batch aktif.");
+    }
+
+    const sortedBatchDetails = [...fullActiveMendingDetails].sort((a: any, b: any) => {
+      const pA = parseInt(a.production_headers?.panel_no || "0");
+      const pB = parseInt(b.production_headers?.panel_no || "0");
+      return pA - pB;
     });
-    setManualInputDetails((prev) => ({ ...prev, [catId]: "" }));
-  };
 
-  const handleInsertPanel = async () => {
-    setIsInsertingPanel(true);
-    setInsertPanelError(null);
-
-    try {
-      if (!fullActiveMendingDetails || fullActiveMendingDetails.length === 0) {
-        setInsertPanelError("Tidak ditemukan rincian data.");
-        setIsInsertingPanel(false);
-        return;
-      }
-
-      const sortedBatchDetails = [...fullActiveMendingDetails].sort((a: any, b: any) => {
-        const pA = parseInt(a.production_headers?.panel_no || "0");
-        const pB = parseInt(b.production_headers?.panel_no || "0");
-        return pA - pB;
-      });
-
-      let targetHeaderId = sortedBatchDetails[0]?.production_headers?.id;
-      if (insertPanelMode === "insert" && insertPanelAt) {
-        const targetPanelNo = parseInt(insertPanelAt);
-        const targetDetail = sortedBatchDetails.find(d => parseInt(d.production_headers?.panel_no || "0") === targetPanelNo);
-        if (targetDetail) {
-          targetHeaderId = targetDetail.production_headers?.id;
-        } else {
-          const precedingDetails = sortedBatchDetails.filter(d => parseInt(d.production_headers?.panel_no || "0") < targetPanelNo);
-          if (precedingDetails.length > 0) {
-            targetHeaderId = precedingDetails[precedingDetails.length - 1].production_headers?.id;
-          }
-        }
-      } else if (insertPanelMode === "append" && sortedBatchDetails.length > 0) {
-        targetHeaderId = sortedBatchDetails[sortedBatchDetails.length - 1]?.production_headers?.id;
-      }
-
-      if (!targetHeaderId) {
-        setInsertPanelError("Header ID tidak ditemukan.");
-        setIsInsertingPanel(false);
-        return;
-      }
-
-      let kategoriStr: string | undefined = undefined;
-      let detailStr: string | undefined = undefined;
-
-      if (insertPanelHasDefect && selectedCategories.length > 0) {
-        kategoriStr = selectedCategories.join(", ");
-        const detailParts: string[] = [];
-        selectedCategories.forEach((catId) => {
-          const details = [...(selectedDetails[catId] || [])];
-          const manual = (manualInputDetails[catId] || "").trim();
-          if (manual && !details.includes(manual)) {
-            details.push(manual);
-            try { createProblemDetail({ kategori: catId, nama_detail: manual }); } catch (e) {}
-          }
-          if (details.length > 0) {
-            detailParts.push(details.join(", "));
-          }
-        });
-        if (detailParts.length > 0) {
-          detailStr = detailParts.join(" | ");
-        }
-      }
-
-      const keteranganParts: string[] = [];
-      const bloksList: string[] = [];
-      selectedCategories.forEach((catId) => {
-        if ((catId === "A" || catId === "B") && inputBloks[catId]?.trim()) {
-          bloksList.push(inputBloks[catId].trim());
-        }
-      });
-      if (bloksList.length > 0) {
-        keteranganParts.push(bloksList.join(", "));
-      }
-      if (insertPanelKeterangan?.trim()) {
-        keteranganParts.push(insertPanelKeterangan.trim());
-      }
-
-      const targetPcsIndex = activeMendingPcs ? parseInt(activeMendingPcs.pcs_index) : 1;
-      const targetFinalInspectionId = insertPanelMode === "insert" && insertPanelIsBs
-        ? 4
-        : (selectedCategories.length > 0 ? 3 : (fullActiveMendingDetails[0]?.final_inspection_id || 1));
-
-      const res = await insertMissingPanel({
-        refHeaderId: targetHeaderId,
-        insertAt: insertPanelMode === "insert" ? parseInt(insertPanelAt) : undefined,
-        appendToEnd: insertPanelMode === "append",
-        pcsIndex: targetPcsIndex,
-        kategoriMasalah: selectedCategories.length > 0 ? selectedCategories : undefined,
-        detailMasalah: detailStr,
-        keteranganCacat: keteranganParts.join(", ") || undefined,
-        isBs: insertPanelMode === "insert" && insertPanelIsBs,
-        finalInspectionId: targetFinalInspectionId,
-      });
-
-      if (res.success && activeMendingPcs) {
-        setInsertPanelMode(null);
-        setInsertPanelAt("");
-        setInsertPanelHasDefect(false);
-        setInsertPanelIsBs(false);
-        setSelectedCategories([]);
-        setSelectedDetails({});
-        setInputBloks({});
-        setInsertPanelKeterangan("");
-        await refreshActiveMendingDetails(activeMendingPcs.nomor_mc, activeMendingPcs.design_id, activeMendingPcs.potongan_ke, activeMendingPcs.pcs_index);
+    let targetHeaderId = sortedBatchDetails[0]?.production_headers?.id;
+    if (payload.mode === "insert" && payload.insertAt) {
+      const targetPanelNo = payload.insertAt;
+      const targetDetail = sortedBatchDetails.find(d => parseInt(d.production_headers?.panel_no || "0") === targetPanelNo);
+      if (targetDetail) {
+        targetHeaderId = targetDetail.production_headers?.id;
       } else {
-        setInsertPanelError(res.error || "Gagal menyisipkan panel.");
+        const precedingDetails = sortedBatchDetails.filter(d => parseInt(d.production_headers?.panel_no || "0") < targetPanelNo);
+        if (precedingDetails.length > 0) {
+          targetHeaderId = precedingDetails[precedingDetails.length - 1].production_headers?.id;
+        }
       }
-    } catch (err: any) {
-      setInsertPanelError(err.message);
-    } finally {
-      setIsInsertingPanel(false);
+    } else if (payload.mode === "append" && sortedBatchDetails.length > 0) {
+      targetHeaderId = sortedBatchDetails[sortedBatchDetails.length - 1]?.production_headers?.id;
+    }
+
+    if (!targetHeaderId) {
+      throw new Error("Header ID tidak ditemukan.");
+    }
+
+    const targetPcsIndex = parseInt(activeMendingPcs.pcs_index) || 1;
+    const targetFinalInspectionId = payload.mode === "insert" && payload.isBs
+      ? 4
+      : (payload.kategoriMasalah && payload.kategoriMasalah.length > 0 ? 3 : (fullActiveMendingDetails[0]?.final_inspection_id || 1));
+
+    const res = await insertMissingPanel({
+      refHeaderId: targetHeaderId,
+      insertAt: payload.insertAt,
+      appendToEnd: payload.appendToEnd,
+      pcsIndex: targetPcsIndex,
+      kategoriMasalah: payload.kategoriMasalah,
+      detailMasalah: payload.detailMasalah,
+      keteranganCacat: payload.keteranganCacat,
+      isBs: payload.isBs,
+      finalInspectionId: targetFinalInspectionId,
+    });
+
+    if (res.success && activeMendingPcs) {
+      setInsertPanelMode(null);
+      await refreshActiveMendingDetails(
+        activeMendingPcs.nomor_mc,
+        activeMendingPcs.design_id,
+        activeMendingPcs.potongan_ke,
+        activeMendingPcs.pcs_index
+      );
+      return true;
+    } else {
+      throw new Error(res.error || "Gagal menyisipkan panel.");
     }
   };
 
@@ -847,11 +777,21 @@ export default function MendingPage() {
     }
     const pNo = String(item.production_headers?.panel_no || "").toUpperCase();
     const isSisa = pNo.includes("AWAL") || pNo.includes("AKHIR");
-    const isBS = isSisa || item.final_inspection_id === 4 || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
-    if (isBS) return "BS";
+    const isMeteran = pNo === "METERAN" || (item.meter_kain !== null && item.meter_kain !== undefined && String(item.meter_kain).trim() !== "");
+    const isGagalCacat = isPanelGagalCacatAja(item);
 
+    // Jika QC sudah meloloskan (Ceklis / Grade 1 atau 2)
     const isQCPassed = item.final_inspection_id === 1 || item.final_inspection_id === 2 || item.status_inspeksi === "Ceklis";
     if (isQCPassed) return "A";
+
+    // Jika Gagal Cacat (false alarm), default selalu Grade A
+    if (isGagalCacat) return "A";
+
+    // Pengecekan status BS
+    const isExplicitBS = isSisa || item.final_inspection_id === 4 || item.status_inspeksi === "BS" || item.kategori_masalah === "BS" || pNo.includes("(BS)");
+    const isPanelZeroYieldBS = !isMeteran && item.jml_hasil_produksi === 0;
+
+    if (isExplicitBS || isPanelZeroYieldBS) return "BS";
 
     const isQCSilang = item.final_inspection_id === 3 || item.status_inspeksi === "Silang";
     if (isQCSilang) return "B";
@@ -948,7 +888,6 @@ export default function MendingPage() {
   };
 
   const [detailToDelete, setDetailToDelete] = useState<{ id: string; name: string; panelNo?: string } | null>(null);
-  const [pendingDeleteMode, setPendingDeleteMode] = useState<"permanent" | "keep_slot" | null>(null);
   const [isDeletingDetail, setIsDeletingDetail] = useState(false);
 
   const detailsToDisplay = React.useMemo(() => {
@@ -1078,12 +1017,17 @@ export default function MendingPage() {
         } else {
           const pushDetailsForCat = (k: string, d: string) => {
             if (!d) {
-              cacatLines.push(k);
+              if (k && k !== "Unknown") cacatLines.push(k);
+              return;
+            }
+            let cleanD = d.replace(new RegExp(`^(?:${k}|Kode\\s*${k}|[A-Z0-9]+)\\s*[:\\-]\\s*`, "i"), "").trim();
+            cleanD = cleanD.replace(/\s*\(Titik:\s*[^)]+\)/gi, "").trim();
+            if (!cleanD) {
               return;
             }
             const knownDetailsForCat = problemDetailsMap[k] || DEFAULT_PROBLEM_DETAILS[k] || [];
             const matchedDetails: string[] = [];
-            let remainingD = d;
+            let remainingD = cleanD;
             const sortedKnown = [...knownDetailsForCat].sort((a, b) => b.length - a.length);
             sortedKnown.forEach(known => {
               if (remainingD.includes(known)) {
@@ -1092,12 +1036,20 @@ export default function MendingPage() {
               }
             });
             if (matchedDetails.length > 0) {
-              const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
+              const customParts = remainingD
+                .split(",")
+                .map((s: string) => s.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim())
+                .filter((s: string) => s && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(s));
               matchedDetails.forEach(match => cacatLines.push(`${k} - ${match}`));
               customParts.forEach(custom => cacatLines.push(`${k} - ${custom}`));
             } else {
-              const parts = d.split(",").map((s: string) => s.trim()).filter(Boolean);
-              parts.forEach(p => cacatLines.push(`${k} - ${p}`));
+              const parts = cleanD.split(",").map((s: string) => s.trim()).filter(Boolean);
+              parts.forEach(p => {
+                const cleanP = p.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim();
+                if (cleanP && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(cleanP)) {
+                  cacatLines.push(`${k} - ${cleanP}`);
+                }
+              });
             }
           };
 
@@ -1220,7 +1172,7 @@ export default function MendingPage() {
       processed.forEach((p, i) => {
         const { item, isIstirahat, hasIstirahat, isFinish, isStart, isGradable, isDeleted, opr, grp, tgl, operatorStr, oprStr, cacatText, isPanelInsertedByQc, hasTambahanQC, hasTambahanMnd } = p;
 
-        const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || selections[item.id] === "BS";
+        const isBS = (!isMeteranBatch && !isPanelGagalCacatAja(item) && item.jml_hasil_produksi === 0) || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || selections[item.id] === "BS";
         if (isGradable && !isBS && !isDeleted) {
           currentOpCount += 1;
         }
@@ -1258,7 +1210,7 @@ export default function MendingPage() {
         const isBsPanel = String(item.production_headers?.panel_no || "").toUpperCase().includes("AWAL") || 
                           String(item.production_headers?.panel_no || "").toUpperCase().includes("AKHIR") || 
                           String(item.production_headers?.panel_no || "").includes("(BS)") || 
-                          item.jml_hasil_produksi === 0 || 
+                          (!isMeteranBatch && !isPanelGagalCacatAja(item) && item.jml_hasil_produksi === 0) || 
                           item.status_inspeksi === "BS";
         if (isBsPanel) {
           hasRealDefects = true;
@@ -1330,7 +1282,8 @@ export default function MendingPage() {
 
             const countBS = currentOpIds.filter(id => {
               const d = detailsToDisplay.find(item => item.id === id);
-              return selections[id] === "BS" || d?.jml_hasil_produksi === 0 || d?.status_inspeksi === "BS";
+              const isDBS = (!isMeteranBatch && !isPanelGagalCacatAja(d) && d?.jml_hasil_produksi === 0) || d?.status_inspeksi === "BS";
+              return selections[id] === "BS" || isDBS;
             }).length;
 
             items.push({
@@ -1358,6 +1311,7 @@ export default function MendingPage() {
     let currentOpLastMeter: number | null = null;
     let currentOpDefectItems: any[] = [];
     let lastOprString = "";
+    let currentOpIstirahatSeq = 0;
 
     let grandTotalStartMeter: number | null = null;
     let grandTotalLastMeter: number | null = null;
@@ -1399,6 +1353,7 @@ export default function MendingPage() {
         currentOpStartMeter = null;
         currentOpLastMeter = null;
         currentOpDefectItems = [];
+        currentOpIstirahatSeq = 0;
         lastOprString = operatorStr;
         isSameAsPrev = false;
       } else if (items.length > 0) {
@@ -1412,7 +1367,7 @@ export default function MendingPage() {
       const katStr = (item.kategori_masalah || "").toUpperCase();
       const ketStr = (item.keterangan_cacat || "").toUpperCase();
 
-      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT");
+      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT") || ketStr.includes("[MASUK]") || detailStr.includes("[MASUK]") || ketStr.includes("SELESAI ISTIRAHAT") || detailStr.includes("SELESAI ISTIRAHAT");
 
       if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
         item.production_defects.forEach((d: any) => {
@@ -1434,6 +1389,21 @@ export default function MendingPage() {
       const hasIstirahatRaw = hasIstirahatText || hasIstirahatFromDefects;
       const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
       const isIstirahat = hasIstirahat;
+
+      const isExplicitSebelum = ketStr.includes("SEBELUM ISTIRAHAT") || detailStr.includes("SEBELUM ISTIRAHAT") || ketStr.includes("MULAI ISTIRAHAT") || detailStr.includes("MULAI ISTIRAHAT");
+      const isExplicitLaporan = ketStr.includes("LAPORAN ISTIRAHAT") || detailStr.includes("LAPORAN ISTIRAHAT") || ketStr.includes("SELESAI ISTIRAHAT") || detailStr.includes("SELESAI ISTIRAHAT") || ketStr.includes("[MASUK]") || detailStr.includes("[MASUK]");
+
+      let isMasuk = false;
+      if (hasIstirahat) {
+        if (isExplicitLaporan) {
+          isMasuk = true;
+        } else if (isExplicitSebelum) {
+          isMasuk = false;
+        } else {
+          isMasuk = currentOpIstirahatSeq % 2 === 1;
+        }
+        currentOpIstirahatSeq++;
+      }
       const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
 
       let cacatLines: string[] = [];
@@ -1442,12 +1412,17 @@ export default function MendingPage() {
       
       const pushDetailsForCat = (k: string, d: string) => {
         if (!d) {
-          cacatLines.push(k);
+          if (k && k !== "Unknown") cacatLines.push(k);
+          return;
+        }
+        let cleanD = d.replace(new RegExp(`^(?:${k}|Kode\\s*${k}|[A-Z0-9]+)\\s*[:\\-]\\s*`, "i"), "").trim();
+        cleanD = cleanD.replace(/\s*\(Titik:\s*[^)]+\)/gi, "").trim();
+        if (!cleanD) {
           return;
         }
         const knownDetailsForCat = problemDetailsMap[k] || DEFAULT_PROBLEM_DETAILS[k] || [];
         const matchedDetails: string[] = [];
-        let remainingD = d;
+        let remainingD = cleanD;
         const sortedKnown = [...knownDetailsForCat].sort((a, b) => b.length - a.length);
         sortedKnown.forEach(known => {
           if (remainingD.includes(known)) {
@@ -1456,12 +1431,20 @@ export default function MendingPage() {
           }
         });
         if (matchedDetails.length > 0) {
-          const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
+          const customParts = remainingD
+            .split(",")
+            .map((s: string) => s.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim())
+            .filter((s: string) => s && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(s));
           matchedDetails.forEach(match => cacatLines.push(`${k} - ${match}`));
           customParts.forEach(custom => cacatLines.push(`${k} - ${custom}`));
         } else {
-          const parts = d.split(",").map((s: string) => s.trim()).filter(Boolean);
-          parts.forEach(p => cacatLines.push(`${k} - ${p}`));
+          const parts = cleanD.split(",").map((s: string) => s.trim()).filter(Boolean);
+          parts.forEach(p => {
+            const cleanP = p.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim();
+            if (cleanP && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(cleanP)) {
+              cacatLines.push(`${k} - ${cleanP}`);
+            }
+          });
         }
       };
 
@@ -1681,6 +1664,7 @@ export default function MendingPage() {
           isMeter: true,
           isIstirahat,
           hasIstirahat,
+          isMasuk,
           isFinishReport,
           displayNo: (globalRowCount + 1).toString(),
           tglStr: finalTglStr,
@@ -1750,7 +1734,6 @@ export default function MendingPage() {
       setIsBulkDeleteModalOpen(true);
     } else {
       // Single row delete
-      setPendingDeleteMode(null);
       setDetailToDelete(val);
     }
   };
@@ -1762,7 +1745,6 @@ export default function MendingPage() {
       const res = await deleteProductionDetailRow(detailToDelete.id, mode);
       if (res.success) {
         setDetailToDelete(null);
-        setPendingDeleteMode(null);
         if (activeMendingPcs) {
           await refreshActiveMendingDetails(
             activeMendingPcs.nomor_mc,
@@ -1831,7 +1813,7 @@ export default function MendingPage() {
   };
 
   const isAllSelected = gradableItems.length > 0 && gradableItems.every((d) => selections[d.id]);
-  const totalGradable = gradableItems.filter((item: any) => !(item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || selections[item.id] === "BS")).length;
+  const totalGradable = gradableItems.filter((item: any) => !((!isMeteranBatch && !isPanelGagalCacatAja(item) && item.jml_hasil_produksi === 0) || item.status_inspeksi === "BS" || item.final_inspection_id === 4 || selections[item.id] === "BS")).length;
   const totalA = gradableItems.filter((item: any) => selections[item.id] === "A").length;
   const totalB = gradableItems.filter((item: any) => selections[item.id] === "B").length;
   const totalBS = gradableItems.filter((item: any) => selections[item.id] === "BS").length;
@@ -1911,357 +1893,6 @@ export default function MendingPage() {
     rollNo: firstDetail?.roll_no || "-"
   };
 
-  const renderInsertPanelModal = () => {
-    if (!insertPanelMode) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-          <div className="p-5 border-b border-slate-150">
-            <h2 className="text-lg font-extrabold text-slate-800">
-              Tambah Panel
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Pilih apakah ingin menyisipkan panel di nomor tertentu (label DOUBLE) atau menambahkannya di bagian paling akhir.
-            </p>
-          </div>
-
-          <div className="p-5 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
-            {insertPanelError && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 font-medium flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" /> {insertPanelError}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider mb-2">
-                Pilih Tipe Penambahan
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInsertPanelMode("append");
-                    setInsertPanelAt("");
-                  }}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 text-center transition-all ${
-                    insertPanelMode === "append"
-                      ? "border-[#0070bc] bg-sky-50 text-[#0070bc] font-bold"
-                      : "border-slate-200 text-slate-500 hover:border-slate-350 bg-white"
-                  }`}
-                >
-                  <span className="text-xs font-extrabold">Tambah di Akhir</span>
-                  <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Urutan terakhir</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInsertPanelMode("insert");
-                  }}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 text-center transition-all ${
-                    insertPanelMode === "insert"
-                      ? "border-[#0070bc] bg-sky-50 text-[#0070bc] font-bold"
-                      : "border-slate-200 text-slate-500 hover:border-slate-350 bg-white"
-                  }`}
-                >
-                  <span className="text-xs font-extrabold">Sisipkan Tengah</span>
-                  <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Duplikat (DOUBLE)</span>
-                </button>
-              </div>
-            </div>
-
-            {insertPanelMode === "insert" && (
-              <div className="animate-fadeIn">
-                <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider mb-2">
-                  Sisipkan ke Nomor Panel <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={insertPanelAt}
-                  onChange={(e) => setInsertPanelAt(e.target.value)}
-                  className="w-full h-11 px-4 rounded-xl border-2 border-slate-200 focus:border-[#0070bc] focus:ring-4 focus:ring-[#0070bc]/10 outline-none font-medium text-slate-700 transition-all"
-                  placeholder="Contoh: 3"
-                />
-                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2 leading-tight">
-                  ℹ️ Panel berikutnya <strong>tidak bergeser</strong>. Panel {insertPanelAt || "target"} akan memiliki 2 baris dengan badge <strong>DOUBLE</strong>.
-                </p>
-              </div>
-            )}
-
-            {/* Head-to-Head Checkboxes (BS & Defect Report) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              {/* Card 1: Tandai sebagai Barang Sisa (BS) */}
-              {insertPanelMode === "insert" ? (
-                <label
-                  htmlFor="insertPanelIsBs"
-                  className={`p-3 rounded-xl border transition-all flex flex-col justify-between cursor-pointer select-none ${
-                    insertPanelIsBs
-                      ? "border-rose-300 bg-rose-50/70 shadow-xs"
-                      : "border-slate-200 bg-slate-50/60 hover:bg-slate-100/80"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      id="insertPanelIsBs"
-                      checked={insertPanelIsBs}
-                      onChange={(e) => {
-                        setInsertPanelIsBs(e.target.checked);
-                      }}
-                      className="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500 cursor-pointer shrink-0"
-                    />
-                    <span className="text-xs font-bold text-rose-700">
-                      Barang Sisa (BS)
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-1 pl-6 leading-tight">
-                    Tandai baris ini sebagai panel sisa/BS.
-                  </p>
-                </label>
-              ) : null}
-
-              {/* Card 2: Laporkan Cacat / Masalah */}
-              <label
-                htmlFor="insertPanelHasDefect"
-                className={`p-3 rounded-xl border transition-all flex flex-col justify-between cursor-pointer select-none ${
-                  insertPanelMode !== "insert" ? "sm:col-span-2" : ""
-                } ${
-                  insertPanelHasDefect
-                    ? "border-purple-300 bg-purple-50/70 shadow-xs"
-                    : "border-slate-200 bg-slate-50/60 hover:bg-slate-100/80"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="checkbox"
-                    id="insertPanelHasDefect"
-                    checked={insertPanelHasDefect}
-                    onChange={(e) => {
-                      setInsertPanelHasDefect(e.target.checked);
-                      if (!e.target.checked) {
-                        setSelectedCategories([]);
-                        setSelectedDetails({});
-                        setInputBloks({});
-                      }
-                    }}
-                    className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer shrink-0"
-                  />
-                  <span className="text-xs font-bold text-slate-800">
-                    Laporkan Temuan Cacat?
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1 pl-6 leading-tight">
-                  Pilih kategori masalah (Kode A/B/C/D...) dan nomor blok.
-                </p>
-              </label>
-            </div>
-
-            {insertPanelHasDefect && (
-              <div className="space-y-4 pt-2 border-t border-slate-100 animate-fadeIn">
-                <label className="text-xs font-bold text-slate-700 uppercase block">
-                  Pilih Temuan Cacat / Masalah
-                </label>
-                <div className="space-y-2">
-                  {problemCategories.map((cat) => (
-                    <div key={cat.id} className="flex flex-col gap-2">
-                      <label className="cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedCategories.includes(cat.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedCategories((prev) => [...prev, cat.id]);
-                            } else {
-                              setSelectedCategories((prev) => prev.filter((c) => c !== cat.id));
-                              setSelectedDetails((prev) => {
-                                const next = { ...prev };
-                                delete next[cat.id];
-                                return next;
-                              });
-                              setInputBloks((prev) => {
-                                const next = { ...prev };
-                                delete next[cat.id];
-                                return next;
-                              });
-                            }
-                          }}
-                          className="peer sr-only"
-                        />
-                        <div className="p-3 rounded-xl border-2 border-slate-100 bg-white text-xs font-bold text-slate-650 peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 transition-all hover:border-slate-350">
-                          {cat.name}
-                        </div>
-                      </label>
-
-                      {selectedCategories.includes(cat.id) && problemDetailsMap[cat.id] && (
-                        <div className="pl-3.5 pr-2 py-3 border-l-2 border-sky-300 ml-2 space-y-3 bg-slate-50/50 rounded-r-xl mt-1.5 animate-in slide-in-from-top-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
-                              Pilih Detail Masalah
-                            </label>
-                            <span className="text-[10px] text-sky-600 font-bold">
-                              {(selectedDetails[cat.id] || []).length} dipilih
-                            </span>
-                          </div>
-
-                          {(() => {
-                            const predefinedGroups = dynamicGroupMapping[cat.id] || GROUPED_PROBLEM_DETAILS[cat.id] || [];
-                            const activeGroups = predefinedGroups.filter((g) => g.items && g.items.length > 0);
-                            const allKnownItems = new Set(activeGroups.flatMap((g) => g.items));
-                            const customInputDetails = (selectedDetails[cat.id] || []).filter((d) => !allKnownItems.has(d));
-
-                            return (
-                              <div className="space-y-2.5">
-                                {activeGroups.map((group, gIdx) => (
-                                  <div key={gIdx} className="space-y-1">
-                                    <div className="flex items-center gap-1.5 pt-1 first:pt-0">
-                                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-sky-800 bg-sky-100/90 px-1.5 py-0.5 rounded border border-sky-200/70 shadow-2xs">
-                                        {group.groupName}
-                                      </span>
-                                      <div className="flex-1 h-px bg-slate-200/80" />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-1.5">
-                                      {group.items.map((detail) => (
-                                        <label key={detail} className="cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            checked={selectedDetails[cat.id]?.includes(detail) || false}
-                                            onChange={(e) => {
-                                              const current = selectedDetails[cat.id] || [];
-                                              if (e.target.checked) {
-                                                setSelectedDetails((prev) => ({
-                                                  ...prev,
-                                                  [cat.id]: [...current, detail],
-                                                }));
-                                              } else {
-                                                setSelectedDetails((prev) => ({
-                                                  ...prev,
-                                                  [cat.id]: current.filter((d) => d !== detail),
-                                                }));
-                                              }
-                                            }}
-                                            className="peer sr-only"
-                                          />
-                                          <div className="p-2 rounded-lg border border-slate-200 bg-white text-[10px] font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center shadow-2xs">
-                                            {detail}
-                                          </div>
-                                        </label>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-
-                                {customInputDetails.length > 0 && (
-                                  <div className="space-y-1 pt-1">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 shadow-2xs">
-                                        Input Manual
-                                      </span>
-                                      <div className="flex-1 h-px bg-slate-200/80" />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-1.5">
-                                      {customInputDetails.map((customDetail) => (
-                                        <div key={customDetail} className="relative flex items-center">
-                                          <div className="flex-1 p-2 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
-                                            <span className="truncate">{customDetail}</span>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setSelectedDetails((prev) => ({
-                                                  ...prev,
-                                                  [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
-                                                }));
-                                              }}
-                                              className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
-                                              title="Hapus detail manual"
-                                            >
-                                              <X className="w-3 h-3" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-
-                          {cat.id === "G" && (
-                            <div className="mt-3 pt-3 border-t border-sky-100">
-                              <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-slate-700">
-                                  <Edit3 className="w-3 h-3 text-sky-600" />
-                                  Input Masalah Manual (Jika tidak ada di pilihan)
-                                </span>
-                              </label>
-                              <div className="flex gap-2">
-                                <input
-                                  type="text"
-                                  value={manualInputDetails[cat.id] || ""}
-                                  onChange={(e) =>
-                                    setManualInputDetails((prev) => ({ ...prev, [cat.id]: e.target.value }))
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      handleAddPanelManualDetail(cat.id);
-                                    }
-                                  }}
-                                  placeholder="Ketik detail masalah manual di sini..."
-                                  className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-slate-800 placeholder:text-slate-400"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleAddPanelManualDetail(cat.id)}
-                                  disabled={!(manualInputDetails[cat.id] || "").trim()}
-                                  className="px-3 py-2 bg-sky-500 text-white font-bold text-xs rounded-lg hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Tambah</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="p-5 border-t border-slate-150 bg-slate-50 flex justify-end gap-3">
-            <button
-              onClick={() => setInsertPanelMode(null)}
-              className="h-11 px-5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-            >
-              Batal
-            </button>
-            <button
-              disabled={
-                isInsertingPanel || 
-                (insertPanelMode === "insert" && !insertPanelAt) ||
-                (insertPanelHasDefect && selectedCategories.some(cat => {
-                  const hasDetails = (selectedDetails[cat] || []).length > 0;
-                  const hasManual = (manualInputDetails[cat] || "").trim().length > 0;
-                  return !hasDetails && !hasManual;
-                }))
-              }
-              onClick={handleInsertPanel}
-              className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white font-bold transition-all flex items-center gap-2"
-            >
-              {isInsertingPanel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Simpan Panel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const isTricoteMachine = String(activeMendingPcs?.nomor_mc || "").trim().toUpperCase().startsWith("T");
   const distinctPcsList = React.useMemo(() => {
     if (!isTricoteMachine) return [];
@@ -2312,16 +1943,7 @@ export default function MendingPage() {
         {!isMeteranBatch && detailsToDisplay.length > 0 && (
           <div className="mb-4 flex justify-end animate-fadeIn">
             <button
-              onClick={() => {
-                setInsertPanelMode("append");
-                setInsertPanelAt("");
-                setInsertPanelHasDefect(false);
-                setInsertPanelIsBs(false);
-                setSelectedCategories([]);
-                setSelectedDetails({});
-                setInputBloks({});
-                setInsertPanelKeterangan("");
-              }}
+              onClick={() => setInsertPanelMode("append")}
               className="h-11 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -3044,137 +2666,13 @@ export default function MendingPage() {
         )}
         
         {/* Pop up modal hapus rincian */}
-        {/* Pop up modal hapus rincian */}
-        {detailToDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-200">
-              {pendingDeleteMode === null ? (
-                /* Step 1: Pilih Opsi Hapus */
-                <>
-                  <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
-                    <AlertTriangle className="w-6 h-6 text-rose-600" />
-                  </div>
-                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">Pilih Opsi Hapus Panel</h3>
-                  <p className="text-xs text-center text-slate-500 mb-5">
-                    Panel: <span className="font-semibold text-slate-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo} - ` : ""}{detailToDelete.name}</span>
-                  </p>
-                  
-                  <div className="flex flex-col gap-3 mb-5">
-                    {/* Opsi 1: Hapus Baris Panel (Permanen / Nomor Tetap) */}
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteMode("permanent")}
-                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
-                        1
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
-                          <span>Hapus Baris Panel</span>
-                          <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Permanen</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                          Hapus data baris ini sepenuhnya dari database. Nomor panel lain <span className="font-semibold text-rose-600">tidak akan bergeser</span>.
-                        </p>
-                      </div>
-                    </button>
-
-                    {/* Opsi 2: Tandai Dihapus (Nomor Tetap) */}
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteMode("keep_slot")}
-                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
-                        2
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
-                          <span>Tandai Dihapus (Nomor Tetap)</span>
-                          <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">Nomor Tetap</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                          Nomor panel tetap berada di posisinya (tidak bergeser), panel diberi tanda <span className="font-semibold text-rose-600">DIHAPUS</span>, dan tidak dihitung dalam total penjumlahan panel.
-                        </p>
-                      </div>
-                    </button>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDetailToDelete(null);
-                        setPendingDeleteMode(null);
-                      }}
-                      className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
-                    >
-                      Batal
-                    </button>
-                  </div>
-                </>
-              ) : (
-                /* Step 2: Layar Konfirmasi Kedua */
-                <>
-                  <div className={`w-12 h-12 rounded-full ${pendingDeleteMode === "permanent" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"} flex items-center justify-center mb-3 mx-auto`}>
-                    <AlertTriangle className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">Konfirmasi Penghapusan</h3>
-                  <p className="text-xs text-center text-slate-500 mb-4">
-                    Apakah Anda yakin ingin melanjutkan tindakan ini?
-                  </p>
-
-                  {pendingDeleteMode === "permanent" ? (
-                    <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
-                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
-                        <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">1</span>
-                        Opsi 1: Hapus Baris Panel (Permanen)
-                      </div>
-                      <p className="text-xs text-slate-700 leading-relaxed">
-                        Data baris <span className="font-semibold text-rose-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>dihapus permanen</strong>. Nomor panel lain <strong>tidak akan bergeser</strong>.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
-                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
-                        <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
-                        Opsi 2: Tandai Dihapus (Nomor Tetap)
-                      </div>
-                      <p className="text-xs text-slate-700 leading-relaxed">
-                        Nomor panel <span className="font-semibold text-amber-800">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>tetap di tempat</strong> dan berstatus <strong>DIHAPUS</strong> (tidak dihitung dalam total penjumlahan panel).
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteMode(null)}
-                      disabled={isDeletingDetail}
-                      className="flex-1 h-11 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 border border-slate-200 cursor-pointer"
-                    >
-                      Kembali
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteDetail(pendingDeleteMode)}
-                      disabled={isDeletingDetail}
-                      className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${pendingDeleteMode === "permanent" ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20" : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"} shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
-                    >
-                      {isDeletingDetail ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                      Ya, Hapus Data
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        <DeletePanelModal
+          isOpen={!!detailToDelete}
+          item={detailToDelete}
+          onClose={() => setDetailToDelete(null)}
+          onConfirm={handleDeleteDetail}
+          isDeleting={isDeletingDetail}
+        />
 
         {/* Modal Hapus Massal / Multiple Delete */}
         {isBulkDeleteModalOpen && (
@@ -3319,7 +2817,15 @@ export default function MendingPage() {
         )}
 
         {/* Insert Panel Modal */}
-        {renderInsertPanelModal()}
+        <InsertPanelModal
+          isOpen={!!insertPanelMode}
+          defaultMode={insertPanelMode || "append"}
+          onClose={() => setInsertPanelMode(null)}
+          onSubmit={handleInsertPanelSubmit}
+          problemCategories={problemCategories}
+          problemDetailsMap={problemDetailsMap}
+          dynamicGroupMapping={dynamicGroupMapping}
+        />
       </div>
     );
   }
@@ -3702,7 +3208,15 @@ export default function MendingPage() {
       </div>
 
       {/* Insert Panel Modal */}
-      {renderInsertPanelModal()}
+      <InsertPanelModal
+        isOpen={!!insertPanelMode}
+        defaultMode={insertPanelMode || "append"}
+        onClose={() => setInsertPanelMode(null)}
+        onSubmit={handleInsertPanelSubmit}
+        problemCategories={problemCategories}
+        problemDetailsMap={problemDetailsMap}
+        dynamicGroupMapping={dynamicGroupMapping}
+      />
 
       <ProductTour
         isOpen={isTourOpen}

@@ -211,7 +211,13 @@ function ShiftHistoryDetailContent() {
         <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
         <h3 className="text-lg font-bold text-slate-800">{errorMsg || "Data tidak ditemukan."}</h3>
         <button
-          onClick={() => router.push("/shift-history")}
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/shift-history");
+            }
+          }}
           className="mt-6 flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-bold text-slate-600 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" /> Kembali
@@ -244,15 +250,28 @@ function ShiftHistoryDetailContent() {
       <div className="flex items-center justify-between gap-2 mb-6 no-print">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => router.push("/shift-history")}
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/shift-history");
+              }
+            }}
             className="h-9 w-9 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+            title="Kembali ke halaman sebelumnya"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
             <span
               className="hover:text-[#0070bc] cursor-pointer transition-colors"
-              onClick={() => router.push("/shift-history")}
+              onClick={() => {
+                if (typeof window !== "undefined" && window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push("/shift-history");
+                }
+              }}
             >
               Riwayat (Kepala Shift)
             </span>

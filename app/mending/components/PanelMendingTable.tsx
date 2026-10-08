@@ -118,8 +118,16 @@ export default function PanelMendingTable({
           const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || item.status_mending === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
           const cleanPanelNo = (item.displayNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
 
-          const isPanelInsertedByQc = !!item.isPanelInsertedByQc || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(item.displayNo || "").includes("QC"));
-          const hasTambahanQC = !!item.hasTambahanQC || !!item.detail_masalah?.includes("[QC]") || (item.production_defects && item.production_defects.some((d: any) => d.detail?.includes("[QC]")));
+          const isPanelInsertedByQc =
+            !!item.is_inserted_qc ||
+            !!item.isPanelInsertedByQc ||
+            !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") ||
+            !!item.keterangan_cacat?.toUpperCase().includes("QC") ||
+            (String(item.displayNo || "").toUpperCase().includes("QC"));
+          const hasTambahanQC =
+            !!item.hasTambahanQC ||
+            !!item.detail_masalah?.includes("[QC]") ||
+            (item.production_defects && item.production_defects.some((d: any) => d.detail?.includes("[QC]") || d.is_qc));
           const hasTambahanMnd = !!item.hasTambahanMnd || !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
           const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!item.keterangan_qc && item.keterangan_qc !== "-");
 
@@ -197,7 +205,9 @@ export default function PanelMendingTable({
                 {isDeleted ? (
                   <span className="text-slate-400 font-bold">-</span>
                 ) : item.hasRealDefects ? (
-                  <span className="text-rose-600">X</span>
+                  <span className="text-rose-600">
+                    X
+                  </span>
                 ) : (
                   <span className="text-emerald-600">✓</span>
                 )}
@@ -207,12 +217,12 @@ export default function PanelMendingTable({
                   const lines = (item.cacatDisplay || "").split("\n").filter(Boolean);
                   const parsedCacatItems = lines
                     .map((l: string) => {
-                      const isLineQc = l.includes("[QC]") || l.includes("[TAMBAHAN QC]") || l.includes("[TAMBAHAN MENDING]");
+                      const isLineQc = isPanelInsertedByQc || item.isPanelInsertedByQc || l.includes("[QC]") || l.includes("[TAMBAHAN QC]") || l.includes("[TAMBAHAN MENDING]");
                       const clean = l
                         .replace(/\[QC\]/gi, "")
                         .replace(/\[TAMBAHAN QC\]/gi, "")
                         .replace(/\[TAMBAHAN MENDING\]/gi, "")
-                        .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                        .replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "")
                         .trim();
                       return { isLineQc, text: clean };
                     })
@@ -230,9 +240,7 @@ export default function PanelMendingTable({
                             <div
                               key={lIdx}
                               className={
-                                cItem.isLineQc
-                                  ? "text-[#0070bc] font-semibold"
-                                  : item.isGagalCacatOnly
+                                item.isGagalCacatOnly
                                   ? "text-slate-500 font-medium"
                                   : "text-rose-600 font-medium"
                               }

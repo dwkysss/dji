@@ -121,15 +121,28 @@ function HistoryDetailContent() {
       <div className="flex items-center justify-between gap-2 mb-6 no-print">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => router.push("/history")}
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/history");
+              }
+            }}
             className="h-9 w-9 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+            title="Kembali ke halaman sebelumnya"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
             <span
               className="hover:text-[#0070bc] cursor-pointer transition-colors"
-              onClick={() => router.push("/history")}
+              onClick={() => {
+                if (typeof window !== "undefined" && window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push("/history");
+                }
+              }}
             >Riwayat</span>
             <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
             <span className="text-slate-700 font-black">Detail Laporan</span>

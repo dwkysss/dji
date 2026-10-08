@@ -16,6 +16,20 @@ export function formatDefectLinesWithNumbering<T extends string[] | string | nul
     ? (lines as string[])
     : [String(lines)];
 
+  const defectLines = rawArray.filter((line) => {
+    const trimmed = String(line || "").trim();
+    if (!trimmed) return false;
+    const isSpecial =
+      trimmed.includes("Sisa Awal Potongan") ||
+      trimmed.includes("Sisa Akhir Potongan") ||
+      trimmed.startsWith("[Panel Dihapus]") ||
+      trimmed === "[TAMBAHAN QC]" ||
+      trimmed.startsWith("[DIHAPUS]") ||
+      trimmed.startsWith("QC:");
+    return !isSpecial;
+  });
+
+  const shouldNumber = defectLines.length > 1;
   let defectIndex = 1;
   const formatted = rawArray.map((line) => {
     const trimmed = String(line || "").trim();
@@ -31,13 +45,16 @@ export function formatDefectLinesWithNumbering<T extends string[] | string | nul
       trimmed.startsWith("QC:");
     if (isSpecial) return line;
 
-    // Remove letter category prefix or existing numbering if present (e.g. "A - ", "B. ", "1. ", "1 - ")
-    let clean = trimmed.replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*)/i, "").trim();
-    clean = clean.replace(/^Kode\s*[A-Z0-9]+:\s*/i, "").trim();
+    const isQcPrefix = trimmed.startsWith("[QC] ") || trimmed.startsWith("[TAMBAHAN QC] ");
+    const qcTag = isQcPrefix ? (trimmed.startsWith("[QC] ") ? "[QC] " : "[TAMBAHAN QC] ") : "";
+    let clean = (isQcPrefix ? trimmed.slice(qcTag.length) : trimmed).trim();
 
-    const numPrefix = `${defectIndex}. `;
+    // Remove letter category prefix or existing numbering if present (e.g. "A - ", "B. ", "1. ", "1 - ", "Kode A: ")
+    clean = clean.replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "").trim();
+
+    const numPrefix = shouldNumber ? `${defectIndex}. ` : "";
     defectIndex++;
-    return `${numPrefix}${clean}`;
+    return `${qcTag}${numPrefix}${clean}`;
   });
 
   if (isStringInput) {

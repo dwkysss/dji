@@ -37,6 +37,8 @@ import {
 import FinalInspectionModal from "@/components/forms/FinalInspectionModal";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
+import DeletePanelModal from "@/components/forms/DeletePanelModal";
+import InsertPanelModal, { InsertPanelPayload } from "@/components/forms/InsertPanelModal";
 import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
@@ -388,18 +390,6 @@ export default function FinalInspectionPage() {
 
   // Tambah Panel Modal State
   const [insertPanelMode, setInsertPanelMode] = useState<"insert" | "append" | null>(null);
-  const [insertPanelAt, setInsertPanelAt] = useState<string>("");
-  const [isInsertingPanel, setIsInsertingPanel] = useState(false);
-  const [insertPanelError, setInsertPanelError] = useState<string | null>(null);
-  const [insertPanelHasDefect, setInsertPanelHasDefect] = useState(false);
-  const [insertPanelIsBs, setInsertPanelIsBs] = useState(false);
-
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedDetails, setSelectedDetails] = useState<Record<string, string[]>>({});
-  const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
-  const [insertPanelKeterangan, setInsertPanelKeterangan] = useState<string>("");
-  const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
-  const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([]);
 
   // Add Defect Modal State (METERAN only)
   const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
@@ -616,88 +606,10 @@ export default function FinalInspectionPage() {
     setIsDetailLoading(false);
   };
 
-  const handleOpenInsertPanel = (mode: "insert" | "append", targetPanelNo?: string) => {
-    setInsertPanelMode(mode);
-    setInsertPanelAt(targetPanelNo || "");
-    setInsertPanelError(null);
-    setInsertPanelHasDefect(false);
-    setInsertPanelIsBs(false);
-    setSelectedCategories([]);
-    setSelectedDetails({});
-    setInputBloks({});
-    setInsertPanelKeterangan("");
-  };
-
-  const handleAddPanelManualDetail = (catId: string) => {
-    const text = (manualInputDetails[catId] || "").trim();
-    if (!text) return;
-    setSelectedDetails((prev) => {
-      const current = prev[catId] || [];
-      if (current.includes(text)) return prev;
-      return { ...prev, [catId]: [...current, text] };
-    });
-    setManualInputDetails((prev) => ({ ...prev, [catId]: "" }));
-    try {
-      createProblemDetail({ kategori: catId, nama_detail: text });
-    } catch (e) {}
-  };
-
-  const handleToggleCategory = (catId: string) => {
-    setSelectedCategories((prev) => {
-      const isChecking = !prev.includes(catId);
-      if (isChecking) {
-        return [...prev, catId];
-      } else {
-        setSelectedDetails((old) => {
-          const next = { ...old };
-          delete next[catId];
-          return next;
-        });
-        return prev.filter((c) => c !== catId);
-      }
-    });
-  };
-
-  const handleToggleDetail = (catId: string, detailName: string) => {
-    setSelectedDetails((prev) => {
-      const current = prev[catId] || [];
-      const isSelecting = !current.includes(detailName);
-      let updated: string[];
-      if (isSelecting) {
-        updated = [...current, detailName];
-      } else {
-        updated = current.filter((d) => d !== detailName);
-      }
-      return { ...prev, [catId]: updated };
-    });
-  };
-
-  const handleInsertPanel = async () => {
-    if (!activeFinalPcs) return;
-
-    if (insertPanelMode === "insert" && !insertPanelAt) {
-      setInsertPanelError("Nomor panel target wajib dipilih.");
-      return;
+  const handleInsertPanelSubmit = async (payload: InsertPanelPayload) => {
+    if (!fullActiveFinalDetails || fullActiveFinalDetails.length === 0 || !activeFinalPcs) {
+      throw new Error("Tidak ditemukan rincian data batch aktif.");
     }
-
-    if (insertPanelHasDefect) {
-      if (selectedCategories.length === 0) {
-        setInsertPanelError("Pilih minimal satu kategori masalah / cacat.");
-        return;
-      }
-      const missingDetails = selectedCategories.some((cat) => {
-        const details = selectedDetails[cat] || [];
-        const manual = (manualInputDetails[cat] || "").trim();
-        return details.length === 0 && !manual;
-      });
-      if (missingDetails) {
-        setInsertPanelError("Setiap kategori yang dipilih harus memiliki minimal satu rincian masalah.");
-        return;
-      }
-    }
-
-    setIsInsertingPanel(true);
-    setInsertPanelError(null);
 
     const sortedBatchDetails = [...fullActiveFinalDetails].sort((a: any, b: any) => {
       const pA = parseInt(a.production_headers?.panel_no || "0");
@@ -706,8 +618,8 @@ export default function FinalInspectionPage() {
     });
 
     let targetHeaderId = sortedBatchDetails[0]?.production_headers?.id;
-    if (insertPanelMode === "insert" && insertPanelAt) {
-      const targetPanelNo = parseInt(insertPanelAt);
+    if (payload.mode === "insert" && payload.insertAt) {
+      const targetPanelNo = payload.insertAt;
       const targetDetail = sortedBatchDetails.find(d => parseInt(d.production_headers?.panel_no || "0") === targetPanelNo);
       if (targetDetail) {
         targetHeaderId = targetDetail.production_headers?.id;
@@ -717,82 +629,42 @@ export default function FinalInspectionPage() {
           targetHeaderId = precedingDetails[precedingDetails.length - 1].production_headers?.id;
         }
       }
-    } else if (insertPanelMode === "append" && sortedBatchDetails.length > 0) {
+    } else if (payload.mode === "append" && sortedBatchDetails.length > 0) {
       targetHeaderId = sortedBatchDetails[sortedBatchDetails.length - 1]?.production_headers?.id;
     }
 
     if (!targetHeaderId) {
-      setInsertPanelError("Header ID tidak ditemukan.");
-      setIsInsertingPanel(false);
-      return;
+      throw new Error("Header ID tidak ditemukan.");
     }
 
-    let detailStr: string | undefined = undefined;
-    if (insertPanelHasDefect && selectedCategories.length > 0) {
-      const detailParts: string[] = [];
-      selectedCategories.forEach((catId) => {
-        const details = [...(selectedDetails[catId] || [])];
-        const manual = (manualInputDetails[catId] || "").trim();
-        if (manual && !details.includes(manual)) {
-          details.push(manual);
-          try { createProblemDetail({ kategori: catId, nama_detail: manual }); } catch (e) {}
-        }
-        if (details.length > 0) {
-          detailParts.push(details.join(", "));
-        }
-      });
-      if (detailParts.length > 0) {
-        detailStr = detailParts.join(" | ");
-      }
-    }
-
-    const keteranganParts: string[] = [];
-    const bloksList: string[] = [];
-    selectedCategories.forEach((catId) => {
-      if ((catId === "A" || catId === "B") && inputBloks[catId]?.trim()) {
-        bloksList.push(inputBloks[catId].trim());
-      }
-    });
-    if (bloksList.length > 0) {
-      keteranganParts.push(bloksList.join(", "));
-    }
-    if (insertPanelKeterangan?.trim()) {
-      keteranganParts.push(insertPanelKeterangan.trim());
-    }
-
-    const targetPcsIndex = activeFinalPcs ? parseInt(activeFinalPcs.pcs_index) : 1;
-    const targetFinalInspectionId = insertPanelMode === "insert" && insertPanelIsBs
+    const targetPcsIndex = parseInt(activeFinalPcs.pcs_index) || 1;
+    const targetFinalInspectionId = payload.mode === "insert" && payload.isBs
       ? 4
-      : (selectedCategories.length > 0 ? 3 : (fullActiveFinalDetails[0]?.final_inspection_id || 1));
+      : (payload.kategoriMasalah && payload.kategoriMasalah.length > 0 ? 3 : (fullActiveFinalDetails[0]?.final_inspection_id || 1));
 
-    try {
-      const res = await insertMissingPanel({
-        refHeaderId: targetHeaderId,
-        insertAt: insertPanelMode === "insert" ? parseInt(insertPanelAt) : undefined,
-        appendToEnd: insertPanelMode === "append",
-        pcsIndex: targetPcsIndex,
-        kategoriMasalah: selectedCategories.length > 0 ? selectedCategories : undefined,
-        detailMasalah: detailStr,
-        keteranganCacat: keteranganParts.join(", ") || undefined,
-        isBs: insertPanelMode === "insert" && insertPanelIsBs,
-        finalInspectionId: targetFinalInspectionId,
-      });
+    const res = await insertMissingPanel({
+      refHeaderId: targetHeaderId,
+      insertAt: payload.insertAt,
+      appendToEnd: payload.appendToEnd,
+      pcsIndex: targetPcsIndex,
+      kategoriMasalah: payload.kategoriMasalah,
+      detailMasalah: payload.detailMasalah,
+      keteranganCacat: payload.keteranganCacat,
+      isBs: payload.isBs,
+      finalInspectionId: targetFinalInspectionId,
+    });
 
-      if (res.success) {
-        setInsertPanelMode(null);
-        await refreshActiveFinalDetails(
-          activeFinalPcs.nomor_mc,
-          activeFinalPcs.design_id,
-          activeFinalPcs.potongan_ke,
-          activeFinalPcs.pcs_index
-        );
-      } else {
-        setInsertPanelError(res.error || "Gagal menyisipkan panel.");
-      }
-    } catch (e: any) {
-      setInsertPanelError(e.message || "Terjadi kesalahan server.");
-    } finally {
-      setIsInsertingPanel(false);
+    if (res.success && activeFinalPcs) {
+      setInsertPanelMode(null);
+      await refreshActiveFinalDetails(
+        activeFinalPcs.nomor_mc,
+        activeFinalPcs.design_id,
+        activeFinalPcs.potongan_ke,
+        activeFinalPcs.pcs_index
+      );
+      return true;
+    } else {
+      throw new Error(res.error || "Gagal menyisipkan panel.");
     }
   };
 
@@ -801,11 +673,9 @@ export default function FinalInspectionPage() {
     name: string;
     panelNo?: string;
   } | null>(null);
-  const [pendingDeleteMode, setPendingDeleteMode] = useState<"permanent" | "keep_slot" | null>(null);
   const [isDeletingDetail, setIsDeletingDetail] = useState(false);
 
   const handleRequestDeleteDetail = (val: { id: string; panelNo?: string; name?: string }) => {
-    setPendingDeleteMode(null);
     setDetailToDelete({
       id: val.id,
       name: val.name || "Rincian cacat ini",
@@ -820,7 +690,6 @@ export default function FinalInspectionPage() {
       const res = await deleteProductionDetailRow(detailToDelete.id, mode);
       if (res.success) {
         setDetailToDelete(null);
-        setPendingDeleteMode(null);
         if (activeFinalPcs) {
           await refreshActiveFinalDetails(
             activeFinalPcs.nomor_mc,
@@ -1119,12 +988,17 @@ export default function FinalInspectionPage() {
         } else {
           const pushDetailsForCat = (k: string, d: string) => {
             if (!d) {
-              cacatLines.push(k);
+              if (k && k !== "Unknown") cacatLines.push(k);
+              return;
+            }
+            let cleanD = d.replace(new RegExp(`^(?:${k}|Kode\\s*${k}|[A-Z0-9]+)\\s*[:\\-]\\s*`, "i"), "").trim();
+            cleanD = cleanD.replace(/\s*\(Titik:\s*[^)]+\)/gi, "").trim();
+            if (!cleanD) {
               return;
             }
             const knownDetailsForCat = problemDetailsMap[k] || DEFAULT_PROBLEM_DETAILS[k] || [];
             const matchedDetails: string[] = [];
-            let remainingD = d;
+            let remainingD = cleanD;
             const sortedKnown = [...knownDetailsForCat].sort((a, b) => b.length - a.length);
             sortedKnown.forEach(known => {
               if (remainingD.includes(known)) {
@@ -1133,12 +1007,20 @@ export default function FinalInspectionPage() {
               }
             });
             if (matchedDetails.length > 0) {
-              const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
+              const customParts = remainingD
+                .split(",")
+                .map((s: string) => s.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim())
+                .filter((s: string) => s && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(s));
               matchedDetails.forEach(match => cacatLines.push(`${k} - ${match}`));
               customParts.forEach(custom => cacatLines.push(`${k} - ${custom}`));
             } else {
-              const parts = d.split(",").map((s: string) => s.trim()).filter(Boolean);
-              parts.forEach(p => cacatLines.push(`${k} - ${p}`));
+              const parts = cleanD.split(",").map((s: string) => s.trim()).filter(Boolean);
+              parts.forEach(p => {
+                const cleanP = p.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim();
+                if (cleanP && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(cleanP)) {
+                  cacatLines.push(`${k} - ${cleanP}`);
+                }
+              });
             }
           };
 
@@ -1389,6 +1271,7 @@ export default function FinalInspectionPage() {
     let currentOpLastMeter: number | null = null;
     let currentOpDefectItems: any[] = [];
     let lastOprString = "";
+    let currentOpIstirahatSeq = 0;
 
     let grandTotalStartMeter: number | null = null;
     let grandTotalLastMeter: number | null = null;
@@ -1428,6 +1311,7 @@ export default function FinalInspectionPage() {
         currentOpStartMeter = null;
         currentOpLastMeter = null;
         currentOpDefectItems = [];
+        currentOpIstirahatSeq = 0;
         lastOprString = operatorStr;
         isSameAsPrev = false;
       } else if (items.length > 0) {
@@ -1440,7 +1324,7 @@ export default function FinalInspectionPage() {
       const detailStr = (item.detail_masalah || "").toUpperCase();
       const katStr = (item.kategori_masalah || "").toUpperCase();
       const ketStr = (item.keterangan_cacat || "").toUpperCase();
-      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT");
+      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT") || ketStr.includes("[MASUK]") || detailStr.includes("[MASUK]") || ketStr.includes("SELESAI ISTIRAHAT") || detailStr.includes("SELESAI ISTIRAHAT");
 
       if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
         item.production_defects.forEach((d: any) => {
@@ -1463,8 +1347,23 @@ export default function FinalInspectionPage() {
       const hasTambahanQC = !!item.detail_masalah?.includes("[QC]") || (item.production_defects && item.production_defects.some((d: any) => d.detail?.includes("[QC]")));
       const hasTambahanMnd = !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
 
-      const isIstirahat = hasIstirahatFromDefects || hasIstirahatText;
+      const isIstirahat = (hasIstirahatFromDefects || hasIstirahatText) && !hasRealDefects;
       const hasIstirahat = isIstirahat;
+
+      const isExplicitSebelum = ketStr.includes("SEBELUM ISTIRAHAT") || detailStr.includes("SEBELUM ISTIRAHAT") || ketStr.includes("MULAI ISTIRAHAT") || detailStr.includes("MULAI ISTIRAHAT");
+      const isExplicitLaporan = ketStr.includes("LAPORAN ISTIRAHAT") || detailStr.includes("LAPORAN ISTIRAHAT") || ketStr.includes("SELESAI ISTIRAHAT") || detailStr.includes("SELESAI ISTIRAHAT") || ketStr.includes("[MASUK]") || detailStr.includes("[MASUK]");
+
+      let isMasuk = false;
+      if (hasIstirahat) {
+        if (isExplicitLaporan) {
+          isMasuk = true;
+        } else if (isExplicitSebelum) {
+          isMasuk = false;
+        } else {
+          isMasuk = currentOpIstirahatSeq % 2 === 1;
+        }
+        currentOpIstirahatSeq++;
+      }
       const isFinishReport = ((item.keterangan_cacat || "").toUpperCase() === "FINISH" || (item.production_headers?.panel_no || "").toUpperCase() === "FINISH") && !hasRealDefects;
 
       let combinedCacat = "";
@@ -1597,6 +1496,7 @@ export default function FinalInspectionPage() {
           isMeter: true,
           isIstirahat,
           hasIstirahat,
+          isMasuk,
           isFinishReport,
           displayNo: (globalRowCount + 1).toString(),
           tglStr: finalTglStr,
@@ -1654,10 +1554,12 @@ export default function FinalInspectionPage() {
   // Overall grade calculation
   const overallGradeData = React.useMemo(() => {
     return calculateOverallGradeData(
-      displayItems.map((it: any) => ({
-        ...it,
-        hasil_final: selections[it.id] || it.status_final_mending || it.status_mending || "A",
-      })),
+      displayItems
+        .filter((it: any) => !it.isTotalRow && !it.isDeleted)
+        .map((it: any) => ({
+          ...it,
+          hasil_final: selections[it.id] || it.status_final_mending || it.status_mending || "A",
+        })),
       isMeteranBatch
     );
   }, [displayItems, selections, isMeteranBatch]);
@@ -1770,318 +1672,6 @@ export default function FinalInspectionPage() {
     fetchPendingBatches(searchStartDate, searchEndDate, searchMesin, searchPotongan, 1);
   };
 
-  const renderInsertPanelModal = () => {
-    if (!insertPanelMode) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-          <div className="p-5 border-b border-slate-150">
-            <h2 className="text-lg font-extrabold text-slate-800">
-              Tambah Panel
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Pilih apakah ingin menyisipkan panel di nomor tertentu (label DOUBLE) atau menambahkannya di bagian paling akhir.
-            </p>
-          </div>
-
-          <div className="p-5 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
-            {insertPanelError && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 font-medium flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" /> {insertPanelError}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider mb-2">
-                Pilih Tipe Penambahan
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInsertPanelMode("append");
-                    setInsertPanelAt("");
-                  }}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 text-center transition-all ${
-                    insertPanelMode === "append"
-                      ? "border-[#0070bc] bg-sky-50 text-[#0070bc] font-bold"
-                      : "border-slate-200 text-slate-500 hover:border-slate-350 bg-white"
-                  }`}
-                >
-                  <span className="text-xs font-extrabold">Tambah di Akhir</span>
-                  <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Urutan terakhir</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInsertPanelMode("insert");
-                  }}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 text-center transition-all ${
-                    insertPanelMode === "insert"
-                      ? "border-[#0070bc] bg-sky-50 text-[#0070bc] font-bold"
-                      : "border-slate-200 text-slate-500 hover:border-slate-350 bg-white"
-                  }`}
-                >
-                  <span className="text-xs font-extrabold">Sisipkan Tengah</span>
-                  <span className="text-[10px] opacity-75 mt-1 font-medium leading-tight">Duplikat (DOUBLE)</span>
-                </button>
-              </div>
-            </div>
-
-            {insertPanelMode === "insert" && (
-              <div className="animate-fadeIn">
-                <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider mb-2">
-                  Sisipkan ke Nomor Panel <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={insertPanelAt}
-                  onChange={(e) => setInsertPanelAt(e.target.value)}
-                  className="w-full h-11 px-4 rounded-xl border-2 border-slate-200 focus:border-[#0070bc] focus:ring-4 focus:ring-[#0070bc]/10 outline-none font-medium text-slate-700 transition-all"
-                  placeholder="Contoh: 3"
-                />
-                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2 leading-tight">
-                  ℹ️ Panel berikutnya <strong>tidak bergeser</strong>. Panel {insertPanelAt || "target"} akan memiliki 2 baris dengan badge <strong>DOUBLE</strong>.
-                </p>
-              </div>
-            )}
-
-            {/* Checkboxes for BS & Defect */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              {insertPanelMode === "insert" ? (
-                <label
-                  htmlFor="insertPanelIsBs"
-                  className={`p-3 rounded-xl border transition-all flex flex-col justify-between cursor-pointer select-none ${
-                    insertPanelIsBs
-                      ? "border-rose-300 bg-rose-50/70 shadow-xs"
-                      : "border-slate-200 bg-slate-50/60 hover:bg-slate-100/80"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      id="insertPanelIsBs"
-                      checked={insertPanelIsBs}
-                      onChange={(e) => {
-                        setInsertPanelIsBs(e.target.checked);
-                      }}
-                      className="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500 cursor-pointer shrink-0"
-                    />
-                    <span className="text-xs font-bold text-rose-700">
-                      Barang Sisa (BS)
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-1 pl-6 leading-tight">
-                    Tandai baris ini sebagai panel sisa/BS.
-                  </p>
-                </label>
-              ) : null}
-
-              <label
-                htmlFor="insertPanelHasDefect"
-                className={`p-3 rounded-xl border transition-all flex flex-col justify-between cursor-pointer select-none ${
-                  insertPanelMode !== "insert" ? "sm:col-span-2" : ""
-                } ${
-                  insertPanelHasDefect
-                    ? "border-emerald-300 bg-emerald-50/70 shadow-xs"
-                    : "border-slate-200 bg-slate-50/60 hover:bg-slate-100/80"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="checkbox"
-                    id="insertPanelHasDefect"
-                    checked={insertPanelHasDefect}
-                    onChange={(e) => {
-                      setInsertPanelHasDefect(e.target.checked);
-                      if (!e.target.checked) {
-                        setSelectedCategories([]);
-                        setSelectedDetails({});
-                        setInputBloks({});
-                      }
-                    }}
-                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
-                  />
-                  <span className="text-xs font-bold text-slate-800">
-                    Laporkan Temuan Cacat?
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1 pl-6 leading-tight">
-                  Pilih kategori masalah (Kode A/B/C/D...) dan nomor blok.
-                </p>
-              </label>
-            </div>
-
-            {insertPanelHasDefect && (
-              <div className="space-y-4 pt-2 border-t border-slate-100 animate-fadeIn">
-                <label className="text-xs font-bold text-slate-700 uppercase block">
-                  Pilih Temuan Cacat / Masalah
-                </label>
-                <div className="space-y-2">
-                  {problemCategories.map((cat) => (
-                    <div key={cat.id} className="flex flex-col gap-2">
-                      <label className="cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedCategories.includes(cat.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedCategories((prev) => [...prev, cat.id]);
-                            } else {
-                              setSelectedCategories((prev) => prev.filter((c) => c !== cat.id));
-                              setSelectedDetails((prev) => {
-                                const next = { ...prev };
-                                delete next[cat.id];
-                                return next;
-                              });
-                              setInputBloks((prev) => {
-                                const next = { ...prev };
-                                delete next[cat.id];
-                                return next;
-                              });
-                            }
-                          }}
-                          className="peer sr-only"
-                        />
-                        <div className="p-3 rounded-xl border-2 border-slate-100 bg-white text-xs font-bold text-slate-650 peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 transition-all hover:border-slate-350">
-                          {cat.name}
-                        </div>
-                      </label>
-
-                      {selectedCategories.includes(cat.id) && problemDetailsMap[cat.id] && (
-                        <div className="pl-4 pr-2 py-2 border-l-2 border-sky-200 ml-2 animate-in slide-in-from-top-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">
-                            Pilih Detail Masalah
-                          </label>
-                          <div className="grid grid-cols-2 gap-2">
-                            {problemDetailsMap[cat.id].map((detail) => (
-                              <label key={detail} className="cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedDetails[cat.id]?.includes(detail) || false}
-                                  onChange={(e) => {
-                                    const current = selectedDetails[cat.id] || [];
-                                    if (e.target.checked) {
-                                      setSelectedDetails((prev) => ({
-                                        ...prev,
-                                        [cat.id]: [...current, detail],
-                                      }));
-                                    } else {
-                                      setSelectedDetails((prev) => ({
-                                        ...prev,
-                                        [cat.id]: current.filter((d) => d !== detail),
-                                      }));
-                                    }
-                                  }}
-                                  className="peer sr-only"
-                                />
-                                <div className="p-2 rounded-lg border border-slate-200 text-[10px] font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center">
-                                  {detail}
-                                </div>
-                              </label>
-                            ))}
-
-                            {(selectedDetails[cat.id] || [])
-                              .filter((d) => !(problemDetailsMap[cat.id] || []).includes(d))
-                              .map((customDetail) => (
-                                <div key={customDetail} className="relative flex items-center">
-                                  <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-[10px] font-semibold flex items-center justify-between shadow-xs">
-                                    <span className="truncate">{customDetail}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedDetails((prev) => ({
-                                          ...prev,
-                                          [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
-                                        }));
-                                      }}
-                                      className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
-                                      title="Hapus detail manual"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-
-                          {cat.id === "G" && (
-                            <div className="mt-3 pt-3 border-t border-sky-100">
-                              <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-slate-700">
-                                  <Edit3 className="w-3 h-3 text-sky-600" />
-                                  Input Masalah Manual (Jika tidak ada di pilihan)
-                                </span>
-                              </label>
-                              <div className="flex gap-2">
-                                <input
-                                  type="text"
-                                  value={manualInputDetails[cat.id] || ""}
-                                  onChange={(e) =>
-                                    setManualInputDetails((prev) => ({ ...prev, [cat.id]: e.target.value }))
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      handleAddPanelManualDetail(cat.id);
-                                    }
-                                  }}
-                                  placeholder="Ketik detail masalah manual di sini..."
-                                  className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-slate-800 placeholder:text-slate-400"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleAddPanelManualDetail(cat.id)}
-                                  disabled={!(manualInputDetails[cat.id] || "").trim()}
-                                  className="px-3 py-2 bg-sky-500 text-white font-bold text-xs rounded-lg hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Tambah</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="p-5 border-t border-slate-150 bg-slate-50 flex justify-end gap-3">
-            <button
-              onClick={() => setInsertPanelMode(null)}
-              className="h-11 px-5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              Batal
-            </button>
-            <button
-              disabled={
-                isInsertingPanel || 
-                (insertPanelMode === "insert" && !insertPanelAt) ||
-                (insertPanelHasDefect && selectedCategories.some(cat => {
-                  const hasDetails = (selectedDetails[cat] || []).length > 0;
-                  const hasManual = (manualInputDetails[cat] || "").trim().length > 0;
-                  return !hasDetails && !hasManual;
-                }))
-              }
-              onClick={handleInsertPanel}
-              className="h-11 px-6 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-95 disabled:opacity-50 text-white font-bold transition-all flex items-center gap-2 cursor-pointer"
-            >
-              {isInsertingPanel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Simpan Panel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // ACTIVE FINAL INSPECTION VIEW
   if (activeFinalPcs) {
     return (
@@ -2148,16 +1738,7 @@ export default function FinalInspectionPage() {
         {!isMeteranBatch && displayItems.length > 0 && (
           <div className="mb-4 flex justify-end animate-fadeIn">
             <button
-              onClick={() => {
-                setInsertPanelMode("append");
-                setInsertPanelAt("");
-                setInsertPanelHasDefect(false);
-                setInsertPanelIsBs(false);
-                setSelectedCategories([]);
-                setSelectedDetails({});
-                setInputBloks({});
-                setInsertPanelKeterangan("");
-              }}
+              onClick={() => setInsertPanelMode("append")}
               className="h-11 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold transition-all duration-200 flex items-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -2302,136 +1883,13 @@ export default function FinalInspectionPage() {
         )}
 
         {/* Pop up modal hapus rincian (Single Delete) */}
-        {detailToDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-200">
-              {pendingDeleteMode === null ? (
-                /* Step 1: Pilih Opsi Hapus */
-                <>
-                  <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
-                    <AlertTriangle className="w-6 h-6 text-rose-600" />
-                  </div>
-                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">Pilih Opsi Hapus Panel</h3>
-                  <p className="text-xs text-center text-slate-500 mb-5">
-                    Panel: <span className="font-semibold text-slate-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo} - ` : ""}{detailToDelete.name}</span>
-                  </p>
-                  
-                  <div className="flex flex-col gap-3 mb-5">
-                    {/* Opsi 1: Hapus Baris Panel (Permanen / Nomor Tetap) */}
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteMode("permanent")}
-                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-rose-100 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-300 text-left transition-all group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
-                        1
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-sm text-slate-800 group-hover:text-rose-700 transition-colors flex items-center justify-between">
-                          <span>Hapus Baris Panel</span>
-                          <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Permanen</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                          Hapus data baris ini sepenuhnya dari database. Nomor panel lain <span className="font-semibold text-rose-600">tidak akan bergeser</span>.
-                        </p>
-                      </div>
-                    </button>
-
-                    {/* Opsi 2: Tandai Dihapus (Nomor Tetap) */}
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteMode("keep_slot")}
-                      className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 text-left transition-all group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
-                        2
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-sm text-slate-800 group-hover:text-amber-800 transition-colors flex items-center justify-between">
-                          <span>Tandai Dihapus (Nomor Tetap)</span>
-                          <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">Nomor Tetap</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                          Nomor panel tetap berada di posisinya (tidak bergeser), panel diberi tanda <span className="font-semibold text-rose-600">DIHAPUS</span>, dan tidak dihitung dalam total penjumlahan panel.
-                        </p>
-                      </div>
-                    </button>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDetailToDelete(null);
-                        setPendingDeleteMode(null);
-                      }}
-                      className="w-full h-10 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
-                    >
-                      Batal
-                    </button>
-                  </div>
-                </>
-              ) : (
-                /* Step 2: Layar Konfirmasi Kedua */
-                <>
-                  <div className={`w-12 h-12 rounded-full ${pendingDeleteMode === "permanent" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"} flex items-center justify-center mb-3 mx-auto`}>
-                    <AlertTriangle className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-lg font-bold text-center text-slate-800 mb-1">Konfirmasi Penghapusan</h3>
-                  <p className="text-xs text-center text-slate-500 mb-4">
-                    Apakah Anda yakin ingin melanjutkan tindakan ini?
-                  </p>
-
-                  {pendingDeleteMode === "permanent" ? (
-                    <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/60 mb-5 text-left">
-                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-rose-800">
-                        <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">1</span>
-                        Opsi 1: Hapus Baris Panel (Permanen)
-                      </div>
-                      <p className="text-xs text-slate-700 leading-relaxed">
-                        Data baris <span className="font-semibold text-rose-700">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>dihapus permanen</strong>. Nomor panel lain <strong>tidak akan bergeser</strong>.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 mb-5 text-left">
-                      <div className="flex items-center gap-2 mb-1 font-bold text-xs text-amber-900">
-                        <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">2</span>
-                        Opsi 2: Tandai Dihapus (Nomor Tetap)
-                      </div>
-                      <p className="text-xs text-slate-700 leading-relaxed">
-                        Nomor panel <span className="font-semibold text-amber-800">{detailToDelete.panelNo ? `Panel ${detailToDelete.panelNo}` : detailToDelete.name}</span> akan <strong>tetap di tempat</strong> dan berstatus <strong>DIHAPUS</strong> (tidak dihitung dalam total penjumlahan panel).
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteMode(null)}
-                      disabled={isDeletingDetail}
-                      className="flex-1 h-11 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 border border-slate-200 cursor-pointer"
-                    >
-                      Kembali
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteDetail(pendingDeleteMode)}
-                      disabled={isDeletingDetail}
-                      className={`flex-1 h-11 rounded-xl font-bold text-xs text-white ${pendingDeleteMode === "permanent" ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20" : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"} shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer`}
-                    >
-                      {isDeletingDetail ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                      Ya, Hapus Data
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        <DeletePanelModal
+          isOpen={!!detailToDelete}
+          item={detailToDelete}
+          onClose={() => setDetailToDelete(null)}
+          onConfirm={handleDeleteDetail}
+          isDeleting={isDeletingDetail}
+        />
 
         {/* Modal Hapus Massal / Bulk Delete */}
         {isBulkDeleteModalOpen && (
@@ -2576,7 +2034,14 @@ export default function FinalInspectionPage() {
         )}
 
         {/* Tambah Panel Modal */}
-        {renderInsertPanelModal()}
+        <InsertPanelModal
+          isOpen={!!insertPanelMode}
+          defaultMode={insertPanelMode || "append"}
+          onClose={() => setInsertPanelMode(null)}
+          onSubmit={handleInsertPanelSubmit}
+          problemCategories={problemCategories}
+          problemDetailsMap={problemDetailsMap}
+        />
 
         {/* Modals */}
         <FinalInspectionModal

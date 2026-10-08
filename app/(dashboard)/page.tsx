@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -418,10 +418,12 @@ const getNiceChartMax = (rawValue: number, minimum = 5) => {
 let cachedDashboardTransactions: Transaction[] | null = null;
 let cachedDashboardIsLive = false;
 let isFetchingDashboardData = false;
+let isFullDashboardCached = false;
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const [, startTransition] = useTransition();
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<
     "ALL" | "LOLOS" | "EFISIENSI" | "PROBLEMS" | "NOL_PRODUKSI"
@@ -551,22 +553,31 @@ export default function DashboardPage() {
   }, [user, router]);
 
   // Load real production data from Supabase (with client-side navigation caching)
-  const loadLiveData = async (forceRefresh = false) => {
+  const loadLiveData = async (
+    forceRefresh = false,
+    customOptions?: { startDate?: string; endDate?: string; fetchAll?: boolean }
+  ) => {
     if (isFetchingDashboardData && !forceRefresh) return;
-    if (!forceRefresh && cachedDashboardTransactions && cachedDashboardTransactions.length > 0) {
+    if (!forceRefresh && !customOptions && cachedDashboardTransactions && cachedDashboardTransactions.length > 0 && isFullDashboardCached) {
       return;
     }
     isFetchingDashboardData = true;
     if (forceRefresh) setIsRefreshing(true);
 
     try {
-      const res = await getRealProductionsData();
+      const res = await getRealProductionsData(customOptions);
       console.log("Dashboard Live Data Response:", res);
       if (res.success && res.data) {
         cachedDashboardTransactions = res.data as Transaction[];
         cachedDashboardIsLive = true;
-        setTransactions(res.data as Transaction[]);
-        setIsLive(true);
+        if (!customOptions) {
+          isFullDashboardCached = true;
+        }
+        // Non-blocking state update via startTransition so UI navigation stays responsive
+        startTransition(() => {
+          setTransactions(res.data as Transaction[]);
+          setIsLive(true);
+        });
       } else if (!res.success) {
         console.error("Failed to load dashboard data:", res.error);
       }
@@ -583,12 +594,80 @@ export default function DashboardPage() {
     if (user && (user.role === "operator" || user.role === "inspeksi" || user.role === "qc" || user.role === "mending")) {
       return;
     }
-    // Jika data sudah pernah di-load di sesi ini, jangan reload lagi saat pindah halaman!
-    if (cachedDashboardTransactions && cachedDashboardTransactions.length > 0) {
+    // Jika data 35 hari sudah lengkap di memori, jangan reload lagi saat pindah halaman!
+    if (cachedDashboardTransactions && cachedDashboardTransactions.length > 0 && isFullDashboardCached) {
       return;
     }
-    loadLiveData();
+
+    // Hitung tanggal cut-off shift kerja operasional hari ini (dengan buffer 1 hari untuk shift 3 malam)
+    const shiftToday = getShiftDate(new Date());
+    const prevDate = new Date();
+    prevDate.setDate(prevDate.getDate() - 1);
+    const yesterdayStr = prevDate.toISOString().split("T")[0];
+    const todayStartDate = yesterdayStr < shiftToday ? yesterdayStr : shiftToday;
+
+    let isCancelled = false;
+    let bgTimeout: NodeJS.Timeout | null = null;
+
+    const runProgressiveLoad = async () => {
+      // TAHAP 1: Ambil data Hari Ini secara instan (< 100ms)
+      if (!cachedDashboardTransactions || cachedDashboardTransactions.length === 0) {
+        await loadLiveData(false, { startDate: todayStartDate });
+      }
+
+      if (isCancelled) return;
+
+      // TAHAP 2: Tarik sisa data 35 hari secara senyap di latar belakang setelah UI hari ini muncul
+      if (!isFullDashboardCached) {
+        bgTimeout = setTimeout(async () => {
+          if (isCancelled) return;
+          try {
+            const fullRes = await getRealProductionsData();
+            if (fullRes.success && fullRes.data && !isCancelled) {
+              cachedDashboardTransactions = fullRes.data as Transaction[];
+              cachedDashboardIsLive = true;
+              isFullDashboardCached = true;
+              startTransition(() => {
+                setTransactions(fullRes.data as Transaction[]);
+              });
+            }
+          } catch (e) {
+            console.warn("Background prefetch 35-day data notice:", e);
+          }
+        }, 1200);
+      }
+    };
+
+    runProgressiveLoad();
+
+    return () => {
+      isCancelled = true;
+      if (bgTimeout) clearTimeout(bgTimeout);
+    };
   }, [user]);
+
+  // Jika user berpindah ke filter 7 Hari atau 30 Hari sebelum background fetch selesai, muat langsung
+  useEffect(() => {
+    if ((dateRangeMode === "7DAYS" || dateRangeMode === "30DAYS") && !isFullDashboardCached) {
+      loadLiveData(true);
+    }
+  }, [dateRangeMode]);
+
+  // Handle custom date range if requested outside loaded window
+  useEffect(() => {
+    if (dateRangeMode === "CUSTOM" && startDate) {
+      const reqDate = new Date(startDate);
+      const minLoadedDate = transactions.reduce<Date | null>((min, t) => {
+        const d = new Date(t.tanggal);
+        if (isNaN(d.getTime())) return min;
+        return !min || d < min ? d : min;
+      }, null);
+
+      if (minLoadedDate && reqDate < minLoadedDate) {
+        loadLiveData(true, { startDate, endDate: endDate || undefined });
+      }
+    }
+  }, [dateRangeMode, startDate, endDate]);
 
   // Machines Grouped by Type (Mesin R vs Mesin T vs Lainnya) - all 10 registered machines + transactions
   const machinesByType = useMemo(() => {

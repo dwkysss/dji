@@ -1103,7 +1103,7 @@ function MendingDetailContent() {
                         : [];
 
                       const parsedCacatItems = cacatRawLines.map((line: string) => {
-                        const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]") || item.hasTambahanQC;
+                        const isLineQc = item.isPanelInsertedByQc || line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]") || item.hasTambahanQC;
                         const cleanText = line
                           .replace(/\[QC\]/gi, "")
                           .replace(/\[TAMBAHAN QC\]/gi, "")
@@ -1558,7 +1558,7 @@ function MendingDetailContent() {
                                   if (item.hasIstirahat && !item.backupOpName && masalahLines.length === 1 && line === "-") {
                                       return <span key={i} title={line} className="text-slate-400">-</span>;
                                   }
-                                  const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
+                                  const isLineQc = item.isPanelInsertedByQc || line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
                                   const clean = line
                                     .replace(/\[QC\]/gi, "")
                                     .replace(/\[TAMBAHAN QC\]/gi, "")

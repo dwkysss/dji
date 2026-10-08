@@ -456,7 +456,7 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
             id, tgl, tanggal_potong, design_id, potongan_ke, panel_no, nomor_mc,
             meter_awal, meter_akhir,
             production_details (
-              pcs_index, meter_kain, jml_hasil_produksi
+              id, pcs_index, meter_kain, jml_hasil_produksi, is_deleted, status_inspeksi, keterangan_cacat
             )
           `)
           .in("potongan_ke", chunk)
@@ -514,33 +514,40 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
             if (h.meter_akhir !== undefined && h.meter_awal !== undefined && h.meter_akhir !== null && h.meter_awal !== null) {
               totalMeter = Math.abs(Number(h.meter_akhir) - Number(h.meter_awal));
             } else {
-              const pcsDetails = details.filter((d: any) => Number(d.pcs_index || 1) === pcsNum);
+              const pcsDetails = details.filter((d: any) => 
+                Number(d.pcs_index || 1) === pcsNum &&
+                !d.is_deleted &&
+                d.status_inspeksi !== "Dihapus" &&
+                !(d.keterangan_cacat || "").includes("[DIHAPUS]")
+              );
               pcsDetails.forEach((d: any) => {
                 totalMeter += Number(d.meter_kain || d.jml_hasil_produksi || 0);
               });
             }
             if (totalMeter > 0) existingRow.qty_meter = totalMeter;
           } else {
-            // Hitung akumulasi panel murni produksi (Sama seperti Laporan Bulanan: TIDAK menyertakan panel BS / BS AWAL / BS AKHIR)
+            // Hitung akumulasi panel Data Potong Kain (menyertakan panel BS / BS AWAL / BS AKHIR sesuai aturan)
             const pStr = String(h.panel_no || "").toUpperCase().trim();
-            const pcsDetails = details.filter((d: any) => Number(d.pcs_index || 1) === pcsNum);
-            const isBsPanel =
-              pStr.includes("BS") ||
-              pStr.includes("AWAL") ||
-              pStr.includes("AKHIR") ||
-              pStr === "BERHENTI" ||
-              pStr === "ISTIRAHAT" ||
-              pcsDetails.some((d: any) => Number(d.jml_hasil_produksi) === 0);
+            if (pStr === "START" || pStr === "FINISH" || pStr === "BERHENTI" || pStr === "ISTIRAHAT") {
+              return;
+            }
 
-            if (!isBsPanel) {
+            const activeDetails = details.filter((d: any) =>
+              Number(d.pcs_index || 1) === pcsNum &&
+              !d.is_deleted &&
+              d.status_inspeksi !== "Dihapus" &&
+              !(d.keterangan_cacat || "").includes("[DIHAPUS]")
+            );
+
+            if (activeDetails.length > 0) {
               const currentCount = panelCountMap.get(key) || 0;
-              panelCountMap.set(key, currentCount + 1);
+              panelCountMap.set(key, currentCount + activeDetails.length);
             }
           }
         });
       });
 
-      // Terapkan hasil hitungan panel murni produksi tanpa BS
+      // Terapkan hasil hitungan panel Data Potong Kain
       panelCountMap.forEach((count, key) => {
         const row = rowsMap.get(key);
         if (row && !row.is_meter) {

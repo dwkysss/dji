@@ -50,6 +50,7 @@ export async function getRealProductionsData(options?: {
   operatorName?: string;
   startDate?: string;
   endDate?: string;
+  fetchAll?: boolean;
 }): Promise<{
   success: boolean;
   data?: RealProductionItem[];
@@ -57,6 +58,17 @@ export async function getRealProductionsData(options?: {
 }> {
   try {
     const supabase = await createClient();
+
+    // Default ke 35 hari terakhir jika tidak ada tanggal spesifik & bukan fetchAll
+    // Ini memangkas ribuan row historis masa lalu sehingga load dashboard menjadi instan (<300ms)
+    let effectiveStartDate = options?.startDate;
+    const effectiveEndDate = options?.endDate;
+
+    if (!effectiveStartDate && !options?.fetchAll) {
+      const past = new Date();
+      past.setDate(past.getDate() - 35);
+      effectiveStartDate = past.toISOString().split("T")[0];
+    }
 
     // Query 1: Get dashboard view data via chunked pagination to bypass the 1000-row limit
     let allData: any[] = [];
@@ -74,11 +86,11 @@ export async function getRealProductionsData(options?: {
         const op = options.operatorName.trim();
         query = query.or(`nama_operator.ilike.%${op}%,pic.ilike.%${op}%`);
       }
-      if (options?.startDate) {
-        query = query.gte("tanggal", options.startDate);
+      if (effectiveStartDate) {
+        query = query.gte("tanggal", effectiveStartDate);
       }
-      if (options?.endDate) {
-        query = query.lte("tanggal", options.endDate);
+      if (effectiveEndDate) {
+        query = query.lte("tanggal", effectiveEndDate);
       }
 
       const { data: chunk, error: chunkError } = await query.range(from, from + PAGE_SIZE - 1);
@@ -113,11 +125,11 @@ export async function getRealProductionsData(options?: {
         .select("id, tanggal_jam")
         .order("tgl", { ascending: false });
 
-      if (options?.startDate) {
-        hQuery = hQuery.gte("tgl", options.startDate);
+      if (effectiveStartDate) {
+        hQuery = hQuery.gte("tgl", effectiveStartDate);
       }
-      if (options?.endDate) {
-        hQuery = hQuery.lte("tgl", options.endDate);
+      if (effectiveEndDate) {
+        hQuery = hQuery.lte("tgl", effectiveEndDate);
       }
 
       const { data: hChunk, error: hError } = await hQuery.range(

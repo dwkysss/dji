@@ -7,6 +7,7 @@ import { getMachineStatuses } from "@/actions/dashboard-actions";
 import { getGoogleSheetEndpoint, sendPayloadToGoogleSheet, syncAllMonthlyMachines, getAutoSyncScheduleSettings, updateAutoSyncScheduleSettings } from "@/actions/google-sheet-actions";
 import { FileSpreadsheet, Loader2, Calendar, Monitor, AlertCircle, ArrowLeft, CloudUpload, X, Info, CheckCircle2, RotateCw, Zap, Check, Clock, Settings, ShieldCheck, BarChart3 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 // Helper to format seconds as HH:MM:SS
 const formatHHMMSS = (totalSec: number) => {
@@ -168,6 +169,7 @@ function FormulaTooltip({
 }
 
 export default function MonthlyMachineReportPage() {
+  const router = useRouter();
   const [machines, setMachines] = useState<string[]>([]);
   const [selectedMachine, setSelectedMachine] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
@@ -1033,13 +1035,21 @@ export default function MonthlyMachineReportPage() {
             {/* Left: Kembali + Title & Info */}
             <div className="flex flex-col min-w-0">
               <div className="mb-2">
-                <Link
-                  href="/dashboard"
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-[#0070bc] transition-colors group"
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== "undefined" && window.history.length > 1) {
+                      router.back();
+                    } else {
+                      router.push("/");
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-[#0070bc] transition-colors group cursor-pointer"
+                  title="Kembali ke halaman sebelumnya"
                 >
                   <ArrowLeft className="w-3.5 h-3.5 transition-transform duration-200 group-hover:-translate-x-1" />
                   <span>Kembali</span>
-                </Link>
+                </button>
               </div>
 
               <div className="flex items-center gap-3">

@@ -55,3 +55,6 @@ db_out.json
 # SQL scripts & walkthrough
 *.sql
 walkthrough.md
+
+# PWA generated fallback
+public/fallback-*.js

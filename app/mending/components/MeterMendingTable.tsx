@@ -131,7 +131,7 @@ export default function MeterMendingTable({
               .replace(/\[QC\]/gi, "")
               .replace(/\[TAMBAHAN QC\]/gi, "")
               .replace(/\[TAMBAHAN MENDING\]/gi, "")
-              .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+              .replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "")
               .trim();
             return { isLineQc, text: cleanText };
           }).filter((c: any) => c.text.length > 0 && c.text !== "-");
@@ -144,6 +144,8 @@ export default function MeterMendingTable({
                   ? "bg-slate-100/60 opacity-80"
                   : isRowQcModified
                   ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+                  : item.isMasuk
+                  ? "bg-emerald-50/30 hover:bg-emerald-50/50"
                   : (item.isIstirahat || item.hasIstirahat)
                   ? "bg-amber-50/30 hover:bg-amber-50/50"
                   : "bg-white hover:bg-slate-50"
@@ -161,7 +163,7 @@ export default function MeterMendingTable({
                   ) : null}
                 </td>
               )}
-              <td className={`sticky left-0 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isDeleted ? "bg-slate-100" : isRowQcModified ? "bg-sky-100/70" : (item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
+              <td className={`sticky left-0 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-100 border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isDeleted ? "bg-slate-100" : isRowQcModified ? "bg-sky-100/70" : item.isMasuk ? "bg-emerald-100" : (item.isIstirahat || item.hasIstirahat) ? "bg-[#fffbeb]" : "bg-white"}`}>
                 <div className="flex flex-col items-center justify-center">
                   <span>{item.displayNo}</span>
                   {isDeleted ? (
@@ -179,14 +181,24 @@ export default function MeterMendingTable({
               <td className="px-1.5 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100">
                 {item.showGrp ? item.grpStr : ""}
               </td>
-              <td className={`px-2 py-1.5 font-medium text-slate-700 leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? "italic font-bold text-amber-600" : ""}`}>
-                {item.hasIstirahat ? "Istirahat" : (item.showOpr ? item.oprStr : "")}
+              <td className={`px-2 py-1.5 font-medium leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? (item.isMasuk ? "italic font-bold text-emerald-700" : "italic font-bold text-amber-600") : "text-slate-700"}`}>
+                {item.hasIstirahat ? (item.isMasuk ? "Masuk" : "Istirahat") : (item.showOpr ? item.oprStr : "")}
               </td>
               <td className="px-1.5 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100 border-b border-slate-100">
                 {item.meterDisplay}
               </td>
               <td className="px-1.5 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100 border-b border-slate-100">
-                {isDeleted ? <span className="text-slate-400 font-bold">-</span> : !item.isGradable ? "" : (item.indikator_stop || item.kategori_masalah || isRowQcModified ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
+                {isDeleted ? (
+                  <span className="text-slate-400 font-bold">-</span>
+                ) : !item.isGradable ? (
+                  ""
+                ) : item.indikator_stop || item.kategori_masalah || isRowQcModified ? (
+                  <span className="text-rose-600">
+                    X
+                  </span>
+                ) : (
+                  <span className="text-emerald-600">✓</span>
+                )}
               </td>
               <td className="px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100">
                 {isDeleted ? (
@@ -202,9 +214,7 @@ export default function MeterMendingTable({
                             <div
                               key={idx}
                               className={
-                                cItem.isLineQc
-                                  ? "text-[#0070bc] font-semibold"
-                                  : (!item.isGradable || item.isGagalCacatOnly)
+                                (!item.isGradable || item.isGagalCacatOnly)
                                   ? "text-slate-500 font-medium"
                                   : "text-rose-600 font-medium"
                               }

@@ -4,6 +4,7 @@ import React from "react";
 import { CheckCircle, X, CheckCircle2, XCircle } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
+import { isPanelGagalCacatAja } from "@/lib/mending-grade-utils";
 
 export default function PanelHistoryTable({
   detailsToDisplay,
@@ -91,7 +92,7 @@ export default function PanelHistoryTable({
       const { item, isIstirahatOnly, hasIstirahat, isGradable, opr, grp, tgl, operatorStr } = p;
 
       const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
-      const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS" || item.final_inspection_id === 4;
+      const isBS = (!isPanelGagalCacatAja(item) && item.jml_hasil_produksi === 0) || item.status_inspeksi === "BS" || item.final_inspection_id === 4;
       if (!isBS && !isDeleted) {
         currentOpCount += 1;
       }
@@ -338,12 +339,17 @@ export default function PanelHistoryTable({
 
                 const pushDetailsForCat = (k: string, d: string) => {
                   if (!d) {
-                    cacatLines.push(k);
+                    if (k && k !== "Unknown") cacatLines.push(k);
+                    return;
+                  }
+                  let cleanD = d.replace(new RegExp(`^(?:${k}|Kode\\s*${k}|[A-Z0-9]+)\\s*[:\\-]\\s*`, "i"), "").trim();
+                  cleanD = cleanD.replace(/\s*\(Titik:\s*[^)]+\)/gi, "").trim();
+                  if (!cleanD) {
                     return;
                   }
                   const knownDetailsForCat = PROBLEM_DETAILS[k] || [];
                   const matchedDetails: string[] = [];
-                  let remainingD = d;
+                  let remainingD = cleanD;
 
                   const sortedKnown = [...knownDetailsForCat].sort((a, b) => b.length - a.length);
                   sortedKnown.forEach(known => {
@@ -354,12 +360,20 @@ export default function PanelHistoryTable({
                   });
 
                   if (matchedDetails.length > 0) {
-                    const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
+                    const customParts = remainingD
+                      .split(",")
+                      .map((s: string) => s.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim())
+                      .filter((s: string) => s && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(s));
                     matchedDetails.forEach(match => cacatLines.push(`${k} - ${match}`));
                     customParts.forEach(custom => cacatLines.push(`${k} - ${custom}`));
                   } else {
-                    const parts = d.split(",").map((s: string) => s.trim()).filter(Boolean);
-                    parts.forEach(p => cacatLines.push(`${k} - ${p}`));
+                    const parts = cleanD.split(",").map((s: string) => s.trim()).filter(Boolean);
+                    parts.forEach(p => {
+                      const cleanP = p.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim();
+                      if (cleanP && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(cleanP)) {
+                        cacatLines.push(`${k} - ${cleanP}`);
+                      }
+                    });
                   }
                 };
 
@@ -455,9 +469,17 @@ export default function PanelHistoryTable({
             }
 
             const isDeleted = !!detail.is_deleted || detail.status_inspeksi === "Dihapus" || (detail.keterangan_cacat || "").includes("[DIHAPUS]");
-            const isBsRow = isBsAwal || isBsAkhir || String(rawPanelNo).includes("(BS)") || String(item.displayNo).includes("(BS)") || detail.jml_hasil_produksi === 0 || detail.status_inspeksi === "BS" || detail.final_inspection_id === 4 || item.final_inspection_id === 4 || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
+            const isGagalCacat = isPanelGagalCacatAja(detail) || isPanelGagalCacatAja(item);
+            const isBsRow = isBsAwal || isBsAkhir || String(rawPanelNo).includes("(BS)") || String(item.displayNo).includes("(BS)") || (!isGagalCacat && (detail.jml_hasil_produksi === 0 || item.jml_hasil_produksi === 0)) || detail.status_inspeksi === "BS" || detail.final_inspection_id === 4 || item.final_inspection_id === 4 || item.status_inspeksi === "BS";
 
-            const isPanelInsertedByQc = !!detail.is_inserted_qc || !!detail.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!itemHeader?.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(rawPanelNo || "").includes("QC"));
+            const isPanelInsertedByQc =
+              !!detail.is_inserted_qc ||
+              !!detail.isPanelInsertedByQc ||
+              !!detail.keterangan_cacat?.includes("[TAMBAHAN QC]") ||
+              !!detail.keterangan_cacat?.toUpperCase().includes("QC") ||
+              !!itemHeader?.keterangan_cacat?.includes("[TAMBAHAN QC]") ||
+              !!itemHeader?.keterangan_cacat?.toUpperCase().includes("QC") ||
+              String(rawPanelNo || "").toUpperCase().includes("QC");
             const hasTambahanQC = !!detail.detail_masalah?.includes("[QC]") || (detail.production_defects && detail.production_defects.some((d: any) => d.detail?.includes("[QC]")));
             const hasTambahanMnd = !!detail.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!itemHeader?.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
 
@@ -570,12 +592,12 @@ export default function PanelHistoryTable({
                      const parsedCacatItems = masalahLines
                        .filter((l) => l && l !== "-")
                        .map((line) => {
-                         const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
+                         const isLineQc = isPanelInsertedByQc || line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
                          const clean = line
                            .replace(/\[QC\]/gi, "")
                            .replace(/\[TAMBAHAN QC\]/gi, "")
                            .replace(/\[TAMBAHAN MENDING\]/gi, "")
-                           .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                           .replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "")
                            .trim();
                          return { isLineQc, text: clean };
                        })
@@ -593,9 +615,7 @@ export default function PanelHistoryTable({
                                <div
                                  key={lIdx}
                                  className={
-                                   cItem.isLineQc
-                                     ? "text-[#0070bc] font-semibold"
-                                     : isGagalCacatOnly
+                                   isGagalCacatOnly
                                      ? "text-slate-500 font-medium"
                                      : "text-rose-600 font-medium"
                                  }

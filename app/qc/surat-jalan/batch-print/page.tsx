@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { getSuratJalanById } from "@/actions/surat-jalan-actions";
 import { Printer, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import SuratJalanPrintTemplate from "@/components/SuratJalanPrintTemplate";
 
 function BatchPrintContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const idsParam = searchParams.get("ids");
   
@@ -69,10 +70,20 @@ function BatchPrintContent() {
       
       {/* Header Print */}
       <div className="max-w-[210mm] w-full mx-auto mb-4 flex justify-between items-center print:hidden px-4">
-        <Link href="/qc/surat-jalan" className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium bg-white px-4 py-2 rounded-lg shadow-sm">
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/qc/surat-jalan");
+            }
+          }}
+          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium bg-white px-4 py-2 rounded-lg shadow-sm cursor-pointer"
+        >
           <ArrowLeft className="w-4 h-4" />
           Kembali
-        </Link>
+        </button>
         <button 
           onClick={handlePrint}
           className="flex items-center gap-2 bg-[#0070bc] hover:bg-[#005a96] text-white px-6 py-2.5 rounded-lg shadow-sm font-bold transition-colors"

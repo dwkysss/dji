@@ -136,9 +136,20 @@ export default function CreateSuratJalanPage() {
 
       {/* Header */}
       <div data-tour="qc-create-sj-header" className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
-        <Link href="/qc/surat-jalan" className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-200 text-slate-500 hover:text-slate-800 transition-colors">
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/qc/surat-jalan");
+            }
+          }}
+          className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-200 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+          title="Kembali ke halaman sebelumnya"
+        >
           <ArrowLeft className="w-5 h-5" />
-        </Link>
+        </button>
         <div className="flex-1">
           <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
             Buat Surat Jalan Baru

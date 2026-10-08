@@ -131,7 +131,7 @@ export default function MeterFinalInspectionTable({
               .replace(/\[QC\]/gi, "")
               .replace(/\[TAMBAHAN QC\]/gi, "")
               .replace(/\[TAMBAHAN MENDING\]/gi, "")
-              .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+              .replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "")
               .trim();
             return { isLineQc, text: cleanText };
           }).filter((c: any) => c.text.length > 0 && c.text !== "-");
@@ -144,6 +144,8 @@ export default function MeterFinalInspectionTable({
                   ? "bg-slate-100/60 opacity-80"
                   : isRowQcModified
                   ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+                  : item.isMasuk
+                  ? "bg-emerald-50/30 hover:bg-emerald-50/50"
                   : (item.isIstirahat || item.hasIstirahat)
                   ? "bg-amber-50/30 hover:bg-amber-50/50"
                   : "bg-white hover:bg-slate-50"
@@ -177,8 +179,8 @@ export default function MeterFinalInspectionTable({
               <td className="px-1.5 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100">
                 {item.showGrp ? item.grpStr : ""}
               </td>
-              <td className={`px-2 py-1.5 text-xs w-28 leading-tight border-r border-slate-100 border-b border-slate-100 ${(!item.showOpr && (item.isIstirahat || item.hasIstirahat)) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
-                {item.showOpr ? item.oprStr : ((item.isIstirahat || item.hasIstirahat) ? "Istirahat" : "")}
+              <td className={`px-2 py-1.5 text-xs w-28 leading-tight border-r border-slate-100 border-b border-slate-100 ${(!item.showOpr && (item.isIstirahat || item.hasIstirahat)) ? (item.isMasuk ? "italic font-bold text-emerald-700" : "italic font-bold text-amber-600") : "font-medium text-slate-700"}`}>
+                {item.showOpr ? item.oprStr : ((item.isIstirahat || item.hasIstirahat) ? (item.isMasuk ? "Masuk" : "Istirahat") : "")}
               </td>
               <td className="px-1.5 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100 border-b border-slate-100">
                 {item.meterDisplay}
@@ -187,7 +189,9 @@ export default function MeterFinalInspectionTable({
                 {isDeleted ? (
                   <span className="text-slate-400 font-bold">-</span>
                 ) : item.hasRealDefects ? (
-                  <span className="text-rose-600">X</span>
+                  <span className="text-rose-600">
+                    X
+                  </span>
                 ) : (
                   <span className="text-emerald-600">✓</span>
                 )}
@@ -206,9 +210,7 @@ export default function MeterFinalInspectionTable({
                             <div
                               key={lIdx}
                               className={
-                                cItem.isLineQc
-                                  ? "text-[#0070bc] font-semibold"
-                                  : item.isGagalCacatOnly
+                                item.isGagalCacatOnly
                                   ? "text-slate-500 font-medium"
                                   : "text-rose-600 font-medium"
                               }

@@ -653,7 +653,7 @@ function SidebarInner({
                         <Link
                           key={item.href}
                           href={item.href}
-                          prefetch={false}
+                          prefetch={true}
                           onClick={() => {
                             if (item.href !== pathname && !item.href.startsWith("#")) {
                               setPendingHref(item.href);
@@ -724,7 +724,7 @@ function SidebarInner({
                 <Link
                   key={item.name}
                   href={item.href}
-                  prefetch={false}
+                  prefetch={true}
                   onClick={() => {
                     if (item.href !== pathname && !item.href.startsWith("#")) {
                       setPendingHref(item.href);

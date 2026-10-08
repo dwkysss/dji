@@ -50,15 +50,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const fetchUser = async (session: any) => {
       try {
         if (session?.user) {
-          // Fetch role from user_profiles table via server action to bypass RLS issues
+          // Fast path: langsung unblock UI menggunakan metadata sesi lokal agar tidak menahan layar putih
+          const meta = session.user.user_metadata || {};
+          const fastRole = (meta.role || "operator") as UserRole;
+          const fastFullName = meta.full_name || session.user.email?.split("@")[0] || "User";
+          const fastEmployeeId = meta.employee_id || session.user.email?.split("@")[0] || "";
+
+          setUser((prev) => prev || {
+            id: session.user.id,
+            email: session.user.email,
+            fullName: fastFullName,
+            employeeId: fastEmployeeId,
+            role: fastRole,
+            forcePasswordChange: false,
+          });
+          setIsLoggedIn(true);
+          setIsLoading(false);
+
+          // Fetch role from user_profiles table via server action to bypass RLS issues in background
           const result = await getUserProfile(session.user.id);
           const profile = result.success ? result.data : null;
 
           // Fallback to user_metadata if profile row in user_profiles table is not yet populated
-          const meta = session.user.user_metadata || {};
-          const role = (profile?.role || meta.role || "operator") as UserRole;
-          const fullName = profile?.full_name || meta.full_name || session.user.email?.split("@")[0] || "User";
-          const employeeId = profile?.employee_id || meta.employee_id || session.user.email?.split("@")[0] || "";
+          const role = (profile?.role || meta.role || fastRole) as UserRole;
+          const fullName = profile?.full_name || meta.full_name || fastFullName;
+          const employeeId = profile?.employee_id || meta.employee_id || fastEmployeeId;
           const forcePasswordChange = profile?.force_password_change || false;
 
           const authUser: User = {

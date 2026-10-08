@@ -34,6 +34,7 @@ export default function MeterQCTable({
     let currentOpLastMeter: number | null = null;
     let currentOpDefectItems: any[] = [];
     let lastOprString = "";
+    let currentOpIstirahatSeq = 0;
 
     let grandTotalStartMeter: number | null = null;
     let grandTotalLastMeter: number | null = null;
@@ -80,6 +81,7 @@ export default function MeterQCTable({
         currentOpStartMeter = null;
         currentOpLastMeter = null;
         currentOpDefectItems = [];
+        currentOpIstirahatSeq = 0;
         lastOprString = operatorStr;
         isSameAsPrev = false;
       } else if (items.length > 0) {
@@ -94,7 +96,7 @@ export default function MeterQCTable({
       const ketStr = (item.keterangan_cacat || "").toUpperCase();
       const oprName = (opr || "").toUpperCase();
 
-      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT") || oprName.includes("ISTIRAHAT");
+      const hasIstirahatText = detailStr.includes("ISTIRAHAT") || katStr.includes("ISTIRAHAT") || ketStr.includes("ISTIRAHAT") || oprName.includes("ISTIRAHAT") || ketStr.includes("[MASUK]") || detailStr.includes("[MASUK]") || ketStr.includes("SELESAI ISTIRAHAT") || detailStr.includes("SELESAI ISTIRAHAT");
 
       if (item.production_defects && Array.isArray(item.production_defects)) {
         item.production_defects.forEach((d: any) => {
@@ -122,6 +124,21 @@ export default function MeterQCTable({
       const hasIstirahatRaw = hasIstirahatText || hasIstirahatFromDefects;
       const hasIstirahat = hasIstirahatRaw && !hasRealDefects;
       const isIstirahatOnly = hasIstirahat;
+
+      const isExplicitSebelum = ketStr.includes("SEBELUM ISTIRAHAT") || detailStr.includes("SEBELUM ISTIRAHAT") || ketStr.includes("MULAI ISTIRAHAT") || detailStr.includes("MULAI ISTIRAHAT");
+      const isExplicitLaporan = ketStr.includes("LAPORAN ISTIRAHAT") || detailStr.includes("LAPORAN ISTIRAHAT") || ketStr.includes("SELESAI ISTIRAHAT") || detailStr.includes("SELESAI ISTIRAHAT") || ketStr.includes("[MASUK]") || detailStr.includes("[MASUK]");
+
+      let isMasuk = false;
+      if (hasIstirahat) {
+        if (isExplicitLaporan) {
+          isMasuk = true;
+        } else if (isExplicitSebelum) {
+          isMasuk = false;
+        } else {
+          isMasuk = currentOpIstirahatSeq % 2 === 1;
+        }
+        currentOpIstirahatSeq++;
+      }
       const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
 
       let cacatLines: string[] = [];
@@ -169,7 +186,8 @@ export default function MeterQCTable({
         const kats = katsRaw ? (Array.isArray(katsRaw) ? katsRaw : katsRaw.split(",").map((s: string) => s.trim())) : [];
         
         const pushDetailsForCat = (k: string, d: string) => {
-          const cleanD = d.replace(/\s*\(Titik:\s*[^)]+\)/gi, "").trim();
+          let cleanD = d.replace(new RegExp(`^(?:${k}|Kode\\s*${k}|[A-Z0-9]+)\\s*[:\\-]\\s*`, "i"), "").trim();
+          cleanD = cleanD.replace(/\s*\(Titik:\s*[^)]+\)/gi, "").trim();
           if (!cleanD) {
             return;
           }
@@ -184,7 +202,10 @@ export default function MeterQCTable({
             }
           });
           if (matchedDetails.length > 0) {
-            const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
+            const customParts = remainingD
+              .split(",")
+              .map((s: string) => s.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim())
+              .filter((s: string) => s && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(s));
             matchedDetails.forEach(match => cacatLines.push(`${k} - ${match}`));
             customParts.forEach(custom => {
               const cleanCustom = custom.replace(/^,\s*|\s*,\s*$/g, "").trim();
@@ -192,7 +213,12 @@ export default function MeterQCTable({
             });
           } else {
             const parts = cleanD.split(",").map((s: string) => s.trim()).filter(Boolean);
-            parts.forEach(p => cacatLines.push(`${k} - ${p}`));
+            parts.forEach(p => {
+              const cleanP = p.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim();
+              if (cleanP && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(cleanP)) {
+                cacatLines.push(`${k} - ${cleanP}`);
+              }
+            });
           }
         };
 
@@ -414,6 +440,7 @@ export default function MeterQCTable({
           isStartRow: false,
           isIstirahatOnly: isIstirahatOnly,
           hasIstirahat: hasIstirahat,
+          isMasuk: isMasuk,
           isFinishReport: isFinishReport,
           displayNo: (globalRowCount + 1).toString(),
           tglStr: finalTglStr,
@@ -599,12 +626,12 @@ export default function MeterQCTable({
               : [];
 
             const parsedCacatItems = cacatRawLines.map((line: string) => {
-              const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]") || item.hasTambahanQC;
+              const isLineQc = isRowQcModified || line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]") || item.hasTambahanQC;
               const cleanText = line
                 .replace(/\[QC\]/gi, "")
                 .replace(/\[TAMBAHAN QC\]/gi, "")
                 .replace(/\[TAMBAHAN MENDING\]/gi, "")
-                .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                .replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "")
                 .trim();
               return { isLineQc, text: cleanText };
             }).filter((c: any) => c.text.length > 0 && c.text !== "-");
@@ -617,12 +644,14 @@ export default function MeterQCTable({
                     ? "bg-sky-100/90"
                     : isRowQcModified
                     ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+                    : item.isMasuk
+                    ? "bg-emerald-50/30 hover:bg-emerald-100/30"
                     : item.hasIstirahat
                     ? "bg-amber-50/30 hover:bg-amber-50/50"
                     : "hover:bg-slate-50"
                 } transition-colors`}
               >
-                <td className={`sticky left-0 z-10 px-1 py-1 text-center border-r border-slate-100 ${isSelected ? "bg-sky-100" : isRowQcModified ? "bg-sky-100/70" : item.hasIstirahat ? "bg-amber-50/40" : "bg-white"}`}>
+                <td className={`sticky left-0 z-10 px-1 py-1 text-center border-r border-slate-100 ${isSelected ? "bg-sky-100" : isRowQcModified ? "bg-sky-100/70" : item.isMasuk ? "bg-emerald-50/40" : item.hasIstirahat ? "bg-amber-50/40" : "bg-white"}`}>
                   {item.isGradable && item.id && (
                     <input
                       type="checkbox"
@@ -632,7 +661,7 @@ export default function MeterQCTable({
                     />
                   )}
                 </td>
-                <td className={`sticky left-7 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${isSelected ? "bg-sky-100" : isRowQcModified ? "bg-sky-100/70" : item.hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
+                <td className={`sticky left-7 z-10 px-1 py-1.5 font-bold text-slate-800 text-center text-xs w-7 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${isSelected ? "bg-sky-100" : isRowQcModified ? "bg-sky-100/70" : item.isMasuk ? "bg-emerald-100" : item.hasIstirahat ? "bg-amber-100" : "bg-white"}`}>
                   {item.displayNo}
                   {isRowQcModified && (
                     <span className="block text-[8px] font-black bg-sky-100 text-[#0070bc] px-1 py-0.5 rounded mt-0.5 leading-none border border-sky-300 shadow-2xs">+ QC</span>
@@ -644,14 +673,30 @@ export default function MeterQCTable({
                 <td className="px-1 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100">
                   {item.showGrp ? item.grpStr : ""}
                 </td>
-                <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 ${(item.hasIstirahat && (!item.showOpr || !item.oprStr)) ? "italic font-bold text-amber-600" : "font-medium text-slate-700"}`}>
-                  {item.showOpr ? (item.oprStr || (item.hasIstirahat ? "Istirahat" : "")) : (item.hasIstirahat ? "Istirahat" : "")}
+                <td className={`px-2 py-1.5 leading-tight text-xs w-28 border-r border-slate-100 ${(item.hasIstirahat && (!item.showOpr || !item.oprStr)) ? (item.isMasuk ? "italic font-bold text-emerald-700" : "italic font-bold text-amber-600") : "font-medium text-slate-700"}`}>
+                  {item.showOpr ? (
+                    item.oprStr || (item.hasIstirahat ? (item.isMasuk ? <span className="text-emerald-700 font-bold italic tracking-wide">Masuk</span> : <span className="text-amber-600 font-bold italic tracking-wide">Istirahat</span>) : "")
+                  ) : item.hasIstirahat ? (
+                    item.isMasuk ? (
+                      <span className="text-emerald-700 font-bold italic tracking-wide">Masuk</span>
+                    ) : (
+                      <span className="text-amber-600 font-bold italic tracking-wide">Istirahat</span>
+                    )
+                  ) : (
+                    ""
+                  )}
                 </td>
                 <td className="px-1 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100">
                   {item.meterDisplay}
                 </td>
                 <td className="px-1 py-1.5 text-center font-bold text-sm w-14 border-r border-slate-100">
-                  {!item.isGradable ? "" : (item.hasRealDefects || isRowQcModified ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
+                  {!item.isGradable ? "" : (item.hasRealDefects || isRowQcModified ? (
+                    <span className="text-rose-600">
+                      X
+                    </span>
+                  ) : (
+                    <span className="text-emerald-600">✓</span>
+                  ))}
                 </td>
                 <td className="px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100">
                   {item.backupOpName && item.hasIstirahat && <div className="font-bold text-slate-700 mb-0.5">{item.backupOpName}</div>}
@@ -663,9 +708,7 @@ export default function MeterQCTable({
                           <div
                             key={idx}
                             className={
-                              cItem.isLineQc
-                                ? "text-[#0070bc] font-semibold"
-                                : (!item.isGradable || item.isGagalCacatOnly)
+                              (!item.isGradable || item.isGagalCacatOnly)
                                 ? "text-slate-500 font-medium"
                                 : "text-rose-600 font-medium"
                             }

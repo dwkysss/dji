@@ -6,12 +6,15 @@ export const isBsAwalAkhir = (item: any): boolean => {
     item.panelNo ||
       item.panel_no ||
       item.panel_no_str ||
+      item.displayNo ||
+      item.production_headers?.panel_no ||
       item.keterangan_cacat ||
       item.detail_masalah ||
       item.keterangan ||
       item.detail?.keterangan_cacat ||
       item.detail?.detail_masalah ||
       item.detail?.panel_no ||
+      item.detail?.production_headers?.panel_no ||
       ""
   ).toUpperCase();
   return (
@@ -177,7 +180,10 @@ export const calculateOverallGradeData = (
       totalQty = totalMeterSum;
     } else {
       (items || []).forEach((i: any) => {
-        totalQty = Math.max(totalQty, Number(i.detail?.jml_hasil_produksi || 0));
+        if (!i || i.isTotalRow) return;
+        if (i.isDeleted || i.is_deleted || i.status_inspeksi === "Dihapus" || i.status_mending === "Dihapus" || i.status_final_mending === "Dihapus") return;
+        if ((i.keterangan_cacat || "").includes("[DIHAPUS]")) return;
+        totalQty = Math.max(totalQty, Number(i.detail?.jml_hasil_produksi || i.jml_hasil_produksi || 0));
       });
       if (totalQty === 0) totalQty = 300;
     }
@@ -187,6 +193,9 @@ export const calculateOverallGradeData = (
     } else {
       const cacatItems: any[] = [];
       (items || []).forEach((i: any) => {
+        if (!i || i.isTotalRow) return;
+        if (i.isDeleted || i.is_deleted || i.status_inspeksi === "Dihapus" || i.status_mending === "Dihapus" || i.status_final_mending === "Dihapus") return;
+        if ((i.keterangan_cacat || "").includes("[DIHAPUS]")) return;
         if (isBsAwalAkhir(i)) return;
         const isSpecial =
           ((!!i.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") ||
@@ -216,11 +225,17 @@ export const calculateOverallGradeData = (
       totalCacat = calculateMeterDefectPoints(cacatItems);
     }
   } else {
-    // Panel: Panel BS Awal dan BS Akhir tidak disertakan
-    const regularItems = (items || []).filter((i: any) => !isBsAwalAkhir(i));
-    totalQty = regularItems.length;
+    // Panel: Panel BS Awal dan BS Akhir tetap dihitung pada totalQty panel, baris total dan baris yang dihapus tidak disertakan
+    const validItems = (items || []).filter((i: any) => {
+      if (!i || i.isTotalRow) return false;
+      if (i.isDeleted || i.is_deleted || i.status_inspeksi === "Dihapus" || i.status_mending === "Dihapus" || i.status_final_mending === "Dihapus") return false;
+      if ((i.keterangan_cacat || "").includes("[DIHAPUS]")) return false;
+      return true;
+    });
+    totalQty = validItems.length;
 
-    // Total Cacat diambil dari SETELAH FINAL INSPEK MENDING (atau Mending)
+    // Total Cacat diambil dari panel reguler SETELAH FINAL INSPEK MENDING (BS awal/akhir tidak dihitung sebagai cacat)
+    const regularItems = validItems.filter((i: any) => !isBsAwalAkhir(i));
     regularItems.forEach((i: any) => {
       const effectiveGrade = (
         i.hasil_final ||

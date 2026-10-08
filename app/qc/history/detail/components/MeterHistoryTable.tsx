@@ -144,6 +144,38 @@ export default function MeterHistoryTable({
         const rawJamB = String(b.production_headers?.tanggal_jam || b.production_headers?.created_at || b.created_at || "");
         return rawJamA.localeCompare(rawJamB);
       });
+
+      let istirahatSeqInShift = 0;
+      sg.items.forEach((p) => {
+        const h = p.production_headers || {};
+        const hasIstirahatRaw = (
+          Boolean(h.operator_backup) ||
+          (p.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
+          (p.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+          (p.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
+          (p.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
+          (p.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
+        );
+        if (hasIstirahatRaw) {
+          const ket = (p.keterangan_cacat || "").toUpperCase();
+          const det = (p.detail_masalah || "").toUpperCase();
+          const isExplicitSebelum = ket.includes("SEBELUM ISTIRAHAT") || det.includes("SEBELUM ISTIRAHAT") || ket.includes("MULAI ISTIRAHAT") || det.includes("MULAI ISTIRAHAT");
+          const isExplicitLaporan = ket.includes("LAPORAN ISTIRAHAT") || det.includes("LAPORAN ISTIRAHAT") || ket.includes("SELESAI ISTIRAHAT") || det.includes("SELESAI ISTIRAHAT") || ket.includes("[MASUK]") || det.includes("[MASUK]");
+
+          let isMasuk = false;
+          if (isExplicitLaporan) {
+            isMasuk = true;
+          } else if (isExplicitSebelum) {
+            isMasuk = false;
+          } else {
+            isMasuk = istirahatSeqInShift % 2 === 1;
+          }
+          p.isMasuk = isMasuk;
+          istirahatSeqInShift++;
+        } else {
+          p.isMasuk = false;
+        }
+      });
     });
 
     const sortedDetails = shiftGroups.flatMap((sg) => sg.items);
@@ -172,6 +204,7 @@ export default function MeterHistoryTable({
         (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
       );
       const hasIstirahat = hasIstirahatRaw;
+      const isMasuk = Boolean(item.isMasuk);
       const isIstirahat = hasIstirahat && (!item.kategori_masalah || item.kategori_masalah === "G" || item.detail_masalah?.toUpperCase().includes("GAGAL CACAT"));
       const isFinishReport = !hasIstirahat && h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
       const hasDefect = !!item.kategori_masalah || !!item.detail_masalah || (item.keterangan_cacat && item.keterangan_cacat !== "START" && item.keterangan_cacat !== "FINISH" && !isIstirahat);
@@ -459,6 +492,7 @@ export default function MeterHistoryTable({
           isMeter: true,
           isIstirahat,
           hasIstirahat,
+          isMasuk,
           isFinishReport,
           displayNo: (globalRowCount + 1).toString(),
           tglStr: finalTglStr,
@@ -584,6 +618,7 @@ export default function MeterHistoryTable({
             );
           }
 
+          const isRowQcModified = item.hasTambahanQC || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || (!!item.keterangan_qc && item.keterangan_qc !== "-");
           let Icon = null;
           let iconColor = "";
 
@@ -594,11 +629,12 @@ export default function MeterHistoryTable({
             iconColor = "text-emerald-500";
           } else if (item.final_inspection_id === 2 || item.final_inspection_id === 3 || item.final_inspection_id === 4) {
             Icon = XCircle;
-            iconColor = "text-rose-500";
+            iconColor = isRowQcModified ? "text-[#0070bc]" : "text-rose-500";
           }
-          const isRowQcModified = item.hasTambahanQC || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || (!!item.keterangan_qc && item.keterangan_qc !== "-");
           const rowBgClass = isRowQcModified
             ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
+            : item.isMasuk
+            ? "bg-emerald-50/40 hover:bg-emerald-100/50"
             : item.hasIstirahat
             ? "bg-amber-50/40 hover:bg-amber-100/50"
             : "hover:bg-slate-50";
@@ -607,13 +643,13 @@ export default function MeterHistoryTable({
             ? item.cacatDisplay.split("\n").map((l: string) => l.trim()).filter(Boolean)
             : [];
 
-          const parsedCacatItems = cacatRawLines.map((line: string) => {
+            const parsedCacatItems = cacatRawLines.map((line: string) => {
             const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]") || item.hasTambahanQC;
             const cleanText = line
               .replace(/\[QC\]/gi, "")
               .replace(/\[TAMBAHAN QC\]/gi, "")
               .replace(/\[TAMBAHAN MENDING\]/gi, "")
-              .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+              .replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "")
               .trim();
             return { isLineQc, text: cleanText };
           }).filter((c: any) => c.text.length > 0 && c.text !== "-");
@@ -634,8 +670,8 @@ export default function MeterHistoryTable({
               <td className="px-1.5 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100">
                 {item.showGrp ? item.grpStr : ""}
               </td>
-              <td className={`px-2 py-1.5 font-medium leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${(item.hasIstirahat && !item.showOpr) ? "italic font-bold text-amber-600" : "text-slate-700"}`}>
-                {item.showOpr ? item.oprStr : (item.hasIstirahat ? "Istirahat" : "")}
+              <td className={`px-2 py-1.5 font-medium leading-tight text-xs w-28 border-r border-slate-100 border-b border-slate-100 ${(item.hasIstirahat && !item.showOpr) ? (item.isMasuk ? "italic font-bold text-emerald-700" : "italic font-bold text-amber-600") : "text-slate-700"}`}>
+                {item.showOpr ? item.oprStr : (item.hasIstirahat ? (item.isMasuk ? "Masuk" : "Istirahat") : "")}
               </td>
               <td className="px-1 py-1.5 text-center font-bold text-slate-800 text-xs w-14 border-r border-slate-100 border-b border-slate-100">
                 {item.meterDisplay}
@@ -669,6 +705,7 @@ export default function MeterHistoryTable({
                               ? "text-slate-500 font-medium"
                               : "text-rose-600 font-medium"
                           }
+                          style={cItem.isLineQc ? { color: "#0070bc" } : undefined}
                         >
                           {numPrefix}{cItem.text}
                         </div>

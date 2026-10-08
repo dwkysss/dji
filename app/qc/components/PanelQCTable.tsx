@@ -5,6 +5,7 @@ import { Eye, Trash2, CheckCircle, X, Edit3, Plus } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
+import { isPanelGagalCacatAja } from "@/lib/mending-grade-utils";
 
 export default function PanelQCTable({
   detailsToDisplay,
@@ -106,7 +107,7 @@ export default function PanelQCTable({
       const { item, isIstirahatOnly, hasIstirahat, oprBase, opr, grp, tgl, operatorStr } = p;
 
       const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
-      const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
+      const isBS = !isPanelGagalCacatAja(item) && (item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS");
       if (!isBS && !isDeleted) {
         currentOpCount += 1;
       }
@@ -178,7 +179,7 @@ export default function PanelQCTable({
             const sel = selections[itemP.item.id];
             if (sel === 1) countPass += 1;
             else if (sel === 3) countDefect += 1;
-            else if (sel === 4 || itemP.item.jml_hasil_produksi === 0 || itemP.item.status_inspeksi === "BS") {
+            else if (sel === 4 || (!isPanelGagalCacatAja(itemP.item) && itemP.item.jml_hasil_produksi === 0) || itemP.item.status_inspeksi === "BS") {
               countBS += 1;
             }
           }
@@ -219,7 +220,7 @@ export default function PanelQCTable({
     detailsToDisplay.forEach((item) => {
       const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
       if (isDeleted) return;
-      const isBS = item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
+      const isBS = !isPanelGagalCacatAja(item) && (item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS");
       if (!isBS) {
         g += 1;
       }
@@ -319,9 +320,68 @@ export default function PanelQCTable({
               displayKeterangan = displayKeterangan.replace(/^,\s*|\s*,\s*$/g, "");
             }
             const rawPanelNo = item.production_headers?.panel_no || item.displayNo || "-";
+            const cleanPanelNo = String(rawPanelNo).replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
             const isBsAwal = String(rawPanelNo).toUpperCase().includes("AWAL");
             const isBsAkhir = String(rawPanelNo).toUpperCase().includes("AKHIR");
             const isSisa = isBsAwal || isBsAkhir;
+            const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
+            const isBsPanel = isBsAwal || isBsAkhir || (String(rawPanelNo).includes("(BS)")) || (!isPanelGagalCacatAja(item) && item.jml_hasil_produksi === 0) || item.status_inspeksi === "BS";
+            
+            const isPanelInsertedByQc =
+              !!item.is_inserted_qc ||
+              !!item.isPanelInsertedByQc ||
+              !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") ||
+              !!item.keterangan_cacat?.toUpperCase().includes("QC") ||
+              !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN QC]") ||
+              !!item.production_headers?.keterangan_cacat?.toUpperCase().includes("QC") ||
+              String(item.production_headers?.panel_no || "").toUpperCase().includes("QC") ||
+              String(item.displayNo || "").toUpperCase().includes("QC");
+            const hasTambahanQC =
+              !!item.hasTambahanQC ||
+              !!item.detail_masalah?.includes("[QC]") ||
+              (item.production_defects && item.production_defects.some((d: any) => d.detail?.includes("[QC]") || d.is_qc));
+            const hasTambahanMnd = !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
+
+            let extractedBackupOp = item.production_headers?.operator_backup || "";
+            if (!extractedBackupOp && item.keterangan_cacat) {
+              const match = item.keterangan_cacat.match(/\(Backup:\s*([^)]+)\)/i);
+              if (match && match[1]) {
+                extractedBackupOp = match[1].trim();
+              }
+            }
+
+            let hasRealError = false;
+            if (isBsPanel) {
+              hasRealError = true;
+            } else if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
+              hasRealError = item.production_defects.some((d: any) => {
+                const k = (d.kategori || "").toUpperCase().trim();
+                const det = (d.detail || "").toUpperCase().trim();
+                if (k.includes("ISTIRAHAT") || det.includes("ISTIRAHAT")) return false;
+                if (det.includes("GAGAL CACAT") || k === "G") return false;
+                return true;
+              });
+            } else {
+              const katStr = (item.kategori_masalah || "").toUpperCase().trim();
+              const detStr = (item.detail_masalah || "").toUpperCase().trim();
+              if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT") && !katStr.includes("GAGAL CACAT")) {
+                hasRealError = true;
+              }
+              if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH") && !detStr.includes("GAGAL CACAT")) {
+                hasRealError = true;
+              }
+            }
+            if (hasTambahanQC) hasRealError = true;
+
+            const hasError = hasRealError;
+            const isGagalCacatOnly = (
+              (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
+              (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT") ||
+              (item.kategori_masalah || "").toUpperCase() === "G"
+            ) && !hasRealError;
+
+            const isSelected = selectedIds.includes(item.id);
+            const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!item.keterangan_qc && item.keterangan_qc !== "-");
 
             let cacatLines: string[] = [];
             
@@ -335,7 +395,10 @@ export default function PanelQCTable({
                 if ((d.kategori || "").toUpperCase().includes("ISTIRAHAT") || (d.detail || "").toUpperCase().includes("ISTIRAHAT")) return;
                 const k = d.kategori || "";
                 const det = d.detail || "";
-                const key = k && det ? `${k} - ${det}` : (k || det);
+                const isQc = isPanelInsertedByQc || (det || "").includes("[QC]") || !!d.is_qc;
+                const cleanDet = det.replace(/\[QC\]/gi, "").trim();
+                const qcPrefix = isQc ? "[QC] " : "";
+                const key = k && cleanDet ? `${qcPrefix}${k} - ${cleanDet}` : (qcPrefix + (k || cleanDet));
                 if (!key) return;
 
                 if (!groupedMap.has(key)) {
@@ -384,12 +447,23 @@ export default function PanelQCTable({
               
               const pushDetailsForCat = (k: string, d: string) => {
                 if (!d) {
-                  cacatLines.push(k);
+                  if (k && k !== "Unknown") cacatLines.push(isPanelInsertedByQc ? `[QC] ${k}` : k);
                   return;
                 }
+                const isLineDetailQc = isPanelInsertedByQc || d.includes("[QC]") || d.includes("[TAMBAHAN QC]") || d.includes("[TAMBAHAN MENDING]");
+                const qcTag = isLineDetailQc ? "[QC] " : "";
+
+                // Bersihkan prefix kategori jika ada, seperti "A: L1 Putus", "A - L1 Putus", "[A]: L1 Putus", "Kode A: L1 Putus"
+                let cleanD = d.replace(/\[QC\]/gi, "").replace(new RegExp(`^(?:${k}|Kode\\s*${k}|[A-Z0-9]+)\\s*[:\\-]\\s*`, "i"), "").trim();
+                cleanD = cleanD.replace(/\s*\(Titik:\s*[^)]+\)/gi, "").trim();
+
+                if (!cleanD) {
+                  return;
+                }
+
                 const knownDetailsForCat = PROBLEM_DETAILS[k] || [];
                 const matchedDetails: string[] = [];
-                let remainingD = d;
+                let remainingD = cleanD;
                 
                 const sortedKnown = [...knownDetailsForCat].sort((a, b) => b.length - a.length);
                 sortedKnown.forEach(known => {
@@ -400,18 +474,33 @@ export default function PanelQCTable({
                 });
                 
                 if (matchedDetails.length > 0) {
-                  const customParts = remainingD.split(",").map((s: string) => s.trim()).filter(Boolean);
-                  matchedDetails.forEach(match => cacatLines.push(`${k} - ${match}`));
-                  customParts.forEach(custom => cacatLines.push(`${k} - ${custom}`));
+                  const customParts = remainingD
+                    .split(",")
+                    .map((s: string) => s.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim())
+                    .filter((s: string) => s && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(s));
+                  matchedDetails.forEach(match => cacatLines.push(`${qcTag}${k} - ${match}`));
+                  customParts.forEach(custom => cacatLines.push(`${qcTag}${k} - ${custom}`));
                 } else {
-                  const parts = d.split(",").map((s: string) => s.trim()).filter(Boolean);
-                  parts.forEach(p => cacatLines.push(`${k} - ${p}`));
+                  const parts = cleanD.split(",").map((s: string) => s.trim()).filter(Boolean);
+                  parts.forEach(p => {
+                    const cleanP = p.replace(/^(?:[A-Z0-9]+|\W+)\s*[:\\-]?\s*/i, "").trim();
+                    if (cleanP && !/^(?:[A-Z0-9]+[:\\-]?|[:\\-|.])$/i.test(cleanP)) {
+                      cacatLines.push(`${qcTag}${k} - ${cleanP}`);
+                    }
+                  });
                 }
               };
               
               if (kats.length > 0) {
                 if (displayDetail) {
-                  if (kats.length === 1) {
+                  if (displayDetail.includes(" | ")) {
+                    const catDetails = displayDetail.split(" | ").map((s: string) => s.trim()).filter(Boolean);
+                    for (let i = 0; i < Math.max(kats.length, catDetails.length); i++) {
+                      const k = kats[i] || kats[0] || "Unknown";
+                      const d = catDetails[i] || "";
+                      pushDetailsForCat(k, d);
+                    }
+                  } else if (kats.length === 1) {
                     pushDetailsForCat(kats[0], displayDetail);
                   } else {
                     const parts = displayDetail.split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -426,10 +515,10 @@ export default function PanelQCTable({
                     }
                   }
                 } else {
-                  cacatLines.push(kats.join(", "));
+                  cacatLines.push(isPanelInsertedByQc ? `[QC] ${kats.join(", ")}` : kats.join(", "));
                 }
               } else if (displayDetail) {
-                cacatLines.push(displayDetail);
+                cacatLines.push(isPanelInsertedByQc && !displayDetail.includes("[QC]") ? `[QC] ${displayDetail}` : displayDetail);
               }
 
               const hasDefectsArray = item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0;
@@ -484,53 +573,6 @@ export default function PanelQCTable({
 
             cacatLines = formatDefectLinesWithNumbering(cacatLines);
             let cacat = cacatLines.join("\n");
-
-            let extractedBackupOp = item.production_headers?.operator_backup || "";
-            if (!extractedBackupOp && item.keterangan_cacat) {
-              const match = item.keterangan_cacat.match(/\(Backup:\s*([^)]+)\)/i);
-              if (match && match[1]) {
-                extractedBackupOp = match[1].trim();
-              }
-            }
-            const cleanPanelNo = String(rawPanelNo).replace(/\s*\((BS|GAGAL)\)/gi, "").trim();
-            const isDeleted = !!item.is_deleted || item.status_inspeksi === "Dihapus" || (item.keterangan_cacat || "").includes("[DIHAPUS]");
-            const isBsPanel = isBsAwal || isBsAkhir || (String(rawPanelNo).includes("(BS)")) || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS";
-            const isPanelInsertedByQc = !!item.is_inserted_qc || !!item.keterangan_cacat?.includes("[TAMBAHAN QC]") || !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(item.production_headers?.panel_no || "").includes("QC"));
-            const hasTambahanQC = !!item.detail_masalah?.includes("[QC]") || (item.production_defects && item.production_defects.some((d: any) => d.detail?.includes("[QC]")));
-            const hasTambahanMnd = !!item.keterangan_cacat?.includes("[TAMBAHAN MENDING]") || !!item.production_headers?.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
-
-            let hasRealError = false;
-            if (isBsPanel) {
-              hasRealError = true;
-            } else if (item.production_defects && Array.isArray(item.production_defects) && item.production_defects.length > 0) {
-              hasRealError = item.production_defects.some((d: any) => {
-                const k = (d.kategori || "").toUpperCase().trim();
-                const det = (d.detail || "").toUpperCase().trim();
-                if (k.includes("ISTIRAHAT") || det.includes("ISTIRAHAT")) return false;
-                if (det.includes("GAGAL CACAT") || k === "G") return false;
-                return true;
-              });
-            } else {
-              const katStr = (item.kategori_masalah || "").toUpperCase().trim();
-              const detStr = (item.detail_masalah || "").toUpperCase().trim();
-              if (katStr && katStr !== "G" && !katStr.includes("ISTIRAHAT") && !katStr.includes("GAGAL CACAT")) {
-                hasRealError = true;
-              }
-              if (detStr && !detStr.includes("ISTIRAHAT") && !detStr.includes("START") && !detStr.includes("FINISH") && !detStr.includes("GAGAL CACAT")) {
-                hasRealError = true;
-              }
-            }
-            if (hasTambahanQC) hasRealError = true;
-
-            const hasError = hasRealError;
-            const isGagalCacatOnly = (
-              (item.detail_masalah || "").toUpperCase().includes("GAGAL CACAT") ||
-              (item.keterangan_cacat || "").toUpperCase().includes("GAGAL CACAT") ||
-              (item.kategori_masalah || "").toUpperCase() === "G"
-            ) && !hasRealError;
-
-            const isSelected = selectedIds.includes(item.id);
-            const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!item.keterangan_qc && item.keterangan_qc !== "-");
 
             const rowBgClass = isSelected
               ? "bg-sky-100/90"
@@ -594,7 +636,7 @@ export default function PanelQCTable({
                               DOUBLE
                             </span>
                           )}
-                          {(String(rawPanelNo).includes("(BS)") || item.jml_hasil_produksi === 0 || item.status_inspeksi === "BS") ? (
+                          {(String(rawPanelNo).includes("(BS)") || (!isPanelGagalCacatAja(item) && item.jml_hasil_produksi === 0) || item.status_inspeksi === "BS") ? (
                             <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded leading-none shadow-sm border border-rose-200">BS</span>
                           ) : isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd ? (
                             <span className="text-[8px] font-black bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded leading-none border border-sky-300 shadow-2xs">+ QC</span>
@@ -614,18 +656,26 @@ export default function PanelQCTable({
                   {showOpr ? (item.oprBase || grpStr || "-") : (hasIstirahat ? "Istirahat" : "")}
                 </td>
                 <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100">
-                  {isDeleted ? <span className="text-slate-400 font-bold">-</span> : hasError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>}
+                  {isDeleted ? (
+                    <span className="text-slate-400 font-bold">-</span>
+                  ) : hasError ? (
+                    <span className="text-rose-600">
+                      X
+                    </span>
+                  ) : (
+                    <span className="text-emerald-600">✓</span>
+                  )}
                 </td>
                 <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-line leading-tight border-r border-slate-100">
                   {(() => {
                     const parsedCacatItems = cacatLines
                       .map((line) => {
-                        const isLineQc = line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
+                        const isLineQc = isPanelInsertedByQc || line.includes("[QC]") || line.includes("[TAMBAHAN QC]") || line.includes("[TAMBAHAN MENDING]");
                         const cleanText = line
                           .replace(/\[QC\]/gi, "")
                           .replace(/\[TAMBAHAN QC\]/gi, "")
                           .replace(/\[TAMBAHAN MENDING\]/gi, "")
-                          .replace(/^([A-Z0-9]\s*[-.]\s*|\d+\.\s*|\d+-\s*)/i, "")
+                          .replace(/^(\d+[\.\-]\s*|[A-Z0-9]\s*[\.\-]\s*|Kode\s*[A-Z0-9]+:\s*)+/i, "")
                           .trim();
                         return {
                           isLineQc,
@@ -646,9 +696,7 @@ export default function PanelQCTable({
                               <div
                                 key={idx}
                                 className={
-                                  cItem.isLineQc
-                                    ? "text-sky-600 font-semibold"
-                                    : (isIstirahatOnly || isGagalCacatOnly)
+                                  (isIstirahatOnly || isGagalCacatOnly)
                                     ? "text-slate-500 font-medium"
                                     : "text-rose-600 font-medium"
                                 }

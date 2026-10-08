@@ -281,10 +281,16 @@ function QCDetailContent() {
           <h2 className="text-lg font-bold text-slate-800 mb-2">Oops! Ada Masalah</h2>
           <p className="text-slate-600 mb-6">{errorMsg || "Data tidak ditemukan."}</p>
           <button
-            onClick={() => router.push("/qc/history")}
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/qc/history");
+              }
+            }}
             className="px-6 py-2 bg-[#0070bc] text-white rounded-xl font-bold hover:bg-[#005a96] transition-colors"
           >
-            Kembali ke Riwayat
+            Kembali
           </button>
         </div>
       </div>
@@ -297,8 +303,15 @@ function QCDetailContent() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push("/qc/history")}
-            className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center transition-colors shadow-sm"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/qc/history");
+              }
+            }}
+            className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+            title="Kembali ke halaman sebelumnya"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
