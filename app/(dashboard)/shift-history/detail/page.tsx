@@ -247,8 +247,9 @@ function ShiftHistoryDetailContent() {
       )}
 
       {/* Header Nav */}
-      <div className="flex items-center justify-between gap-2 mb-6 no-print">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 mb-4 sm:mb-6 no-print">
+        {/* Breadcrumb & Back */}
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => {
               if (typeof window !== "undefined" && window.history.length > 1) {
@@ -257,14 +258,14 @@ function ShiftHistoryDetailContent() {
                 router.push("/shift-history");
               }
             }}
-            className="h-9 w-9 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+            className="h-9 w-9 shrink-0 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center transition-all shadow-2xs active:scale-95 cursor-pointer"
             title="Kembali ke halaman sebelumnya"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold min-w-0">
             <span
-              className="hover:text-[#0070bc] cursor-pointer transition-colors"
+              className="hover:text-[#0070bc] cursor-pointer transition-colors truncate"
               onClick={() => {
                 if (typeof window !== "undefined" && window.history.length > 1) {
                   router.back();
@@ -275,12 +276,13 @@ function ShiftHistoryDetailContent() {
             >
               Riwayat (Kepala Shift)
             </span>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-            <span className="text-slate-700 font-black">Detail & Koreksi</span>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+            <span className="text-slate-800 font-bold truncate">Detail & Koreksi</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Action Buttons: 2 equal columns on mobile for perfect balance */}
+        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center">
           {!detailData?.panels?.some(
             (p: any) =>
               String(p.panel_no || "").toUpperCase().includes("BS AKHIR") ||
@@ -293,10 +295,10 @@ function ShiftHistoryDetailContent() {
                 setMarkCutError(null);
                 setIsMarkCutModalOpen(true);
               }}
-              className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
+              className="h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap"
               title="Tandai Selesai Potong & Buat BS Akhir"
             >
-              <Scissors className="w-4 h-4" />
+              <Scissors className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Tandai Potong Kain</span>
             </button>
           )}
@@ -304,10 +306,18 @@ function ShiftHistoryDetailContent() {
           <button
             type="button"
             onClick={() => setIsPrintModalOpen(true)}
-            className="h-9 px-3.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-black text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
+            className={`h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap ${
+              detailData?.panels?.some(
+                (p: any) =>
+                  String(p.panel_no || "").toUpperCase().includes("BS AKHIR") ||
+                  String(p.panel_no || "").toUpperCase() === "BS AKHIR"
+              )
+                ? "col-span-2 sm:col-span-1"
+                : ""
+            }`}
             title="Cetak Laporan / Simpan PDF"
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Cetak Laporan</span>
           </button>
         </div>
@@ -578,26 +588,26 @@ function ShiftHistoryDetailContent() {
               {/* Sticky Top Contextual Action Header */}
               <div className="sticky top-3 z-30 mb-3 transition-all duration-200">
                 {selectedDetailIds.length > 0 ? (
-                  <div className="bg-slate-900/95 text-white backdrop-blur-md px-4 py-3 rounded-2xl border border-slate-700/80 shadow-2xl flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-top-3 duration-200">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-black text-sm">
+                  <div className="bg-slate-900/95 text-white backdrop-blur-md px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-slate-700/80 shadow-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 animate-in slide-in-from-top-3 duration-200">
+                    <div className="flex items-center gap-2.5 sm:gap-3">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-black text-xs sm:text-sm shrink-0">
                         {selectedDetailIds.length}
                       </div>
-                      <div>
-                        <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2 truncate">
                           <span>{selectedDetailIds.length} Baris Panel Dipilih</span>
                         </h4>
-                        <p className="text-[11px] text-slate-400 hidden sm:block">
+                        <p className="text-[10px] sm:text-[11px] text-slate-400">
                           Pilih aksi untuk baris panel yang telah dicentang
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 justify-end sm:justify-start">
                       <button
                         type="button"
                         onClick={() => setSelectedDetailIds([])}
-                        className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs transition-all cursor-pointer"
+                        className="px-3 sm:px-3.5 py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs transition-all cursor-pointer"
                       >
                         Batal
                       </button>
@@ -607,7 +617,7 @@ function ShiftHistoryDetailContent() {
                           setPendingBulkDeleteMode(null);
                           setIsBulkDeleteModalOpen(true);
                         }}
-                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-xs shadow-md shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                        className="px-3.5 sm:px-4 py-1.5 sm:py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-xs shadow-md shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Hapus Terpilih ({selectedDetailIds.length})
@@ -616,15 +626,15 @@ function ShiftHistoryDetailContent() {
                   </div>
                 ) : (
                   !isMeterReport && (
-                    <h4 className="text-sm font-bold text-slate-800 py-1 flex items-center gap-2">
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-800 py-1 flex items-center gap-2">
                       Rincian per Panel
                     </h4>
                   )
                 )}
               </div>
 
-              <div className="w-full overflow-x-auto pb-4 custom-scrollbar bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <div className="flex w-max min-w-full gap-8">
+              <div className="w-full overflow-x-auto pb-4 no-scrollbar bg-white p-3 sm:p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex w-max min-w-full gap-4 sm:gap-8">
                   {sortedPcsKeys.map((pcsKey) => {
                     const pcsLabel = `PCS ${pcsKey}`;
                     const panels = pcsGroups[pcsKey].sort((a, b) => {
@@ -718,8 +728,8 @@ function ShiftHistoryDetailContent() {
         );
 
         return (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto no-scrollbar p-4 sm:p-6 animate-in zoom-in-95 duration-200">
               {pendingDeleteMode === null ? (
                 /* Step 1: Pilih Opsi Hapus */
                 <>
@@ -917,8 +927,8 @@ function ShiftHistoryDetailContent() {
         );
 
         return (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto no-scrollbar p-4 sm:p-6 animate-in zoom-in-95 duration-200">
               {pendingBulkDeleteMode === null ? (
                 /* Step 1: Pilih Opsi Hapus */
                 <>
@@ -1089,6 +1099,91 @@ function ShiftHistoryDetailContent() {
           </div>
         );
       })()}
+
+      {/* ================= MODAL TANDAI POTONG KAIN ================= */}
+      {isMarkCutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto no-scrollbar border border-slate-100">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Scissors className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm">Tandai Selesai Potong Kain</h3>
+                  <p className="text-[11px] font-semibold text-slate-500">Mesin {nomor_mc} - Potongan Ke-{potongan_ke}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsMarkCutModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4 text-xs">
+              {markCutError && (
+                <div className="p-3 rounded-xl bg-red-50 text-red-600 border border-red-200 font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{markCutError}</span>
+                </div>
+              )}
+
+              <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-emerald-900 leading-relaxed text-xs">
+                Tindakan ini akan <strong>menandai potongan kain telah selesai</strong> dan otomatis menambahkan baris <strong>BS AKHIR (Sisa Akhir Potongan)</strong> ke dalam database & riwayat.
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Tanggal Potong Kain</label>
+                <input
+                  type="date"
+                  value={markCutDate}
+                  onChange={(e) => setMarkCutDate(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsMarkCutModalOpen(false)}
+                disabled={isSubmittingMarkCut}
+                className="h-9 px-4 rounded-xl text-slate-600 font-bold text-xs hover:bg-slate-200/60 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingMarkCut || !markCutDate}
+                onClick={async () => {
+                  if (!nomor_mc || !potongan_ke) return;
+                  setIsSubmittingMarkCut(true);
+                  setMarkCutError(null);
+                  const res = await markPotonganAsCut(nomor_mc, potongan_ke, markCutDate);
+                  if (res.success) {
+                    setIsMarkCutModalOpen(false);
+                    await fetchDetail();
+                    showToast("Potongan kain berhasil ditandai selesai.");
+                  } else {
+                    setMarkCutError(res.error || "Gagal menandai potong kain.");
+                  }
+                  setIsSubmittingMarkCut(false);
+                }}
+                className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isSubmittingMarkCut ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-3.5 h-3.5" />
+                )}
+                <span>Simpan & Tandai</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <PrintableProductionReport
         detailData={detailData}

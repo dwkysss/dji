@@ -1123,27 +1123,27 @@ export default function DashboardPage() {
     });
 
     return (
-      <div className="min-h-[80vh] flex items-center justify-center animate-fadeIn p-4">
-        <div className="bg-white rounded-[32px] p-6 sm:p-8 max-w-7xl w-full shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-100 flex flex-col items-center text-center">
-          <div className="w-12 h-12 bg-sky-50 rounded-full flex items-center justify-center mb-3">
-            <Users className="w-6 h-6 text-sky-500" />
+      <div className="min-h-[80vh] flex items-center justify-center animate-fadeIn p-2 sm:p-4">
+        <div className="bg-white rounded-2xl sm:rounded-[32px] p-4 sm:p-8 max-w-7xl w-full shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-100 flex flex-col items-center text-center">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-sky-50 rounded-full flex items-center justify-center mb-2 sm:mb-3">
+            <Users className="w-5 h-5 sm:w-6 sm:h-6 text-sky-500" />
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight mb-1">
+          <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight mb-1">
             Pilih Nama Anda
           </h1>
-          <p className="text-sm text-slate-500 mb-5 max-w-md font-medium">
+          <p className="text-xs sm:text-sm text-slate-500 mb-4 sm:mb-5 max-w-md font-medium">
             Silakan temukan dan pilih nama Anda pada daftar di bawah ini.
           </p>
 
-          <div className="w-full flex flex-col gap-3 mb-6">
-            <div className="w-full">
+          <div className="w-full flex flex-col sm:flex-row gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+            <div className="w-full sm:w-72">
               <select
                 value={selectedGrupId}
                 onChange={(e) => {
                   setSelectedGrupId(e.target.value);
                   setSearchQuery(""); // Reset pencarian teks jika ganti grup
                 }}
-                className="w-full px-5 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 font-bold text-slate-700 transition-all text-lg appearance-none cursor-pointer"
+                className="w-full px-4 py-3 sm:px-5 sm:py-4 bg-slate-50/50 border-2 border-slate-100 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 font-bold text-slate-700 transition-all text-sm sm:text-base lg:text-lg appearance-none cursor-pointer"
               >
                 <option value="">-- Semua Grup / Shift --</option>
                 {FALLBACK_GROUPS.map(g => (
@@ -1151,21 +1151,21 @@ export default function DashboardPage() {
                 ))}
               </select>
             </div>
-            <div className="w-full relative">
-              <Search className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className="w-full relative flex-1">
+              <Search className="w-4 h-4 sm:w-5 sm:h-5 absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Ketik nama Anda di sini..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-14 pr-5 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 font-bold text-slate-700 transition-all text-lg"
+                className="w-full pl-11 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 bg-slate-50/50 border-2 border-slate-100 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 font-bold text-slate-700 transition-all text-sm sm:text-base lg:text-lg"
               />
             </div>
           </div>
 
-          <div className="w-full max-h-[60vh] overflow-y-auto custom-scrollbar grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-1 text-left pr-2">
+          <div className="w-full max-h-[60vh] overflow-y-auto custom-scrollbar grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 p-1 text-left pr-2">
             {filteredOperators.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm font-semibold border-2 border-dashed border-slate-100 rounded-2xl">
+              <div className="col-span-full p-6 sm:p-8 text-center text-slate-400 text-xs sm:text-sm font-semibold border-2 border-dashed border-slate-100 rounded-2xl">
                 Tidak ada pegawai yang cocok dengan pencarian.
               </div>
             ) : (
@@ -1173,11 +1173,11 @@ export default function DashboardPage() {
                 <button
                   key={op}
                   onClick={() => setActiveEmployeeName(op)}
-                  className="w-full p-5 rounded-2xl border-2 border-slate-100 hover:border-sky-200 hover:bg-sky-50 text-slate-600 hover:text-sky-700 font-extrabold flex items-center justify-between group transition-all cursor-pointer"
+                  className="w-full p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border-2 border-slate-100 hover:border-sky-200 hover:bg-sky-50 text-slate-600 hover:text-sky-700 font-extrabold flex items-center justify-between group transition-all cursor-pointer"
                 >
-                  <span className="text-lg">{op}</span>
-                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                    <ArrowRight className="w-5 h-5 text-sky-500 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  <span className="text-base sm:text-lg">{op}</span>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white flex items-center justify-center shadow-xs sm:shadow-sm group-hover:scale-110 transition-transform">
+                    <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-sky-500 opacity-50 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </button>
               ))
@@ -1205,20 +1205,20 @@ export default function DashboardPage() {
       {/* Welcome Header */}
       <div
         data-tour="employee-dashboard-header"
-        className="bg-white border border-[#e9ecef] rounded-[24px] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5 relative z-10"
+        className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3.5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 sm:gap-5 relative z-10"
       >
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight flex flex-wrap items-center gap-3 leading-tight">
+        <div className="flex flex-col gap-1 sm:gap-2">
+          <h1 className="text-lg sm:text-2xl lg:text-3xl font-black tracking-tight flex flex-wrap items-center gap-2 sm:gap-3 leading-tight">
             <span className="bg-gradient-to-r from-slate-900 via-[#004777] to-[#0070bc] bg-clip-text text-transparent drop-shadow-sm">
               Dashboard: {activeEmployeeName}
             </span>
             {isLoadingData ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-xs font-bold shadow-xs">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-500" />
+              <span className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[10px] sm:text-xs font-bold shadow-xs">
+                <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin text-sky-500" />
                 Memuat Data...
               </span>
             ) : isLive ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold shadow-xs animate-pulse">
+              <span className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] sm:text-xs font-bold shadow-xs animate-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 Live Data
               </span>
@@ -1229,17 +1229,17 @@ export default function DashboardPage() {
                   setActiveEmployeeName(null);
                   setSearchQuery("");
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 hover:border-rose-300 rounded-full border border-rose-200 shadow-xs cursor-pointer transition-all duration-200 group ml-1"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 text-[11px] sm:text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 hover:border-rose-300 rounded-full border border-rose-200 shadow-xs cursor-pointer transition-all duration-200 group"
                 title="Ganti Pegawai"
               >
-                <LogOut className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
+                <LogOut className="w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform group-hover:-translate-x-0.5" />
                 Ganti Pegawai
               </button>
             )}
           </h1>
-          <p className="text-slate-500 text-sm sm:text-base font-medium max-w-2xl leading-relaxed flex items-start gap-1.5 mt-1">
+          <p className="text-slate-500 text-[11px] sm:text-sm lg:text-base font-medium max-w-2xl leading-relaxed flex items-start gap-1.5 mt-0.5">
             <svg
-              className="w-5 h-5 text-sky-500 shrink-0 mt-0.5"
+              className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-sky-500 shrink-0 mt-0.5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -1255,21 +1255,21 @@ export default function DashboardPage() {
             real-time.
           </p>
         </div>
-        <div className="flex items-center gap-2 z-10 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 z-10 shrink-0 w-full sm:w-auto overflow-x-auto no-scrollbar pb-0.5 sm:pb-0">
           <button
             type="button"
             onClick={() => setIsTourOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-[#0070bc] bg-sky-50 hover:bg-sky-100 rounded-full border border-sky-100 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-1.5 sm:py-2.5 text-xs sm:text-sm font-bold text-[#0070bc] bg-sky-50 hover:bg-sky-100 rounded-full border border-sky-100 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 whitespace-nowrap shrink-0"
           >
-            <HelpCircle className="w-4 h-4" />
+            <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             Tutorial
           </button>
           <button
             onClick={handleResetFilters}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-1.5 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group whitespace-nowrap shrink-0"
             title="Reset Slicer"
           >
-            <RefreshCw className="w-4 h-4 transition-transform duration-500 group-hover:rotate-180" />
+            <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-500 group-hover:rotate-180" />
             Reset Slicer
           </button>
         </div>
@@ -1278,21 +1278,23 @@ export default function DashboardPage() {
       {/* Slicers Container */}
       <div
         data-tour="employee-dashboard-slicers"
-        className="flex flex-col lg:flex-row gap-4"
+        className="grid grid-cols-2 lg:flex lg:flex-row lg:flex-wrap xl:flex-nowrap gap-2.5 sm:gap-4"
       >
         {/* Date Range Slicer Component (Vercel-style minimal capsule) */}
-        <div className="flex-1 flex flex-wrap items-center justify-between gap-4 bg-white border border-[#e9ecef] rounded-[24px] p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400">
-              <Calendar className="w-4 h-4" />
+        <div className="col-span-2 lg:flex-1 flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-2.5 sm:gap-4 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </div>
+              <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 sm:mr-2">
+                Range Waktu:
+              </span>
             </div>
-            <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-2">
-              Range Waktu:
-            </span>
-            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150">
+            <div className="grid grid-cols-4 sm:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full sm:w-auto">
               <button
                 onClick={() => setDateRangeMode("TODAY")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
                   dateRangeMode === "TODAY"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
@@ -1302,7 +1304,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("7DAYS")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
                   dateRangeMode === "7DAYS"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
@@ -1312,7 +1314,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("30DAYS")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
                   dateRangeMode === "30DAYS"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
@@ -1322,7 +1324,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("CUSTOM")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
                   dateRangeMode === "CUSTOM"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
@@ -1335,27 +1337,27 @@ export default function DashboardPage() {
 
           {/* Custom Calendar Inputs (Only visible when CUSTOM is active) */}
           {dateRangeMode === "CUSTOM" && (
-            <div className="flex items-center gap-2 animate-fadeIn">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto animate-fadeIn mt-1 sm:mt-0">
+              <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
+                <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">
                   Mulai:
                 </span>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer"
+                  className="w-full sm:w-auto bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer"
                 />
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">
+              <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
+                <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">
                   Sampai:
                 </span>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer"
+                  className="w-full sm:w-auto bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer"
                 />
               </div>
             </div>
@@ -1363,22 +1365,22 @@ export default function DashboardPage() {
         </div>
 
         {/* Metric Mode Slicer */}
-        <div className="flex items-center justify-between gap-2 bg-white border border-[#e9ecef] rounded-[24px] p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] lg:shrink-0 w-full lg:w-auto">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400">
-              <SlidersHorizontal className="w-4 h-4" />
+        <div className="col-span-1 flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:w-auto lg:shrink-0 lg:flex-row lg:items-center">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+              <SlidersHorizontal className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
-            <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 whitespace-nowrap">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 whitespace-nowrap">
               Kategori:
             </span>
           </div>
-          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150">
+          <div className="grid grid-cols-2 lg:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full lg:w-auto">
             <button
               onClick={() => {
                 setMetricMode("PCS");
                 setSelectedMachines([]);
               }}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                 metricMode === "PCS"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
@@ -1391,7 +1393,7 @@ export default function DashboardPage() {
                 setMetricMode("METER");
                 setSelectedMachines([]);
               }}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                 metricMode === "METER"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
@@ -1403,92 +1405,98 @@ export default function DashboardPage() {
         </div>
 
         {/* Machine Slicer */}
-        <div className="flex items-center justify-between gap-4 bg-white border border-[#e9ecef] rounded-[24px] p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] lg:shrink-0 w-full lg:w-auto">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400">
-              <Layers className="w-4 h-4" />
+        <div className="col-span-1 flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:w-auto lg:shrink-0 lg:flex-row lg:items-center">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+              <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
-            <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1">
               Mesin:
             </span>
           </div>
-          <div className="relative" ref={machineDropdownRef}>
+          <div className="relative w-full lg:w-auto" ref={machineDropdownRef}>
             <button
               onClick={() => setIsMachineDropdownOpen(!isMachineDropdownOpen)}
-              className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer min-w-[120px] flex justify-between items-center"
+              className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer w-full lg:min-w-[120px] flex justify-between items-center transition-colors"
             >
               <span className="truncate max-w-[100px]">
                 {selectedMachines.length === 0
                   ? "Semua"
                   : `${selectedMachines.length} Terpilih`}
               </span>
-              <span className="text-[9px] ml-2 text-slate-400">▼</span>
+              <span className="text-[9px] ml-1.5 text-slate-400">▼</span>
             </button>
 
             {isMachineDropdownOpen && (
-              <div className="absolute top-full mt-2 right-0 w-56 bg-white border border-slate-200 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] z-50 p-3 max-h-[300px] flex flex-col">
-                <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-100">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase">
-                    Pilih Mesin
-                  </span>
-                  <button
-                    onClick={() => setIsMachineDropdownOpen(false)}
-                    className="text-[10px] font-bold text-red-500 hover:text-red-700 bg-red-50 px-2 py-0.5 rounded cursor-pointer"
-                  >
-                    Tutup
-                  </button>
-                </div>
-                <div className="overflow-y-auto flex-1 pr-1 custom-scrollbar">
-                  <label className="flex items-center gap-2.5 cursor-pointer p-1.5 hover:bg-slate-50 rounded-lg group">
-                    <input
-                      type="checkbox"
-                      checked={selectedMachines.length === 0}
-                      onChange={() => setSelectedMachines([])}
-                      className="accent-sky-500 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span
-                      className={`text-xs font-bold transition-colors ${
-                        selectedMachines.length === 0
-                          ? "text-sky-700"
-                          : "text-slate-600 group-hover:text-slate-800"
-                      }`}
-                    >
-                      Semua Mesin
+              <>
+                <div
+                  className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-40 sm:hidden"
+                  onClick={() => setIsMachineDropdownOpen(false)}
+                />
+                <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto top-28 sm:top-full sm:right-0 mt-2 sm:w-56 bg-white border border-slate-200 rounded-2xl sm:rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] z-50 p-3.5 sm:p-3 max-h-[75vh] sm:max-h-[300px] flex flex-col">
+                  <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-100">
+                    <span className="text-xs sm:text-[10px] font-extrabold text-slate-500 sm:text-slate-400 uppercase">
+                      Pilih Mesin
                     </span>
-                  </label>
-                  <div className="h-px bg-slate-100 my-1" />
-                  {uniqueMachines.map((mac) => (
-                    <label
-                      key={mac}
-                      className="flex items-center gap-2.5 cursor-pointer p-1.5 hover:bg-slate-50 rounded-lg group"
+                    <button
+                      onClick={() => setIsMachineDropdownOpen(false)}
+                      className="text-xs sm:text-[10px] font-bold text-red-500 hover:text-red-700 bg-red-50 px-2.5 py-1 sm:px-2 sm:py-0.5 rounded-lg cursor-pointer"
                     >
+                      Tutup
+                    </button>
+                  </div>
+                  <div className="overflow-y-auto flex-1 pr-1 custom-scrollbar">
+                    <label className="flex items-center gap-2.5 cursor-pointer p-2 sm:p-1.5 hover:bg-slate-50 rounded-lg group">
                       <input
                         type="checkbox"
-                        checked={selectedMachines.includes(mac)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedMachines((prev) => [...prev, mac]);
-                          } else {
-                            setSelectedMachines((prev) =>
-                              prev.filter((m) => m !== mac)
-                            );
-                          }
-                        }}
-                        className="accent-sky-500 w-3.5 h-3.5 cursor-pointer"
+                        checked={selectedMachines.length === 0}
+                        onChange={() => setSelectedMachines([])}
+                        className="accent-sky-500 w-4 h-4 sm:w-3.5 sm:h-3.5 cursor-pointer"
                       />
                       <span
-                        className={`text-xs font-semibold transition-colors ${
-                          selectedMachines.includes(mac)
+                        className={`text-xs font-bold transition-colors ${
+                          selectedMachines.length === 0
                             ? "text-sky-700"
                             : "text-slate-600 group-hover:text-slate-800"
                         }`}
                       >
-                        {mac}
+                        Semua Mesin
                       </span>
                     </label>
-                  ))}
+                    <div className="h-px bg-slate-100 my-1" />
+                    {uniqueMachines.map((mac) => (
+                      <label
+                        key={mac}
+                        className="flex items-center gap-2.5 cursor-pointer p-2 sm:p-1.5 hover:bg-slate-50 rounded-lg group"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedMachines.includes(mac)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMachines((prev) => [...prev, mac]);
+                            } else {
+                              setSelectedMachines((prev) =>
+                                prev.filter((m) => m !== mac)
+                              );
+                            }
+                          }}
+                          className="accent-sky-500 w-4 h-4 sm:w-3.5 sm:h-3.5 cursor-pointer"
+                        />
+                        <span
+                          className={`text-xs font-semibold transition-colors ${
+                            selectedMachines.includes(mac)
+                              ? "text-sky-700"
+                              : "text-slate-600 group-hover:text-slate-800"
+                          }`}
+                        >
+                          {mac}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -1497,13 +1505,13 @@ export default function DashboardPage() {
       {/* Grid KPI Cards / Slicer Buttons */}
       <div
         data-tour="employee-dashboard-kpi"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-5"
       >
         {/* Card 1: Hasil Produksi & Meteran (Slider Slicer) */}
         <div
-          className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] group transition-all duration-300 flex flex-col ${
+          className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[9rem] sm:min-h-[11rem] group transition-all duration-300 flex flex-col ${
             activeFilter === "ALL"
-              ? "bg-[#004777] shadow-xl scale-[1.03] ring-2 ring-[#0070bc] ring-offset-2"
+              ? "bg-[#004777] shadow-xl scale-[1.01] sm:scale-[1.03] ring-2 ring-[#0070bc] ring-offset-2"
               : "bg-[#0070bc] shadow-md hover:scale-[1.01]"
           }`}
           onTouchStart={handleTouchStart}
@@ -1525,24 +1533,24 @@ export default function DashboardPage() {
                 setActiveFilter("ALL");
                 setMetricMode("PCS");
               }}
-              className="w-1/2 cursor-pointer p-5 flex flex-col justify-between h-full relative text-white"
+              className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative text-white"
             >
-              <div className="flex justify-between items-start relative z-10">
-                <span className="text-sky-100 text-[10px] font-bold uppercase tracking-wider">
-                  TOTAL PRODUKSI (SEMUA)
+              <div className="flex justify-between items-start relative z-10 gap-1">
+                <span className="text-sky-100 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate">
+                  TOTAL PRODUKSI
                 </span>
-                <span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[10px] font-bold">
+                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[8px] sm:text-[10px] font-bold shrink-0">
                   All
                 </span>
               </div>
-              <div className="mt-2 relative z-10">
-                <div className="text-3xl font-black tracking-tight flex items-baseline gap-1">
+              <div className="mt-1 sm:mt-2 relative z-10">
+                <div className="text-xl sm:text-3xl font-black tracking-tight flex items-baseline gap-1">
                   {stats.totalProduksi.toLocaleString()}
-                  <span className="text-sm font-semibold opacity-80">Panel</span>
+                  <span className="text-xs sm:text-sm font-semibold opacity-80">Panel</span>
                 </div>
-                <div className="flex items-center gap-1 mt-1 text-[11px] text-sky-200 font-semibold">
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  <span>Panel</span>
+                <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-sky-200 font-semibold truncate">
+                  <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                  <span className="truncate">Panel</span>
                 </div>
               </div>
             </div>
@@ -1553,24 +1561,24 @@ export default function DashboardPage() {
                 setActiveFilter("ALL");
                 setMetricMode("METER");
               }}
-              className="w-1/2 cursor-pointer p-5 flex flex-col justify-between h-full relative text-white"
+              className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative text-white"
             >
-              <div className="flex justify-between items-start relative z-10">
-                <span className="text-sky-100 text-[10px] font-bold uppercase tracking-wider">
-                  Total Produksi Meteran
+              <div className="flex justify-between items-start relative z-10 gap-1">
+                <span className="text-sky-100 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate">
+                  Total Produksi
                 </span>
-                <span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[10px] font-bold">
+                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[8px] sm:text-[10px] font-bold shrink-0">
                   All
                 </span>
               </div>
-              <div className="mt-2 relative z-10">
-                <div className="text-3xl font-black tracking-tight flex items-baseline gap-1">
+              <div className="mt-1 sm:mt-2 relative z-10">
+                <div className="text-xl sm:text-3xl font-black tracking-tight flex items-baseline gap-1">
                   {stats.totalProduksiMeter.toLocaleString()}
-                  <span className="text-sm font-semibold opacity-80">M</span>
+                  <span className="text-xs sm:text-sm font-semibold opacity-80">M</span>
                 </div>
-                <div className="flex items-center gap-1 mt-1 text-[11px] text-sky-200 font-semibold">
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>Panjang meter (Mode Kontinu)</span>
+                <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-sky-200 font-semibold truncate">
+                  <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                  <span className="truncate">Panjang meter</span>
                 </div>
               </div>
             </div>
@@ -1578,7 +1586,7 @@ export default function DashboardPage() {
 
           {/* Dots Indicator */}
           <div
-            className="absolute bottom-3 right-3 flex items-center gap-1 z-20"
+            className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 flex items-center gap-1 z-20"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1587,11 +1595,11 @@ export default function DashboardPage() {
                 if (activeFilter === "NOL_PRODUKSI")
                   setActiveFilter("PROBLEMS");
               }}
-              className="p-3 -m-3 cursor-pointer"
+              className="p-2 sm:p-3 -m-2 sm:-m-3 cursor-pointer"
               title="Geser ke Total Produksi"
             >
               <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "PCS" ? "w-4 bg-white" : "w-1.5 bg-sky-300/50 hover:bg-sky-200"}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "PCS" ? "w-3.5 sm:w-4 bg-white" : "w-1.5 bg-sky-300/50 hover:bg-sky-200"}`}
               />
             </button>
             <button
@@ -1600,11 +1608,11 @@ export default function DashboardPage() {
                 if (activeFilter === "PROBLEMS")
                   setActiveFilter("NOL_PRODUKSI");
               }}
-              className="p-3 -m-3 cursor-pointer ml-3"
+              className="p-2 sm:p-3 -m-2 sm:-m-3 cursor-pointer ml-2 sm:ml-3"
               title="Geser ke Total Meteran"
             >
               <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "METER" ? "w-4 bg-white" : "w-1.5 bg-sky-300/50 hover:bg-sky-200"}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "METER" ? "w-3.5 sm:w-4 bg-white" : "w-1.5 bg-sky-300/50 hover:bg-sky-200"}`}
               />
             </button>
           </div>
@@ -1612,9 +1620,9 @@ export default function DashboardPage() {
 
         {/* Card 2: Persentase Cacat (Slider Slicer) */}
         <div
-          className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] group border transition-all duration-300 flex flex-col ${
+          className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[9rem] sm:min-h-[11rem] group border transition-all duration-300 flex flex-col ${
             activeFilter === "PROBLEMS"
-              ? "bg-rose-50/50 border-rose-500 text-slate-800 shadow-md scale-[1.03] ring-2 ring-rose-500"
+              ? "bg-rose-50/50 border-rose-500 text-slate-800 shadow-md scale-[1.01] sm:scale-[1.03] ring-2 ring-rose-500"
               : "bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs"
           }`}
           onTouchStart={handleTouchStart}
@@ -1633,31 +1641,30 @@ export default function DashboardPage() {
                 setActiveFilter("PROBLEMS");
                 setMetricMode("PCS");
               }}
-              className="w-1/2 cursor-pointer p-5 flex flex-col justify-between h-full relative"
+              className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
             >
-              <div className="flex justify-between items-start relative z-10">
-                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+              <div className="flex justify-between items-start relative z-10 gap-1">
+                <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate">
                   Cacat Panel ({gradeLabel})
                 </span>
                 <span
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                     activeFilter === "PROBLEMS"
                       ? "bg-rose-100 text-rose-600"
                       : "bg-slate-100 text-slate-500"
                   }`}
                 >
-                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <AlertTriangle className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5" />
                 </span>
               </div>
-              <div className="mt-2 relative z-10">
-                <div className="text-3xl font-black tracking-tight text-slate-800">
+              <div className="mt-1 sm:mt-2 relative z-10">
+                <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800">
                   {stats.persentaseCacatPanel.toFixed(1)}%
                 </div>
-                <div className="flex items-center gap-1 mt-1 text-[11px] text-rose-600 font-bold">
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  <span>
-                    {stats.countMasalahPanel} pcs cacat dari{" "}
-                    {stats.totalPanelValid} panel
+                <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-rose-600 font-bold truncate">
+                  <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                  <span className="truncate">
+                    {stats.countMasalahPanel} pcs ({stats.totalPanelValid} panel)
                   </span>
                 </div>
               </div>
@@ -1669,31 +1676,30 @@ export default function DashboardPage() {
                 setActiveFilter("PROBLEMS");
                 setMetricMode("METER");
               }}
-              className="w-1/2 cursor-pointer p-5 flex flex-col justify-between h-full relative"
+              className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
             >
-              <div className="flex justify-between items-start relative z-10">
-                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+              <div className="flex justify-between items-start relative z-10 gap-1">
+                <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate">
                   Cacat Meteran ({gradeLabel})
                 </span>
                 <span
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                     activeFilter === "PROBLEMS"
                       ? "bg-rose-100 text-rose-600"
                       : "bg-slate-100 text-slate-500"
                   }`}
                 >
-                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <AlertTriangle className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5" />
                 </span>
               </div>
-              <div className="mt-2 relative z-10">
-                <div className="text-3xl font-black tracking-tight text-slate-800">
+              <div className="mt-1 sm:mt-2 relative z-10">
+                <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800">
                   {stats.persentaseCacatMeteran.toFixed(2)}%
                 </div>
-                <div className="flex items-center gap-1 mt-1 text-[11px] text-rose-600 font-bold">
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>
-                    {stats.countMasalahMeteran} masalah di{" "}
-                    {stats.totalProduksiMeter} Meter
+                <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-rose-600 font-bold truncate">
+                  <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                  <span className="truncate">
+                    {stats.countMasalahMeteran} di {stats.totalProduksiMeter} M
                   </span>
                 </div>
               </div>
@@ -1702,7 +1708,7 @@ export default function DashboardPage() {
 
           {/* Dots Indicator */}
           <div
-            className="absolute bottom-3 right-3 flex items-center gap-1 z-20"
+            className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 flex items-center gap-1 z-20"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1710,10 +1716,10 @@ export default function DashboardPage() {
                 setMetricMode("PCS");
                 setActiveFilter("PROBLEMS");
               }}
-              className="p-3 -m-3 cursor-pointer"
+              className="p-2 sm:p-3 -m-2 sm:-m-3 cursor-pointer"
             >
               <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "PCS" ? (activeFilter === "PROBLEMS" ? "w-4 bg-rose-500" : "w-4 bg-slate-800") : "w-1.5 bg-slate-300 hover:bg-slate-400"}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "PCS" ? (activeFilter === "PROBLEMS" ? "w-3.5 sm:w-4 bg-rose-500" : "w-3.5 sm:w-4 bg-slate-800") : "w-1.5 bg-slate-300 hover:bg-slate-400"}`}
               />
             </button>
             <button
@@ -1721,52 +1727,52 @@ export default function DashboardPage() {
                 setMetricMode("METER");
                 setActiveFilter("PROBLEMS");
               }}
-              className="p-3 -m-3 cursor-pointer ml-3"
+              className="p-2 sm:p-3 -m-2 sm:-m-3 cursor-pointer ml-2 sm:ml-3"
             >
               <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "METER" ? (activeFilter === "PROBLEMS" ? "w-4 bg-rose-500" : "w-4 bg-slate-800") : "w-1.5 bg-slate-300 hover:bg-slate-400"}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "METER" ? (activeFilter === "PROBLEMS" ? "w-3.5 sm:w-4 bg-rose-500" : "w-3.5 sm:w-4 bg-slate-800") : "w-1.5 bg-slate-300 hover:bg-slate-400"}`}
               />
             </button>
           </div>
         </div>
 
         {/* Card 3: Status Produksi Summary */}
-        <div className="bg-white border border-[#e9ecef] rounded-[24px] p-5 flex flex-col justify-between h-full min-h-[11rem] shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
-          <div className="flex justify-between items-start">
-            <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-              Efisiensi Waktu Kerja
+        <div className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-5 flex flex-col justify-between h-full min-h-[9rem] sm:min-h-[11rem] shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
+          <div className="flex justify-between items-start gap-1">
+            <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate">
+              Efisiensi Waktu
             </span>
-            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-purple-50 text-purple-600">
-              <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-purple-50 text-purple-600 shrink-0">
+              <SlidersHorizontal className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5" />
             </span>
           </div>
-          <div className="mt-2">
-            <div className="text-3xl font-black tracking-tight text-slate-800">
+          <div className="mt-1 sm:mt-2">
+            <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800">
               {stats.efisiensi.toFixed(1)}%
             </div>
 
             {/* Target Indicator */}
             {stats.totalDowntimeDetik > 0 ? (
-              <div className="inline-flex items-center gap-1.5 mt-2 px-2 py-1 bg-amber-50 border border-amber-100 rounded-lg text-[10px] text-amber-700 font-extrabold uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                Terpotong {formatDowntimeHuman(stats.totalDowntimeDetik)}
+              <div className="inline-flex items-center gap-1 sm:gap-1.5 mt-1 sm:mt-2 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-amber-50 border border-amber-100 rounded-lg text-[8px] sm:text-[10px] text-amber-700 font-extrabold uppercase tracking-wider max-w-full truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <span className="truncate">Terpotong {formatDowntimeHuman(stats.totalDowntimeDetik)}</span>
               </div>
             ) : (
-              <div className="inline-flex items-center gap-1.5 mt-2 px-2 py-1 bg-emerald-50 border border-emerald-100 rounded-lg text-[10px] text-emerald-700 font-extrabold uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                0 Jam Terbuang
+              <div className="inline-flex items-center gap-1 sm:gap-1.5 mt-1 sm:mt-2 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-emerald-50 border border-emerald-100 rounded-lg text-[8px] sm:text-[10px] text-emerald-700 font-extrabold uppercase tracking-wider max-w-full truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="truncate">0 Jam Terbuang</span>
               </div>
             )}
 
-            <div className="flex items-center gap-1 mt-2 text-[11px] text-purple-600 font-bold">
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>
+            <div className="flex items-center gap-1 mt-1 sm:mt-2 text-[9px] sm:text-[11px] text-purple-600 font-bold truncate">
+              <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+              <span className="truncate">
                 {dateRangeMode === "7DAYS"
-                  ? "1 Minggu (6 Hari Kerja / 48 Jam)"
+                  ? "1 Minggu (48 Jam)"
                   : dateRangeMode === "30DAYS"
-                  ? `1 Bulan (${stats.effectiveWorkingDays} Hari Kerja / ${stats.effectiveWorkingDays * 8} Jam)`
+                  ? `1 Bulan (${stats.effectiveWorkingDays * 8} Jam)`
                   : stats.effectiveWorkingDays > 1
-                  ? `${stats.effectiveWorkingDays} Hari Kerja (${stats.effectiveWorkingDays * 8} Jam)`
+                  ? `${stats.effectiveWorkingDays} Hari (${stats.effectiveWorkingDays * 8} Jam)`
                   : "Shift 8 Jam (480 mnt)"}
               </span>
             </div>
@@ -1779,36 +1785,36 @@ export default function DashboardPage() {
             setActiveFilter("PROBLEMS");
             setMetricMode("PCS");
           }}
-          className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] border border-[#e9ecef] cursor-pointer p-5 flex flex-col justify-between transition-all duration-300 ${
+          className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[9rem] sm:min-h-[11rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-5 flex flex-col justify-between transition-all duration-300 ${
             activeFilter === "PROBLEMS"
               ? "bg-red-50/40 shadow-[0_8px_30px_rgba(239,68,68,0.12)] text-slate-800"
               : "bg-white hover:shadow-xs text-slate-800"
           }`}
         >
           {activeFilter === "PROBLEMS" && (
-            <div className="absolute inset-0 ring-2 ring-red-500 rounded-[24px] pointer-events-none" />
+            <div className="absolute inset-0 ring-2 ring-red-500 rounded-2xl sm:rounded-[24px] pointer-events-none" />
           )}
-          <div className="flex justify-between items-start relative z-10">
-            <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+          <div className="flex justify-between items-start relative z-10 gap-1">
+            <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate">
               Masalah ({gradeLabel})
             </span>
             <span
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+              className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                 activeFilter === "PROBLEMS"
                   ? "bg-red-100 text-red-600 animate-pulse"
                   : "bg-slate-100 text-slate-500"
               }`}
             >
-              <AlertTriangle className="w-3.5 h-3.5" />
+              <AlertTriangle className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5" />
             </span>
           </div>
-          <div className="mt-2 relative z-10">
-            <div className="text-3xl font-black tracking-tight text-slate-800">
+          <div className="mt-1 sm:mt-2 relative z-10">
+            <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800 truncate">
               {stats.countMasalah} Masalah
             </div>
-            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-red-600 font-extrabold">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              <span>Butuh Pemeriksaan</span>
+            <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-red-600 font-extrabold truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+              <span className="truncate">Butuh Pemeriksaan</span>
             </div>
           </div>
         </div>
@@ -1820,10 +1826,10 @@ export default function DashboardPage() {
         className="grid grid-cols-1 lg:grid-cols-3 gap-6"
       >
         {/* Dynamic Production Trend Chart */}
-        <div className="lg:col-span-2 bg-white border border-[#e9ecef] rounded-[32px] p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4 mb-6">
+        <div className="lg:col-span-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4 mb-4 sm:mb-6">
             <div>
-              <h3 className="text-base font-extrabold text-slate-800">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-800">
                 Tren Hasil Produksi & Analisis Kualitas
               </h3>
               <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -1863,12 +1869,12 @@ export default function DashboardPage() {
             </div>
 
             {/* Chart Control Toggles */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1">
               {/* Chart View Toggles */}
-              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200 shrink-0">
                 <button
                   onClick={() => setChartGroupBy("HARI")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     chartGroupBy === "HARI"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
@@ -1878,7 +1884,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={() => setChartGroupBy("DESIGN")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     chartGroupBy === "DESIGN"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
@@ -1888,7 +1894,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={() => setChartGroupBy("PEGAWAI")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     chartGroupBy === "PEGAWAI"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
@@ -1898,7 +1904,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={() => setChartGroupBy("GROUP")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     chartGroupBy === "GROUP"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
@@ -1908,7 +1914,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={() => setChartGroupBy("MESIN")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     chartGroupBy === "MESIN"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
@@ -1918,10 +1924,10 @@ export default function DashboardPage() {
                 </button>
               </div>
               {/* Chart Type Toggles */}
-              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200 shrink-0">
                 <button
                   onClick={() => setChartType("BAR")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
                     chartType === "BAR"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
@@ -1931,7 +1937,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={() => setChartType("LINE")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
                     chartType === "LINE"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
@@ -1942,12 +1948,12 @@ export default function DashboardPage() {
               </div>
 
               {/* Slicer Toggles depending on qualityViewMode */}
-              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200 shrink-0">
                 {qualityViewMode === "QC_GRADE" ? (
                   <>
                     <button
                       onClick={() => setChartGradeFilter("ALL")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
                         chartGradeFilter === "ALL"
                           ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
@@ -1957,7 +1963,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setChartGradeFilter("GRADE_A")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
                         chartGradeFilter === "GRADE_A"
                           ? "bg-sky-600 text-white shadow-xs"
                           : "text-[#0070bc] hover:bg-sky-50"
@@ -1967,7 +1973,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setChartGradeFilter("GRADE_B")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
                         chartGradeFilter === "GRADE_B"
                           ? "bg-amber-500 text-white shadow-xs"
                           : "text-amber-700 hover:bg-amber-50"
@@ -1977,7 +1983,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setChartGradeFilter("BS")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
                         chartGradeFilter === "BS"
                           ? "bg-rose-500 text-white shadow-xs"
                           : "text-rose-700 hover:bg-rose-50"
@@ -1990,7 +1996,7 @@ export default function DashboardPage() {
                   <>
                     <button
                       onClick={() => setOperatorStatusFilter("ALL")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
                         operatorStatusFilter === "ALL"
                           ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
@@ -2000,7 +2006,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setOperatorStatusFilter("CEKLIS")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                         operatorStatusFilter === "CEKLIS"
                           ? "bg-sky-600 text-white shadow-xs"
                           : "text-[#0070bc] hover:bg-sky-50"
@@ -2010,7 +2016,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setOperatorStatusFilter("SILANG")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                         operatorStatusFilter === "SILANG"
                           ? "bg-rose-500 text-white shadow-xs"
                           : "text-rose-700 hover:bg-rose-50"
@@ -3279,12 +3285,12 @@ export default function DashboardPage() {
 
           return (
             <div className="space-y-6 flex flex-col flex-1">
-              <div className="bg-white border border-[#e9ecef] rounded-[32px] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between flex-1">
+              <div className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between flex-1">
                 <div>
-                  <div className="border-b border-slate-100 pb-4 mb-6 flex justify-between items-start">
+                  <div className="border-b border-slate-100 pb-3 sm:pb-4 mb-4 sm:mb-6 flex justify-between items-start gap-2">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="text-base font-extrabold text-slate-800">
+                        <h3 className="text-sm sm:text-base font-extrabold text-slate-800">
                           {qualityViewMode === "OPERATOR_STATUS"
                             ? "Status Input Operator"
                             : "Ringkasan Kualitas"}
@@ -3306,13 +3312,13 @@ export default function DashboardPage() {
                             : "Lihat Grade QC"}
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                      <p className="text-[10px] sm:text-[11px] text-slate-400 font-semibold mt-0.5">
                         {qualityViewMode === "OPERATOR_STATUS"
                           ? "Proporsi Normal vs Cacat"
                           : "Persentase barang berdasarkan Grade"}
                       </p>
                     </div>
-                    <span className="text-[9px] font-bold px-2.5 py-1 rounded-lg bg-sky-50 text-sky-600 flex items-center gap-1 shrink-0">
+                    <span className="text-[9px] font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg bg-sky-50 text-sky-600 flex items-center gap-1 shrink-0">
                       {qualityViewMode === "OPERATOR_STATUS"
                         ? totalOperator
                         : totalQuality}{" "}
@@ -3321,7 +3327,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Donut Chart Visual */}
-                  <div className="relative w-48 h-48 mx-auto flex items-center justify-center">
+                  <div className="relative w-40 h-40 sm:w-48 sm:h-48 mx-auto flex items-center justify-center">
                     <svg
                       viewBox="0 0 100 100"
                       className="w-full h-full transform -rotate-90"
@@ -3424,7 +3430,7 @@ export default function DashboardPage() {
                     </svg>
                     {/* Center Content */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-3xl font-black text-slate-800 tracking-tight">
+                      <span className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">
                         {qualityViewMode === "OPERATOR_STATUS"
                           ? `${Math.round(pctCeklis)}%`
                           : `${Math.round(pctA)}%`}
@@ -3438,11 +3444,11 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Breakdown List */}
-                  <div className="mt-8 space-y-2">
+                  <div className="mt-6 sm:mt-8 space-y-1.5 sm:space-y-2">
                     {qualityViewMode === "OPERATOR_STATUS" ? (
                       <>
-                        <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-sky-50/50 transition-colors border border-transparent hover:border-sky-100/50">
-                          <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl hover:bg-sky-50/50 transition-colors border border-transparent hover:border-sky-100/50">
+                          <div className="flex items-center gap-2.5 sm:gap-3">
                             <span className="w-5 h-5 rounded-full bg-sky-100 text-[#0070bc] flex items-center justify-center text-[10px] font-black">
                               ✓
                             </span>
@@ -3456,17 +3462,17 @@ export default function DashboardPage() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className="text-sm font-black text-slate-800">
+                            <span className="text-xs sm:text-sm font-black text-slate-800">
                               {totalCeklis.toLocaleString()}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-bold ml-1.5">
+                            <span className="text-[10px] text-slate-400 font-bold ml-1 sm:ml-1.5">
                               {metricMode === "PCS" ? "Panel" : "Meter"}
                             </span>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-red-50/50 transition-colors border border-transparent hover:border-red-100/50">
-                          <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl hover:bg-red-50/50 transition-colors border border-transparent hover:border-red-100/50">
+                          <div className="flex items-center gap-2.5 sm:gap-3">
                             <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-[10px] font-black">
                               ✕
                             </span>
@@ -3480,10 +3486,10 @@ export default function DashboardPage() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className="text-sm font-black text-slate-800">
+                            <span className="text-xs sm:text-sm font-black text-slate-800">
                               {totalSilang.toLocaleString()}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-bold ml-1.5">
+                            <span className="text-[10px] text-slate-400 font-bold ml-1 sm:ml-1.5">
                               {metricMode === "PCS" ? "Panel" : "Meter"}
                             </span>
                           </div>
@@ -3491,67 +3497,67 @@ export default function DashboardPage() {
                       </>
                     ) : (
                       <>
-                        <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-sky-50/50 transition-colors border border-transparent hover:border-sky-100/50">
-                          <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl hover:bg-sky-50/50 transition-colors border border-transparent hover:border-sky-100/50">
+                          <div className="flex items-center gap-2.5 sm:gap-3">
                             <div className="w-3.5 h-3.5 rounded-full bg-[#0070bc] shadow-[0_0_8px_rgba(0,112,188,0.4)]" />
                             <span className="text-xs font-extrabold text-slate-700">
                               Grade A (Lolos)
                             </span>
                           </div>
                           <div className="text-right">
-                            <span className="text-sm font-black text-slate-800">
+                            <span className="text-xs sm:text-sm font-black text-slate-800">
                               {totalA.toLocaleString()}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-bold ml-1.5">
+                            <span className="text-[10px] text-slate-400 font-bold ml-1 sm:ml-1.5">
                               {metricMode === "PCS" ? "Panel" : "Meter"}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-amber-50/50 transition-colors border border-transparent hover:border-amber-100/50">
-                          <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl hover:bg-amber-50/50 transition-colors border border-transparent hover:border-amber-100/50">
+                          <div className="flex items-center gap-2.5 sm:gap-3">
                             <div className="w-3.5 h-3.5 rounded-full bg-[#f59e0b] shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
                             <span className="text-xs font-extrabold text-slate-700">
                               Grade B (Lolos)
                             </span>
                           </div>
                           <div className="text-right">
-                            <span className="text-sm font-black text-slate-800">
+                            <span className="text-xs sm:text-sm font-black text-slate-800">
                               {totalB.toLocaleString()}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-bold ml-1.5">
+                            <span className="text-[10px] text-slate-400 font-bold ml-1 sm:ml-1.5">
                               {metricMode === "PCS" ? "Panel" : "Meter"}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-red-50/50 transition-colors border border-transparent hover:border-red-100/50">
-                          <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl hover:bg-red-50/50 transition-colors border border-transparent hover:border-red-100/50">
+                          <div className="flex items-center gap-2.5 sm:gap-3">
                             <div className="w-3.5 h-3.5 rounded-full bg-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.4)] animate-pulse" />
                             <span className="text-xs font-extrabold text-slate-700">
                               BS (Recheck)
                             </span>
                           </div>
                           <div className="text-right">
-                            <span className="text-sm font-black text-slate-800">
+                            <span className="text-xs sm:text-sm font-black text-slate-800">
                               {totalBS.toLocaleString()}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-bold ml-1.5">
+                            <span className="text-[10px] text-slate-400 font-bold ml-1 sm:ml-1.5">
                               {metricMode === "PCS" ? "Panel" : "Meter"}
                             </span>
                           </div>
                         </div>
                         {totalUngraded > 0 && (
-                          <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent">
-                            <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl hover:bg-slate-50 transition-colors border border-transparent">
+                            <div className="flex items-center gap-2.5 sm:gap-3">
                               <div className="w-3.5 h-3.5 rounded-full bg-[#94a3b8]" />
                               <span className="text-xs font-extrabold text-slate-700">
                                 Ungraded
                               </span>
                             </div>
                             <div className="text-right">
-                              <span className="text-sm font-black text-slate-800">
+                              <span className="text-xs sm:text-sm font-black text-slate-800">
                                 {totalUngraded.toLocaleString()}
                               </span>
-                              <span className="text-[10px] text-slate-400 font-bold ml-1.5">
+                              <span className="text-[10px] text-slate-400 font-bold ml-1 sm:ml-1.5">
                                 {metricMode === "PCS" ? "Panel" : "Meter"}
                               </span>
                             </div>
@@ -3562,7 +3568,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-4 mt-6 text-center">
+                <div className="border-t border-slate-100 pt-3.5 sm:pt-4 mt-4 sm:mt-6 text-center">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                     Quality Overview
                   </span>

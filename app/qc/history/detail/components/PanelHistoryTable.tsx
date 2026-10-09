@@ -184,7 +184,7 @@ export default function PanelHistoryTable({
   }, [displayItems]);
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto no-scrollbar">
       <table className="w-full min-w-[720px] text-left border-collapse text-xs">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -616,8 +616,6 @@ export default function PanelHistoryTable({
                                <div
                                  key={lIdx}
                                  className={
-                                   cItem.isLineQc
-                                     ? "text-[#0070bc] font-medium" :
                                    isGagalCacatOnly
                                      ? "text-slate-500 font-medium"
                                      : "text-rose-600 font-medium"

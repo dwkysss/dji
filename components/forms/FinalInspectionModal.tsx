@@ -38,7 +38,7 @@ const finalInspectionSchema = z.object({
       return isNaN(num) ? 0 : num;
     }
     return Number(val);
-  }, z.number().min(0, "Harus >= 0")),
+  }, z.number().gt(0, "Berat kain (kg) wajib diisi dan harus lebih dari 0")),
   notes: z.string().optional(),
 });
 
@@ -97,6 +97,20 @@ export default function FinalInspectionModal({
   const valGradeB = watch("final_grade_b") || 0;
   const valGradeBs = watch("final_grade_bs") || 0;
 
+  const currentBeratRaw = watch("berat_kain") as unknown as string | number | undefined | null;
+  const parsedBerat = React.useMemo(() => {
+    if (currentBeratRaw === null || currentBeratRaw === undefined || currentBeratRaw === "") return 0;
+    if (typeof currentBeratRaw === "string") {
+      const cleaned = currentBeratRaw.replace(",", ".").trim();
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    }
+    const num = Number(currentBeratRaw);
+    return isNaN(num) ? 0 : num;
+  }, [currentBeratRaw]);
+
+  const isBeratValid = parsedBerat > 0;
+
   const isMeteranBatch = (headerData?.details?.[0]?.production_headers?.panel_no === "METERAN") || 
                          (detailData?.[0]?.production_headers?.panel_no === "METERAN");
 
@@ -114,8 +128,12 @@ export default function FinalInspectionModal({
     return detailsList.filter((d: any) => !d.is_deleted && d.status_inspeksi !== "Dihapus" && d.status_final_mending !== "Dihapus" && !(d.keterangan_cacat || "").includes("[DIHAPUS]")).length;
   }, [headerData, detailData, isMeteranBatch]);
 
+  const initializedRef = React.useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !initializedRef.current) {
+      initializedRef.current = true;
+
       const storedPetugas1 = localStorage.getItem("final_inspection_petugas1") || localStorage.getItem("final_inspection_petugas");
       const storedPetugas2 = localStorage.getItem("final_inspection_petugas2");
       const storedPetugas3 = localStorage.getItem("final_inspection_petugas3");
@@ -163,24 +181,12 @@ export default function FinalInspectionModal({
         if (initialBerat > 0) break;
       }
       setValue("berat_kain", initialBerat);
-    }
-  }, [isOpen, setValue, startFinalTime, headerData, detailData]);
 
-  const initializedRef = React.useRef(false);
-
-  useEffect(() => {
-    if (isOpen && !initializedRef.current) {
-      initializedRef.current = true;
       let countA = 0;
       let countB = 0;
       let countBS = 0;
 
-      const isMeteran = (headerData?.details?.[0]?.production_headers?.panel_no === "METERAN") || 
-                        (detailData?.[0]?.production_headers?.panel_no === "METERAN");
-
-      const detailsList = detailData || headerData?.details || [];
-
-      if (isMeteran) {
+      if (isMeteranBatch) {
         let maxMeter = 0;
         
         if (detailData && detailData.length > 0) {
@@ -235,9 +241,18 @@ export default function FinalInspectionModal({
     } else if (!isOpen) {
       initializedRef.current = false;
     }
-  }, [isOpen, selections, detailData, headerData, setValue]);
+  }, [isOpen, setValue, startFinalTime, headerData, detailData, selections, isMeteranBatch]);
 
   const onSubmit = async (data: FinalInspectionFormData) => {
+    const finalBerat = typeof data.berat_kain === "string"
+      ? parseFloat(String(data.berat_kain).replace(",", ".").trim())
+      : Number(data.berat_kain);
+
+    if (isNaN(finalBerat) || finalBerat <= 0) {
+      setErrorMsg("Berat kain (kg) wajib diisi dan harus lebih dari 0 kg.");
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMsg(null);
 
@@ -293,15 +308,15 @@ export default function FinalInspectionModal({
   const detailsList = detailData || headerData?.details || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:py-6 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
           <div>
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-emerald-600" /> Form Rangkuman Final Inspek Mending
             </h3>
-            <p className="text-xs text-slate-500 font-medium">
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
               Isi seluruh data final inspek mending untuk {detailsList.length} baris yang telah Anda pilih gradenya.
             </p>
           </div>
@@ -313,7 +328,7 @@ export default function FinalInspectionModal({
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto custom-scrollbar">
+        <div className="p-3.5 sm:p-6 overflow-y-auto no-scrollbar">
           {errorMsg && (
             <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-semibold border border-red-100 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -521,14 +536,18 @@ export default function FinalInspectionModal({
               </h4>
               <div className="w-full">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                  Berat Kain (kg)
+                  Berat Kain (kg) <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     inputMode="decimal"
                     {...register("berat_kain")}
-                    className="w-full h-10 px-3 pr-10 rounded-xl border border-slate-200 text-sm font-semibold focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"
+                    className={`w-full h-10 px-3 pr-10 rounded-xl border text-sm font-semibold outline-none transition-all ${
+                      !isBeratValid
+                        ? "border-amber-400 bg-amber-50/20 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-amber-900"
+                        : "border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-slate-800"
+                    }`}
                     placeholder="0"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
@@ -536,12 +555,18 @@ export default function FinalInspectionModal({
                   </span>
                 </div>
                 {errors.berat_kain && (
-                  <p className="text-red-500 text-[10px] mt-1">
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">
                     {errors.berat_kain.message}
                   </p>
                 )}
+                {!isBeratValid && !errors.berat_kain && (
+                  <p className="text-amber-600 text-[11px] font-semibold mt-1 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                    Berat kain tidak boleh 0 kg. Masukkan nilai berat kain (&gt; 0 kg) untuk dapat mengirim laporan.
+                  </p>
+                )}
                 <p className="text-[10px] text-slate-400 mt-1">
-                  *Nilai awal diambil dari total berat inspecting QC
+                  *Nilai awal disarankan dari QC sebelumnya, dapat disesuaikan kembali sesuai timbangan fisik kain saat ini.
                 </p>
               </div>
             </div>
@@ -677,28 +702,39 @@ export default function FinalInspectionModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
-          >
-            Batal
-          </button>
-          <button
-            type="submit"
-            form="final-inspection-form"
-            disabled={isSubmitting}
-            className="px-6 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <CheckCircle className="w-4 h-4" />
+        <div className="p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-2.5 sm:gap-3 shrink-0">
+          <div className="w-full sm:w-auto">
+            {!isBeratValid && (
+              <div className="flex items-center gap-2 text-xs text-amber-700 font-bold bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>Isi berat kain (&gt; 0 kg) untuk dapat mengirim laporan</span>
+              </div>
             )}
-            Simpan & Kirim Final Inspek
-          </button>
+          </div>
+          <div className="w-full sm:w-auto flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer text-center"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              form="final-inspection-form"
+              disabled={isSubmitting || !isBeratValid}
+              title={!isBeratValid ? "Isi berat kain (> 0 kg) untuk dapat mengirim laporan" : undefined}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle className="w-4 h-4" />
+              )}
+              Simpan & Kirim Final Inspek
+            </button>
+          </div>
         </div>
       </div>
     </div>

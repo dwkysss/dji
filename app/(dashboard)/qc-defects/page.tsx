@@ -230,15 +230,15 @@ export default function QCDefectsAdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-slate-50 p-2.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-[#0070bc] to-sky-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-[#0070bc] to-sky-700 rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-white shadow-xl shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-xs font-bold uppercase tracking-wider mb-3">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Master Data Khusus QC & Mending</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-black tracking-tight">
             Master Cacat QC & Mending
           </h1>
           <p className="text-sky-100 text-xs sm:text-sm mt-1 max-w-xl font-medium">
@@ -316,9 +316,9 @@ export default function QCDefectsAdminPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         {/* Controls Bar: Search & Category Pills */}
-        <div className="p-5 border-b border-slate-200 bg-slate-50/50 space-y-4">
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/50 space-y-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             {/* Search Input */}
             <div className="relative w-full sm:w-80">
@@ -346,7 +346,7 @@ export default function QCDefectsAdminPage() {
           </div>
 
           {/* Category Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             {dynamicCategories.map((cat) => {
               const isSelected = selectedCategory === cat;
               return (
@@ -367,7 +367,7 @@ export default function QCDefectsAdminPage() {
         </div>
 
         {/* Defects Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-black text-slate-500 uppercase tracking-wider">
@@ -487,9 +487,9 @@ export default function QCDefectsAdminPage() {
 
       {/* Modal Tambah Cacat */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 bg-gradient-to-r from-[#0070bc] to-sky-700 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
+            <div className="p-4 sm:p-6 bg-gradient-to-r from-[#0070bc] to-sky-700 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white backdrop-blur-xs">
                   <Plus className="w-5 h-5" />
@@ -503,7 +503,7 @@ export default function QCDefectsAdminPage() {
               </div>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCreateSubmit} className="p-4 sm:p-6 space-y-4">
               {errorMsg && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
@@ -584,9 +584,9 @@ export default function QCDefectsAdminPage() {
 
       {/* Modal Edit Cacat */}
       {isEditModalOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
+            <div className="p-4 sm:p-6 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white backdrop-blur-xs">
                   <Edit2 className="w-5 h-5" />
@@ -600,7 +600,7 @@ export default function QCDefectsAdminPage() {
               </div>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleEditSubmit} className="p-4 sm:p-6 space-y-4">
               {errorMsg && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
@@ -686,8 +686,8 @@ export default function QCDefectsAdminPage() {
 
       {/* Modal Konfirmasi Hapus */}
       {isDeleteModalOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden p-6 text-center animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden p-5 sm:p-6 text-center animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4 text-rose-600">
               <Trash2 className="w-6 h-6" />
             </div>

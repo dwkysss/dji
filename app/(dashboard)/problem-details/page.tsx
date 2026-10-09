@@ -558,15 +558,15 @@ export default function ProblemDetailsPage() {
   };
 
   return (
-    <div className="space-y-6 pb-20 font-sans">
+    <div className="space-y-4 sm:space-y-6 pb-20 font-sans">
       {/* HEADER */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-[28px] border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
-            <ListFilter className="w-6 h-6 text-white" />
+      <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[28px] border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-linear-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+            <ListFilter className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight whitespace-nowrap">
+            <h1 className="text-base sm:text-xl font-black text-slate-800 tracking-tight truncate">
               Master Detail & Kelompok Masalah
             </h1>
             <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5 leading-snug line-clamp-2">
@@ -575,32 +575,32 @@ export default function ProblemDetailsPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-nowrap overflow-x-auto sm:overflow-visible pb-1 lg:pb-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full lg:w-auto pb-1 lg:pb-0 shrink-0">
           <button
             onClick={() => fetchData()}
             disabled={loading}
-            className="h-10 w-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-50 shrink-0"
+            className="h-9 sm:h-10 w-9 sm:w-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
           <button
             onClick={handleOpenManageGroups}
-            className="h-10 px-3.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+            className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Layers className="w-4 h-4 text-sky-200" />
-            <span>Kelola Kelompok (Header)</span>
+            <span>Kelola Kelompok</span>
           </button>
           <button
             onClick={handleOpenAddCategory}
-            className="h-10 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+            className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
           >
             <FolderPlus className="w-4 h-4 text-amber-400" />
             <span>+ Kategori Baru</span>
           </button>
           <button
             onClick={() => handleOpenAdd()}
-            className="h-10 px-4 rounded-xl bg-linear-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-xs shadow-md shadow-amber-500/25 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl bg-linear-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-xs shadow-md shadow-amber-500/25 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Tambah Detail Masalah</span>
@@ -609,54 +609,54 @@ export default function ProblemDetailsPage() {
       </div>
 
       {/* OVERVIEW STATS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
+            <span className="text-[11px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
               Total Opsi Masalah
             </span>
-            <span className="text-2xl font-black text-slate-800 mt-1 block">
+            <span className="text-xl sm:text-2xl font-black text-slate-800 mt-0.5 sm:mt-1 block">
               {stats.total} <span className="text-xs font-semibold text-slate-400">item</span>
             </span>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold">
-            <Layers className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold shrink-0">
+            <Layers className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-xs font-extrabold text-emerald-600 uppercase tracking-wider block">
+            <span className="text-[11px] sm:text-xs font-extrabold text-emerald-600 uppercase tracking-wider block">
               Status Aktif
             </span>
-            <span className="text-2xl font-black text-emerald-600 mt-1 block">
+            <span className="text-xl sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1 block">
               {stats.active} <span className="text-xs font-semibold text-slate-400">item</span>
             </span>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-            <CheckCircle2 className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-xs font-extrabold text-rose-500 uppercase tracking-wider block">
+            <span className="text-[11px] sm:text-xs font-extrabold text-rose-500 uppercase tracking-wider block">
               Non-Aktif
             </span>
-            <span className="text-2xl font-black text-rose-500 mt-1 block">
+            <span className="text-xl sm:text-2xl font-black text-rose-500 mt-0.5 sm:mt-1 block">
               {stats.inactive} <span className="text-xs font-semibold text-slate-400">item</span>
             </span>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center font-bold">
-            <XCircle className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center font-bold shrink-0">
+            <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
       </div>
 
       {/* CATEGORY TABS & SEARCH */}
-      <div className="bg-white rounded-[28px] border border-slate-200 p-6 shadow-sm space-y-6">
+      <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4 sm:space-y-6">
         {/* Category Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-2">
           {categoriesList.map((catItem) => {
             const isActive = activeCategory === catItem.kode;
             const count = stats.countByCat[catItem.kode] || 0;
@@ -665,20 +665,20 @@ export default function ProblemDetailsPage() {
               <button
                 key={catItem.kode}
                 onClick={() => setActiveCategory(catItem.kode)}
-                className={`px-4 py-3 rounded-2xl font-black text-xs transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer border ${isActive
+                className={`px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-black text-xs transition-all flex items-center gap-2 sm:gap-2.5 whitespace-nowrap cursor-pointer border shrink-0 ${isActive
                   ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
                   : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
                   }`}
               >
                 <span
-                  className={`w-6 h-6 rounded-lg text-[11px] font-black flex items-center justify-center ${isActive ? "bg-amber-400 text-slate-950" : "bg-slate-200 text-slate-700"
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-lg text-[10px] sm:text-[11px] font-black flex items-center justify-center ${isActive ? "bg-amber-400 text-slate-950" : "bg-slate-200 text-slate-700"
                     }`}
                 >
                   {catItem.kode}
                 </span>
                 <span>{catItem.label}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? "bg-slate-800 text-amber-300" : "bg-slate-200 text-slate-600"
+                  className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? "bg-slate-800 text-amber-300" : "bg-slate-200 text-slate-600"
                     }`}
                 >
                   {count}
@@ -698,54 +698,54 @@ export default function ProblemDetailsPage() {
           };
 
           return (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-200/80">
+              <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className={`w-10 h-10 rounded-xl bg-linear-to-r ${currentCat.color || "from-amber-500 to-orange-600"} text-white font-black text-lg flex items-center justify-center shrink-0 shadow-xs`}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-linear-to-r ${currentCat.color || "from-amber-500 to-orange-600"} text-white font-black text-base sm:text-lg flex items-center justify-center shrink-0 shadow-xs`}
                 >
                   {activeCategory}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-slate-800 text-sm">
+                    <h3 className="font-extrabold text-slate-800 text-xs sm:text-sm truncate">
                       Kategori [{activeCategory}] {currentCat.label}
                     </h3>
                     <button
                       onClick={() => handleOpenEditCategory(currentCat)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                      className="p-1 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer shrink-0"
                       title="Edit Nama & Deskripsi Kategori"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => handleOpenDeleteCategory(currentCat)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
                       title="Hapus Kategori Ini"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate">
                     {currentCat.description || "Tidak ada deskripsi"}
                   </p>
                 </div>
               </div>
 
               {/* Search Bar & Manage Groups shortcut */}
-              <div className="flex items-center gap-2">
-                <div className="relative min-w-[240px]">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+                <div className="relative flex-1 md:w-64">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={`Cari detail / sub-kategori Kategori ${activeCategory}...`}
+                    placeholder={`Cari detail / sub-kategori...`}
                     className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
                 <button
                   onClick={handleOpenManageGroups}
-                  className="px-3.5 py-2 rounded-xl bg-white border border-sky-200 hover:bg-sky-50 text-sky-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-2xs"
+                  className="px-3.5 py-2 rounded-xl bg-white border border-sky-200 hover:bg-sky-50 text-sky-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-2xs"
                   title="Atur Kelompok Sub-Kategori"
                 >
                   <Layers className="w-3.5 h-3.5 text-sky-600" />
@@ -875,7 +875,7 @@ export default function ProblemDetailsPage() {
                   </div>
 
                   {/* Group Table */}
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto no-scrollbar">
                     {groupObj.items.length === 0 ? (
                       <div className="p-4 text-center text-xs font-semibold text-slate-400 italic bg-white">
                         Belum ada item di dalam kelompok ini. Klik "Tambah ke Kelompok Ini" untuk menambahkan.
@@ -979,8 +979,8 @@ export default function ProblemDetailsPage() {
 
       {/* MODAL: KELOLA KELOMPOK (SUB-KATEGORI HEADER) */}
       {isGroupModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[28px] border border-slate-200 p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl space-y-5 sm:space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-sky-600 text-white font-black flex items-center justify-center shadow-md shadow-sky-200">
@@ -1151,8 +1151,8 @@ export default function ProblemDetailsPage() {
 
       {/* MODAL: TAMBAH / EDIT KATEGORI */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[28px] border border-slate-200 p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl space-y-5 sm:space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-slate-900 text-amber-400 font-black flex items-center justify-center">
@@ -1248,8 +1248,8 @@ export default function ProblemDetailsPage() {
 
       {/* MODAL: TAMBAH DETAIL MASALAH */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[28px] border border-slate-200 p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl space-y-5 sm:space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-500 text-white font-black flex items-center justify-center">
@@ -1352,18 +1352,18 @@ export default function ProblemDetailsPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 sm:gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2.5 rounded-xl bg-linear-to-r from-amber-500 to-orange-600 text-white text-xs font-black shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-linear-to-r from-amber-500 to-orange-600 text-white text-xs font-black shadow-md disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {submitting ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1380,8 +1380,8 @@ export default function ProblemDetailsPage() {
 
       {/* MODAL: EDIT DETAIL MASALAH */}
       {isEditModalOpen && editingItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[28px] border border-slate-200 p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl space-y-5 sm:space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-500 text-white font-black flex items-center justify-center">
@@ -1470,18 +1470,18 @@ export default function ProblemDetailsPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 sm:gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-md disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {submitting && <RefreshCw className="w-4 h-4 animate-spin" />}
                   Simpan Perubahan
@@ -1494,14 +1494,14 @@ export default function ProblemDetailsPage() {
 
       {/* MODAL: KONFIRMASI HAPUS DETAIL MASALAH */}
       {isDeleteModalOpen && deletingItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[28px] border border-slate-200 p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
-              <Trash2 className="w-8 h-8 stroke-[2.5]" />
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl space-y-4 sm:space-y-6 text-center">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+              <Trash2 className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-black text-slate-800">
+              <h3 className="text-lg sm:text-xl font-black text-slate-800">
                 Hapus Detail Masalah?
               </h3>
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
@@ -1520,14 +1520,14 @@ export default function ProblemDetailsPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex items-center justify-center gap-2.5 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setIsDeleteModalOpen(false);
                   setDeletingItem(null);
                 }}
-                className="px-6 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all active:scale-95 cursor-pointer"
+                className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all active:scale-95 cursor-pointer"
               >
                 Batal
               </button>
@@ -1547,14 +1547,14 @@ export default function ProblemDetailsPage() {
                     setErrorMsg(res.error || "Gagal menghapus detail masalah");
                   }
                 }}
-                className="px-6 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-200 transition-all active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {submitting ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <Trash2 className="w-4 h-4 stroke-[2.5]" />
                 )}
-                Ya, Hapus Sekarang
+                Ya, Hapus
               </button>
             </div>
           </div>
@@ -1563,14 +1563,14 @@ export default function ProblemDetailsPage() {
 
       {/* MODAL: KONFIRMASI HAPUS KATEGORI */}
       {isDeleteCatModalOpen && deletingCategory && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[28px] border border-slate-200 p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
-              <Trash2 className="w-8 h-8 stroke-[2.5]" />
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl space-y-4 sm:space-y-6 text-center">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+              <Trash2 className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-black text-slate-800">
+              <h3 className="text-lg sm:text-xl font-black text-slate-800">
                 Hapus Kategori [{deletingCategory.kode}]?
               </h3>
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
@@ -1602,7 +1602,7 @@ export default function ProblemDetailsPage() {
                 type="button"
                 disabled={submitting}
                 onClick={() => handleConfirmDeleteCategory(true)}
-                className="w-full py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {submitting ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1619,7 +1619,7 @@ export default function ProblemDetailsPage() {
                   setIsDeleteCatModalOpen(false);
                   setDeletingCategory(null);
                 }}
-                className="w-full py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all active:scale-95 cursor-pointer"
+                className="w-full py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all active:scale-95 cursor-pointer"
               >
                 Batal
               </button>
@@ -1630,14 +1630,14 @@ export default function ProblemDetailsPage() {
 
       {/* MODAL: KONFIRMASI HAPUS KELOMPOK HEADER */}
       {deletingGroupInfo && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[28px] border border-slate-200 p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
-              <Trash2 className="w-8 h-8 stroke-[2.5]" />
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl space-y-4 sm:space-y-6 text-center">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+              <Trash2 className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-black text-slate-800">
+              <h3 className="text-lg sm:text-xl font-black text-slate-800">
                 Hapus Kelompok Header?
               </h3>
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
@@ -1668,11 +1668,11 @@ export default function ProblemDetailsPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex items-center justify-center gap-2.5 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setDeletingGroupInfo(null)}
-                className="px-6 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all active:scale-95 cursor-pointer"
+                className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all active:scale-95 cursor-pointer"
               >
                 Batal
               </button>
@@ -1680,14 +1680,14 @@ export default function ProblemDetailsPage() {
                 type="button"
                 disabled={submitting}
                 onClick={handleConfirmDeleteGroup}
-                className="px-6 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-200 transition-all active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {submitting ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <Trash2 className="w-4 h-4 stroke-[2.5]" />
                 )}
-                Ya, Hapus Kelompok
+                Ya, Hapus
               </button>
             </div>
           </div>
@@ -1696,14 +1696,14 @@ export default function ProblemDetailsPage() {
 
       {/* MODAL: KONFIRMASI RESET KELOMPOK STANDAR */}
       {isResetConfirmModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[28px] border border-slate-200 p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto shadow-inner">
-              <RefreshCw className="w-8 h-8 stroke-[2.5]" />
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl space-y-4 sm:space-y-6 text-center">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto shadow-inner">
+              <RefreshCw className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-black text-slate-800">
+              <h3 className="text-lg sm:text-xl font-black text-slate-800">
                 Reset ke Kelompok Standar?
               </h3>
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
@@ -1711,11 +1711,11 @@ export default function ProblemDetailsPage() {
               </p>
             </div>
 
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex items-center justify-center gap-2.5 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setIsResetConfirmModalOpen(false)}
-                className="px-6 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all active:scale-95 cursor-pointer"
+                className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all active:scale-95 cursor-pointer"
               >
                 Batal
               </button>
@@ -1723,14 +1723,14 @@ export default function ProblemDetailsPage() {
                 type="button"
                 disabled={submitting}
                 onClick={handleConfirmResetGroups}
-                className="px-6 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-black shadow-md shadow-sky-200 transition-all active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-black shadow-md shadow-sky-200 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {submitting ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <RefreshCw className="w-4 h-4 stroke-[2.5]" />
                 )}
-                Ya, Reset Sekarang
+                Ya, Reset
               </button>
             </div>
           </div>

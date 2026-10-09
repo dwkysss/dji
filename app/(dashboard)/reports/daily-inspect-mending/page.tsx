@@ -528,22 +528,22 @@ export default function DailyInspectMendingPage() {
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="p-2.5 sm:p-4 md:p-8 space-y-4 sm:space-y-6 pb-20">
       {/* HEADER CARD - Enterprise Gradient */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-[#003366] to-[#0070bc] p-6 md:p-8 text-white shadow-xl shadow-slate-900/10">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-[#003366] to-[#0070bc] p-4 sm:p-6 md:p-8 text-white shadow-xl shadow-slate-900/10">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-white/5 blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-20 w-48 h-48 rounded-full bg-sky-400/10 blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div className="space-y-2">
             <div className="inline-flex items-center px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-sky-200 text-xs font-bold tracking-wide">
               <span>JURNAL GABUNGAN HARIAN</span>
             </div>
 
-            <div className="flex items-center flex-wrap gap-3">
-              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-3">
-                <FileSpreadsheet className="w-8 h-8 text-sky-400" />
-                Laporan Harian Inspect & Mending
+            <div className="flex items-center flex-wrap gap-2.5 sm:gap-3">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-2.5 sm:gap-3">
+                <FileSpreadsheet className="w-7 h-7 sm:w-8 sm:h-8 text-sky-400 shrink-0" />
+                <span>Laporan Harian Inspect & Mending</span>
               </h1>
 
               {/* Inline Auto-Sync Pill */}
@@ -575,14 +575,14 @@ export default function DailyInspectMendingPage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
             <button
               type="button"
               onClick={loadData}
               disabled={isLoading || isSyncing}
-              className="h-11 px-4 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 border border-white/20 text-white font-bold text-xs flex items-center gap-2 backdrop-blur-md transition-all cursor-pointer disabled:opacity-50"
+              className="h-10 sm:h-11 px-3 sm:px-4 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 border border-white/20 text-white font-bold text-xs flex items-center justify-center gap-2 backdrop-blur-md transition-all cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isLoading ? "animate-spin" : ""}`} />
               <span>Muat Ulang</span>
             </button>
 
@@ -590,24 +590,24 @@ export default function DailyInspectMendingPage() {
               type="button"
               onClick={handleSyncGoogleSheet}
               disabled={isSyncing || filteredData.length === 0}
-              className="h-11 px-5 rounded-xl bg-teal-600 hover:bg-teal-500 active:scale-95 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-teal-950/20 transition-all cursor-pointer disabled:opacity-50"
+              className="h-10 sm:h-11 px-3 sm:px-5 rounded-xl bg-teal-600 hover:bg-teal-500 active:scale-95 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-teal-950/20 transition-all cursor-pointer disabled:opacity-50"
               title="Sinkronkan data yang tampil ke tab HASIL INSPECT DAN MENDING HARIAN 2026 di Google Sheet"
             >
               {isSyncing ? (
-                <RefreshCw className="w-4 h-4 animate-spin text-teal-200" />
+                <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-teal-200" />
               ) : (
-                <FileSpreadsheet className="w-4 h-4 text-teal-200" />
+                <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-200" />
               )}
-              <span>{isSyncing ? "Menyinkronkan..." : "Sinkron ke Sheet"}</span>
+              <span className="truncate">{isSyncing ? "Menyinkronkan..." : "Sinkron ke Sheet"}</span>
             </button>
 
             <button
               type="button"
               onClick={handleExportExcel}
               disabled={filteredData.length === 0 || isSyncing}
-              className="h-11 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/20 transition-all cursor-pointer disabled:opacity-50"
+              className="col-span-2 sm:col-span-1 h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/20 transition-all cursor-pointer disabled:opacity-50"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Export Excel (.xlsx)</span>
             </button>
           </div>
@@ -641,67 +641,67 @@ export default function DailyInspectMendingPage() {
         </div>
       )}
 
-      {/* METRIC SUMMARY CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700">
-            <Layers className="w-5 h-5" />
+      {/* METRIC SUMMARY CARDS - 2x2 ON MOBILE */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3.5">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+            <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
               Total Potongan
             </div>
-            <div className="text-xl font-black text-slate-800 font-mono">
+            <div className="text-base sm:text-xl font-black text-slate-800 font-mono truncate">
               {summary.totalRows}{" "}
-              <span className="text-xs font-medium text-slate-500">Roll/Pcs</span>
+              <span className="text-[10px] sm:text-xs font-medium text-slate-500">Roll/Pcs</span>
             </div>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
-            <FileText className="w-5 h-5" />
+        <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3.5">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
+            <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
               Volume Produksi
             </div>
-            <div className="text-lg font-black text-slate-800 font-mono flex items-center gap-2">
-              <span>{summary.totalPanel} <span className="text-xs font-semibold text-slate-500">Pnl</span></span>
-              <span className="text-slate-300">|</span>
-              <span>{summary.totalMeter} <span className="text-xs font-semibold text-slate-500">Mtr</span></span>
+            <div className="text-xs sm:text-base font-black text-slate-800 font-mono flex flex-wrap sm:flex-nowrap items-baseline gap-1 sm:gap-2 truncate">
+              <span>{summary.totalPanel} <span className="text-[9px] sm:text-xs font-semibold text-slate-500">Pnl</span></span>
+              <span className="text-slate-300 hidden sm:inline">|</span>
+              <span>{summary.totalMeter} <span className="text-[9px] sm:text-xs font-semibold text-slate-500">Mtr</span></span>
             </div>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700">
-            <Clock className="w-5 h-5" />
+        <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3.5">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700 shrink-0">
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
               Inspeksi (QC)
             </div>
-            <div className="text-xl font-black text-indigo-700 font-mono">
+            <div className="text-sm sm:text-xl font-black text-indigo-700 font-mono truncate">
               {summary.inspectedCount}{" "}
-              <span className="text-xs font-medium text-slate-500">
+              <span className="text-[10px] sm:text-xs font-medium text-slate-500">
                 / {summary.totalRows} Selesai
               </span>
             </div>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700">
-            <CheckCircle2 className="w-5 h-5" />
+        <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3.5">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700 shrink-0">
+            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
               Mending & Final
             </div>
-            <div className="text-xl font-black text-teal-700 font-mono">
+            <div className="text-xs sm:text-xl font-black text-teal-700 font-mono truncate">
               {summary.mendedCount}{" "}
-              <span className="text-xs font-medium text-slate-500">
+              <span className="text-[10px] sm:text-xs font-medium text-slate-500">
                 Mnd · {summary.finalCount} Fnl
               </span>
             </div>
@@ -710,7 +710,7 @@ export default function DailyInspectMendingPage() {
       </div>
 
       {/* FILTER CONTROLS */}
-      <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
+      <div className="p-4 sm:p-5 md:p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-4">
         {/* Machine Pill Buttons */}
         <div>
           <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -725,7 +725,7 @@ export default function DailyInspectMendingPage() {
                   key={mc}
                   type="button"
                   onClick={() => setSelectedMachine(mc)}
-                  className={`h-9 px-3.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+                  className={`h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
                     active
                       ? "bg-[#003366] text-white shadow-md shadow-blue-950/20 scale-102"
                       : "bg-slate-100 hover:bg-slate-200 text-slate-700"
@@ -739,9 +739,9 @@ export default function DailyInspectMendingPage() {
         </div>
 
         {/* Date Filter & Search Row */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 sm:gap-4 pt-3 border-t border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full lg:w-auto">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar max-w-full">
               {[
                 { id: "ALL", label: "Semua" },
                 { id: "TODAY", label: "Hari Ini" },
@@ -753,7 +753,7 @@ export default function DailyInspectMendingPage() {
                   key={p.id}
                   type="button"
                   onClick={() => handleDatePresetChange(p.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                     datePreset === p.id
                       ? "bg-white text-slate-900 shadow-2xs"
                       : "text-slate-600 hover:text-slate-900"
@@ -764,54 +764,56 @@ export default function DailyInspectMendingPage() {
               ))}
             </div>
 
-            {/* Basis Tanggal Filter Selector */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 border border-sky-200 text-xs font-bold text-sky-900 shadow-2xs">
-              <Calendar className="w-3.5 h-3.5 text-[#0070bc] shrink-0" />
-              <span className="text-[11px] text-slate-500 font-semibold">Basis:</span>
-              <select
-                value={customDateBasis}
-                onChange={(e) => setCustomDateBasis(e.target.value as any)}
-                className="bg-transparent font-black text-[#0070bc] cursor-pointer outline-hidden text-xs pr-1"
-                title="Pilih kolom tanggal yang dijadikan acuan filter rentang tanggal"
-              >
-                <option value="AUTO">
-                  Otomatis ({activeDateBasis === "tgl_inspect" ? "Tgl Inspect" : activeDateBasis === "tgl_potong" ? "Tgl Potong" : activeDateBasis === "tgl_mending" ? "Tgl Mending" : "Tgl Final Inspek"})
-                </option>
-                <option value="tgl_inspect">Tgl Inspect (QC)</option>
-                <option value="tgl_potong">Tgl Potong (Produksi)</option>
-                <option value="tgl_mending">Tgl Mending</option>
-                <option value="tgl_final">Tgl Final Inspek</option>
-              </select>
-            </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              {/* Basis Tanggal Filter Selector */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 border border-sky-200 text-xs font-bold text-sky-900 shadow-2xs">
+                <Calendar className="w-3.5 h-3.5 text-[#0070bc] shrink-0" />
+                <span className="text-[11px] text-slate-500 font-semibold shrink-0">Basis:</span>
+                <select
+                  value={customDateBasis}
+                  onChange={(e) => setCustomDateBasis(e.target.value as any)}
+                  className="bg-transparent font-black text-[#0070bc] cursor-pointer outline-hidden text-xs pr-1 w-full"
+                  title="Pilih kolom tanggal yang dijadikan acuan filter rentang tanggal"
+                >
+                  <option value="AUTO">
+                    Otomatis ({activeDateBasis === "tgl_inspect" ? "Tgl Inspect" : activeDateBasis === "tgl_potong" ? "Tgl Potong" : activeDateBasis === "tgl_mending" ? "Tgl Mending" : "Tgl Final Inspek"})
+                  </option>
+                  <option value="tgl_inspect">Tgl Inspect (QC)</option>
+                  <option value="tgl_potong">Tgl Potong (Produksi)</option>
+                  <option value="tgl_mending">Tgl Mending</option>
+                  <option value="tgl_final">Tgl Final Inspek</option>
+                </select>
+              </div>
 
-            {/* Custom Date Range */}
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => {
-                  setDatePreset("CUSTOM");
-                  setDateFrom(e.target.value);
-                }}
-                className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 outline-hidden focus:border-indigo-500"
-              />
-              <span className="text-slate-400 font-bold text-xs">s/d</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => {
-                  setDatePreset("CUSTOM");
-                  setDateTo(e.target.value);
-                }}
-                className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 outline-hidden focus:border-indigo-500"
-              />
+              {/* Custom Date Range */}
+              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => {
+                    setDatePreset("CUSTOM");
+                    setDateFrom(e.target.value);
+                  }}
+                  className="flex-1 sm:flex-none h-9 px-2.5 sm:px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 outline-hidden focus:border-indigo-500"
+                />
+                <span className="text-slate-400 font-bold text-xs shrink-0">s/d</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => {
+                    setDatePreset("CUSTOM");
+                    setDateTo(e.target.value);
+                  }}
+                  className="flex-1 sm:flex-none h-9 px-2.5 sm:px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 outline-hidden focus:border-indigo-500"
+                />
+              </div>
             </div>
           </div>
 
           {/* Search Box & Sort Indicator */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
             {/* Active Sort Indicator */}
-            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-600 shadow-2xs">
+            <div className="flex items-center justify-between sm:justify-start gap-1.5 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-600 shadow-2xs">
               <span className="text-slate-400">Urut:</span>
               <span className="text-[#0070bc] font-black">
                 {sortField === "tgl_inspect" && "Tgl Inspect"}
@@ -826,7 +828,7 @@ export default function DailyInspectMendingPage() {
             </div>
 
             {/* Search Box */}
-            <div className="relative w-full md:w-64">
+            <div className="relative w-full sm:w-64">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -864,7 +866,15 @@ export default function DailyInspectMendingPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Mobile Horizontal Scroll Hint */}
+            <div className="sm:hidden px-3.5 py-2 bg-slate-100/80 border-b border-slate-200/80 text-[11px] font-semibold text-slate-500 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#0070bc]"></span>
+                Geser tabel ke samping untuk rincian QC, Mending & Final
+              </span>
+              <span className="text-xs font-black text-[#0070bc] tracking-wider">↔</span>
+            </div>
+            <div className="overflow-x-auto no-scrollbar">
             <table className="w-full text-xs text-left border-collapse min-w-[1540px]">
               {/* TWO-TIER MULTI-LEVEL HEADER */}
               <thead>
@@ -1149,8 +1159,8 @@ export default function DailyInspectMendingPage() {
           </div>
 
           {/* PAGINATION & FOOTER CONTROL BAR */}
-          <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-600">
+          <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+            <div className="flex flex-wrap items-center justify-between sm:justify-start w-full sm:w-auto gap-2.5 sm:gap-3 text-xs font-bold text-slate-600">
               <span>
                 Menampilkan{" "}
                 <strong className="text-slate-900 font-black font-mono">
@@ -1173,11 +1183,11 @@ export default function DailyInspectMendingPage() {
                 baris
               </span>
 
-              <span className="text-slate-300">|</span>
+              <span className="text-slate-300 hidden sm:inline">|</span>
 
               {/* Rows Per Page Selector */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-500 font-normal">Per halaman:</span>
+              <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
+                <span className="text-slate-500 font-normal">Per hal:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
@@ -1197,18 +1207,18 @@ export default function DailyInspectMendingPage() {
 
             {/* Pagination Buttons */}
             {pageSize !== "ALL" && totalPages > 1 && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center justify-between sm:justify-center w-full sm:w-auto gap-1.5">
                 <button
                   type="button"
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="h-8 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-bold text-slate-700 flex items-center gap-1 transition-all cursor-pointer disabled:cursor-not-allowed"
+                  className="flex-1 sm:flex-none justify-center h-8 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-bold text-slate-700 flex items-center gap-1 transition-all cursor-pointer disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                   <span>Sebelumnya</span>
                 </button>
 
-                <div className="px-3 text-xs font-bold text-slate-600 font-mono">
+                <div className="px-3 text-xs font-bold text-slate-600 font-mono text-center">
                   {currentPage} / {totalPages}
                 </div>
 
@@ -1216,7 +1226,7 @@ export default function DailyInspectMendingPage() {
                   type="button"
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
-                  className="h-8 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-bold text-slate-700 flex items-center gap-1 transition-all cursor-pointer disabled:cursor-not-allowed"
+                  className="flex-1 sm:flex-none justify-center h-8 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-bold text-slate-700 flex items-center gap-1 transition-all cursor-pointer disabled:cursor-not-allowed"
                 >
                   <span>Selanjutnya</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -1229,8 +1239,8 @@ export default function DailyInspectMendingPage() {
       </div>
       {/* ⏰ JADWAL AUTO-SYNC MODAL POPUP */}
       {isScheduleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 space-y-6 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 md:p-8 max-w-md w-full shadow-2xl border border-slate-200 space-y-5 sm:space-y-6 max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
@@ -1307,12 +1317,12 @@ export default function DailyInspectMendingPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row items-center gap-2.5 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={handleTestSchedule}
                 disabled={isTestingSchedule || isSavingSchedule}
-                className="h-11 px-4 rounded-2xl border-2 border-teal-300 hover:bg-teal-50 text-teal-900 font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto h-11 px-4 rounded-2xl border-2 border-teal-300 hover:bg-teal-50 text-teal-900 font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                 title="Uji coba jalankan auto-sync sekarang"
               >
                 {isTestingSchedule ? (
@@ -1327,7 +1337,7 @@ export default function DailyInspectMendingPage() {
                 type="button"
                 onClick={handleSaveSchedule}
                 disabled={isSavingSchedule || isTestingSchedule}
-                className="flex-1 h-11 rounded-2xl bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-black text-xs shadow-md shadow-teal-950/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full sm:flex-1 h-11 rounded-2xl bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-black text-xs shadow-md shadow-teal-950/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isSavingSchedule ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

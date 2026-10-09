@@ -102,7 +102,7 @@ export default function SuratJalanPage() {
         className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6"
       >
         <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
             <ClipboardList className="w-7 h-7 text-[#0070bc]" />
             Surat Jalan
           </h1>
@@ -112,13 +112,13 @@ export default function SuratJalanPage() {
         </div>
         <div
           data-tour="qc-sj-actions"
-          className="flex flex-col sm:flex-row gap-2 items-start sm:items-center"
+          className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center"
         >
           <input
             type="date"
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
-            className="px-4 py-2 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-[#0070bc] focus:ring-4 focus:ring-[#0070bc]/10 transition-all bg-white hover:bg-slate-50 cursor-pointer w-40 shadow-sm"
+            className="px-4 py-2 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-[#0070bc] focus:ring-4 focus:ring-[#0070bc]/10 transition-all bg-white hover:bg-slate-50 cursor-pointer w-full sm:w-40 shadow-sm"
           />
           {selectedIds.length > 0 && (
             <Link
@@ -179,7 +179,7 @@ export default function SuratJalanPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto no-scrollbar">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase font-bold text-slate-500">
                 <tr>

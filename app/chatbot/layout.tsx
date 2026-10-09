@@ -14,8 +14,8 @@ export default function ChatbotLayout({
       <Sidebar />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:pl-28 pt-16 md:pt-0">
-        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto flex flex-col">
+      <div className="flex-1 flex flex-col md:pl-28 pt-16 md:pt-0 min-w-0">
+        <main className="flex-1 p-2.5 sm:p-5 md:p-8 max-w-7xl w-full mx-auto flex flex-col min-w-0">
           {children}
         </main>
       </div>

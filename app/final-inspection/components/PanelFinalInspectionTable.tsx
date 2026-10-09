@@ -77,6 +77,7 @@ export default function PanelFinalInspectionTable({
           )}
           <th className="sticky left-0 z-20 bg-slate-50 px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>PNL NO</th>
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-20 text-center whitespace-nowrap border-r border-slate-100" rowSpan={2}>TGL</th>
+          <th className="px-1.5 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-14 text-center whitespace-nowrap border-r border-slate-100" rowSpan={2}>JAM</th>
           <th className="px-1.5 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100" rowSpan={2}>Group</th>
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-24 text-center border-r border-slate-100" rowSpan={2}>Operator</th>
           <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-14 text-center border-r border-slate-100" rowSpan={2}>KET ✓/X</th>
@@ -95,7 +96,7 @@ export default function PanelFinalInspectionTable({
           if (item.isTotalRow) {
             return (
               <tr key={item.id || index} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
-                <td colSpan={onToggleSelectDetail ? 5 : 4} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-right whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                <td colSpan={onToggleSelectDetail ? 6 : 5} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-right whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   {item.totalLabel}
                 </td>
                 <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap border-r border-slate-100">
@@ -195,6 +196,9 @@ export default function PanelFinalInspectionTable({
               <td className="px-2 py-1 text-slate-600 whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
                 {item.showTgl ? (item.tglStr || "-") : ""}
               </td>
+              <td className="px-1.5 py-1 text-slate-600 text-center font-mono text-[11px] whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
+                {item.jamStr || "-"}
+              </td>
               <td className="px-1.5 py-1 font-medium text-slate-700 text-center border-r border-slate-100 border-b border-slate-100">
                 {item.showGrp ? (item.grpStr || "-") : ""}
               </td>
@@ -241,9 +245,7 @@ export default function PanelFinalInspectionTable({
                             <div
                               key={lIdx}
                               className={
-                                cItem.isLineQc
-                                  ? "text-[#0070bc] font-medium"
-                                  : item.isGagalCacatOnly
+                                item.isGagalCacatOnly
                                   ? "text-slate-500 font-medium"
                                   : "text-rose-600 font-medium"
                               }
@@ -354,7 +356,7 @@ export default function PanelFinalInspectionTable({
         })}
         {(totalGradable > 0 || totalBS > 0) && (
           <tr className="bg-slate-50 font-bold border-t border-slate-200 text-[11px] text-slate-700 uppercase tracking-wider">
-            <td className="px-3 py-3 text-right font-extrabold border-r border-slate-100" colSpan={onToggleSelectDetail ? 8 : 7}>
+            <td className="sticky left-0 z-10 bg-slate-50 px-3 py-3 text-right font-extrabold border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" colSpan={onToggleSelectDetail ? 9 : 8}>
               TOTAL ({totalGradable + totalBS} PANEL):
             </td>
             <td className="px-1 py-3 text-center text-emerald-600 bg-emerald-50/40 font-black border-r border-slate-100 w-16">

@@ -368,8 +368,8 @@ function BarcodeContent() {
               <Scissors className="w-3.5 h-3.5" />
               <span>Modul Mending</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              <QrCode className="w-7 h-7 sm:w-8 sm:h-8 text-emerald-600" />
+            <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2.5 sm:gap-3">
+              <QrCode className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-600 shrink-0" />
               <span>Cetak Barcode Mending</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
@@ -388,9 +388,9 @@ function BarcodeContent() {
         {/* Filter Card */}
         <div
           data-tour="mending-barcode-filter"
-          className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 mb-6 relative z-10"
+          className="bg-white p-4 sm:p-5 rounded-2xl shadow-xs border border-slate-200 mb-4 sm:mb-6 relative z-10"
         >
-          <div className="flex flex-col sm:flex-row gap-4 items-end">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-end">
             <div className="flex flex-col gap-1 w-full sm:w-1/3">
               <label className="text-[10px] font-bold text-slate-500 uppercase">
                 Nomor Mesin
@@ -503,7 +503,7 @@ function BarcodeContent() {
               {filteredData.map((batch, i) => (
                 <div
                   key={batch.id || i}
-                  className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200 hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between"
+                  className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200 hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between"
                 >
                   <div>
                     {/* Badges Bar */}
@@ -587,24 +587,24 @@ function BarcodeContent() {
 
         {/* Print Barcode Modal */}
         {isModalOpen && selectedBatch && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 print:p-0 print:items-start print:bg-white">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 print:p-0 print:items-start print:bg-white">
             <div
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm print:hidden"
               onClick={() => setIsModalOpen(false)}
             />
 
-            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200 max-h-[90vh] print:shadow-none print:w-full print:max-w-none print:h-screen print:max-h-none print:rounded-none">
+            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200 max-h-[92vh] print:shadow-none print:w-full print:max-w-none print:h-screen print:max-h-none print:rounded-none">
               {/* Modal Header - Hidden during print */}
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 print:hidden">
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 print:hidden">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                     <QrCode className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-base font-black text-slate-900">
+                    <h2 className="text-sm sm:text-base font-black text-slate-900">
                       Cetak Barcode Mending
                     </h2>
-                    <p className="text-xs text-slate-500 font-medium">
+                    <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
                       Label QR Code Hasil Pengerjaan Mending
                     </p>
                   </div>
@@ -618,7 +618,7 @@ function BarcodeContent() {
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto print:p-0 print:overflow-visible custom-scrollbar">
+              <div className="p-4 sm:p-6 overflow-y-auto no-scrollbar print:p-0 print:overflow-visible custom-scrollbar">
                 {/* Printable Area */}
                 <div
                   id="print-area"
@@ -692,18 +692,18 @@ function BarcodeContent() {
               </div>
 
               {/* Modal Footer - Hidden during print */}
-              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/70 print:hidden">
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 bg-slate-50/70 print:hidden">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer text-center"
                 >
                   Tutup
                 </button>
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   <span>Unduh Gambar</span>
@@ -711,7 +711,7 @@ function BarcodeContent() {
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs sm:text-sm font-black transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs sm:text-sm font-black transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <FileText className="w-4 h-4" />
                   <span>Cetak Label</span>

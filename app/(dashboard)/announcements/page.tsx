@@ -285,31 +285,31 @@ export default function AnnouncementsPage() {
   });
 
   return (
-    <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto animate-fadeIn">
+    <div className="flex-1 p-2.5 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-6xl mx-auto animate-fadeIn min-w-0">
       {/* Header Page Card */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
         <div className="absolute -right-10 -bottom-10 w-48 h-48 rounded-full bg-white/5 pointer-events-none" />
         <div className="absolute right-32 -top-12 w-32 h-32 rounded-full bg-indigo-500/10 pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 shadow-inner">
-              <Megaphone className="w-7 h-7" />
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 shadow-inner">
+              <Megaphone className="w-5 h-5 sm:w-7 sm:h-7" />
             </div>
             <div>
-              <div className="flex items-center gap-2.5 flex-wrap mb-1">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight">
+              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap mb-1">
+                <h1 className="text-lg sm:text-2xl lg:text-3xl font-black tracking-tight">
                   Pusat Pengumuman & Pesan Akun
                 </h1>
                 <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold ${
                     isActive
                       ? "bg-emerald-500/20 border border-emerald-400/30 text-emerald-300"
                       : "bg-slate-700/50 border border-slate-600 text-slate-400"
                   }`}
                 >
                   <span
-                    className={`w-2 h-2 rounded-full ${
+                    className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
                       isActive ? "bg-emerald-400 animate-ping" : "bg-slate-400"
                     }`}
                   />
@@ -323,11 +323,11 @@ export default function AnnouncementsPage() {
           </div>
 
           {lastUpdated && (
-            <div className="bg-white/10 backdrop-blur-md border border-white/15 px-4 py-2.5 rounded-2xl text-right shrink-0">
-              <span className="text-[10px] uppercase font-bold text-slate-300 tracking-wider block flex items-center gap-1 justify-end">
+            <div className="bg-white/10 backdrop-blur-md border border-white/15 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-left md:text-right shrink-0 w-full sm:w-auto">
+              <span className="text-[10px] uppercase font-bold text-slate-300 tracking-wider flex items-center gap-1 md:justify-end">
                 <Clock className="w-3 h-3 text-amber-400" /> Terakhir Update
               </span>
-              <span className="text-xs font-extrabold text-white font-mono">
+              <span className="text-xs font-extrabold text-white font-mono block mt-0.5">
                 {new Date(lastUpdated).toLocaleDateString("id-ID", {
                   day: "numeric",
                   month: "short",
@@ -340,11 +340,11 @@ export default function AnnouncementsPage() {
         </div>
 
         {/* Tab Mode Switcher */}
-        <div className="mt-6 pt-6 border-t border-white/10 flex items-center gap-3">
+        <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-white/10 flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
           <button
             type="button"
             onClick={() => setActiveTab("broadcast")}
-            className={`px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
               activeTab === "broadcast"
                 ? "bg-white text-slate-900 shadow-md"
                 : "bg-white/10 hover:bg-white/20 text-slate-300"
@@ -357,7 +357,7 @@ export default function AnnouncementsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("direct")}
-            className={`px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
               activeTab === "direct"
                 ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25"
                 : "bg-white/10 hover:bg-white/20 text-slate-300"
@@ -402,11 +402,11 @@ export default function AnnouncementsPage() {
           </div>
 
           {/* Main Form Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Left Column: Status & Target Roles */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Card 1: Toggle Status */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isActive ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
                     <Power className="w-5 h-5" />
@@ -421,7 +421,7 @@ export default function AnnouncementsPage() {
                   </div>
                 </div>
 
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                <div className="p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
                   <div>
                     <span className="text-xs font-bold text-slate-800 block">
                       {isActive ? "Running Text Aktif" : "Running Text Mati"}
@@ -448,7 +448,7 @@ export default function AnnouncementsPage() {
               </div>
 
               {/* Card 2: Target Audience / Roles */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
                     <Users className="w-5 h-5" />
@@ -502,9 +502,9 @@ export default function AnnouncementsPage() {
             </div>
 
             {/* Right Column: Message Content & Preset Templates */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-4 sm:space-y-6">
               {/* Card 3: Pesan Input */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center">
@@ -530,7 +530,7 @@ export default function AnnouncementsPage() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Ketik teks pengumuman penting di sini..."
-                  className="w-full p-4 rounded-2xl border border-slate-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium outline-none transition-all shadow-xs resize-none bg-slate-50/50 focus:bg-white leading-relaxed"
+                  className="w-full p-3.5 sm:p-4 rounded-2xl border border-slate-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 text-xs sm:text-sm font-medium outline-none transition-all shadow-xs resize-none bg-slate-50/50 focus:bg-white leading-relaxed"
                 />
 
                 {/* Template Pesan Cepat */}
@@ -562,7 +562,7 @@ export default function AnnouncementsPage() {
               </div>
 
               {/* Action Footer Button & Feedback Notice */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   {successNotice ? (
                     <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-fadeIn">
@@ -580,7 +580,7 @@ export default function AnnouncementsPage() {
                   type="button"
                   disabled={isSaving || !message.trim()}
                   onClick={handleSave}
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-black tracking-wide transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-indigo-600/25 disabled:opacity-50 cursor-pointer shrink-0"
+                  className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs sm:text-sm font-black tracking-wide transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-indigo-600/25 disabled:opacity-50 cursor-pointer shrink-0"
                 >
                   <Save className="w-5 h-5" />
                   <span>{isSaving ? "Menyimpan & Menyiarkan..." : "Simpan & Siarkan Pengumuman"}</span>
@@ -593,9 +593,9 @@ export default function AnnouncementsPage() {
 
       {/* TAB 2: DIRECT USER MESSAGE (PESAN KHUSUS SALAH SATU AKUN) */}
       {activeTab === "direct" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 animate-fadeIn">
           {/* Left Column: User Selector */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4 flex flex-col">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-sm space-y-4 flex flex-col">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
@@ -628,7 +628,7 @@ export default function AnnouncementsPage() {
             </div>
 
             {/* User List Scrollable */}
-            <div className="flex-1 max-h-[380px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+            <div className="flex-1 max-h-[380px] overflow-y-auto space-y-2 pr-1 no-scrollbar">
               {filteredUsers.map((u) => {
                 const name = u.full_name || u.name || "Tanpa Nama";
                 const isSelected = selectedUser?.id === u.id;
@@ -673,8 +673,8 @@ export default function AnnouncementsPage() {
           </div>
 
           {/* Right Column: Direct Message Composer */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-5">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-sm space-y-4 sm:space-y-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center">

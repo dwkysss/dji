@@ -26,7 +26,7 @@
 - baris BS AWAL dan BS AKHIR dihitung masing-masing 1 panel BS secara individual (bukan digabung jadi 1)
 - untuk halaman Laporan Bulanan, kolom produksi diisi nilai dengan panel BS tidak disertakan
 - untuk halaman Laporan Potong Kain, kolom Roll/Panel menyertakan panel BS ya
-- untuk penentuan Grade Keseluruhan (Overall Grade), perhitungan mengambil data SETELAH INSPECT (hasil mending), dan nilai panel BS AWAL serta BS AKHIR tidak disertakan dalam perhitungan total panel maupun total cacat.
+- untuk penentuan Grade Keseluruhan (Overall Grade), perhitungan cacat hanya dihitung berdasarkan panel BS saja (Grade B tidak termasuk). Nilai panel BS AWAL serta BS AKHIR juga tetap disertakan dalam perhitungan total panel maupun total cacat BS. Khusus kategori Max 50 Panel, batas toleransi cacat Grade C adalah maksimal 10 cacat (A <= 5, B <= 8, C <= 10), lebih dari 10 cacat baru mendapatkan Grade D.
 - untuk kain meteran, jika temuan cacat berupa titik tunggal, dihitung 1 meter/titik cacat. Jika temuan cacat berupa rentang (range), jumlah cacat dihitung dari selisih panjangnya (Meter Akhir - Meter Awal). Contoh: rentang 410 - 420 dihitung sebagai 10 meter cacat.
 - untuk halaman Laporan Bulanan mesin dengan jenis meteran (seperti R11, R12, T2A), jumlah cacat dihitung dari total temuan titik cacat dibagi dengan jumlah PCS mesin (misalnya di R11 dengan 3 PCS: 9 titik cacat / 3 = 3 cacat). Tidak ada desimal (jika pecahan < 0.5 dibulatkan ke bawah, jika >= 0.5 dibulatkan ke atas).
 

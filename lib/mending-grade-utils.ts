@@ -225,18 +225,24 @@ export const calculateOverallGradeData = (
       totalCacat = calculateMeterDefectPoints(cacatItems);
     }
   } else {
-    // Panel: Panel BS Awal dan BS Akhir tetap dihitung pada totalQty panel, baris total dan baris yang dihapus tidak disertakan
+    // Panel: Panel yang dihapus (soft-delete) tidak disertakan
     const validItems = (items || []).filter((i: any) => {
       if (!i || i.isTotalRow) return false;
-      if (i.isDeleted || i.is_deleted || i.status_inspeksi === "Dihapus" || i.status_mending === "Dihapus" || i.status_final_mending === "Dihapus") return false;
-      if ((i.keterangan_cacat || "").includes("[DIHAPUS]")) return false;
-      return true;
+      const isDel = !!i.isDeleted || !!i.is_deleted || !!i.detail?.is_deleted ||
+        i.status_inspeksi === "Dihapus" || i.detail?.status_inspeksi === "Dihapus" ||
+        i.status_mending === "Dihapus" || i.detail?.status_mending === "Dihapus" ||
+        i.status_final_mending === "Dihapus" || i.detail?.status_final_mending === "Dihapus" ||
+        (i.keterangan_cacat || "").includes("[DIHAPUS]") || (i.detail?.keterangan_cacat || "").includes("[DIHAPUS]") ||
+        (i.detail_masalah || "").includes("PANEL DIHAPUS") || (i.detail?.detail_masalah || "").includes("PANEL DIHAPUS");
+      return !isDel;
     });
+
+    // Sesuai aturan: Untuk penentuan Grade Keseluruhan (Overall Grade), perhitungan cacat hanya dihitung berdasarkan BS saja (Grade B tidak termasuk).
+    // Nilai panel BS AWAL serta BS AKHIR juga termasuk dalam hitungan total panel dan total cacat BS.
     totalQty = validItems.length;
 
-    // Total Cacat diambil dari panel reguler SETELAH FINAL INSPEK MENDING (BS awal/akhir tidak dihitung sebagai cacat)
-    const regularItems = validItems.filter((i: any) => !isBsAwalAkhir(i));
-    regularItems.forEach((i: any) => {
+    validItems.forEach((i: any) => {
+      const isBsAwalAkhirRow = isBsAwalAkhir(i) || isBsAwalAkhir(i.detail);
       const effectiveGrade = (
         i.hasil_final ||
         i.status_final_mending ||
@@ -247,7 +253,7 @@ export const calculateOverallGradeData = (
         ""
       ).toString().trim().toUpperCase();
 
-      if (effectiveGrade === "B" || effectiveGrade === "BS" || effectiveGrade === "SILANG") {
+      if (effectiveGrade === "BS" || isBsAwalAkhirRow) {
         totalCacat += 1;
       }
     });
@@ -285,7 +291,7 @@ export const calculateOverallGradeData = (
       else if (totalQty > 50) bucket = 65;
       else bucket = 50;
 
-      let limitA = 5, limitB = 8, limitC = 9;
+      let limitA = 5, limitB = 8, limitC = 10;
       if (bucket === 65) { limitA = 7; limitB = 10; limitC = 13; }
       if (bucket === 75) { limitA = 8; limitB = 12; limitC = 15; }
       if (bucket === 100) { limitA = 10; limitB = 15; limitC = 19; }

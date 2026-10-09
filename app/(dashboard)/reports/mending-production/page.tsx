@@ -516,7 +516,10 @@ export default function MendingProductionReportPage() {
           isFirstRowForOperator
         });
 
-        currentOpCount += Number(det.jml_hasil_produksi || 1);
+        const isItemDeleted = !!item.is_deleted || !!det.is_deleted || det.status_inspeksi === "Dihapus" || det.status_mending === "Dihapus" || (det.keterangan_cacat || "").includes("[DIHAPUS]") || (det.detail_masalah || "").includes("PANEL DIHAPUS");
+        if (!isItemDeleted) {
+          currentOpCount += Number(det.jml_hasil_produksi !== undefined && det.jml_hasil_produksi !== null ? det.jml_hasil_produksi : 1);
+        }
         
         if (idx === sortedItems.length - 1) {
           displayItems.push({
@@ -927,14 +930,27 @@ export default function MendingProductionReportPage() {
               cacatLines.unshift(item.backupOpName);
             }
             
-            let cacat = cacatLines.join("\n");
-            
-            const gradeA = item.hasil_mending === "A" ? "A" : "";
-            const gradeB = item.hasil_mending === "B" ? "B" : "";
-            const gradeBS = item.hasil_mending === "BS" ? "BS" : "";
-            const ket = det.kategori_masalah ? "X" : "✓";
+            const isDel = !item.isMeter && (
+              !!item.is_deleted ||
+              !!det.is_deleted ||
+              det.status_inspeksi === "Dihapus" ||
+              det.status_mending === "Dihapus" ||
+              (det.keterangan_cacat || "").includes("[DIHAPUS]") ||
+              (det.detail_masalah || "").includes("PANEL DIHAPUS")
+            );
 
-            row.push(pnlNo, tgl, grpStr, oprStr, ket, cacat, gradeA, gradeB, gradeBS);
+            if (isDel) {
+              row.push(pnlNo, tgl, grpStr, oprStr, "-", "[Panel Dihapus]", "", "", "");
+            } else {
+              let cacat = cacatLines.join("\n");
+              
+              const gradeA = item.hasil_mending === "A" ? "A" : "";
+              const gradeB = item.hasil_mending === "B" ? "B" : "";
+              const gradeBS = item.hasil_mending === "BS" ? "BS" : "";
+              const ket = det.kategori_masalah ? "X" : "✓";
+
+              row.push(pnlNo, tgl, grpStr, oprStr, ket, cacat, gradeA, gradeB, gradeBS);
+            }
           }
         } else {
           row.push("", "", "", "", "", "", "", "", "");
@@ -1008,12 +1024,70 @@ export default function MendingProductionReportPage() {
         inspectB = inspectBCount;
         inspectBS = inspectBSCount;
       } else {
-        prodA = items.filter((i: any) => !i.detail?.kategori_masalah).length;
-        prodB = items.filter((i: any) => i.detail?.kategori_masalah).length;
-        prodBS = 0;
-        inspectA = items.filter((i: any) => i.hasil_mending === "A").length;
-        inspectB = items.filter((i: any) => i.hasil_mending === "B").length;
-        inspectBS = items.filter((i: any) => i.hasil_mending === "BS").length;
+        const validItems = (items || []).filter((i: any) => {
+          if (!i || i.isTotalRow) return false;
+          const isDel = !!i.is_deleted || i.detail?.is_deleted || i.detail?.status_inspeksi === "Dihapus" || (i.detail?.keterangan_cacat || "").includes("[DIHAPUS]");
+          return !isDel;
+        });
+
+        let pA = 0;
+        let pB = 0;
+        let pBS = 0;
+
+        validItems.forEach((i: any) => {
+          const det = i.detail || {};
+          const rowNo = det.header?.panel_no || i.displayNo || "";
+          const isBs = isBsAwalAkhir(i) || isBsAwalAkhir(det) ||
+                       String(rowNo).toUpperCase().includes("AWAL") ||
+                       String(rowNo).toUpperCase().includes("AKHIR") ||
+                       String(rowNo).toUpperCase().includes("BS") ||
+                       det.jml_hasil_produksi === 0 ||
+                       det.status_inspeksi === "BS" ||
+                       det.kategori_masalah === "BS";
+
+          const isPanelInsertedByQc = !!det.is_inserted_qc || !!det.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(rowNo || "").includes("QC"));
+          const hasTambahanQC = !!det.detail_masalah?.includes("[QC]") || (det.production_defects && det.production_defects.some((d: any) => d.detail?.includes("[QC]")));
+          const hasTambahanMnd = !!det.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
+          const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!det.keterangan_qc && det.keterangan_qc !== "-");
+
+          // Produksi: hanya menghitung baris yang TIDAK memiliki label tambahan QC
+          if (isRowQcModified) {
+            return;
+          }
+
+          if (isBs) {
+            pBS++;
+            return;
+          }
+
+          const isSilang = det.status_inspeksi ? (det.status_inspeksi === "Silang") : (
+            (det.production_defects && det.production_defects.some((d: any) => {
+              const k = (d.kategori || "").toUpperCase().trim();
+              const dt = (d.detail || "").toUpperCase().trim();
+              if (k.includes("ISTIRAHAT") || dt.includes("ISTIRAHAT") || dt.includes("GAGAL CACAT") || k === "G") return false;
+              return true;
+            })) || (
+              !!det.kategori_masalah &&
+              det.kategori_masalah !== "G" &&
+              !det.kategori_masalah.includes("ISTIRAHAT") &&
+              det.kategori_masalah !== "BS"
+            )
+          );
+
+          if (isSilang) {
+            pB++;
+          } else {
+            pA++;
+          }
+        });
+
+        prodA = pA;
+        prodB = pB;
+        prodBS = pBS;
+
+        inspectA = validItems.filter((i: any) => i.hasil_mending === "A").length;
+        inspectB = validItems.filter((i: any) => i.hasil_mending === "B").length;
+        inspectBS = validItems.filter((i: any) => i.hasil_mending === "BS").length;
       }
 
       const gradeInfo = calculateOverallGradeData(items, isMeter, totalMeterSum);
@@ -1136,7 +1210,7 @@ export default function MendingProductionReportPage() {
       else if (totalQty > 50) bucket = 65;
       else bucket = 50;
 
-      let limitA = 5, limitB = 8, limitC = 9; 
+      let limitA = 5, limitB = 8, limitC = 10; 
       if (bucket === 65) { limitA = 7; limitB = 10; limitC = 13; }
       if (bucket === 75) { limitA = 8; limitB = 12; limitC = 15; }
       if (bucket === 100) { limitA = 10; limitB = 15; limitC = 19; }
@@ -1154,9 +1228,9 @@ export default function MendingProductionReportPage() {
   };
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto pb-20 animate-fadeIn">
+    <div className="w-full max-w-[1600px] mx-auto pb-20 animate-fadeIn px-2.5 sm:px-4 md:px-6">
       {/* Integrated Header & Filter Card */}
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-4 sm:mb-6">
         {/* Decorative Top Accent */}
         <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
 
@@ -1168,7 +1242,7 @@ export default function MendingProductionReportPage() {
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+                <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">
                   Laporan Kualitas Produksi Mending
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-50 text-[#0070bc] border border-sky-200/80 uppercase tracking-wider">
@@ -1210,7 +1284,7 @@ export default function MendingProductionReportPage() {
         </div>
 
         {/* Filter Form Controls */}
-        <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+        <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-5">
           {/* TANGGAL MENDING (Modern DateRangePicker) */}
           <div className="flex flex-col gap-1.5 w-full">
             <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
@@ -1345,8 +1419,8 @@ export default function MendingProductionReportPage() {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="overflow-x-auto no-scrollbar">
+              <table className="w-full min-w-[750px] text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500">
                     <th className="py-3.5 px-4 font-black text-[11px] uppercase tracking-wider">Mesin</th>
@@ -1502,88 +1576,136 @@ export default function MendingProductionReportPage() {
           
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
             {/* Document Header Section */}
-            <div className="p-8 border-b border-slate-200 bg-slate-50/50">
-              <div className="flex flex-col items-center justify-center text-center mb-8 border-b border-slate-200 pb-6">
-                <h2 className="text-xl font-black text-slate-800 tracking-wider">
+            <div className="p-4 sm:p-6 md:p-8 border-b border-slate-200 bg-slate-50/50">
+              <div className="flex flex-col items-center justify-center text-center mb-5 md:mb-8 border-b border-slate-200 pb-4 md:pb-6">
+                <h2 className="text-base sm:text-lg md:text-xl font-black text-slate-800 tracking-wider">
                   FORM KUALITAS PRODUKSI KAIN {selectedPcsData[0]?.items?.[0]?.detail?.header?.panel_no === "METERAN" ? "ALL OVER" : "PANEL"}
                 </h2>
               </div>
 
-              <div className="grid grid-cols-2 gap-x-2 lg:gap-x-12 gap-y-1 w-full text-[10px] sm:text-xs lg:text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 lg:gap-x-12 gap-y-1 w-full text-xs md:text-xs lg:text-sm">
                 <div className="space-y-1">
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Design</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.design_id || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Design</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.design_id || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Nomor Mc</span>
-                    <span className="font-black text-[#0070bc] col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.nomor_mc || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Nomor Mc</span>
+                    <span className="font-black text-[#0070bc] flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.nomor_mc || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Tanggal produksi</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.tgl || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Tanggal produksi</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.tgl || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Tanggal potong</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.tanggal_potong || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Tanggal potong</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.tanggal_potong || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Pick</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.pick || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Pick</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.pick || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Course</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.course || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Course</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.course || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Rpm</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.rpm || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Rpm</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.rpm || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">No. Order Barang</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.no_order_barang || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">No. Order Barang</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.no_order_barang || "-"}</span>
+                    </span>
                   </div>
                 </div>
                 
                 <div className="space-y-1">
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Potongan ke</span>
-                    <span className="font-black text-rose-600 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.potongan_ke || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Potongan ke</span>
+                    <span className="font-black text-rose-600 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.potongan_ke || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Roll no</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.detail?.roll_no || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Roll no</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.detail?.roll_no || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Jenis Benang Dsr</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.jenis_benang_dasar || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Jenis Benang Dsr</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.jenis_benang_dasar || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Liner</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.liner || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Liner</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.liner || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Heavy</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.heavy || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Heavy</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.heavy || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Shadow</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.shadow || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Shadow</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.shadow || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">Pinggiran</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.pinggiran || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">Pinggiran</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.pinggiran || "-"}</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-[100px_1fr] sm:grid-cols-3 gap-1 sm:gap-4">
-                    <span className="font-bold text-slate-500 whitespace-nowrap">No. costumer</span>
-                    <span className="font-black text-slate-800 col-span-2 flex gap-2"><span>:</span> {selectedPcsData[0]?.header?.no_customer || "-"}</span>
+                  <div className="flex items-baseline py-0.5">
+                    <span className="w-28 sm:w-32 lg:w-36 font-bold text-slate-500 shrink-0">No. costumer</span>
+                    <span className="font-black text-slate-800 flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-slate-400 select-none shrink-0">:</span>
+                      <span className="break-words">{selectedPcsData[0]?.header?.no_customer || "-"}</span>
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* PCS Tables Grid - Side by Side Scrollable */}
-            <div className="w-full overflow-x-auto pb-4 custom-scrollbar bg-slate-50/50 p-4 sm:p-6 rounded-b-2xl">
+            <div className="w-full overflow-x-auto no-scrollbar pb-4 custom-scrollbar bg-slate-50/50 p-3 sm:p-6 rounded-b-2xl">
               <div className="flex gap-6 w-full min-w-full">
                 {selectedPcsData.map((pcs: any) => {
                   const sortedItems = [...(pcs.items || [])].sort((a: any, b: any) => {
@@ -1609,6 +1731,12 @@ export default function MendingProductionReportPage() {
 
                   let totalMeterSum = 0;
 
+                  const validItems = (pcs.items || []).filter((i: any) => {
+                    if (!i || i.isTotalRow) return false;
+                    const isDel = !!i.is_deleted || i.detail?.is_deleted || i.detail?.status_inspeksi === "Dihapus" || i.detail?.status_mending === "Dihapus" || (i.detail?.keterangan_cacat || "").includes("[DIHAPUS]") || (i.detail?.detail_masalah || "").includes("PANEL DIHAPUS");
+                    return !isDel;
+                  });
+
                   if (isMeter) {
                     // Sum total meters from all isTotalRow entries in displayItems
                     pcs.displayItems?.forEach((di: any) => {
@@ -1633,18 +1761,70 @@ export default function MendingProductionReportPage() {
                     inspectB = inspectBCount;
                     inspectBS = inspectBSCount;
                   } else {
-                    prodA = pcs.items?.filter((i: any) => !i.detail?.kategori_masalah).length || 0;
-                    prodB = pcs.items?.filter((i: any) => i.detail?.kategori_masalah).length || 0;
-                    prodBS = 0;
-                    inspectA = pcs.items?.filter((i: any) => i.hasil_mending === "A").length || 0;
-                    inspectB = pcs.items?.filter((i: any) => i.hasil_mending === "B").length || 0;
-                    inspectBS = pcs.items?.filter((i: any) => i.hasil_mending === "BS").length || 0;
+                    let pA = 0;
+                    let pB = 0;
+                    let pBS = 0;
+
+                    validItems.forEach((i: any) => {
+                      const det = i.detail || {};
+                      const rowNo = det.header?.panel_no || i.displayNo || "";
+                      const isBs = isBsAwalAkhir(i) || isBsAwalAkhir(det) ||
+                                   String(rowNo).toUpperCase().includes("AWAL") ||
+                                   String(rowNo).toUpperCase().includes("AKHIR") ||
+                                   String(rowNo).toUpperCase().includes("BS") ||
+                                   det.jml_hasil_produksi === 0 ||
+                                   det.status_inspeksi === "BS" ||
+                                   det.kategori_masalah === "BS";
+
+                      const isPanelInsertedByQc = !!det.is_inserted_qc || !!det.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(rowNo || "").includes("QC"));
+                      const hasTambahanQC = !!det.detail_masalah?.includes("[QC]") || (det.production_defects && det.production_defects.some((d: any) => d.detail?.includes("[QC]")));
+                      const hasTambahanMnd = !!det.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
+                      const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!det.keterangan_qc && det.keterangan_qc !== "-");
+
+                      // Produksi: hanya menghitung baris yang TIDAK memiliki label tambahan QC
+                      if (isRowQcModified) {
+                        return;
+                      }
+
+                      if (isBs) {
+                        pBS++;
+                        return;
+                      }
+
+                      const isSilang = det.status_inspeksi ? (det.status_inspeksi === "Silang") : (
+                        (det.production_defects && det.production_defects.some((d: any) => {
+                          const k = (d.kategori || "").toUpperCase().trim();
+                          const dt = (d.detail || "").toUpperCase().trim();
+                          if (k.includes("ISTIRAHAT") || dt.includes("ISTIRAHAT") || dt.includes("GAGAL CACAT") || k === "G") return false;
+                          return true;
+                        })) || (
+                          !!det.kategori_masalah &&
+                          det.kategori_masalah !== "G" &&
+                          !det.kategori_masalah.includes("ISTIRAHAT") &&
+                          det.kategori_masalah !== "BS"
+                        )
+                      );
+
+                      if (isSilang) {
+                        pB++;
+                      } else {
+                        pA++;
+                      }
+                    });
+
+                    prodA = pA;
+                    prodB = pB;
+                    prodBS = pBS;
+
+                    inspectA = validItems.filter((i: any) => i.hasil_mending === "A").length;
+                    inspectB = validItems.filter((i: any) => i.hasil_mending === "B").length;
+                    inspectBS = validItems.filter((i: any) => i.hasil_mending === "BS").length;
                   }
 
                   const gradeInfo = calculateOverallGradeData(pcs.items || [], isMeter, totalMeterSum);
                   const { overallGrade, bucket, totalQty, totalCacat } = gradeInfo;
 
-                  const totalSetelahInspect = isMeter ? `${totalMeterSum} Meter` : sortedItems.length;
+                  const totalSetelahInspect = isMeter ? `${totalMeterSum} Meter` : validItems.length;
                   const beratInspect = (pcs.qc_batch?.berat_kain !== null && pcs.qc_batch?.berat_kain !== undefined && pcs.qc_batch?.berat_kain !== "") 
                     ? `${pcs.qc_batch.berat_kain} kg` 
                     : "-";
@@ -1877,6 +2057,15 @@ export default function MendingProductionReportPage() {
                                 return lines.filter(l => l && !l.toUpperCase().includes("ISTIRAHAT"));
                               };
 
+                              const isDeletedRow = !isMeterRow && (
+                                !!item.is_deleted ||
+                                !!det.is_deleted ||
+                                det.status_inspeksi === "Dihapus" ||
+                                det.status_mending === "Dihapus" ||
+                                (det.keterangan_cacat || "").includes("[DIHAPUS]") ||
+                                (det.detail_masalah || "").includes("PANEL DIHAPUS")
+                              );
+
                               if (isMeterRow) {
                                 if (item.isFinishReport && !item.detail?.kategori_masalah && !item.detail?.detail_masalah && !item.hasIstirahat) {
                                   cacatLines = ["FINISH"];
@@ -1885,34 +2074,48 @@ export default function MendingProductionReportPage() {
                                 } else {
                                   cacatLines = buildCacatLines(item.detail, true);
                                 }
+                              } else if (isDeletedRow) {
+                                cacatLines = ["[Panel Dihapus]"];
                               } else {
                                 cacatLines = buildCacatLines(det);
                               }
 
-                              const isGradable = isMeterRow ? item.isGradable : true;
-                              const isBsRow = String(rowNo).toUpperCase().includes("AWAL") || String(rowNo).toUpperCase().includes("AKHIR") || String(rowNo).toUpperCase().includes("BS") || det.jml_hasil_produksi === 0 || det.status_inspeksi === "BS";
+                              const isGradable = !isDeletedRow && (isMeterRow ? item.isGradable : true);
+                              const isBsRow = !isDeletedRow && (
+                                String(rowNo).toUpperCase().includes("AWAL") || 
+                                String(rowNo).toUpperCase().includes("AKHIR") || 
+                                String(rowNo).toUpperCase().includes("BS") || 
+                                det.jml_hasil_produksi === 0 || 
+                                det.status_inspeksi === "BS"
+                              );
                               
-                              const isPanelInsertedByQc = !!det.is_inserted_qc || !!det.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(rowNo || "").includes("QC"));
-                              const hasTambahanQC = !!det.detail_masalah?.includes("[QC]") || (det.production_defects && det.production_defects.some((d: any) => d.detail?.includes("[QC]")));
-                              const hasTambahanMnd = !!det.keterangan_cacat?.includes("[TAMBAHAN MENDING]");
-                              const isRowQcModified = isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!det.keterangan_qc && det.keterangan_qc !== "-");
+                              const isPanelInsertedByQc = !isDeletedRow && (!!det.is_inserted_qc || !!det.keterangan_cacat?.includes("[TAMBAHAN QC]") || (String(rowNo || "").includes("QC")));
+                              const hasTambahanQC = !isDeletedRow && (!!det.detail_masalah?.includes("[QC]") || (det.production_defects && det.production_defects.some((d: any) => d.detail?.includes("[QC]"))));
+                              const hasTambahanMnd = !isDeletedRow && (!!det.keterangan_cacat?.includes("[TAMBAHAN MENDING]"));
+                              const isRowQcModified = !isDeletedRow && (isPanelInsertedByQc || hasTambahanQC || hasTambahanMnd || (!!det.keterangan_qc && det.keterangan_qc !== "-"));
 
                               const hasRealError = isMeterRow ? item.hasErrorDetail : (
-                                isBsRow || hasTambahanQC || (det.production_defects && det.production_defects.some((d: any) => {
-                                  const k = (d.kategori || "").toUpperCase().trim();
-                                  const dt = (d.detail || "").toUpperCase().trim();
-                                  if (k.includes("ISTIRAHAT") || dt.includes("ISTIRAHAT") || dt.includes("GAGAL CACAT") || k === "G") return false;
-                                  return true;
-                                })) || (!!det.kategori_masalah && det.kategori_masalah !== "G" && !det.kategori_masalah.includes("ISTIRAHAT"))
+                                !isDeletedRow && (
+                                  isBsRow || hasTambahanQC || (det.production_defects && det.production_defects.some((d: any) => {
+                                    const k = (d.kategori || "").toUpperCase().trim();
+                                    const dt = (d.detail || "").toUpperCase().trim();
+                                    if (k.includes("ISTIRAHAT") || dt.includes("ISTIRAHAT") || dt.includes("GAGAL CACAT") || k === "G") return false;
+                                    return true;
+                                  })) || (!!det.kategori_masalah && det.kategori_masalah !== "G" && !det.kategori_masalah.includes("ISTIRAHAT"))
+                                )
                               );
 
-                              const rowBgClass = isRowQcModified
+                              const rowBgClass = isDeletedRow
+                                ? "bg-slate-100/60 opacity-70"
+                                : isRowQcModified
                                 ? "bg-sky-50/90 hover:bg-sky-100/60 border-y border-sky-200"
                                 : item.hasIstirahat
                                 ? "bg-amber-50/30 hover:bg-amber-50/50"
                                 : "hover:bg-slate-50";
 
-                              const stickyCellBgClass = isRowQcModified
+                              const stickyCellBgClass = isDeletedRow
+                                ? "bg-slate-100"
+                                : isRowQcModified
                                 ? "bg-sky-100/70"
                                 : item.hasIstirahat
                                 ? "bg-amber-100"
@@ -1945,6 +2148,11 @@ export default function MendingProductionReportPage() {
                                       <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AWAL</span>
                                     ) : String(rowNo).toUpperCase().includes("AKHIR") ? (
                                       <span className="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded leading-none shadow-sm whitespace-nowrap">BS AKHIR</span>
+                                    ) : isDeletedRow ? (
+                                      <div className="flex flex-col items-center justify-center">
+                                        <span className="line-through text-slate-400 font-bold">{String(rowNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
+                                        <span className="text-[9px] font-bold bg-slate-200 text-slate-500 px-1 py-0.5 rounded mt-0.5 leading-none">Dihapus</span>
+                                      </div>
                                     ) : (
                                       <div className="flex flex-col items-center justify-center">
                                         <span>{String(rowNo || "-").replace(/\s*\((BS|GAGAL)\)/gi, "").trim()}</span>
@@ -1963,7 +2171,11 @@ export default function MendingProductionReportPage() {
                                   </td>
                                   
                                   <td className="px-2 py-1 text-center font-bold text-sm border-r border-slate-100 border-b border-slate-100">
-                                    {!isGradable ? "" : (hasRealError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>)}
+                                    {isDeletedRow ? (
+                                      <span className="text-slate-300 font-bold">-</span>
+                                    ) : !isGradable ? "" : (
+                                      hasRealError ? <span className="text-rose-600">X</span> : <span className="text-emerald-600">✓</span>
+                                    )}
                                   </td>
 
                                   {isMeter && (
@@ -1973,49 +2185,55 @@ export default function MendingProductionReportPage() {
                                   )}
                                   
                                   <td className="px-2 py-1 text-[11px] font-medium whitespace-pre-wrap leading-tight min-w-[160px] border-r border-slate-100 border-b border-slate-100">
-                                    {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
-                                    {(() => {
-                                      if (parsedCacatItems.length === 0) {
-                                        if (item.backupOpName && item.hasIstirahat) return null;
-                                        return <span className="text-slate-400">-</span>;
-                                      }
-                                      return (
-                                        <div className="flex flex-col gap-0.5">
-                                          {parsedCacatItems.map((cItem: any, lIdx: number) => {
-                                            const numPrefix = parsedCacatItems.length > 1 ? `${lIdx + 1}. ` : "";
-                                            return (
-                                              <div
-                                                key={lIdx}
-                                                className={
-                                                  cItem.isLineQc
-                                                    ? "text-[#0070bc] font-semibold"
-                                                    : cItem.text === "START" || cItem.text === "FINISH" || cItem.text === "ISTIRAHAT"
-                                                    ? "text-slate-400 font-semibold italic"
-                                                    : "text-rose-600 font-medium"
-                                                }
-                                              >
-                                                {numPrefix}{cItem.text}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      );
-                                    })()}
-                                    {det.keterangan_qc && det.keterangan_qc !== "-" && (
-                                      <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
-                                        <span className="text-sky-600 font-black">QC:</span> {det.keterangan_qc}
-                                      </div>
+                                    {isDeletedRow ? (
+                                      <div className="italic text-slate-400 font-medium">[Panel Dihapus]</div>
+                                    ) : (
+                                      <>
+                                        {item.backupOpName && item.hasIstirahat && <div className="text-slate-700 font-bold mb-0.5">{item.backupOpName}</div>}
+                                        {(() => {
+                                          if (parsedCacatItems.length === 0) {
+                                            if (item.backupOpName && item.hasIstirahat) return null;
+                                            return <span className="text-slate-400">-</span>;
+                                          }
+                                          return (
+                                            <div className="flex flex-col gap-0.5">
+                                              {parsedCacatItems.map((cItem: any, lIdx: number) => {
+                                                const numPrefix = parsedCacatItems.length > 1 ? `${lIdx + 1}. ` : "";
+                                                return (
+                                                  <div
+                                                    key={lIdx}
+                                                    className={
+                                                      cItem.isLineQc
+                                                        ? "text-[#0070bc] font-semibold"
+                                                        : cItem.text === "START" || cItem.text === "FINISH" || cItem.text === "ISTIRAHAT"
+                                                        ? "text-slate-400 font-semibold italic"
+                                                        : "text-rose-600 font-medium"
+                                                    }
+                                                  >
+                                                    {numPrefix}{cItem.text}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          );
+                                        })()}
+                                        {det.keterangan_qc && det.keterangan_qc !== "-" && (
+                                          <div className="text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 font-bold text-[10px] mt-0.5 shadow-2xs flex items-center gap-1 w-fit">
+                                            <span className="text-sky-600 font-black">QC:</span> {det.keterangan_qc}
+                                          </div>
+                                        )}
+                                      </>
                                     )}
                                   </td>
 
                                   <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100 w-14 min-w-[52px]">
-                                    {isGradable && grade === "A" && <div className="mx-auto px-1.5 py-0.5 w-fit rounded bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-[11px]">A</div>}
+                                    {isDeletedRow ? <span className="text-slate-300 font-bold">-</span> : (isGradable && grade === "A" && <div className="mx-auto px-1.5 py-0.5 w-fit rounded bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-[11px]">A</div>)}
                                   </td>
                                   <td className="px-1 py-1 text-center border-r border-slate-100 border-b border-slate-100 w-14 min-w-[52px]">
-                                    {isGradable && grade === "B" && <div className="mx-auto px-1.5 py-0.5 w-fit rounded bg-amber-100 text-amber-700 font-bold flex items-center justify-center text-[11px]">B</div>}
+                                    {isDeletedRow ? <span className="text-slate-300 font-bold">-</span> : (isGradable && grade === "B" && <div className="mx-auto px-1.5 py-0.5 w-fit rounded bg-amber-100 text-amber-700 font-bold flex items-center justify-center text-[11px]">B</div>)}
                                   </td>
                                   <td className="px-1 py-1 text-center border-b border-slate-100 w-14 min-w-[52px]">
-                                    {isGradable && grade === "BS" && <div className="mx-auto px-1.5 py-0.5 w-fit rounded bg-rose-100 text-rose-700 font-bold flex items-center justify-center text-[11px]">BS</div>}
+                                    {isDeletedRow ? <span className="text-slate-300 font-bold">-</span> : (isGradable && grade === "BS" && <div className="mx-auto px-1.5 py-0.5 w-fit rounded bg-rose-100 text-rose-700 font-bold flex items-center justify-center text-[11px]">BS</div>)}
                                   </td>
                                 </tr>
                               );
@@ -2282,7 +2500,7 @@ export default function MendingProductionReportPage() {
                         </div>
                       </div>
                       
-                      <div className="p-0 overflow-x-auto">
+                      <div className="p-0 overflow-x-auto no-scrollbar">
                         <table className="w-full text-left text-sm whitespace-nowrap">
                           <thead className="bg-purple-50 text-purple-900/70 text-xs uppercase tracking-wider font-bold">
                             <tr>

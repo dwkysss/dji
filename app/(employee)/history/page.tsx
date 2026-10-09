@@ -449,24 +449,24 @@ export default function EmployeeHistoryPage() {
       {/* Filter Card with Integrated Header */}
       <div
         data-tour="history-filter-card"
-        className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6"
+        className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-4 sm:mb-6"
       >
         <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
 
         {/* Header Section inside Card */}
         <div
           data-tour="history-header"
-          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-100"
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-4 sm:pb-5 border-b border-slate-100"
         >
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
+          <div className="flex items-center gap-3 sm:gap-3.5">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
               <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6 animate-[spin_12s_linear_infinite]" />
             </div>
-            <div className="flex flex-col">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+            <div className="flex flex-col min-w-0">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight truncate">
                 Riwayat Input Produksi
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 line-clamp-2">
                 Tinjau riwayat input produksi dan lakukan koreksi data panel jika diperlukan.
               </p>
             </div>
@@ -477,7 +477,7 @@ export default function EmployeeHistoryPage() {
               setTourStepIndex(0);
               setIsTourOpen(true);
             }}
-            className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 self-start sm:self-auto cursor-pointer shrink-0"
+            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-1.5 sm:gap-2 self-start sm:self-auto cursor-pointer shrink-0"
           >
             <HelpCircle className="w-4 h-4 text-[#0070bc]" />
             Tutorial
@@ -639,7 +639,7 @@ export default function EmployeeHistoryPage() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto no-scrollbar">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -780,8 +780,8 @@ export default function EmployeeHistoryPage() {
                     })}
                   </tbody>
                 </table>
-                <div className="flex items-center justify-between gap-4 p-4 border-t border-slate-100 bg-slate-50">
-                  <div className="text-xs text-slate-600">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50">
+                  <div className="text-xs text-slate-600 text-center sm:text-left">
                     Menampilkan{" "}
                     {totalCount === 0
                       ? 0
@@ -789,26 +789,26 @@ export default function EmployeeHistoryPage() {
                     - {Math.min(currentPage * perPage, totalCount)}{" "}
                     dari {totalCount}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center">
                     <select
                       value={perPage}
                       onChange={(e) => setPerPage(Number(e.target.value))}
-                      className="h-9 px-2 rounded-lg bg-white border border-slate-200 text-xs"
+                      className="h-8 sm:h-9 px-2 rounded-lg bg-white border border-slate-200 text-xs cursor-pointer"
                     >
                       {[10, 20, 50, 100].map((n) => (
                         <option key={n} value={n}>
-                          {n} / halaman
+                          {n} / hal
                         </option>
                       ))}
                     </select>
                     <button
                       onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage <= 1}
-                      className="h-9 px-3 rounded-lg bg-white border border-slate-200 text-xs disabled:opacity-50"
+                      className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg bg-white border border-slate-200 text-xs font-bold disabled:opacity-50 cursor-pointer"
                     >
                       Prev
                     </button>
-                    <span className="text-xs text-slate-600">
+                    <span className="text-xs font-bold text-slate-600 px-1">
                       {currentPage} / {totalPages}
                     </span>
                     <button
@@ -816,7 +816,7 @@ export default function EmployeeHistoryPage() {
                         setCurrentPage((p) => Math.min(totalPages, p + 1))
                       }
                       disabled={currentPage >= totalPages}
-                      className="h-9 px-3 rounded-lg bg-white border border-slate-200 text-xs disabled:opacity-50"
+                      className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg bg-white border border-slate-200 text-xs font-bold disabled:opacity-50 cursor-pointer"
                     >
                       Next
                     </button>

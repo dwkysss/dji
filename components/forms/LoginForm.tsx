@@ -17,6 +17,14 @@ export default function LoginForm() {
   // Restore remembered credentials on mount
   useEffect(() => {
     try {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const queryReturn = params.get("returnUrl");
+        if (queryReturn && queryReturn.startsWith("/") && queryReturn !== "/login") {
+          localStorage.setItem("dji_return_url", queryReturn);
+        }
+      }
+
       const savedNip = localStorage.getItem("dji_remembered_nip");
       const savedPwdEnc = localStorage.getItem("dji_remembered_pwd");
       const savedRemember = localStorage.getItem("dji_remember_me");

@@ -1907,7 +1907,7 @@ export default function ContinuousForm({
     : 16;
 
   return (
-    <div className="w-full bg-gradient-to-br from-emerald-50/40 via-white to-white border border-[#e9ecef] rounded-[24px] p-6 sm:p-8 shadow-[0_8px_30px_rgba(16,185,129,0.06)] text-slate-800 relative overflow-hidden">
+    <div className="w-full bg-gradient-to-br from-emerald-50/40 via-white to-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3.5 sm:p-6 lg:p-8 shadow-[0_8px_30px_rgba(16,185,129,0.06)] text-slate-800 relative overflow-hidden">
       {/* Decorative background shape */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-100/30 via-emerald-50/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10"></div>
 
@@ -1915,34 +1915,34 @@ export default function ContinuousForm({
         {/* Segmented Control for Mode Switching */}
         <div
           data-tour="meter-mode-switch"
-          className="flex w-full bg-slate-100/80 p-1.5 rounded-2xl mb-8 border border-slate-200/60 shadow-inner"
+          className="flex w-full bg-slate-100/80 p-1.5 rounded-2xl mb-4 sm:mb-8 border border-slate-200/60 shadow-inner"
         >
           <a
             href="/input?mode=panel"
             onClick={() => {
               localStorage.setItem("last_input_route", "/input");
             }}
-            className="flex-1 flex items-center justify-center py-3.5 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-white/60 transition-all cursor-pointer"
+            className="flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-white/60 transition-all cursor-pointer"
           >
-            <div className="flex items-center gap-2.5 opacity-70 hover:opacity-100 transition-opacity">
-              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600">
+            <div className="flex items-center gap-2 sm:gap-2.5 opacity-70 hover:opacity-100 transition-opacity">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 shrink-0">
                 <Box className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
-                <span className="text-sm font-black uppercase tracking-wider leading-none">
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wider leading-none">
                   PANEL
                 </span>
               </div>
             </div>
           </a>
-          <div className="flex-1 flex items-center justify-center py-3.5 rounded-xl bg-white shadow-sm border border-slate-200 text-emerald-600 relative overflow-hidden group cursor-default">
+          <div className="flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl bg-white shadow-sm border border-slate-200 text-emerald-600 relative overflow-hidden group cursor-default">
             <div className="absolute inset-0 bg-emerald-50/50 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-            <div className="relative flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+            <div className="relative flex items-center gap-2 sm:gap-2.5">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
                 <ClipboardList className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
-                <span className="text-sm font-black uppercase tracking-wider leading-none">
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wider leading-none">
                   METER
                 </span>
               </div>
@@ -1950,12 +1950,12 @@ export default function ContinuousForm({
           </div>
         </div>
         {/* Top Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6 gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4">
           <div>
             <h3 className="text-base font-bold text-slate-900">
               Form Input Produksi (Meteran)
             </h3>
-            <p className="text-xs text-slate-400 font-normal mt-1">
+            <p className="text-xs text-slate-400 font-normal mt-0.5 sm:mt-1">
               Data Header akan otomatis tersimpan untuk roll/meteran berikutnya.
             </p>
           </div>
@@ -1963,7 +1963,7 @@ export default function ContinuousForm({
           <button
             type="button"
             onClick={() => setIsHistoryDrawerOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0 group"
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group w-full sm:w-auto"
           >
             <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors" />
             <span>Riwayat Potongan Ini</span>

@@ -358,13 +358,18 @@ export default function LaporanPotongKainPage() {
       });
       if (totalQty === 0) totalQty = 300;
     } else {
-      // Panel: Panel BS Awal dan BS Akhir tidak disertakan
-      const regularItems = (batch.items || []).filter((i: any) => !isBsAwalAkhir(i));
-      totalQty = regularItems.length;
+      // Panel: Panel BS Awal dan BS Akhir juga disertakan, cacat hanya dihitung berdasarkan BS saja (Grade B tidak termasuk)
+      const validItems = (batch.items || []).filter((i: any) => {
+        if (!i || i.isTotalRow) return false;
+        const isDel = !!i.is_deleted || i.detail?.is_deleted || i.detail?.status_inspeksi === "Dihapus" || i.detail?.status_mending === "Dihapus" || (i.detail?.keterangan_cacat || "").includes("[DIHAPUS]");
+        return !isDel;
+      });
+      totalQty = validItems.length;
 
-      // Total Cacat diambil dari SETELAH INSPECT (hasil_mending)
-      regularItems.forEach((i: any) => {
-        if (i.hasil_mending === "B" || i.hasil_mending === "BS") {
+      // Total Cacat diambil dari SETELAH INSPECT hanya yang BS (termasuk BS Awal & Akhir)
+      validItems.forEach((i: any) => {
+        const isBsAwalAkhirRow = isBsAwalAkhir(i) || isBsAwalAkhir(i.detail);
+        if (i.hasil_mending === "BS" || isBsAwalAkhirRow) {
           totalCacat += 1;
         }
       });
@@ -401,7 +406,7 @@ export default function LaporanPotongKainPage() {
         else if (totalQty > 50) bucket = 65;
         else bucket = 50;
 
-        let limitA = 5, limitB = 8, limitC = 9;
+        let limitA = 5, limitB = 8, limitC = 10;
         if (bucket === 65) { limitA = 7; limitB = 10; limitC = 13; }
         if (bucket === 75) { limitA = 8; limitB = 12; limitC = 15; }
         if (bucket === 100) { limitA = 10; limitB = 15; limitC = 19; }
@@ -654,22 +659,22 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
   };
 
   return (
-    <div className="p-4 md:p-8 w-full max-w-[1600px] mx-auto space-y-6 overflow-x-hidden">
+    <div className="p-2.5 sm:p-4 md:p-8 w-full max-w-[1600px] mx-auto space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-[#003366] to-[#0070bc] p-5 md:p-6 shadow-2xl">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-slate-900 via-[#003366] to-[#0070bc] p-4 sm:p-6 shadow-2xl">
         {/* Decorative background glow */}
         <div className="absolute top-0 right-0 w-72 h-72 bg-[#0070bc]/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
         <div className="absolute bottom-0 left-40 w-48 h-48 bg-sky-500/20 rounded-full blur-2xl translate-y-1/2 pointer-events-none" />
 
         <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           {/* Left: Title Group */}
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center shrink-0 shadow-lg">
-              <FileSpreadsheet className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-3.5 sm:gap-4">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center shrink-0 shadow-lg">
+              <FileSpreadsheet className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
             <div>
-              <div className="flex items-center flex-wrap gap-3">
-                <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+              <div className="flex items-center flex-wrap gap-2.5 sm:gap-3">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">
                   Laporan Potong Kain
                 </h1>
                 {/* Inline Auto-Sync pill */}
@@ -742,7 +747,7 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
       </div>
 
       {/* Modern Filter & Machine Selector Card */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl shadow-slate-100 p-5 md:p-6 space-y-5">
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl shadow-slate-100 p-4 sm:p-5 md:p-6 space-y-4 sm:space-y-5">
         {/* Machine Buttons Section */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -860,7 +865,7 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             {/* Scrollable Table */}
-            <div className="overflow-x-auto overflow-y-auto max-h-[520px] w-full">
+            <div className="overflow-x-auto overflow-y-auto no-scrollbar max-h-[520px] w-full">
               <table className="w-full text-xs border-collapse" style={{ minWidth: "980px" }}>
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-[#003366] text-white">
@@ -1053,8 +1058,8 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
 
       {/* MODAL SYNC 1 MESIN */}
       {isSyncModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-md w-full p-6 flex flex-col gap-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-md w-full p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -1166,12 +1171,12 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 sm:gap-3 border-t border-slate-100 pt-3">
               <button
                 type="button"
                 onClick={() => setIsSyncModalOpen(false)}
                 disabled={isSyncing}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
               >
                 Batal
               </button>
@@ -1179,7 +1184,7 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
                 type="button"
                 onClick={executeSingleSync}
                 disabled={isSyncing}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isSyncing ? (
                   <>
@@ -1200,8 +1205,8 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
 
       {/* MODAL SYNC SEMUA 10 MESIN */}
       {isSyncAllModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-6 sm:p-7 flex flex-col gap-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-4 sm:p-6 md:p-7 flex flex-col gap-4 sm:gap-5 max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-200">
@@ -1258,7 +1263,7 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
                 <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
                   Daftar 10 Mesin Target
                 </label>
-                <div className="grid grid-cols-5 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
                   {REGISTERED_MACHINES.map((m) => {
                     const mResult = syncAllResults?.find((r) => r.machine === m);
                     const isSuccess = mResult && mResult.success;
@@ -1287,12 +1292,12 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 sm:gap-3 border-t border-slate-100 pt-3">
               <button
                 type="button"
                 onClick={() => setIsSyncAllModalOpen(false)}
                 disabled={isSyncingAll}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
               >
                 Tutup
               </button>
@@ -1300,7 +1305,7 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
                 type="button"
                 onClick={executeSyncAll}
                 disabled={isSyncingAll}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-amber-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-amber-200 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isSyncingAll ? (
                   <>
@@ -1321,8 +1326,8 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
 
       {/* MODAL PENGATURAN JADWAL AUTO-SYNC POTONG KAIN */}
       {isScheduleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-6 sm:p-7 flex flex-col gap-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-4 sm:p-6 md:p-7 flex flex-col gap-4 sm:gap-5 max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-200">
@@ -1408,7 +1413,7 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-5 gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                   {REGISTERED_MACHINES.map((mc) => {
                     const isSelected = scheduleMachines.includes(mc);
                     return (
@@ -1476,12 +1481,12 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 sm:gap-3 border-t border-slate-100 pt-3">
               <button
                 type="button"
                 onClick={() => setIsScheduleModalOpen(false)}
                 disabled={isSavingSchedule}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
               >
                 Batal
               </button>
@@ -1490,7 +1495,7 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
                 type="button"
                 onClick={handleSaveScheduleSetting}
                 disabled={isSavingSchedule}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-amber-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-amber-200 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isSavingSchedule ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
                 Simpan Jadwal
@@ -1502,7 +1507,7 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
 
       {/* Floating Modern Toast Notification */}
       {toast && (
-        <div className="fixed top-6 right-6 z-50 flex items-center gap-3.5 bg-slate-900/95 text-white px-5 py-4 rounded-2xl shadow-2xl border border-slate-700/80 backdrop-blur-md animate-fadeIn max-w-md">
+        <div className="fixed top-4 sm:top-6 right-4 sm:right-6 left-4 sm:left-auto z-50 flex items-center gap-3.5 bg-slate-900/95 text-white p-4 sm:px-5 sm:py-4 rounded-2xl shadow-2xl border border-slate-700/80 backdrop-blur-md animate-fadeIn max-w-md">
           <div
             className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
               toast.type === "success"

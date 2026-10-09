@@ -50,17 +50,17 @@ const STATUS_PRESETS = ["LIBUR", "MAINTENANCE", "RUSAK", "TIDAK ADA ORDER", "MAT
 function FormSection({ step, title, icon, children }: { step: number; title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2.5">
-        <div className="w-6 h-6 rounded-full bg-[#0070bc] flex items-center justify-center shrink-0">
+      <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#0070bc] flex items-center justify-center shrink-0">
           <span className="text-[10px] font-black text-white">{step}</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-slate-400 w-4 h-4">{icon}</span>
-          <span className="text-xs font-black text-slate-600 uppercase tracking-wider">{title}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-slate-400 w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0">{icon}</span>
+          <span className="text-[11px] sm:text-xs font-black text-slate-600 uppercase tracking-wider truncate">{title}</span>
         </div>
         <div className="flex-1 h-px bg-slate-100" />
       </div>
-      <div className="pl-8">
+      <div className="pl-1 sm:pl-8">
         {children}
       </div>
     </div>
@@ -205,12 +205,12 @@ export default function StatusMesinForm() {
 
   if (successData) {
     return (
-      <div className="w-full max-w-lg bg-white border border-[#e9ecef] rounded-[24px] p-8 shadow-xl flex flex-col items-center justify-center text-center animate-scaleIn">
-        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-5 shadow-inner">
-          <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+      <div className="w-full max-w-lg bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-5 sm:p-8 shadow-xl flex flex-col items-center justify-center text-center animate-scaleIn">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-4 sm:mb-5 shadow-inner">
+          <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600" />
         </div>
-        <h2 className="text-xl font-black text-slate-800 mb-1">Status Berhasil Dicatat!</h2>
-        <p className="text-sm text-slate-500 font-medium mb-6 leading-relaxed">
+        <h2 className="text-lg sm:text-xl font-black text-slate-800 mb-1">Status Berhasil Dicatat!</h2>
+        <p className="text-xs sm:text-sm text-slate-500 font-medium mb-6 leading-relaxed">
           Mesin <strong className="text-slate-700">{successData.nomorMc}</strong> dilaporkan{" "}
           <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-bold text-xs">
             {successData.status}
@@ -218,29 +218,29 @@ export default function StatusMesinForm() {
           untuk <strong className="text-slate-700">{successData.cakupan === "FULL_DAY" ? "1 Hari Penuh (Semua Shift)" : "1 Shift Tertentu"}</strong>{" "}
           pada <strong className="text-slate-700">{successData.tanggalOff}{successData.isRange && successData.sampaiTanggalOff ? ` s/d ${successData.sampaiTanggalOff}` : ""}</strong>.
         </p>
-        <div className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 grid grid-cols-2 gap-3 text-left">
+        <div className="w-full p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 grid grid-cols-2 gap-3 text-left">
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Cakupan / Operator</div>
-            <div className="text-sm font-bold text-slate-700 mt-0.5">
+            <div className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">
               {successData.cakupan === "FULL_DAY" ? "Shift A, B, & C (Semua)" : (successData.pic || "-")}
             </div>
           </div>
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Design</div>
-            <div className="text-sm font-bold text-slate-700 mt-0.5">{successData.designId || "-"}</div>
+            <div className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">{successData.designId || "-"}</div>
           </div>
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">RPM</div>
-            <div className="text-sm font-bold text-slate-700 mt-0.5">{successData.rpm || "-"}</div>
+            <div className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">{successData.rpm || "-"}</div>
           </div>
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pick / Course</div>
-            <div className="text-sm font-bold text-slate-700 mt-0.5">{successData.pick || "-"} / {successData.course || "-"}</div>
+            <div className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">{successData.pick || "-"} / {successData.course || "-"}</div>
           </div>
         </div>
         <button
           onClick={handleCloseSuccess}
-          className="w-full h-12 bg-[#0070bc] hover:bg-[#004777] active:scale-95 text-white text-sm font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+          className="w-full h-11 sm:h-12 bg-[#0070bc] hover:bg-[#004777] active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
         >
           <ChevronRight className="w-4 h-4" />
           Lapor Mesin Lain
@@ -250,19 +250,19 @@ export default function StatusMesinForm() {
   }
 
   return (
-    <div className="w-full bg-white border border-[#e9ecef] rounded-[24px] shadow-xl overflow-hidden">
+    <div className="w-full bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] shadow-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-rose-50/60 to-white">
-        <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center text-rose-600 shrink-0">
-          <PowerOff className="w-5 h-5" />
+      <div className="flex items-center gap-2.5 sm:gap-3 px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-gradient-to-r from-rose-50/60 to-white">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 bg-rose-100 rounded-xl flex items-center justify-center text-rose-600 shrink-0">
+          <PowerOff className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         <div>
-          <h2 className="text-base font-black text-slate-800">Lapor Mesin Off / Stop</h2>
-          <p className="text-[11px] text-slate-500 font-medium">Bypass form produksi untuk mesin libur atau stop panjang</p>
+          <h2 className="text-sm sm:text-base font-black text-slate-800">Lapor Mesin Off / Stop</h2>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">Bypass form produksi untuk mesin libur atau stop panjang</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="p-6 flex flex-col gap-7">
+      <form onSubmit={handleSubmit(onSubmit)} className="p-3.5 sm:p-6 flex flex-col gap-5 sm:gap-7">
 
         {/* STEP 1 — Info Dasar & Cakupan Waktu */}
         <FormSection step={1} title="Info Dasar & Cakupan Waktu" icon={<Calendar className="w-4 h-4" />}>
@@ -413,7 +413,7 @@ export default function StatusMesinForm() {
                 key={m}
                 type="button"
                 onClick={() => setValue("nomorMc", m, { shouldValidate: true })}
-                className={`px-4 py-2 rounded-xl border-2 text-sm font-black transition-all duration-200 ${
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 text-xs sm:text-sm font-black transition-all duration-200 cursor-pointer ${
                   selectedMesin === m
                     ? "bg-[#0070bc] border-[#004777] text-white shadow-md shadow-sky-500/20 scale-105"
                     : "bg-white border-slate-200 text-slate-600 hover:border-sky-300 hover:bg-sky-50 active:scale-95"
@@ -527,7 +527,7 @@ export default function StatusMesinForm() {
                   setSelectedStatus(s);
                   setValue("status", s, { shouldValidate: true });
                 }}
-                className={`px-3 py-1.5 rounded-lg border-2 text-[11px] font-black uppercase tracking-wide transition-all duration-200 ${
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border-2 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-all duration-200 cursor-pointer ${
                   selectedStatus === s
                     ? "bg-rose-600 border-rose-700 text-white shadow-sm"
                     : "bg-white border-slate-200 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"

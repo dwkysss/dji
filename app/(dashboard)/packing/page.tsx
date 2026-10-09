@@ -386,7 +386,7 @@ export default function PackingPage() {
   }, [historyItems]);
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto pb-28 animate-fadeIn">
+    <div className="w-full max-w-[1600px] mx-auto pb-28 animate-fadeIn px-2.5 sm:px-4 md:px-6">
       {/* Toast Notification */}
       {successToast && (
         <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5">
@@ -396,7 +396,7 @@ export default function PackingPage() {
       )}
 
       {/* Filter Card with Integrated Header & Controls */}
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-4 sm:mb-6">
         {/* Decorative Top Accent */}
         <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
 
@@ -407,8 +407,8 @@ export default function PackingPage() {
               <Package className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
             </div>
             <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">
                   Pengerjaan & Tracking Packing
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-50 text-[#0070bc] border border-sky-200/80 uppercase tracking-wide">
@@ -422,7 +422,7 @@ export default function PackingPage() {
           </div>
 
           {/* Tab Buttons */}
-          <div className="flex items-center gap-1.5 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200/80 self-start md:self-auto">
+          <div className="flex items-center gap-1.5 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200/80 self-stretch md:self-auto overflow-x-auto no-scrollbar">
             <button
               type="button"
               onClick={() => setActiveTab("queue")}
@@ -716,7 +716,7 @@ export default function PackingPage() {
       {activeTab === "queue" && (
         <div className="space-y-6 animate-fadeIn">
           {/* SECTION 2: KOTAK-KOTAK KECIL DAFTAR KAIN SIAP PACKING */}
-          <div className="bg-white/95 backdrop-blur-sm p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 hover:shadow-md transition-shadow relative overflow-hidden">
             {/* Decorative Top Accent */}
             <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
 
@@ -736,16 +736,16 @@ export default function PackingPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto">
                 {/* Search Mesin / Potongan */}
-                <div className="relative">
+                <div className="relative flex-1 sm:flex-initial">
                   <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={queueSearch}
                     onChange={(e) => setQueueSearch(e.target.value)}
                     placeholder="Cari mesin / potongan..."
-                    className="h-10 pl-9 pr-3 rounded-xl bg-slate-50/70 border border-slate-200 hover:border-slate-300 focus:bg-white focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 text-xs font-medium outline-none transition-all w-44"
+                    className="h-10 pl-9 pr-3 rounded-xl bg-slate-50/70 border border-slate-200 hover:border-slate-300 focus:bg-white focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 text-xs font-medium outline-none transition-all w-full sm:w-44"
                   />
                 </div>
 
@@ -848,14 +848,14 @@ export default function PackingPage() {
 
           {/* STICKY BOTTOM ACTION BAR */}
           {selectedQueueIds.size > 0 && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-6 py-3.5 rounded-full shadow-2xl border border-slate-700/60 flex items-center gap-5 animate-in slide-in-from-bottom-5">
+            <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white w-[94%] sm:w-auto px-4 sm:px-6 py-3 sm:py-3.5 rounded-2xl sm:rounded-full shadow-2xl border border-slate-700/60 flex items-center justify-between gap-3 sm:gap-5 animate-in slide-in-from-bottom-5">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse shrink-0" />
                 <span className="text-xs font-black">
-                  {selectedQueueIds.size} Potongan Dipilih
+                  {selectedQueueIds.size} Dipilih
                 </span>
                 {elapsedSeconds > 0 && (
-                  <span className="text-xs font-mono text-sky-300 ml-1">
+                  <span className="text-[11px] sm:text-xs font-mono text-sky-300 ml-0.5 sm:ml-1">
                     (⏱️ {formatDuration(elapsedSeconds)})
                   </span>
                 )}
@@ -864,10 +864,10 @@ export default function PackingPage() {
               <button
                 type="button"
                 onClick={handleOpenSummaryModal}
-                className="px-5 py-2 rounded-full bg-gradient-to-r from-sky-500 to-[#0070bc] hover:from-sky-400 hover:to-sky-600 active:scale-95 text-white font-black text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-4 sm:px-5 py-2 rounded-xl sm:rounded-full bg-gradient-to-r from-sky-500 to-[#0070bc] hover:from-sky-400 hover:to-sky-600 active:scale-95 text-white font-black text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
               >
                 <Check className="w-4 h-4 stroke-[3]" />
-                Simpan Data Packing
+                <span>Simpan Packing</span>
               </button>
             </div>
           )}
@@ -938,8 +938,8 @@ export default function PackingPage() {
             </div>
           ) : (
             <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="overflow-x-auto no-scrollbar">
+                <table className="w-full min-w-[750px] text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500">
                       <th className="py-3.5 px-4 font-black text-[11px] uppercase tracking-wider">Tanggal & Jam Sesi</th>
@@ -1015,8 +1015,8 @@ export default function PackingPage() {
 
       {/* ===================== MODAL RINGKASAN LAPORAN (SUMMARY MODAL) ===================== */}
       {isSummaryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col gap-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col gap-4 sm:gap-5 max-h-[92vh] overflow-y-auto no-scrollbar">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-3">
@@ -1111,12 +1111,12 @@ export default function PackingPage() {
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 border-t border-slate-100 pt-3">
               <button
                 type="button"
                 onClick={() => setIsSummaryModalOpen(false)}
                 disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer text-center"
               >
                 Kembali
               </button>
@@ -1125,7 +1125,7 @@ export default function PackingPage() {
                 type="button"
                 onClick={handleConfirmSave}
                 disabled={isSubmitting}
-                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-emerald-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1141,8 +1141,8 @@ export default function PackingPage() {
 
       {/* ===================== DELETE CONFIRMATION MODAL ===================== */}
       {itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 flex flex-col gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 flex flex-col gap-4 max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center gap-3 text-rose-600">
               <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-5 h-5 text-rose-600" />
@@ -1159,12 +1159,12 @@ export default function PackingPage() {
               dikembalikan ke antrian siap pack.
             </p>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setItemToDelete(null)}
                 disabled={isDeleting}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-extrabold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-extrabold text-slate-600 hover:bg-slate-50 cursor-pointer text-center"
               >
                 Batal
               </button>
@@ -1172,7 +1172,7 @@ export default function PackingPage() {
                 type="button"
                 onClick={handleDeletePackingRecord}
                 disabled={isDeleting}
-                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-200 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 Ya, Batalkan Data

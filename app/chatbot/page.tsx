@@ -425,21 +425,21 @@ export default function ChatbotPage() {
   const isInitialState = messages.length <= 1;
 
   return (
-    <div className="flex-1 flex flex-col bg-white border border-slate-200/90 rounded-3xl h-[calc(100vh-110px)] overflow-hidden shadow-xl relative">
+    <div className="flex-1 flex flex-col bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl h-[calc(100vh-140px)] md:h-[calc(100vh-110px)] overflow-hidden shadow-xl relative min-w-0">
       {/* Top Accent Gradient Bar */}
       <div className="h-1.5 w-full bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 shrink-0" />
 
       {/* Modern Header Chat */}
-      <div className="px-5 sm:px-6 py-4 border-b border-slate-150 bg-white/95 backdrop-blur-md flex items-center justify-between shrink-0 shadow-2xs">
-        <div className="flex items-center gap-3.5">
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-150 bg-white/95 backdrop-blur-md flex items-center justify-between shrink-0 shadow-2xs">
+        <div className="flex items-center gap-3 sm:gap-3.5">
           <div className="relative">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#0070bc] via-sky-600 to-indigo-600 text-white shadow-lg shadow-[#0070bc]/25 ring-4 ring-sky-50 flex items-center justify-center">
-              <Bot className="w-6 h-6 text-white" />
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-[#0070bc] via-sky-600 to-indigo-600 text-white shadow-lg shadow-[#0070bc]/25 ring-4 ring-sky-50 flex items-center justify-center shrink-0">
+              <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white animate-pulse" />
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full bg-emerald-500 border-2 border-white animate-pulse" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-slate-800 tracking-tight leading-none">
+            <h2 className="text-base sm:text-lg font-black text-slate-800 tracking-tight leading-none">
               DJI AI
             </h2>
           </div>
@@ -449,7 +449,7 @@ export default function ChatbotPage() {
           <button
             type="button"
             onClick={handleClearHistory}
-            className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200 active:scale-95 shadow-2xs"
+            className="px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200 active:scale-95 shadow-2xs"
             title="Bersihkan Riwayat Chat"
           >
             <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
@@ -459,12 +459,12 @@ export default function ChatbotPage() {
       </div>
 
       {/* Messages Feed Area with subtle pattern */}
-      <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 flex flex-col bg-slate-50/60 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] custom-scrollbar">
+      <div className="flex-1 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 flex flex-col bg-slate-50/60 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] no-scrollbar">
         {/* HERO WELCOME HUB (Tampil elegan saat sesi percakapan awal) */}
         {isInitialState && (
-          <div className="max-w-3xl mx-auto w-full py-3 sm:py-6 animate-fadeIn">
+          <div className="max-w-3xl mx-auto w-full py-2 sm:py-6 animate-fadeIn">
             {/* Greeting Hero Card */}
-            <div className="bg-gradient-to-br from-white via-sky-50/40 to-white border border-sky-100/90 rounded-3xl p-6 sm:p-7 shadow-sm relative overflow-hidden mb-6">
+            <div className="bg-gradient-to-br from-white via-sky-50/40 to-white border border-sky-100/90 rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-sm relative overflow-hidden mb-4 sm:mb-6">
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-sky-200/30 via-transparent to-transparent rounded-full blur-2xl pointer-events-none" />
 
               <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5">
@@ -531,7 +531,7 @@ export default function ChatbotPage() {
             return (
               <div
                 key={msg.id}
-                className={`flex gap-3 max-w-[92%] sm:max-w-[85%] ${isAi ? "self-start" : "self-end flex-row-reverse"
+                className={`flex gap-2.5 sm:gap-3 max-w-[96%] sm:max-w-[85%] ${isAi ? "self-start" : "self-end flex-row-reverse"
                   } animate-fadeIn`}
               >
                 {/* Avatar */}
@@ -676,7 +676,7 @@ export default function ChatbotPage() {
       )}
 
       {/* Elevated Modern Composer Dock */}
-      <div className="p-3.5 sm:p-4 border-t border-slate-150 bg-white shrink-0">
+      <div className="p-2.5 sm:p-4 border-t border-slate-150 bg-white shrink-0">
         <input
           type="file"
           ref={fileInputRef}

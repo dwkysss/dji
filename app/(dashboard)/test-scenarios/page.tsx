@@ -1615,28 +1615,28 @@ export default function TestScenariosPlayground() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
+    <div className="p-2.5 sm:p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-4 sm:space-y-6 min-w-0">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-indigo-500/20 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-6 text-white shadow-xl border border-indigo-500/20 relative overflow-hidden">
         <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 relative z-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-semibold mb-2">
-              <FlaskConical className="w-3.5 h-3.5" />
-              Automated Scenario Playground & Visual Regression Tester
+            <div className="inline-flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-[11px] sm:text-xs font-semibold mb-2">
+              <FlaskConical className="w-3.5 h-3.5 shrink-0" />
+              <span>Automated Scenario Playground & Visual Regression Tester</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">
               Katalog Uji Skenario Tampilan & Skema Perhitungan
             </h1>
-            <p className="text-slate-300 text-sm mt-1 max-w-3xl">
+            <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-3xl leading-relaxed">
               Uji langsung seluruh skenario kondisi data pada 3 jenis tampilan tabel sistem: <strong>Halaman Riwayat</strong>, <strong>Halaman Inspeksi QC</strong>, dan <strong>Halaman Mending</strong>.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-white/10 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shrink-0 w-full lg:w-auto overflow-x-auto no-scrollbar">
             <button
               onClick={() => { setActiveTab("panel"); setSelectedScenario("all"); }}
-              className={`px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 sm:px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                 activeTab === "panel"
                   ? "bg-white text-slate-900 shadow-md"
                   : "text-slate-300 hover:text-white"
@@ -1647,7 +1647,7 @@ export default function TestScenariosPlayground() {
             </button>
             <button
               onClick={() => { setActiveTab("meter"); setSelectedScenario("all"); }}
-              className={`px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 sm:px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                 activeTab === "meter"
                   ? "bg-white text-slate-900 shadow-md"
                   : "text-slate-300 hover:text-white"
@@ -1658,7 +1658,7 @@ export default function TestScenariosPlayground() {
             </button>
             <button
               onClick={() => setActiveTab("schemes")}
-              className={`px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 sm:px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                 activeTab === "schemes"
                   ? "bg-white text-slate-900 shadow-md"
                   : "text-slate-300 hover:text-white"
@@ -1669,7 +1669,7 @@ export default function TestScenariosPlayground() {
             </button>
             <button
               onClick={() => setActiveTab("rules")}
-              className={`px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 sm:px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                 activeTab === "rules"
                   ? "bg-white text-slate-900 shadow-md"
                   : "text-slate-300 hover:text-white"
@@ -1684,17 +1684,17 @@ export default function TestScenariosPlayground() {
 
       {/* VIEW MODE SELECTOR (Riwayat vs QC Inspection vs Mending) */}
       {(activeTab === "panel" || activeTab === "meter") && (
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 mr-2">
+        <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+            <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
               <Eye className="w-4 h-4 text-indigo-600" />
               Pilih Tampilan Tabel:
             </span>
 
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg overflow-x-auto no-scrollbar max-w-full">
               <button
                 onClick={() => setViewMode("qc")}
-                className={`px-3 py-1.5 rounded-md text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                   viewMode === "qc"
                     ? "bg-indigo-600 text-white shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -1705,7 +1705,7 @@ export default function TestScenariosPlayground() {
               </button>
               <button
                 onClick={() => setViewMode("mending")}
-                className={`px-3 py-1.5 rounded-md text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                   viewMode === "mending"
                     ? "bg-indigo-600 text-white shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -1716,7 +1716,7 @@ export default function TestScenariosPlayground() {
               </button>
               <button
                 onClick={() => setViewMode("history")}
-                className={`px-3 py-1.5 rounded-md text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                   viewMode === "history"
                     ? "bg-indigo-600 text-white shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -1727,7 +1727,7 @@ export default function TestScenariosPlayground() {
               </button>
               <button
                 onClick={() => setViewMode("report")}
-                className={`px-3 py-1.5 rounded-md text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                   viewMode === "report"
                     ? "bg-indigo-600 text-white shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -1741,7 +1741,7 @@ export default function TestScenariosPlayground() {
 
           {/* Interactive Grade Fill Controls */}
           {(viewMode === "qc" || viewMode === "mending") && (
-            <div className="flex items-center gap-2 border-t md:border-t-0 pt-2 md:pt-0">
+            <div className="flex flex-wrap items-center gap-2 border-t xl:border-t-0 pt-2 xl:pt-0">
               <button
                 onClick={() => setAutoGradeEnabled(!autoGradeEnabled)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -1772,7 +1772,7 @@ export default function TestScenariosPlayground() {
       {activeTab === "panel" && (
         <div className="space-y-6">
           {/* Quick Scenario Filter Bar */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
             <span className="text-xs font-bold text-slate-500 flex items-center gap-1 shrink-0 px-1">
               <Filter className="w-3.5 h-3.5" /> Filter Skenario:
             </span>
@@ -1802,7 +1802,7 @@ export default function TestScenariosPlayground() {
           </div>
 
           {/* Scenarios Cards Grid */}
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             {panelScenarios
               .filter((s) => selectedScenario === "all" || selectedScenario === s.id)
               .map((scenario, sIdx) => {
@@ -1877,8 +1877,8 @@ export default function TestScenariosPlayground() {
                     </div>
 
                     {/* Rendered Table Component */}
-                    <div className="p-4 overflow-x-auto bg-white">
-                      <div className="rounded-lg border border-slate-200 overflow-hidden">
+                    <div className="p-2 sm:p-4 overflow-x-auto no-scrollbar bg-white">
+                      <div className="rounded-lg border border-slate-200 overflow-hidden min-w-[700px]">
                         {viewMode === "history" && (
                           <PanelHistoryTable panels={activeData} pcsKey="PCS 1" />
                         )}
@@ -1932,7 +1932,7 @@ export default function TestScenariosPlayground() {
       {activeTab === "meter" && (
         <div className="space-y-6">
           {/* Quick Scenario Filter Bar for Meter */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
             <span className="text-xs font-bold text-slate-500 flex items-center gap-1 shrink-0 px-1">
               <Filter className="w-3.5 h-3.5" /> Filter Skenario:
             </span>
@@ -1962,7 +1962,7 @@ export default function TestScenariosPlayground() {
           </div>
 
           {/* Meter Scenarios Cards Grid */}
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             {meterScenarios
               .filter((s) => selectedScenario === "all" || selectedScenario === s.id)
               .map((scenario, sIdx) => {
@@ -2037,8 +2037,8 @@ export default function TestScenariosPlayground() {
                     </div>
 
                     {/* Rendered Table Component */}
-                    <div className="p-4 overflow-x-auto bg-white">
-                      <div className="rounded-lg border border-slate-200 overflow-hidden">
+                    <div className="p-2 sm:p-4 overflow-x-auto no-scrollbar bg-white">
+                      <div className="rounded-lg border border-slate-200 overflow-hidden min-w-[700px]">
                         {viewMode === "history" && (
                           <MeterHistoryTable panels={activeData} pcsKey="ROLL 1" />
                         )}
@@ -2176,7 +2176,7 @@ export default function TestScenariosPlayground() {
                 <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
                   <li>
                     Sesuai aturan di <code>AGENTS.md</code>:
-                    <em>"Penentuan Grade Keseluruhan mengambil data SETELAH INSPECT (hasil mending), dan nilai panel BS AWAL serta BS AKHIR tidak disertakan dalam perhitungan total panel maupun total cacat."</em>
+                    <em>"Penentuan Grade Keseluruhan mengambil data SETELAH INSPECT (hasil mending), perhitungan cacat hanya dihitung berdasarkan panel BS saja (Grade B tidak termasuk), serta BS AWAL dan BS AKHIR tetap disertakan."</em>
                   </li>
                   <li>
                     Jika semua panel setelah mending berstatus <strong>A</strong> = Potongan Grade <strong>A</strong>.

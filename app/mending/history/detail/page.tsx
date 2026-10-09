@@ -868,7 +868,7 @@ function MendingDetailContent() {
               <ClipboardCheck className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
                 Detail Hasil Mending Batch
               </h1>
               <p className="text-xs sm:text-sm font-semibold text-slate-500">
@@ -948,8 +948,8 @@ function MendingDetailContent() {
       />
 
       {/* Mending Summary Info */}
-      <div className="mt-6 mb-6 bg-sky-50 border border-sky-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4">
-        <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="mt-4 sm:mt-6 mb-4 sm:mb-6 bg-sky-50 border border-sky-200 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
           <div>
             <h4 className="text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1">Petugas Mending</h4>
             <p className="text-sm font-black text-sky-900">
@@ -1028,9 +1028,9 @@ function MendingDetailContent() {
             </div>
 
             {/* PCS Table */}
-            <div className="flex-1 overflow-auto bg-white p-2">
+            <div className="flex-1 overflow-x-auto no-scrollbar bg-white p-1.5 sm:p-2">
               {isMeteran ? (
-                <table className="w-full text-left border-collapse">
+                <table className="w-full min-w-[700px] text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
                       <th className="px-2 py-2 w-8 text-center border-r border-slate-100" rowSpan={2}>NO</th>
@@ -1198,7 +1198,7 @@ function MendingDetailContent() {
                   </tbody>
                 </table>
               ) : (
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full min-w-[700px] text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50">
                       <th className="px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 border-r border-slate-100" rowSpan={2}>PNL NO</th>

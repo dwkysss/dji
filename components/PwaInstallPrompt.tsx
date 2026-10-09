@@ -42,10 +42,25 @@ export default function PwaInstallPrompt() {
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (!refreshing) {
           refreshing = true;
+          try {
+            const currentPath = window.location.pathname + window.location.search;
+            if (currentPath && currentPath !== "/" && !currentPath.includes("source=pwa")) {
+              sessionStorage.setItem("dji_last_active_path", currentPath);
+            }
+          } catch (e) {}
           window.location.reload();
         }
       });
     }
+
+    // Restore path jika reload Service Worker mereset PWA ke start_url
+    try {
+      const lastActive = sessionStorage.getItem("dji_last_active_path");
+      if (lastActive && window.location.pathname === "/") {
+        sessionStorage.removeItem("dji_last_active_path");
+        window.location.replace(lastActive);
+      }
+    } catch (e) {}
 
     // 2. Check if already running in standalone mode (installed PWA)
     const checkStandalone = () => {

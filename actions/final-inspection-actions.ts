@@ -373,6 +373,10 @@ export async function submitFinalInspection(params: {
 }) {
   try {
     const supabase = await createClient();
+
+    if (!params.berat_kain || Number(params.berat_kain) <= 0) {
+      return { success: false, error: "Berat kain (kg) wajib diisi dan harus lebih dari 0 kg" };
+    }
     
     // 1. Bulk update status_final_mending in production_details
     for (const d of params.details) {
@@ -476,6 +480,34 @@ export async function submitFinalInspection(params: {
       console.error("Gagal insert final_inspection_items:", itemsError);
       await supabase.from("final_inspection_batches").delete().eq("id", batchId);
       return { success: false, error: itemsError.message };
+    }
+
+    // 4. Sinkronisasi berat_kain yang baru ke qc_inspection_batches
+    if (params.berat_kain && Number(params.berat_kain) > 0) {
+      try {
+        const detailIds = params.details.map((d) => d.detailId);
+        if (detailIds.length > 0) {
+          const { data: qcItems } = await supabase
+            .from("qc_inspection_items")
+            .select("batch_id")
+            .in("production_detail_id", detailIds);
+
+          if (qcItems && qcItems.length > 0) {
+            const batchIds = Array.from(new Set(qcItems.map((qi: any) => qi.batch_id).filter(Boolean)));
+            for (const bid of batchIds) {
+              const { error: syncError } = await supabase
+                .from("qc_inspection_batches")
+                .update({ berat_kain: params.berat_kain })
+                .eq("id", bid);
+              if (syncError) {
+                console.error("Gagal sync berat_kain ke qc_inspection_batches:", syncError);
+              }
+            }
+          }
+        }
+      } catch (syncCatchErr) {
+        console.error("Error syncing berat_kain ke qc_inspection_batches:", syncCatchErr);
+      }
     }
 
     revalidatePath("/final-inspection");

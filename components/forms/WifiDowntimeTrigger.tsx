@@ -304,8 +304,8 @@ export default function WifiDowntimeTrigger({
 
       {/* 4. Modal Dialog Popup Pengaturan ESP32 (Tampil Rapi di Tablet & HP) */}
       {showControllerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="relative w-full max-w-lg bg-white rounded-3xl p-5 sm:p-6 shadow-2xl overflow-y-auto max-h-[90vh] border border-slate-200 flex flex-col gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl overflow-y-auto no-scrollbar max-h-[90vh] border border-slate-200 flex flex-col gap-4">
             {/* Header Modal */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">

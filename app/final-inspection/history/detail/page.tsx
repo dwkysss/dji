@@ -395,20 +395,20 @@ function FinalInspectionDetailContent() {
 
       {/* Items Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
             <ClipboardCheck className="w-4 h-4 text-[#0070bc]" />
             Daftar Panel / Titik ({items.length} Baris)
           </h3>
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-3 text-xs flex-wrap">
             <span className="text-emerald-600 font-black">Grade A: {batch.final_grade_a || 0}</span>
             <span className="text-amber-600 font-black">Grade B: {batch.final_grade_b || 0}</span>
             <span className="text-rose-600 font-black">BS: {batch.final_grade_bs || 0}</span>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full min-w-[700px] text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50">
                 <th className="sticky left-0 z-20 bg-slate-50 px-2 py-1.5 border-b border-slate-200 font-extrabold text-slate-600 w-12 text-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>PNL NO</th>

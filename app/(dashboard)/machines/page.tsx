@@ -269,20 +269,20 @@ export default function MachinesPage() {
   }, [machines, statusFilter, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-slate-50/70 p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6">
 
       {/* ── Top Bar Header ── */}
       <div
         data-tour="machine-header"
-        className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+        className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3.5 sm:gap-4"
       >
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-sky-50 border border-sky-100/80 flex items-center justify-center text-[#0070bc] shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-sky-50 border border-sky-100/80 flex items-center justify-center text-[#0070bc] shrink-0">
             <Cpu className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-slate-800 tracking-tight">Monitoring Mesin</h1>
+              <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight">Monitoring Mesin</h1>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[10px] font-bold">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -291,17 +291,17 @@ export default function MachinesPage() {
                 LIVE
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
               Pantau status operasional & aktivitas mesin rajut secara real-time.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-end">
+        <div className="flex items-center gap-2 w-full md:w-auto justify-between sm:justify-end">
           {/* Last Refresh Badge */}
-          <div className="h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 font-medium flex items-center gap-2.5">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span>Update: <strong className="text-slate-800 font-mono font-bold">{lastRefresh ? lastRefresh.toLocaleTimeString("id-ID") : "—"}</strong></span>
+          <div className="h-9 sm:h-10 px-3 sm:px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 font-medium flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="truncate">Update: <strong className="text-slate-800 font-mono font-bold">{lastRefresh ? lastRefresh.toLocaleTimeString("id-ID") : "—"}</strong></span>
             <button
               onClick={fetchStatuses}
               disabled={loading}
@@ -315,10 +315,10 @@ export default function MachinesPage() {
           <button
             type="button"
             onClick={() => setIsTourOpen(true)}
-            className="h-10 px-3.5 rounded-xl border border-sky-100 bg-sky-50 hover:bg-sky-100 text-[#0070bc] text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl border border-sky-100 bg-sky-50 hover:bg-sky-100 text-[#0070bc] text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
           >
             <HelpCircle className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Tutorial</span>
+            <span>Tutorial</span>
           </button>
         </div>
       </div>
@@ -326,12 +326,12 @@ export default function MachinesPage() {
       {/* ── KPI Stat Grid Cards ── */}
       <div
         data-tour="machine-summary"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4"
       >
         {/* Total Mesin Card */}
         <div
           onClick={() => setStatusFilter("Semua")}
-          className={`p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden ${
+          className={`p-3.5 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden ${
             statusFilter === "Semua"
               ? "bg-sky-50/80 border-sky-300 text-slate-900 shadow-sm ring-1 ring-sky-200/60"
               : "bg-white border-slate-200/80 text-slate-800 hover:border-slate-300 hover:shadow-xs"
@@ -339,27 +339,27 @@ export default function MachinesPage() {
         >
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Total Mesin Rajut
               </span>
-              <div className="text-3xl font-black tracking-tight mt-1 text-slate-900">
+              <div className="text-2xl sm:text-3xl font-black tracking-tight mt-1 text-slate-900">
                 {machines.length} <span className="text-xs font-bold text-slate-400">Unit</span>
               </div>
             </div>
-            <div className="p-3 rounded-2xl bg-sky-100/70 text-[#0070bc]">
-              <Layers className="w-6 h-6" />
+            <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-sky-100/70 text-[#0070bc] shrink-0">
+              <Layers className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold">
-            <span className="text-slate-500">Efisiensi Operasional</span>
-            <span className="text-[#0070bc]">{operatingPct}%</span>
+          <div className="mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-200/60 flex items-center justify-between text-[11px] sm:text-xs font-bold">
+            <span className="text-slate-500 truncate mr-1">Efisiensi</span>
+            <span className="text-[#0070bc] shrink-0">{operatingPct}%</span>
           </div>
         </div>
 
         {/* Beroperasi Card */}
         <div
           onClick={() => setStatusFilter("Beroperasi")}
-          className={`p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden ${
+          className={`p-3.5 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden ${
             statusFilter === "Beroperasi"
               ? "bg-emerald-50/80 border-emerald-300 text-slate-900 shadow-sm ring-1 ring-emerald-200/60"
               : "bg-white border-slate-200/80 text-slate-800 hover:border-emerald-200 hover:shadow-xs"
@@ -367,33 +367,33 @@ export default function MachinesPage() {
         >
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Beroperasi Saat Ini
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Beroperasi
               </span>
-              <div className="text-3xl font-black tracking-tight mt-1 text-slate-900">
+              <div className="text-2xl sm:text-3xl font-black tracking-tight mt-1 text-slate-900">
                 {totalOperating} <span className="text-xs font-bold text-slate-400">Mesin</span>
               </div>
             </div>
-            <div className="p-3 rounded-2xl bg-emerald-100/70 text-emerald-600">
-              <Zap className="w-6 h-6" />
+            <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-emerald-100/70 text-emerald-600 shrink-0">
+              <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold">
-            <span className="flex items-center gap-1.5 text-emerald-700">
-              <span className="relative flex h-2 w-2">
+          <div className="mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-200/60 flex items-center justify-between text-[11px] sm:text-xs font-bold">
+            <span className="flex items-center gap-1.5 text-emerald-700 truncate mr-1">
+              <span className="relative flex h-2 w-2 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
-              Aktif produksi
+              Aktif
             </span>
-            <span className="text-emerald-800">{operatingPct}% Total</span>
+            <span className="text-emerald-800 shrink-0">{operatingPct}%</span>
           </div>
         </div>
 
         {/* Idle Card */}
         <div
           onClick={() => setStatusFilter("Idle")}
-          className={`p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden ${
+          className={`p-3.5 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden ${
             statusFilter === "Idle"
               ? "bg-amber-50/80 border-amber-300 text-slate-900 shadow-sm ring-1 ring-amber-200/60"
               : "bg-white border-slate-200/80 text-slate-800 hover:border-amber-200 hover:shadow-xs"
@@ -401,27 +401,27 @@ export default function MachinesPage() {
         >
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Idle / Standby
               </span>
-              <div className="text-3xl font-black tracking-tight mt-1 text-slate-900">
+              <div className="text-2xl sm:text-3xl font-black tracking-tight mt-1 text-slate-900">
                 {totalIdle} <span className="text-xs font-bold text-slate-400">Mesin</span>
               </div>
             </div>
-            <div className="p-3 rounded-2xl bg-amber-100/70 text-amber-600">
-              <Clock className="w-6 h-6" />
+            <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-amber-100/70 text-amber-600 shrink-0">
+              <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold">
-            <span className="text-slate-500">Menunggu Antrean</span>
-            <span className="text-amber-700">{machines.length > 0 ? Math.round((totalIdle / machines.length) * 100) : 0}%</span>
+          <div className="mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-200/60 flex items-center justify-between text-[11px] sm:text-xs font-bold">
+            <span className="text-slate-500 truncate mr-1">Antrean</span>
+            <span className="text-amber-700 shrink-0">{machines.length > 0 ? Math.round((totalIdle / machines.length) * 100) : 0}%</span>
           </div>
         </div>
 
         {/* Off Card */}
         <div
           onClick={() => setStatusFilter("Tidak Aktif")}
-          className={`p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden ${
+          className={`p-3.5 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden ${
             statusFilter === "Tidak Aktif"
               ? "bg-slate-100/90 border-slate-300 text-slate-900 shadow-sm ring-1 ring-slate-200/60"
               : "bg-white border-slate-200/80 text-slate-800 hover:border-slate-300 hover:shadow-xs"
@@ -429,28 +429,28 @@ export default function MachinesPage() {
         >
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Tidak Aktif / Off
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Tidak Aktif
               </span>
-              <div className="text-3xl font-black tracking-tight mt-1 text-slate-900">
+              <div className="text-2xl sm:text-3xl font-black tracking-tight mt-1 text-slate-900">
                 {totalTidakAktif} <span className="text-xs font-bold text-slate-400">Mesin</span>
               </div>
             </div>
-            <div className="p-3 rounded-2xl bg-slate-200/70 text-slate-600">
-              <AlertCircle className="w-6 h-6" />
+            <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-slate-200/70 text-slate-600 shrink-0">
+              <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold">
-            <span className="text-slate-500">Libur / Stop</span>
-            <span className="text-slate-700">{machines.length > 0 ? Math.round((totalTidakAktif / machines.length) * 100) : 0}%</span>
+          <div className="mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-200/60 flex items-center justify-between text-[11px] sm:text-xs font-bold">
+            <span className="text-slate-500 truncate mr-1">Off</span>
+            <span className="text-slate-700 shrink-0">{machines.length > 0 ? Math.round((totalTidakAktif / machines.length) * 100) : 0}%</span>
           </div>
         </div>
       </div>
 
       {/* ── Search & Segmented Filter Bar ── */}
-      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs mb-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* Filter Status Tabs */}
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
+        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto no-scrollbar pb-0.5 sm:pb-0">
           {(["Semua", "Beroperasi", "Idle", "Tidak Aktif"] as FilterStatus[]).map((status) => {
             const isActive = statusFilter === status;
             const count =
@@ -463,7 +463,7 @@ export default function MachinesPage() {
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                   isActive
                     ? "bg-slate-900 text-white shadow-sm"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -471,7 +471,7 @@ export default function MachinesPage() {
               >
                 <span>{status}</span>
                 <span
-                  className={`px-2 py-0.5 text-[10px] rounded-lg font-black ${
+                  className={`px-1.5 py-0.5 text-[10px] rounded-md font-black ${
                     isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
                   }`}
                 >
@@ -495,7 +495,7 @@ export default function MachinesPage() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -513,36 +513,36 @@ export default function MachinesPage() {
 
       {/* Loading Skeleton */}
       {loading && machines.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-5">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs animate-pulse space-y-4">
+            <div key={i} className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5 shadow-xs animate-pulse space-y-3 sm:space-y-4">
               <div className="flex justify-between items-center">
-                <div className="w-24 h-4 bg-slate-200 rounded-md" />
-                <div className="w-16 h-4 bg-slate-200 rounded-full" />
+                <div className="w-16 sm:w-24 h-3.5 sm:h-4 bg-slate-200 rounded-md" />
+                <div className="w-10 sm:w-16 h-3.5 sm:h-4 bg-slate-200 rounded-full" />
               </div>
-              <div className="h-12 bg-slate-200 rounded-2xl w-1/2 mx-auto my-4" />
-              <div className="space-y-2">
-                <div className="h-3 bg-slate-100 rounded w-full" />
-                <div className="h-3 bg-slate-100 rounded w-full" />
-                <div className="h-3 bg-slate-100 rounded w-2/3" />
+              <div className="h-8 sm:h-12 bg-slate-200 rounded-2xl w-1/2 mx-auto my-2 sm:my-4" />
+              <div className="space-y-1.5 sm:space-y-2">
+                <div className="h-2.5 sm:h-3 bg-slate-100 rounded w-full" />
+                <div className="h-2.5 sm:h-3 bg-slate-100 rounded w-full" />
+                <div className="h-2.5 sm:h-3 bg-slate-100 rounded w-2/3" />
               </div>
             </div>
           ))}
         </div>
       ) : filteredMachines.length === 0 ? (
         /* Empty State */
-        <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-xs flex flex-col items-center justify-center my-4">
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
-            <Cpu className="w-8 h-8" />
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-12 text-center shadow-xs flex flex-col items-center justify-center my-4">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
+            <Cpu className="w-7 h-7 sm:w-8 sm:h-8" />
           </div>
-          <h3 className="text-base font-bold text-slate-800">Tidak ada mesin ditemukan</h3>
+          <h3 className="text-sm sm:text-base font-bold text-slate-800">Tidak ada mesin ditemukan</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-sm">
             Tidak ditemukan mesin yang cocok dengan kata kunci <strong>"{searchQuery}"</strong> atau filter <strong>"{statusFilter}"</strong>.
           </p>
           {(searchQuery || statusFilter !== "Semua") && (
             <button
               onClick={() => { setSearchQuery(""); setStatusFilter("Semua"); }}
-              className="mt-4 px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl transition-all hover:bg-slate-800 cursor-pointer shadow-sm"
+              className="mt-4 px-4 sm:px-5 py-2 sm:py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl transition-all hover:bg-slate-800 cursor-pointer shadow-sm"
             >
               Reset Filter & Pencarian
             </button>
@@ -552,7 +552,7 @@ export default function MachinesPage() {
         /* ── Machine Cards Grid ── */
         <div
           data-tour="machine-grid"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+          className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-5"
         >
           {filteredMachines.map((machine) => {
             const isOperating = machine.status === "Beroperasi";
@@ -573,7 +573,7 @@ export default function MachinesPage() {
               >
                 {/* Header Status Bar */}
                 <div
-                  className={`px-4 py-3 border-b flex justify-between items-center ${
+                  className={`px-2.5 sm:px-4 py-2 sm:py-3 border-b flex justify-between items-center gap-1 ${
                     isOperating
                       ? "bg-emerald-50/80 border-emerald-100"
                       : isIdle
@@ -581,19 +581,19 @@ export default function MachinesPage() {
                       : "bg-slate-100/80 border-slate-200"
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2.5 w-2.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5 shrink-0">
                       {isOperating && (
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       )}
                       <span
-                        className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                        className={`relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 ${
                           isOperating ? "bg-emerald-500" : isIdle ? "bg-amber-500" : "bg-slate-400"
                         }`}
                       />
                     </span>
                     <span
-                      className={`text-xs font-black uppercase tracking-wider ${
+                      className={`text-[10px] sm:text-xs font-black uppercase tracking-wider truncate ${
                         isOperating ? "text-emerald-800" : isIdle ? "text-amber-800" : "text-slate-600"
                       }`}
                     >
@@ -603,7 +603,7 @@ export default function MachinesPage() {
 
                   {machine.last_input_time !== "-" && (
                     <div
-                      className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-2xs ${
+                      className={`flex items-center gap-1 px-1.5 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold shadow-2xs shrink-0 ${
                         isOperating
                           ? "bg-white text-emerald-700 border border-emerald-200"
                           : isIdle
@@ -611,20 +611,20 @@ export default function MachinesPage() {
                           : "bg-slate-200/80 text-slate-600"
                       }`}
                     >
-                      <Clock className="w-3 h-3" />
+                      <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       <span>{machine.last_input_time}</span>
                     </div>
                   )}
                 </div>
 
                 {/* Card Body */}
-                <div className="p-5 flex-1 flex flex-col justify-between">
-                  <div className="text-center my-3">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">
+                <div className="p-3 sm:p-5 flex-1 flex flex-col justify-between">
+                  <div className="text-center my-1.5 sm:my-3">
+                    <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">
                       Nomor Mesin
                     </span>
                     <div
-                      className={`text-3xl sm:text-4xl font-black tracking-tight font-mono ${
+                      className={`text-2xl sm:text-4xl font-black tracking-tight font-mono ${
                         isOperating
                           ? "text-slate-900"
                           : isIdle
@@ -636,15 +636,15 @@ export default function MachinesPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2.5 mt-4">
+                  <div className="space-y-1.5 sm:space-y-2.5 mt-2 sm:mt-4">
                     {/* Operator */}
-                    <div className="flex justify-between items-center text-xs border-b border-slate-100 pb-2">
-                      <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        Operator
+                    <div className="flex justify-between items-center text-[10px] sm:text-xs border-b border-slate-100 pb-1.5 sm:pb-2 gap-1">
+                      <span className="text-slate-500 font-medium flex items-center gap-1 shrink-0">
+                        <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
+                        <span className="truncate">Operator</span>
                       </span>
                       <span
-                        className={`font-black uppercase text-xs truncate max-w-[140px] text-right ${
+                        className={`font-black uppercase text-[10px] sm:text-xs truncate max-w-[75px] sm:max-w-[140px] text-right ${
                           isInactive ? "text-slate-400" : "text-slate-800"
                         }`}
                       >
@@ -653,10 +653,10 @@ export default function MachinesPage() {
                     </div>
 
                     {/* Desain Aktif */}
-                    <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
-                      <span className="text-slate-500 font-medium">Desain Aktif</span>
+                    <div className="flex justify-between items-center text-[10px] sm:text-xs pb-1.5 sm:pb-2 border-b border-slate-100 gap-1">
+                      <span className="text-slate-500 font-medium shrink-0">Desain</span>
                       <span
-                        className={`font-bold text-[11px] px-2.5 py-0.5 rounded-md truncate max-w-[140px] ${
+                        className={`font-bold text-[9px] sm:text-[11px] px-1.5 sm:px-2.5 py-0.5 rounded-md truncate max-w-[80px] sm:max-w-[140px] text-right ${
                           isOperating
                             ? "bg-blue-50 text-[#0070bc] border border-blue-100"
                             : isIdle
@@ -669,10 +669,10 @@ export default function MachinesPage() {
                     </div>
 
                     {/* Potongan Ke */}
-                    <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
-                      <span className="text-slate-500 font-medium">Potongan Ke</span>
+                    <div className="flex justify-between items-center text-[10px] sm:text-xs pb-1.5 sm:pb-2 border-b border-slate-100 gap-1">
+                      <span className="text-slate-500 font-medium shrink-0">Potongan</span>
                       <span
-                        className={`font-black text-[11px] px-2.5 py-0.5 rounded-md ${
+                        className={`font-black text-[9px] sm:text-[11px] px-1.5 sm:px-2.5 py-0.5 rounded-md shrink-0 ${
                           machine.potongan_ke && machine.potongan_ke !== "-"
                             ? "bg-slate-100 text-slate-800 border border-slate-200 font-mono"
                             : "text-slate-400"
@@ -683,9 +683,9 @@ export default function MachinesPage() {
                     </div>
 
                     {/* Tanggal Update */}
-                    <div className="flex justify-between items-center text-xs pb-1">
-                      <span className="text-slate-400">Tgl Update</span>
-                      <span className="text-slate-500 font-medium">
+                    <div className="flex justify-between items-center text-[10px] sm:text-xs pb-0.5 sm:pb-1 gap-1">
+                      <span className="text-slate-400 shrink-0">Tgl</span>
+                      <span className="text-slate-500 font-medium text-[9px] sm:text-xs truncate text-right">
                         {machine.last_input_date !== "-" ? machine.last_input_date : "-"}
                       </span>
                     </div>
@@ -693,12 +693,12 @@ export default function MachinesPage() {
                 </div>
 
                 {/* Footer Action Bar */}
-                <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-[#0070bc] group-hover:bg-blue-50/50 transition-colors">
-                  <span className="flex items-center gap-1.5">
-                    <BarChart3 className="w-3.5 h-3.5 text-[#0070bc]" />
-                    Analisis Blok
+                <div className="px-2.5 sm:px-5 py-2 sm:py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-[10px] sm:text-xs font-bold text-[#0070bc] group-hover:bg-blue-50/50 transition-colors">
+                  <span className="flex items-center gap-1 sm:gap-1.5 truncate">
+                    <BarChart3 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0070bc] shrink-0" />
+                    <span className="truncate">Analisis Blok</span>
                   </span>
-                  <ChevronRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
                 </div>
               </div>
             );

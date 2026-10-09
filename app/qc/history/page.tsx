@@ -236,7 +236,7 @@ export default function QCHistoryPage() {
       {/* Filter Card with Integrated Header */}
       <div
         data-tour="qc-history-filter"
-        className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6"
+        className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-4 sm:mb-6"
       >
         {/* Decorative Top Accent */}
         <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
@@ -251,7 +251,7 @@ export default function QCHistoryPage() {
               <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6 animate-[spin_12s_linear_infinite]" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">
                 Riwayat Inspeksi QC
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
@@ -260,49 +260,50 @@ export default function QCHistoryPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsTourOpen(true)}
-            className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 self-start sm:self-auto cursor-pointer shrink-0"
-          >
-            <HelpCircle className="w-4 h-4 text-[#0070bc]" />
-            Tutorial
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsTourOpen(true)}
+              className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 cursor-pointer shrink-0"
+            >
+              <HelpCircle className="w-4 h-4 text-[#0070bc]" />
+              Tutorial
+            </button>
+
+            {(filters.startDate || filters.nomor_mc || filters.potongan_ke) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const resetFilters = {
+                    date: "",
+                    startDate: "",
+                    endDate: "",
+                    nomor_mc: "",
+                    petugas_ids: [] as string[],
+                    design_id: "",
+                    potongan_ke: "",
+                    no_customer: "",
+                  };
+                  setFilters(resetFilters);
+                  handleSearch(undefined, resetFilters);
+                }}
+                className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 animate-fadeIn"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset Filter
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filter Form */}
         <form onSubmit={handleSearch} className="flex flex-col gap-4 mt-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 items-end">
             {/* TANGGAL INSPEKSI */}
             <div className="flex flex-col gap-1.5 w-full">
-              <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-sky-500" />
-                  <span>Tanggal Inspeksi</span>
-                </span>
-                {(filters.startDate || filters.nomor_mc || filters.potongan_ke) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const resetFilters = {
-                        date: "",
-                        startDate: "",
-                        endDate: "",
-                        nomor_mc: "",
-                        petugas_ids: [] as string[],
-                        design_id: "",
-                        potongan_ke: "",
-                        no_customer: "",
-                      };
-                      setFilters(resetFilters);
-                      handleSearch(undefined, resetFilters);
-                    }}
-                    className="text-[10px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 transition-colors hover:underline cursor-pointer normal-case"
-                  >
-                    <RotateCcw className="w-2.5 h-2.5" />
-                    Reset
-                  </button>
-                )}
+              <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-sky-500" />
+                <span>Tanggal Inspeksi</span>
               </label>
               <DateRangePicker
                 startDate={filters.startDate}
@@ -326,7 +327,7 @@ export default function QCHistoryPage() {
                   onChange={(e) =>
                     setFilters({ ...filters, nomor_mc: e.target.value })
                   }
-                  className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+                  className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none pr-8 truncate"
                 >
                   <option value="">-- Semua Mesin --</option>
                   {REGISTERED_MACHINES.map((mc) => (
@@ -353,7 +354,7 @@ export default function QCHistoryPage() {
                 onChange={(e) =>
                   setFilters({ ...filters, potongan_ke: e.target.value })
                 }
-                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
+                className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
                 placeholder="Cari Potongan..."
               />
             </div>
@@ -398,7 +399,7 @@ export default function QCHistoryPage() {
 
           {groupedData.length > 0 ? (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto no-scrollbar">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">

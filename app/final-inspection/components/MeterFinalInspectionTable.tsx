@@ -55,6 +55,7 @@ export default function MeterFinalInspectionTable({
           )}
           <th className="sticky left-0 z-20 bg-slate-50 px-2 py-2 w-8 text-center border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>NO</th>
           <th className="px-2 py-2 w-20 text-center border-r border-slate-100 whitespace-nowrap" rowSpan={2}>TGL</th>
+          <th className="px-1.5 py-2 w-14 text-center border-r border-slate-100 whitespace-nowrap" rowSpan={2}>JAM</th>
           <th className="px-1.5 py-2 w-10 text-center border-r border-slate-100" rowSpan={2}>Group</th>
           <th className="px-2 py-2 w-24 text-center border-r border-slate-100" rowSpan={2}>Operator</th>
           <th className="px-1.5 py-2 text-center w-12 border-r border-slate-100" rowSpan={2}>METER</th>
@@ -74,7 +75,7 @@ export default function MeterFinalInspectionTable({
           if (item.isTotalRow) {
             return (
               <tr key={item.id || index} className="bg-slate-100 border-t-2 border-b-2 border-slate-300">
-                <td colSpan={onToggleSelectDetail ? 12 : 11} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-center text-xs font-semibold text-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                <td colSpan={onToggleSelectDetail ? 13 : 12} className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-center text-xs font-semibold text-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   {item.totalLabel} <span className="font-extrabold text-slate-800 ml-1">{item.totalMeter}</span>
                 </td>
               </tr>
@@ -92,6 +93,9 @@ export default function MeterFinalInspectionTable({
                 </td>
                 <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100 border-b border-slate-100">
                   {item.showTgl ? item.tglStr : ""}
+                </td>
+                <td className="px-1.5 py-1.5 text-slate-600 text-center font-mono text-[11px] whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
+                  {item.jamStr || "-"}
                 </td>
                 <td className="px-1.5 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100">
                   {item.showGrp ? item.grpStr : ""}
@@ -177,6 +181,9 @@ export default function MeterFinalInspectionTable({
               <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100 border-b border-slate-100">
                 {item.showTgl ? item.tglStr : ""}
               </td>
+              <td className="px-1.5 py-1.5 text-slate-600 text-center font-mono text-[11px] whitespace-nowrap border-r border-slate-100 border-b border-slate-100">
+                {item.jamStr || "-"}
+              </td>
               <td className="px-1.5 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100 border-b border-slate-100">
                 {item.showGrp ? item.grpStr : ""}
               </td>
@@ -211,9 +218,7 @@ export default function MeterFinalInspectionTable({
                             <div
                               key={lIdx}
                               className={
-                                cItem.isLineQc
-                                  ? "text-[#0070bc] font-medium"
-                                  : item.isGagalCacatOnly
+                                item.isGagalCacatOnly
                                   ? "text-slate-500 font-medium"
                                   : "text-rose-600 font-medium"
                               }

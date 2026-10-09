@@ -289,6 +289,10 @@ export default function MendingPage() {
     if (activeMendingPcs) {
       await deleteTimerSession("mending", activeMendingPcs.nomor_mc, activeMendingPcs.design_id, activeMendingPcs.potongan_ke, activeMendingPcs.pcs_index);
       fetchActiveSessions();
+      try {
+        localStorage.removeItem(`dji_mending_draft_${activeMendingPcs.nomor_mc}_${activeMendingPcs.potongan_ke}_${activeMendingPcs.pcs_index}`);
+        localStorage.removeItem("dji_mending_active_session");
+      } catch (e) {}
     }
     setActiveMendingPcs(null);
     setFullActiveMendingDetails([]);
@@ -298,6 +302,37 @@ export default function MendingPage() {
 
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Auto-save selections to localStorage draft per PCS
+  useEffect(() => {
+    if (activeMendingPcs && selections && Object.keys(selections).length > 0) {
+      try {
+        const key = `dji_mending_draft_${activeMendingPcs.nomor_mc}_${activeMendingPcs.potongan_ke}_${activeMendingPcs.pcs_index}`;
+        localStorage.setItem(key, JSON.stringify(selections));
+      } catch (e) {}
+    }
+  }, [selections, activeMendingPcs]);
+
+  // Keep active session in localStorage for reload recovery
+  useEffect(() => {
+    if (activeMendingPcs) {
+      try {
+        localStorage.setItem("dji_mending_active_session", JSON.stringify(activeMendingPcs));
+      } catch (e) {}
+    }
+  }, [activeMendingPcs]);
+
+  // Warn user on accidental browser close / reload / exit when mending is active
+  useEffect(() => {
+    if (!activeMendingPcs) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [activeMendingPcs]);
 
   // Bulk Selection & Multiple Deletion States
   const [selectedDetailIds, setSelectedDetailIds] = useState<string[]>([]);
@@ -658,15 +693,34 @@ export default function MendingPage() {
   };
 
   useEffect(() => {
-    handleSearch(searchStartDate, searchEndDate);
+    let activeSessionToRestore: any = null;
+    try {
+      const savedActive = localStorage.getItem("dji_mending_active_session");
+      if (savedActive) {
+        activeSessionToRestore = JSON.parse(savedActive);
+      }
+    } catch (e) {}
+
+    handleSearch(searchStartDate, searchEndDate, !!activeSessionToRestore).then(() => {
+      if (activeSessionToRestore?.nomor_mc && activeSessionToRestore?.design_id && activeSessionToRestore?.potongan_ke) {
+        handleStartMending(
+          activeSessionToRestore.nomor_mc,
+          activeSessionToRestore.design_id,
+          activeSessionToRestore.potongan_ke,
+          activeSessionToRestore.pcs_index || "1"
+        );
+      }
+    });
   }, [searchStartDate, searchEndDate]);
 
-  const handleSearch = async (startDate?: string, endDate?: string) => {
+  const handleSearch = async (startDate?: string, endDate?: string, keepActive: boolean = false) => {
     setIsSearching(true);
     setErrorMsg(null);
     setAllDetails([]);
-    setActiveMendingPcs(null);
-    setSelections({});
+    if (!keepActive) {
+      setActiveMendingPcs(null);
+      setSelections({});
+    }
     setCurrentPage(1);
 
     const sDate = startDate !== undefined ? startDate : searchStartDate;
@@ -826,21 +880,32 @@ export default function MendingPage() {
   };
 
   const handleStartMending = async (nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string) => {
-    setActiveMendingPcs({ nomor_mc: String(nomor_mc), design_id: String(design_id), potongan_ke: String(potongan_ke), pcs_index: String(pcs_index) });
-    setSelections({});
+    const pcsKey = String(pcs_index || "1");
+    const activeObj = { nomor_mc: String(nomor_mc), design_id: String(design_id), potongan_ke: String(potongan_ke), pcs_index: pcsKey };
+    setActiveMendingPcs(activeObj);
+    try {
+      localStorage.setItem("dji_mending_active_session", JSON.stringify(activeObj));
+    } catch (e) {}
+
+    let savedDraft: Record<string, string> = {};
+    try {
+      const raw = localStorage.getItem(`dji_mending_draft_${nomor_mc}_${potongan_ke}_${pcsKey}`);
+      if (raw) savedDraft = JSON.parse(raw);
+    } catch (e) {}
+
     const now = new Date();
     setNowMs(now.getTime());
     const defaultIso = now.toISOString();
 
     // 1. Fetch details to inspect existing item/header timestamps
-    const detailsRes = await getMendingDetailsByGroup(String(nomor_mc), String(design_id), String(potongan_ke), String(pcs_index));
+    const detailsRes = await getMendingDetailsByGroup(String(nomor_mc), String(design_id), String(potongan_ke), pcsKey);
     const fetchedDetails = detailsRes.success && detailsRes.data ? detailsRes.data : [];
     setFullActiveMendingDetails(fetchedDetails);
 
-    // Initialize selections for fetched details
+    // Initialize selections for fetched details (prioritize saved draft if exists)
     const nextSelections: Record<string, string> = {};
     fetchedDetails.forEach((item: any) => {
-      nextSelections[item.id] = getInitialMendingGrade(item);
+      nextSelections[item.id] = savedDraft[item.id] ?? getInitialMendingGrade(item);
     });
     setSelections(nextSelections);
 
@@ -1923,6 +1988,9 @@ export default function MendingPage() {
                 elapsed_seconds: elapsedSeconds,
               });
               await fetchActiveSessions();
+              try {
+                localStorage.removeItem("dji_mending_active_session");
+              } catch (e) {}
             }
             setActiveMendingPcs(null);
           }}
@@ -2334,6 +2402,10 @@ export default function MendingPage() {
               if (activeMendingPcs) {
                 await deleteTimerSession("mending", activeMendingPcs.nomor_mc, activeMendingPcs.design_id, activeMendingPcs.potongan_ke, activeMendingPcs.pcs_index);
                 fetchActiveSessions();
+                try {
+                  localStorage.removeItem(`dji_mending_draft_${activeMendingPcs.nomor_mc}_${activeMendingPcs.potongan_ke}_${activeMendingPcs.pcs_index}`);
+                  localStorage.removeItem("dji_mending_active_session");
+                } catch (e) {}
               }
               setActiveMendingPcs(null);
               handleSearch(searchTanggal);
@@ -2860,42 +2932,43 @@ export default function MendingPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsTourOpen(true)}
-            className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 self-start sm:self-auto cursor-pointer shrink-0"
-          >
-            <HelpCircle className="w-4 h-4 text-rose-500" />
-            Tutorial
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsTourOpen(true)}
+              className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 cursor-pointer shrink-0"
+            >
+              <HelpCircle className="w-4 h-4 text-rose-500" />
+              Tutorial
+            </button>
+
+            {(searchStartDate || searchMesin || searchPotongan) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchStartDate("");
+                  setSearchEndDate("");
+                  setSearchTanggal("");
+                  setSearchMesin("");
+                  setSearchPotongan("");
+                  handleSearch("", "");
+                }}
+                className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 animate-fadeIn"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset Filter
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filter Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 items-end gap-4 w-full mt-5">
+        <div className="grid grid-cols-2 md:grid-cols-5 items-end gap-2.5 sm:gap-4 w-full mt-4 sm:mt-5">
           {/* TANGGAL */}
           <div className="flex flex-col gap-1.5 w-full">
-            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-rose-500" />
-                <span>Tanggal</span>
-              </span>
-              {(searchStartDate || searchMesin || searchPotongan) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchStartDate("");
-                    setSearchEndDate("");
-                    setSearchTanggal("");
-                    setSearchMesin("");
-                    setSearchPotongan("");
-                    handleSearch("", "");
-                  }}
-                  className="text-[10px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 transition-colors hover:underline cursor-pointer normal-case"
-                >
-                  <RotateCcw className="w-2.5 h-2.5" />
-                  Reset
-                </button>
-              )}
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-rose-500" />
+              <span>Tanggal</span>
             </label>
             <DateRangePicker
               startDate={searchStartDate}
@@ -2919,7 +2992,7 @@ export default function MendingPage() {
               <select
                 value={searchMesin}
                 onChange={(e) => setSearchMesin(e.target.value)}
-                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+                className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none pr-8 truncate"
               >
                 <option value="">Semua Mesin</option>
                 {REGISTERED_MACHINES.map((m) => (
@@ -2944,7 +3017,7 @@ export default function MendingPage() {
               type="number"
               value={searchPotongan}
               onChange={(e) => setSearchPotongan(e.target.value)}
-              className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
+              className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
               placeholder="Cari Potongan..."
             />
           </div>
@@ -2959,7 +3032,7 @@ export default function MendingPage() {
               <select
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
-                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+                className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none pr-8 truncate"
               >
                 <option value="desc">Terbaru</option>
                 <option value="asc">Terlama</option>
@@ -2974,7 +3047,7 @@ export default function MendingPage() {
           <button
             onClick={() => handleSearch(searchStartDate, searchEndDate)}
             disabled={isSearching}
-            className="h-11 px-6 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 active:scale-[0.98] disabled:opacity-50 text-white text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-2 shadow-md shadow-rose-600/25 hover:shadow-lg hover:shadow-rose-600/35 cursor-pointer w-full col-span-1 sm:col-span-2 md:col-span-1 group"
+            className="h-11 px-6 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 active:scale-[0.98] disabled:opacity-50 text-white text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-2 shadow-md shadow-rose-600/25 hover:shadow-lg hover:shadow-rose-600/35 cursor-pointer w-full col-span-2 md:col-span-1 group"
           >
             {isSearching ? (
               <>
@@ -3016,9 +3089,9 @@ export default function MendingPage() {
                 const isProcessingItem = session && !session.is_paused;
 
                 return (
-                  <div key={sessionKey} className={`p-4 rounded-2xl border transition-all ${isPausedItem ? "bg-amber-50/50 border-amber-300" : (isProcessingItem ? "bg-emerald-50/30 border-emerald-300" : "bg-white border-slate-200 shadow-xs hover:shadow-sm")}`}>
+                  <div key={sessionKey} className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all ${isPausedItem ? "bg-amber-50/50 border-amber-300" : (isProcessingItem ? "bg-emerald-50/30 border-emerald-300" : "bg-white border-slate-200 shadow-xs hover:shadow-sm")}`}>
                     {/* Top Section: ONLY Mesin, Potongan & PCS */}
-                    <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-100">
+                    <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <div className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-black text-xs">
                           {g.header?.nomor_mc}
@@ -3033,7 +3106,7 @@ export default function MendingPage() {
                     </div>
 
                     {/* Middle Section: Tanggal/Waktu & Desain */}
-                    <div className="flex flex-col gap-2 mb-3 text-xs">
+                    <div className="flex flex-col gap-1.5 mb-2.5 text-xs">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] uppercase font-bold text-slate-400">Tanggal & Waktu</span>
                         <span className="font-bold text-slate-800 text-right">
@@ -3056,7 +3129,7 @@ export default function MendingPage() {
                     {/* Bottom Section: Action Button */}
                     <button
                       onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
-                      className={`w-full h-10 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
+                      className={`w-full h-9 sm:h-10 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
                         isPausedItem 
                           ? "bg-amber-500 hover:bg-amber-600 text-white" 
                           : (isProcessingItem ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-rose-600 hover:bg-rose-700 text-white")

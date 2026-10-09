@@ -300,6 +300,37 @@ export default function FinalInspectionPage() {
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Auto-save selections to localStorage draft per PCS
+  useEffect(() => {
+    if (activeFinalPcs && selections && Object.keys(selections).length > 0) {
+      try {
+        const key = `dji_final_draft_${activeFinalPcs.nomor_mc}_${activeFinalPcs.potongan_ke}_${activeFinalPcs.pcs_index}`;
+        localStorage.setItem(key, JSON.stringify(selections));
+      } catch (e) {}
+    }
+  }, [selections, activeFinalPcs]);
+
+  // Keep active session in localStorage for reload recovery
+  useEffect(() => {
+    if (activeFinalPcs) {
+      try {
+        localStorage.setItem("dji_final_active_session", JSON.stringify(activeFinalPcs));
+      } catch (e) {}
+    }
+  }, [activeFinalPcs]);
+
+  // Warn user on accidental browser close / reload / exit when final inspection is active
+  useEffect(() => {
+    if (!activeFinalPcs) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [activeFinalPcs]);
+
   // Bulk Selection & Multiple Deletion States
   const [selectedDetailIds, setSelectedDetailIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
@@ -795,9 +826,17 @@ export default function FinalInspectionPage() {
     if (res.success && res.data) {
       setFullActiveFinalDetails(res.data);
 
+      let savedDraft: Record<string, string> = {};
+      try {
+        const raw = localStorage.getItem(`dji_final_draft_${batch.nomor_mc}_${batch.potongan_ke}_${batch.pcs_index || 1}`);
+        if (raw) savedDraft = JSON.parse(raw);
+      } catch (e) {}
+
       const initSelections: Record<string, string> = {};
       res.data.forEach((d: any) => {
-        if (d.status_final_mending) {
+        if (savedDraft[d.id]) {
+          initSelections[d.id] = savedDraft[d.id];
+        } else if (d.status_final_mending) {
           initSelections[d.id] = d.status_final_mending;
         } else if (d.status_mending) {
           initSelections[d.id] = d.status_mending;
@@ -934,6 +973,10 @@ export default function FinalInspectionPage() {
       }
     });
   }, [fullActiveFinalDetails]);
+
+  const finalInspectionHeaderData = React.useMemo(() => ({
+    details: fullActiveFinalDetails,
+  }), [fullActiveFinalDetails]);
 
   const displayItems = React.useMemo(() => {
     if (!isMeteranBatch) {
@@ -1111,6 +1154,9 @@ export default function FinalInspectionPage() {
         const isGradable = !isFinish && !isStart && !isDeleted;
         const cacatText = isDeleted ? "[Panel Dihapus]" : cacatLines.join("\n");
 
+        const rawJam = h.tanggal_jam || h.created_at || item.tanggal_jam || item.created_at || "";
+        const jamStr = rawJam ? formatHHMM(rawJam) : "-";
+
         return {
           item,
           isIstirahat,
@@ -1122,6 +1168,7 @@ export default function FinalInspectionPage() {
           opr,
           grp,
           tgl,
+          jamStr,
           operatorStr,
           oprStr,
           cacatText,
@@ -1228,6 +1275,7 @@ export default function FinalInspectionPage() {
           showGrp,
           showOpr,
           tglStr: tgl,
+          jamStr: p.jamStr,
           grpStr: grp,
           oprBase: opr,
           oprStr,
@@ -1411,12 +1459,16 @@ export default function FinalInspectionPage() {
           ? String(prevOperatorLastMeter)
           : (h.meter_awal !== undefined && h.meter_awal !== null ? cleanMeterVal(h.meter_awal) : "0");
 
+        const rawStartJam = h.tanggal_jam || h.created_at || item.tanggal_jam || item.created_at || "";
+        const startJamStr = rawStartJam ? formatHHMM(rawStartJam) : "-";
+
         items.push({
           id: `start-${idx}-${Math.random()}`,
           isStartRow: true,
           isMeter: true,
           displayNo: (globalRowCount + 1).toString(),
           tglStr: startTglStr,
+          jamStr: startJamStr,
           grpStr: grp,
           oprStr: opr,
           meterDisplay: startMeter,
@@ -1490,6 +1542,9 @@ export default function FinalInspectionPage() {
       );
 
       if (!isPlaceholder && !isDuplicateFinish) {
+        const rawItemJam = h.tanggal_jam || h.created_at || item.tanggal_jam || item.created_at || "";
+        const itemJamStr = rawItemJam ? formatHHMM(rawItemJam) : "-";
+
         items.push({
           ...item,
           isStartRow: false,
@@ -1500,6 +1555,7 @@ export default function FinalInspectionPage() {
           isFinishReport,
           displayNo: (globalRowCount + 1).toString(),
           tglStr: finalTglStr,
+          jamStr: itemJamStr,
           grpStr: finalGrpStr,
           oprStr: finalOprStr,
           meterDisplay,
@@ -1664,6 +1720,10 @@ export default function FinalInspectionPage() {
         activeFinalPcs.pcs_index
       );
       await fetchActiveSessions();
+      try {
+        localStorage.removeItem(`dji_final_draft_${activeFinalPcs.nomor_mc}_${activeFinalPcs.potongan_ke}_${activeFinalPcs.pcs_index}`);
+        localStorage.removeItem("dji_final_active_session");
+      } catch (e) {}
     }
     setIsCancelConfirmOpen(false);
     setActiveFinalPcs(null);
@@ -1693,6 +1753,9 @@ export default function FinalInspectionPage() {
                 elapsed_seconds: elapsedSeconds,
               });
               await fetchActiveSessions();
+              try {
+                localStorage.removeItem("dji_final_active_session");
+              } catch (e) {}
             }
             setActiveFinalPcs(null);
           }}
@@ -1711,25 +1774,25 @@ export default function FinalInspectionPage() {
         </div>
 
         {/* Overall Grade Banner */}
-        <div className="mb-6 p-4 rounded-2xl bg-linear-to-r from-emerald-800 to-teal-800 text-white shadow-lg flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center font-black text-xl border border-white/20">
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-2xl bg-linear-to-r from-emerald-800 to-teal-800 text-white shadow-xs sm:shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 transition-all">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center font-black text-lg sm:text-xl border border-white/20 shadow-inner shrink-0">
               {overallGradeData.overallGrade}
             </div>
-            <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-emerald-200">
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-200 leading-tight">
                 Grade Keseluruhan Final
               </div>
-              <div className="text-sm font-semibold text-white/90">
-                Total Cacat: {overallGradeData.totalCacat} {isMeteranBatch ? "meter" : "panel"} dari {overallGradeData.totalQty} {isMeteranBatch ? "meter" : "panel"}
+              <div className="text-xs sm:text-sm font-semibold text-white/95 mt-0.5 leading-snug">
+                Total Cacat: <span className="font-bold text-white">{overallGradeData.totalCacat}</span> {isMeteranBatch ? "meter" : "panel"} dari <span className="font-bold text-white">{overallGradeData.totalQty}</span> {isMeteranBatch ? "meter" : "panel"}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-xs bg-white/10 px-4 py-2 rounded-xl border border-white/20 font-bold">
+          <div className="w-full sm:w-auto flex items-center justify-between sm:justify-center gap-2.5 sm:gap-3.5 text-[11px] sm:text-xs bg-white/10 backdrop-blur-xs px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-white/20 font-bold shrink-0 shadow-2xs">
             <span>Grade A: {countA}</span>
-            <span>•</span>
+            <span className="text-white/25 font-normal">|</span>
             <span>Grade B: {countB}</span>
-            <span>•</span>
+            <span className="text-white/25 font-normal">|</span>
             <span>BS: {countBS}</span>
           </div>
         </div>
@@ -1799,7 +1862,7 @@ export default function FinalInspectionPage() {
 
         {/* Inspection Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto no-scrollbar">
             {isMeteranBatch ? (
               <MeterFinalInspectionTable
                 displayItems={displayItems}
@@ -1835,14 +1898,14 @@ export default function FinalInspectionPage() {
         </div>
 
         {/* Submit Bottom Bar */}
-        <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <div className="text-xs text-slate-600 font-medium">
             Status: <span className="font-bold text-slate-800">{countA + countB + countBS} dari {totalPanelsCount} rincian terisi</span>
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
             disabled={!isAllGraded}
-            className={`px-6 py-3 rounded-xl font-black text-sm transition-all shadow-md flex items-center gap-2 cursor-pointer ${
+            className={`w-full sm:w-auto px-6 py-3 rounded-xl font-black text-xs sm:text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer ${
               isAllGraded
                 ? "bg-linear-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700"
                 : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
@@ -1855,8 +1918,8 @@ export default function FinalInspectionPage() {
 
         {/* Cancel Final Confirmation Modal */}
         {isCancelConfirmOpen && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 sm:p-6 max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
               <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-4 mx-auto">
                 <AlertTriangle className="w-6 h-6 text-rose-600" />
               </div>
@@ -2051,13 +2114,17 @@ export default function FinalInspectionPage() {
             if (activeFinalPcs) {
               deleteTimerSession("final_inspection", activeFinalPcs.nomor_mc, activeFinalPcs.design_id, activeFinalPcs.potongan_ke, activeFinalPcs.pcs_index);
               fetchActiveSessions();
+              try {
+                localStorage.removeItem(`dji_final_draft_${activeFinalPcs.nomor_mc}_${activeFinalPcs.potongan_ke}_${activeFinalPcs.pcs_index}`);
+                localStorage.removeItem("dji_final_active_session");
+              } catch (e) {}
             }
             setActiveFinalPcs(null);
             setFullActiveFinalDetails([]);
             setSelections({});
             fetchPendingBatches(searchStartDate, searchEndDate, searchMesin, searchPotongan, 1);
           }}
-          headerData={{ details: fullActiveFinalDetails }}
+          headerData={finalInspectionHeaderData}
           detailData={fullActiveFinalDetails}
           selections={selections}
           startFinalTime={startFinalTime}
@@ -2098,7 +2165,7 @@ export default function FinalInspectionPage() {
 
   // QUEUE LIST VIEW (Exact Mirror of Riwayat Mending)
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6 pb-12 animate-fadeIn p-4 md:p-6">
+    <div className="w-full max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-12 animate-fadeIn px-2.5 sm:px-4 md:px-6">
       {errorMsg && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -2112,7 +2179,7 @@ export default function FinalInspectionPage() {
       )}
 
       {/* Filter Card with Integrated Header */}
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-4 sm:mb-6">
         {/* Decorative Top Accent */}
         <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
 
@@ -2123,7 +2190,7 @@ export default function FinalInspectionPage() {
               <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">
                 Riwayat Mending Siap Final
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
@@ -2131,28 +2198,26 @@ export default function FinalInspectionPage() {
               </p>
             </div>
           </div>
+          {(searchStartDate || searchMesin || searchPotongan) && (
+            <button
+              type="button"
+              onClick={handleResetSearch}
+              className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0 animate-fadeIn"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset Filter
+            </button>
+          )}
         </div>
 
         {/* Filter Form */}
-        <form onSubmit={handleSearch} className="flex flex-col gap-4 mt-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:gap-4 mt-4 sm:mt-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 items-end">
             {/* TANGGAL MENDING */}
             <div className="flex flex-col gap-1.5 w-full">
-              <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-sky-500" />
-                  <span>Tanggal Mending</span>
-                </span>
-                {(searchStartDate || searchMesin || searchPotongan) && (
-                  <button
-                    type="button"
-                    onClick={handleResetSearch}
-                    className="text-[10px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 transition-colors hover:underline cursor-pointer normal-case"
-                  >
-                    <RotateCcw className="w-2.5 h-2.5" />
-                    Reset
-                  </button>
-                )}
+              <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-sky-500" />
+                <span>Tanggal Mending</span>
               </label>
               <DateRangePicker
                 startDate={searchStartDate}
@@ -2176,7 +2241,7 @@ export default function FinalInspectionPage() {
                 <select
                   value={searchMesin}
                   onChange={(e) => setSearchMesin(e.target.value)}
-                  className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+                  className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none pr-8 truncate"
                 >
                   <option value="">-- Semua Mesin --</option>
                   {REGISTERED_MACHINES.map((mc) => (
@@ -2202,7 +2267,7 @@ export default function FinalInspectionPage() {
                 placeholder="Cari Potongan..."
                 value={searchPotongan}
                 onChange={(e) => setSearchPotongan(e.target.value)}
-                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
+                className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
               />
             </div>
 
@@ -2257,8 +2322,8 @@ export default function FinalInspectionPage() {
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto no-scrollbar">
+              <table className="w-full min-w-[700px] text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
                     <th className="px-4 py-4 whitespace-nowrap">Mesin & Desain</th>

@@ -118,7 +118,7 @@ function HistoryDetailContent() {
   return (
     <div className="flex-1 w-full min-w-0 animate-fadeIn">
       {/* Header Nav */}
-      <div className="flex items-center justify-between gap-2 mb-6 no-print">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6 no-print">
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
@@ -133,7 +133,7 @@ function HistoryDetailContent() {
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold truncate">
             <span
               className="hover:text-[#0070bc] cursor-pointer transition-colors"
               onClick={() => {
@@ -144,13 +144,13 @@ function HistoryDetailContent() {
                 }
               }}
             >Riwayat</span>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-            <span className="text-slate-700 font-black">Detail Laporan</span>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+            <span className="text-slate-700 font-black truncate">Detail Laporan</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-
+        {/* Action Buttons: 2 equal columns on mobile for perfect balance */}
+        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center">
           {(!detailData?.panels?.some((p: any) =>
             String(p.panel_no || "").toUpperCase().includes("BS AKHIR") ||
             String(p.panel_no || "").toUpperCase() === "BS AKHIR"
@@ -162,10 +162,10 @@ function HistoryDetailContent() {
                 setMarkCutError(null);
                 setIsMarkCutModalOpen(true);
               }}
-              className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
+              className="h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap"
               title="Tandai Selesai Potong & Buat BS Akhir"
             >
-              <Scissors className="w-4 h-4" />
+              <Scissors className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Tandai Potong Kain</span>
             </button>
           )}
@@ -173,10 +173,18 @@ function HistoryDetailContent() {
           <button
             type="button"
             onClick={() => setIsPrintModalOpen(true)}
-            className="h-9 px-3.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-black text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
+            className={`h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap ${
+              detailData?.panels?.some(
+                (p: any) =>
+                  String(p.panel_no || "").toUpperCase().includes("BS AKHIR") ||
+                  String(p.panel_no || "").toUpperCase() === "BS AKHIR"
+              )
+                ? "col-span-2 sm:col-span-1"
+                : ""
+            }`}
             title="Cetak Laporan / Simpan PDF"
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Cetak Laporan</span>
           </button>
         </div>
@@ -413,8 +421,8 @@ function HistoryDetailContent() {
                     Rincian per Panel
                   </h4>
                 )}
-                <div className="w-full overflow-x-auto pb-4 custom-scrollbar bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                  <div className="flex w-max min-w-full gap-8">
+                <div className="w-full overflow-x-auto pb-4 no-scrollbar bg-white p-3 sm:p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex w-max min-w-full gap-4 sm:gap-8">
                     {sortedPcsKeys.map((pcsKey) => {
                       const pcsLabel = `PCS ${pcsKey}`;
                       const panels = pcsGroups[pcsKey].sort((a, b) => {
@@ -683,8 +691,8 @@ function HistoryDetailContent() {
        </div>
 
        {isMarkCutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto no-scrollbar border border-slate-100 flex flex-col">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">

@@ -163,9 +163,9 @@ export default function MachineBlockAnalyticsPage({ params }: PageProps) {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8 animate-in fade-in">
+    <div className="space-y-6 animate-in fade-in">
       {/* Top Header / Breadcrumb */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 sm:gap-4 mb-4 sm:mb-6">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -176,7 +176,7 @@ export default function MachineBlockAnalyticsPage({ params }: PageProps) {
                 router.push("/machines");
               }
             }}
-            className="w-10 h-10 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-all shadow-xs cursor-pointer"
+            className="w-10 h-10 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-all shadow-xs cursor-pointer shrink-0"
             title="Kembali ke halaman sebelumnya"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -198,9 +198,9 @@ export default function MachineBlockAnalyticsPage({ params }: PageProps) {
               <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
               <span className="text-[#0070bc]">Analisis Blok {nomorMc}</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight flex flex-wrap items-center gap-2">
               Analisis Masalah Per-Blok
-              <span className="bg-[#0070bc] text-white font-extrabold text-xs px-3 py-1 rounded-full uppercase tracking-wider font-mono">
+              <span className="bg-[#0070bc] text-white font-extrabold text-xs px-2.5 py-0.5 rounded-full uppercase tracking-wider font-mono">
                 {nomorMc}
               </span>
             </h1>
@@ -208,15 +208,15 @@ export default function MachineBlockAnalyticsPage({ params }: PageProps) {
         </div>
 
         {/* Filter Period */}
-        <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs self-stretch sm:self-auto">
-          <div className="flex items-center gap-1.5 px-3 text-xs font-bold text-slate-500">
+        <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-1.5 px-2.5 text-xs font-bold text-slate-500">
             <Calendar className="w-3.5 h-3.5 text-[#0070bc]" />
             <span>Periode:</span>
           </div>
           <select
             value={daysBack}
             onChange={(e) => setDaysBack(Number(e.target.value))}
-            className="h-9 px-3 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg outline-none cursor-pointer transition-colors border-0"
+            className="h-9 px-3 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg outline-none cursor-pointer transition-colors border-0 flex-1 sm:flex-initial"
           >
             <option value={7}>7 Hari Terakhir</option>
             <option value={30}>30 Hari Terakhir</option>
@@ -234,59 +234,59 @@ export default function MachineBlockAnalyticsPage({ params }: PageProps) {
       )}
 
       {/* KPI Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4 relative overflow-hidden">
-          <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
-            <AlertTriangle className="w-6 h-6" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-6">
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 relative overflow-hidden">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+            <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider block">
-              Blok Paling Sering Bermasalah
+          <div className="min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+              Blok Paling Sering
             </span>
-            <div className="text-xl font-black text-rose-600 truncate mt-0.5">
+            <div className="text-lg sm:text-xl font-black text-rose-600 truncate mt-0.5">
               {stats.topProblematicBlock}
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-            <Clock className="w-6 h-6" />
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+            <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider block">
-              Total Waktu Downtime
+          <div className="min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+              Total Downtime
             </span>
-            <div className="text-xl font-black text-slate-800 mt-0.5">
+            <div className="text-lg sm:text-xl font-black text-slate-800 mt-0.5 truncate">
               {formatDurationNice(stats.totalDurationSec)}
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#0070bc] flex items-center justify-center shrink-0 border border-blue-100">
-            <Layers className="w-6 h-6" />
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 text-[#0070bc] flex items-center justify-center shrink-0 border border-blue-100">
+            <Layers className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider block">
-              Total Kejadian Masalah
+          <div className="min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+              Total Kejadian
             </span>
-            <div className="text-2xl font-black text-slate-800 mt-0.5">
+            <div className="text-lg sm:text-xl font-black text-slate-800 mt-0.5">
               {stats.totalProblems}{" "}
-              <span className="text-xs font-bold text-slate-400">Kejadian</span>
+              <span className="text-[10px] font-bold text-slate-400">Kejadian</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
-            <Wrench className="w-6 h-6" />
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
+            <Wrench className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider block">
+          <div className="min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">
               Kategori Utama
             </span>
-            <div className="text-lg font-extrabold text-purple-700 truncate mt-0.5">
+            <div className="text-base sm:text-lg font-extrabold text-purple-700 truncate mt-0.5">
               {stats.topCategory}
             </div>
           </div>

@@ -234,21 +234,21 @@ export default function ProductionPlansPage() {
   };
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto pb-20 p-4 sm:p-6 lg:p-8 animate-fadeIn flex flex-col min-w-0 space-y-6">
+    <div className="w-full max-w-[1400px] mx-auto pb-20 p-2.5 sm:p-4 md:p-6 lg:p-8 animate-fadeIn flex flex-col min-w-0 space-y-4 sm:space-y-6">
       {/* Integrated Header Card */}
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative">
         {/* Decorative Top Accent */}
         <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Title & Info */}
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
+          <div className="flex items-center gap-3 sm:gap-3.5">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
               <FileSpreadsheet className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
             </div>
             <div className="flex flex-col">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">
                   Jadwal Produksi
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-50 text-[#0070bc] border border-sky-200/80 uppercase tracking-wider">
@@ -262,9 +262,9 @@ export default function ProductionPlansPage() {
           </div>
 
           {/* Controls: Search, Refresh, Tambah Jadwal */}
-          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap sm:flex-nowrap w-full md:w-auto">
             {/* Search Input with icon */}
-            <div className="relative flex-1 sm:flex-initial">
+            <div className="relative flex-1 sm:w-52">
               <input
                 type="text"
                 placeholder="Cari Mesin..."
@@ -273,7 +273,7 @@ export default function ProductionPlansPage() {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="h-10 pl-9 pr-4 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none text-xs sm:text-sm font-semibold text-slate-700 placeholder:text-slate-400 w-full sm:w-52 transition-all shadow-2xs"
+                className="h-10 pl-9 pr-4 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none text-xs sm:text-sm font-semibold text-slate-700 placeholder:text-slate-400 w-full transition-all shadow-2xs"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -293,7 +293,7 @@ export default function ProductionPlansPage() {
             <button
               type="button"
               onClick={() => handleOpenModal()}
-              className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0070bc] to-[#005a96] hover:from-[#005a96] hover:to-[#004777] active:scale-95 text-white font-extrabold text-xs shadow-md shadow-[#0070bc]/25 flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+              className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0070bc] to-[#005a96] hover:from-[#005a96] hover:to-[#004777] active:scale-95 text-white font-extrabold text-xs shadow-md shadow-[#0070bc]/25 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap w-full sm:w-auto"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Tambah Jadwal</span>
@@ -318,8 +318,8 @@ export default function ProductionPlansPage() {
             <p className="text-xs text-slate-400 font-medium mt-0.5">Klik tombol &quot;+ Tambah Jadwal&quot; untuk membuat jadwal baru.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse text-[11px] sm:text-xs whitespace-nowrap">
+          <div className="overflow-x-auto no-scrollbar">
+            <table className="w-full text-left border-collapse text-[11px] sm:text-xs whitespace-nowrap min-w-[700px]">
               <thead>
                 <tr className="bg-slate-50/90 border-b border-slate-200/80 text-[10px] font-black text-slate-600 uppercase tracking-wider">
                   <th className="px-3.5 py-3 text-center w-16">Aksi</th>
@@ -485,18 +485,18 @@ export default function ProductionPlansPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in border border-slate-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#0070bc] text-white flex items-center justify-center shadow-sm">
-                  <FileSpreadsheet className="w-5 h-5" />
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0070bc] text-white flex items-center justify-center shadow-sm shrink-0">
+                  <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-slate-800">
+                  <h2 className="text-sm sm:text-base font-black text-slate-800">
                     {formData.id ? "Edit Jadwal Produksi" : "Tambah Jadwal Produksi"}
                   </h2>
-                  <p className="text-xs text-slate-400 font-medium">Atur data dan target spesifikasi header mesin</p>
+                  <p className="text-[11px] sm:text-xs text-slate-400 font-medium">Atur data dan target spesifikasi header mesin</p>
                 </div>
               </div>
               <button
@@ -508,7 +508,7 @@ export default function ProductionPlansPage() {
               </button>
             </div>
             
-            <form onSubmit={handleSave} className="p-6 overflow-y-auto flex-1 flex flex-col gap-4">
+            <form onSubmit={handleSave} className="p-4 sm:p-6 overflow-y-auto no-scrollbar flex-1 flex flex-col gap-3.5 sm:gap-4">
               {errorMsg && (
                 <div className="p-3 bg-rose-50 text-rose-600 border border-rose-200 text-xs rounded-xl font-bold">
                   {errorMsg}
@@ -718,7 +718,7 @@ export default function ProductionPlansPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">Heavy</label>
                   <input

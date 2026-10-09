@@ -220,16 +220,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
               }
               
-              let targetRoute = "/";
+              let defaultRoute = "/";
               if (role === "operator") {
-                targetRoute = "/input";
-              } else if (role === "inspeksi") {
-                targetRoute = "/qc";
+                defaultRoute = "/input";
+              } else if (role === "inspeksi" || role === "qc") {
+                defaultRoute = "/qc";
               } else if (role === "mending") {
-                targetRoute = "/mending";
+                defaultRoute = "/mending";
               } else {
-                targetRoute = "/";
+                defaultRoute = "/";
               }
+
+              // Prioritaskan returnUrl dari parameter URL atau localStorage jika ada
+              let targetRoute = defaultRoute;
+              try {
+                const searchParams = new URLSearchParams(window.location.search);
+                const queryReturn = searchParams.get("returnUrl");
+                const savedReturn = localStorage.getItem("dji_return_url");
+                const candidate = queryReturn || savedReturn;
+
+                if (candidate && candidate.startsWith("/") && candidate !== "/login") {
+                  localStorage.removeItem("dji_return_url");
+
+                  // Guard agar role non-admin tidak terlempar ke dashboard admin jika salah tautan
+                  const isWorker = role === "operator" || role === "inspeksi" || role === "qc" || role === "mending";
+                  const isAdminOnly =
+                    candidate === "/" ||
+                    candidate.startsWith("/users") ||
+                    candidate.startsWith("/machine-config") ||
+                    candidate.startsWith("/google-sheets-config");
+
+                  if (!(isWorker && isAdminOnly)) {
+                    targetRoute = candidate;
+                  }
+                }
+              } catch (e) {}
 
               // Gunakan window.location.href agar cookies dan storage tersinkronisasi penuh dan mencegah bounce-back
               window.location.href = targetRoute;
@@ -265,8 +290,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!isLoading && !isLoggedIn && !isPublic) {
       try {
         localStorage.removeItem("dji_cached_user");
+        if (pathname && pathname !== "/" && pathname !== "/login") {
+          localStorage.setItem("dji_return_url", pathname);
+        }
       } catch (e) {}
-      router.push("/login");
+      if (pathname && pathname !== "/" && pathname !== "/login") {
+        router.push(`/login?returnUrl=${encodeURIComponent(pathname)}`);
+      } else {
+        router.push("/login");
+      }
     }
   }, [isLoading, isLoggedIn, isPublic, pathname, router]);
 

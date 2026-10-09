@@ -454,31 +454,58 @@ export async function createProductionReport(
         }
 
         // Cek duplikasi potongan_ke dan panel_no
-        // Izinkan panel yang sama jika operator berbeda (kasus Mesin Masih Stop lintas shift)
+        // Izinkan panel yang sama jika operator berbeda, atau jika salah satu panel adalah panel BS / Gagal Cacat
         if (potonganKeNum && validated.panelNo) {
           const operatorIdNum =
             validated.operatorId && !isNaN(parseInt(validated.operatorId))
               ? parseInt(validated.operatorId)
               : null;
-          let dupQuery = supabase
-            .from("production_headers")
-            .select("id")
-            .eq("nomor_mc", validated.nomorMc)
-            .eq("potongan_ke", potonganKeNum)
-            .eq("panel_no", validated.panelNo)
-            .limit(1);
 
-          // Jika ada operator, cek apakah operator yang SAMA sudah submit panel ini
-          if (operatorIdNum) {
-            dupQuery = dupQuery.eq("operator_id", operatorIdNum);
-          }
+          const isBsFromPcs = validated.pcsData && validated.pcsData.some((p: any) => p.isBs === true || parseInt(p.jmlHasilProduksi) === 0 || p.jmlHasilProduksi === "0");
+          const isBsFromFlag = Boolean(validated.isPanelGagal || String(validated.panelNo || "").toUpperCase().includes("(BS)"));
+          const isCurrentBs = isBsFromPcs || isBsFromFlag;
 
-          const { data: existingPanel } = await dupQuery;
+          // Panel BS tidak pernah memblokir dan tidak pernah diblokir sebagai duplikat panel normal
+          if (!isCurrentBs) {
+            let dupQuery = supabase
+              .from("production_headers")
+              .select(`
+                id,
+                panel_no,
+                production_details (
+                  jml_hasil_produksi,
+                  status_inspeksi,
+                  kategori_masalah,
+                  is_deleted
+                )
+              `)
+              .eq("nomor_mc", validated.nomorMc)
+              .eq("potongan_ke", potonganKeNum)
+              .eq("panel_no", validated.panelNo);
 
-          if (existingPanel && existingPanel.length > 0) {
-            return {
-              success: false,
-              error: `Potongan ke-${potonganKeNum} dengan Panel ${validated.panelNo} sudah ada untuk operator ini!`,
+            if (operatorIdNum) {
+              dupQuery = dupQuery.eq("operator_id", operatorIdNum);
+            }
+
+            const { data: existingPanels } = await dupQuery;
+
+            if (existingPanels && existingPanels.length > 0) {
+              const hasNormalDuplicate = existingPanels.some((ep: any) => {
+                const allDeleted = ep.production_details && ep.production_details.length > 0 &&
+                  ep.production_details.every((d: any) => d.is_deleted || d.status_inspeksi === "Dihapus");
+                if (allDeleted) return false;
+
+                const isEpBs = String(ep.panel_no || "").toUpperCase().includes("(BS)") ||
+                  ep.production_details?.some((d: any) => d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS" || String(d.kategori_masalah || "").toUpperCase().includes("BS"));
+                return !isEpBs;
+              });
+
+              if (hasNormalDuplicate) {
+                return {
+                  success: false,
+                  error: `Potongan ke-${potonganKeNum} dengan Panel ${validated.panelNo} sudah ada untuk operator ini!`,
+                };
+              }
             }
           }
         }
@@ -1420,32 +1447,72 @@ export async function updateProductionReport(
     }
 
     // Cek duplikasi potongan_ke dan panel_no
-    // Izinkan panel yang sama jika operator berbeda (kasus Mesin Masih Stop lintas shift)
+    // Izinkan panel yang sama jika operator berbeda, atau jika salah satu panel adalah panel BS / Gagal Cacat
     if (potonganKeNum && data.panelNo) {
       const operatorIdNum =
         data.operatorId && !isNaN(parseInt(data.operatorId))
           ? parseInt(data.operatorId)
           : null;
-      let dupQuery = supabase
+
+      const isBsFromPcs = data.pcsData && data.pcsData.some((p: any) => p.isBs === true || parseInt(p.jmlHasilProduksi) === 0 || p.jmlHasilProduksi === "0");
+      const isBsFromFlag = Boolean(data.isPanelGagal || String(data.panelNo || "").toUpperCase().includes("(BS)"));
+
+      const { data: currentHeaderInDb } = await supabase
         .from("production_headers")
-        .select("id")
-        .eq("nomor_mc", data.nomorMc)
-        .eq("potongan_ke", potonganKeNum)
-        .eq("panel_no", data.panelNo)
-        .neq("id", headerId)
-        .limit(1);
+        .select("panel_no, production_details(jml_hasil_produksi, status_inspeksi, kategori_masalah)")
+        .eq("id", headerId)
+        .maybeSingle();
 
-      if (operatorIdNum) {
-        dupQuery = dupQuery.eq("operator_id", operatorIdNum);
-      }
+      const isCurrentDbBs = currentHeaderInDb && (
+        String(currentHeaderInDb.panel_no || "").toUpperCase().includes("(BS)") ||
+        currentHeaderInDb.production_details?.some((d: any) => d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS" || String(d.kategori_masalah || "").toUpperCase().includes("BS"))
+      );
 
-      const { data: existingPanel } = await dupQuery;
+      const isCurrentBs = isBsFromPcs || isBsFromFlag || isCurrentDbBs;
 
-      if (existingPanel && existingPanel.length > 0) {
-        return {
-          success: false,
-          error: `Potongan ke-${potonganKeNum} dengan Panel ${data.panelNo} sudah ada untuk operator ini!`,
-        };
+      // Jika yang diedit adalah panel BS, jangan diblokir (operator boleh punya panel BS dan panel Normal untuk nomor yang sama)
+      if (!isCurrentBs) {
+        let dupQuery = supabase
+          .from("production_headers")
+          .select(`
+            id,
+            panel_no,
+            production_details (
+              jml_hasil_produksi,
+              status_inspeksi,
+              kategori_masalah,
+              is_deleted
+            )
+          `)
+          .eq("nomor_mc", data.nomorMc)
+          .eq("potongan_ke", potonganKeNum)
+          .eq("panel_no", data.panelNo)
+          .neq("id", headerId);
+
+        if (operatorIdNum) {
+          dupQuery = dupQuery.eq("operator_id", operatorIdNum);
+        }
+
+        const { data: existingPanels } = await dupQuery;
+
+        if (existingPanels && existingPanels.length > 0) {
+          const hasNormalDuplicate = existingPanels.some((ep: any) => {
+            const allDeleted = ep.production_details && ep.production_details.length > 0 &&
+              ep.production_details.every((d: any) => d.is_deleted || d.status_inspeksi === "Dihapus");
+            if (allDeleted) return false;
+
+            const isEpBs = String(ep.panel_no || "").toUpperCase().includes("(BS)") ||
+              ep.production_details?.some((d: any) => d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS" || String(d.kategori_masalah || "").toUpperCase().includes("BS"));
+            return !isEpBs;
+          });
+
+          if (hasNormalDuplicate) {
+            return {
+              success: false,
+              error: `Potongan ke-${potonganKeNum} dengan Panel ${data.panelNo} sudah ada untuk operator ini!`,
+            };
+          }
+        }
       }
     }
 
@@ -1558,9 +1625,12 @@ export async function updateProductionReport(
     if (data.pcsData && data.pcsData.length > 0) {
       const detailData = data.pcsData.map((pcsItem: any, idx: number) => {
         const detailId = generateExcelStyleId() + "-" + idx;
-        const jmlHasilNum = pcsItem.jmlHasilProduksi
-          ? parseInt(pcsItem.jmlHasilProduksi)
-          : null;
+        const isBsForce = Boolean(data.isPanelGagal || pcsItem.isBs || pcsItem.jmlHasilProduksi === "0" || pcsItem.jmlHasilProduksi === 0);
+        const jmlHasilNum = isBsForce
+          ? 0
+          : (pcsItem.jmlHasilProduksi
+            ? parseInt(pcsItem.jmlHasilProduksi)
+            : null);
         const pcsIndexNum = pcsItem.pcsIndex
           ? parseInt(pcsItem.pcsIndex)
           : null;

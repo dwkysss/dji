@@ -252,10 +252,10 @@ export default function QCEditDetailModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-scaleUp">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-4 animate-fadeIn">
+      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-scaleUp">
         {/* Modal Header */}
-        <div className="p-5 border-b border-slate-100 flex items-start justify-between shrink-0 bg-white">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-start justify-between shrink-0 bg-white">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-500/20 to-sky-100 text-[#0070bc] flex items-center justify-center shrink-0 shadow-2xs">
               {mode === "add_qc" ? <Plus className="w-5 h-5 stroke-[2.5]" /> : <Edit3 className="w-5 h-5 stroke-[2.5]" />}
@@ -291,7 +291,7 @@ export default function QCEditDetailModal({
         </div>
 
         {/* Modal Content */}
-        <div className="p-5 flex-1 overflow-y-auto flex flex-col gap-5 custom-scrollbar">
+        <div className="p-4 sm:p-5 flex-1 overflow-y-auto flex flex-col gap-4 sm:gap-5 no-scrollbar">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 font-bold flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -476,12 +476,12 @@ export default function QCEditDetailModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0 bg-slate-50">
+        <div className="p-3.5 sm:p-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 shrink-0 bg-slate-50">
           <button
             type="button"
             onClick={onClose}
             disabled={isSaving || isMoving}
-            className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer text-center"
           >
             Batal
           </button>
@@ -489,7 +489,7 @@ export default function QCEditDetailModal({
             type="button"
             onClick={handleSave}
             disabled={isSaving || isMoving}
-            className="px-6 py-2.5 rounded-xl bg-[#0070bc] hover:bg-[#005a96] active:scale-95 text-white font-bold text-xs transition-all shadow-md shadow-[#0070bc]/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#0070bc] hover:bg-[#005a96] active:scale-95 text-white font-bold text-xs transition-all shadow-md shadow-[#0070bc]/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isSaving ? (
               <>

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Trash2, CheckCircle, X, Edit3, Plus } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering, getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
+import { formatHHMM } from "@/lib/shift-utils";
 
 export default function MeterQCTable({
   detailsToDisplay,
@@ -353,12 +354,16 @@ export default function MeterQCTable({
           ? String(prevOperatorLastMeter)
           : (h.meter_awal !== undefined && h.meter_awal !== null ? cleanMeterVal(h.meter_awal) : "0");
 
+        const rawStartJam = h.tanggal_jam || h.created_at || item.tanggal_jam || item.created_at || "";
+        const startJamStr = rawStartJam ? formatHHMM(rawStartJam) : "-";
+
         items.push({
           id: `start-${idx}-${Math.random()}`,
           isStartRow: true,
           isMeter: true,
           displayNo: (globalRowCount + 1).toString(),
           tglStr: startTglStr,
+          jamStr: startJamStr,
           grpStr: grp,
           oprStr: opr,
           meterDisplay: startMeter,
@@ -434,6 +439,9 @@ export default function MeterQCTable({
           (item.production_defects && item.production_defects.some((d: any) => (d.detail || "").toUpperCase().includes("GAGAL CACAT") || (d.kategori || "").toUpperCase() === "G"))
         ) && !hasRealDefects;
 
+        const rawItemJam = h.tanggal_jam || h.created_at || item.tanggal_jam || item.created_at || "";
+        const itemJamStr = rawItemJam ? formatHHMM(rawItemJam) : "-";
+
         items.push({
           ...item,
           isMeter: true,
@@ -444,6 +452,7 @@ export default function MeterQCTable({
           isFinishReport: isFinishReport,
           displayNo: (globalRowCount + 1).toString(),
           tglStr: finalTglStr,
+          jamStr: itemJamStr,
           grpStr: finalGrpStr,
           oprStr: finalOprStr,
           meterDisplay,
@@ -524,7 +533,7 @@ export default function MeterQCTable({
   const isSomeSelected = allSelectableIds.some((id) => selectedIds.includes(id)) && !isAllSelected;
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-xs">
+    <div className="overflow-x-auto no-scrollbar rounded-lg border border-slate-200 shadow-xs">
       <table className="w-full text-left border-collapse">
         <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
           <tr>
@@ -542,6 +551,7 @@ export default function MeterQCTable({
             </th>
             <th className="sticky left-7 z-20 bg-slate-50 px-1 py-2 w-7 text-center border-r border-slate-200">NO</th>
             <th className="px-2 py-2 w-24 border-r border-slate-100">TGL</th>
+            <th className="px-1.5 py-2 w-14 text-center border-r border-slate-100 whitespace-nowrap">JAM</th>
             <th className="px-1 py-2 text-center w-12 border-r border-slate-100">GROUP</th>
             <th className="px-2 py-2 w-28 border-r border-slate-100">OPERATOR</th>
             <th className="px-1 py-2 text-center w-14 border-r border-slate-100">METER</th>
@@ -556,7 +566,7 @@ export default function MeterQCTable({
             if (item.isTotalRow) {
               return (
                 <tr key={item.id} className="bg-slate-100 border-t border-b border-slate-200 font-semibold text-slate-700">
-                  <td colSpan={6} className="px-3 py-2 text-right whitespace-nowrap font-bold">
+                  <td colSpan={7} className="px-3 py-2 text-right whitespace-nowrap font-bold">
                     {item.totalLabel}
                   </td>
                   <td className="px-1 py-2 text-center text-slate-800 font-extrabold whitespace-nowrap">
@@ -570,7 +580,7 @@ export default function MeterQCTable({
             if (item.isGrandTotalRow) {
               return (
                 <tr key={item.id} className="bg-slate-200/80 border-t-2 border-b-2 border-slate-300 font-bold text-slate-800">
-                  <td colSpan={6} className="px-3 py-2 text-right whitespace-nowrap uppercase tracking-wider text-[11px] font-black">
+                  <td colSpan={7} className="px-3 py-2 text-right whitespace-nowrap uppercase tracking-wider text-[11px] font-black">
                     {item.totalLabel}
                   </td>
                   <td className="px-1 py-2 text-center text-slate-900 font-black whitespace-nowrap">
@@ -592,6 +602,9 @@ export default function MeterQCTable({
                   </td>
                   <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100">
                     {item.tglStr}
+                  </td>
+                  <td className="px-1.5 py-1.5 text-slate-600 text-center font-mono text-[11px] whitespace-nowrap border-r border-slate-100">
+                    {item.jamStr || "-"}
                   </td>
                   <td className="px-1 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100">
                     {item.grpStr}
@@ -671,6 +684,9 @@ export default function MeterQCTable({
                 <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap text-xs w-24 border-r border-slate-100">
                   {item.showTgl ? item.tglStr : ""}
                 </td>
+                <td className="px-1.5 py-1.5 text-slate-600 text-center font-mono text-[11px] whitespace-nowrap border-r border-slate-100">
+                  {item.jamStr || "-"}
+                </td>
                 <td className="px-1 py-1.5 font-medium text-slate-700 text-center text-xs w-12 border-r border-slate-100">
                   {item.showGrp ? item.grpStr : ""}
                 </td>
@@ -709,9 +725,7 @@ export default function MeterQCTable({
                           <div
                             key={idx}
                             className={
-                              cItem.isLineQc
-                                ? "text-[#0070bc] font-medium"
-                                : (!item.isGradable || item.isGagalCacatOnly)
+                              (!item.isGradable || item.isGagalCacatOnly)
                                 ? "text-slate-500 font-medium"
                                 : "text-rose-600 font-medium"
                             }

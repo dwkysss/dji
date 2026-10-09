@@ -62,6 +62,44 @@ function formatDateDisplay(isoStr: string): string {
   return `${day} ${shortMonth || ""} ${year}`;
 }
 
+function formatDateRangeDisplay(startIso: string, endIso: string): string {
+  if (!startIso) return "";
+  if (!endIso || startIso === endIso) return formatDateDisplay(startIso);
+  const p1 = startIso.split("-");
+  const p2 = endIso.split("-");
+  if (p1.length !== 3 || p2.length !== 3) {
+    return `${formatDateDisplay(startIso)} - ${formatDateDisplay(endIso)}`;
+  }
+  const d1 = parseInt(p1[2], 10);
+  const m1 = parseInt(p1[1], 10) - 1;
+  const y1 = p1[0];
+  const d2 = parseInt(p2[2], 10);
+  const m2 = parseInt(p2[1], 10) - 1;
+  const y2 = p2[0];
+  const shortMonth = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "Mei",
+    "Jun",
+    "Jul",
+    "Agu",
+    "Sep",
+    "Okt",
+    "Nov",
+    "Des",
+  ];
+
+  if (y1 === y2) {
+    if (m1 === m2) {
+      return `${d1} - ${d2} ${shortMonth[m1]} ${y1}`;
+    }
+    return `${d1} ${shortMonth[m1]} - ${d2} ${shortMonth[m2]} ${y1}`;
+  }
+  return `${d1} ${shortMonth[m1]} ${y1} - ${d2} ${shortMonth[m2]} ${y2}`;
+}
+
 function toIsoString(year: number, month: number, day: number): string {
   const m = String(month + 1).padStart(2, "0");
   const d = String(day).padStart(2, "0");
@@ -283,7 +321,7 @@ export default function DateRangePicker({
   // Display text in the trigger
   let displayText = "";
   if (tempStart && tempEnd && tempStart !== tempEnd) {
-    displayText = `${formatDateDisplay(tempStart)} - ${formatDateDisplay(tempEnd)}`;
+    displayText = formatDateRangeDisplay(tempStart, tempEnd);
   } else if (tempStart) {
     displayText = formatDateDisplay(tempStart);
   }
@@ -293,7 +331,7 @@ export default function DateRangePicker({
       {/* Trigger Button */}
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`h-11 px-3.5 rounded-xl border transition-all duration-200 flex items-center justify-between gap-2 select-none cursor-pointer ${
+        className={`h-11 px-2.5 sm:px-3.5 rounded-xl border transition-all duration-200 flex items-center justify-between gap-2 select-none cursor-pointer ${
           isOpen
             ? "border-[#0070bc] ring-4 ring-sky-500/15 bg-white shadow-sm"
             : displayText
@@ -301,7 +339,7 @@ export default function DateRangePicker({
             : "border-slate-200 hover:border-slate-300 bg-slate-50/70 hover:bg-white shadow-xs"
         } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
       >
-        <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 overflow-hidden">
           <div
             className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
               displayText || isOpen
@@ -317,7 +355,7 @@ export default function DateRangePicker({
                 {displayText}
               </span>
               {dayCount > 1 && (
-                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-sky-100 text-[#0070bc] shrink-0 border border-sky-200/60">
+                <span className="hidden min-[400px]:inline-flex px-1.5 py-0.5 rounded-md text-[10px] font-black bg-sky-100 text-[#0070bc] shrink-0 border border-sky-200/60">
                   {dayCount} hari
                 </span>
               )}
@@ -351,7 +389,7 @@ export default function DateRangePicker({
       {/* Popover Calendar */}
       {isOpen && (
         <div
-          className={`absolute z-50 mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 w-[320px] sm:w-[350px] animate-fadeIn ${
+          className={`absolute z-50 mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 w-[calc(100vw-2.5rem)] max-w-[340px] sm:w-[350px] animate-fadeIn ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >

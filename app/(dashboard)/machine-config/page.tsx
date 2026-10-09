@@ -260,33 +260,33 @@ export default function MachineConfigPage() {
   }, [categoriesMap, requiredBlockDefects]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-12">
       {/* HEADER CARD */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-[28px] border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
-            <SlidersHorizontal className="w-7 h-7 text-white" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[28px] border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+            <SlidersHorizontal className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">
                 Pengaturan Parameter & Aturan Mesin
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 uppercase tracking-wide">
                 Konfigurasi System
               </span>
             </div>
-            <p className="text-sm font-semibold text-slate-500 mt-0.5">
+            <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5 line-clamp-2">
               Kelola default PCS, Mode Input (Panel/Meter), dan instruksi Wajib Nomor Blok per mesin
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <button
             onClick={() => loadData()}
             disabled={loading}
-            className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+            className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh Data"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
@@ -294,7 +294,7 @@ export default function MachineConfigPage() {
           <button
             onClick={handleSaveAll}
             disabled={saving}
-            className="px-6 py-3 rounded-2xl bg-[#0070bc] hover:bg-blue-700 text-white font-black text-xs shadow-md shadow-blue-200 transition-all active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-[#0070bc] hover:bg-blue-700 text-white font-black text-xs shadow-md shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 whitespace-nowrap"
           >
             {saving ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -325,13 +325,13 @@ export default function MachineConfigPage() {
       )}
 
       {/* TAB SWITCHER & MAIN CONTENT CONTAINER */}
-      <div className="bg-white rounded-[28px] border border-slate-200 p-6 shadow-sm space-y-6">
+      <div className="bg-white rounded-2xl sm:rounded-[28px] border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4 sm:space-y-6">
         {/* TABS HEADER */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 pb-4">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full sm:w-auto pb-1 sm:pb-0">
             <button
               onClick={() => setActiveTab("MACHINES")}
-              className={`px-5 py-3 rounded-2xl font-black text-xs transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer border ${
+              className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black text-xs transition-all flex items-center gap-2 sm:gap-2.5 whitespace-nowrap cursor-pointer border shrink-0 ${
                 activeTab === "MACHINES"
                   ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
                   : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
@@ -346,7 +346,7 @@ export default function MachineConfigPage() {
 
             <button
               onClick={() => setActiveTab("BLOCK_REQUIRED")}
-              className={`px-5 py-3 rounded-2xl font-black text-xs transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer border ${
+              className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black text-xs transition-all flex items-center gap-2 sm:gap-2.5 whitespace-nowrap cursor-pointer border shrink-0 ${
                 activeTab === "BLOCK_REQUIRED"
                   ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
                   : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
@@ -361,7 +361,7 @@ export default function MachineConfigPage() {
           </div>
 
           {activeTab === "MACHINES" && (
-            <div className="relative min-w-[240px]">
+            <div className="relative w-full sm:w-auto sm:min-w-[240px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -520,16 +520,16 @@ export default function MachineConfigPage() {
                     key={catCode}
                     className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-3"
                   >
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                      <div className="flex items-center gap-3">
-                        <span className="bg-slate-900 text-amber-400 font-black text-xs px-3 py-1 rounded-xl font-mono">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-3 gap-2">
+                      <div className="flex items-center gap-2.5 sm:gap-3">
+                        <span className="bg-slate-900 text-amber-400 font-black text-xs px-2.5 sm:px-3 py-1 rounded-xl font-mono shrink-0">
                           [{catCode}]
                         </span>
-                        <span className="text-sm font-extrabold text-slate-800">
+                        <span className="text-xs sm:text-sm font-extrabold text-slate-800">
                           {catGroup.desc}
                         </span>
                       </div>
-                      <span className="text-xs font-black text-slate-500 bg-slate-200/70 px-2.5 py-1 rounded-lg">
+                      <span className="text-[11px] sm:text-xs font-black text-slate-500 bg-slate-200/70 px-2.5 py-1 rounded-lg self-start sm:self-auto">
                         {reqCount} / {catGroup.items.length} Wajib Blok
                       </span>
                     </div>

@@ -2461,12 +2461,12 @@ export default function DashboardPage() {
       {/* Welcome Header */}
       <div
         data-tour="dashboard-header"
-        className="bg-white border border-[#e9ecef] rounded-[24px] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.015)] relative z-10"
+        className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.015)] relative z-10"
       >
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-wrap">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3.5 sm:gap-4">
+          <div className="flex items-center justify-between w-full md:w-auto">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight leading-tight">
                 <span className="bg-gradient-to-r from-slate-900 via-[#004777] to-[#0070bc] bg-clip-text text-transparent drop-shadow-sm">
                   DASHBOARD
                 </span>
@@ -2487,13 +2487,37 @@ export default function DashboardPage() {
                 </span>
               )}
             </div>
+
+            {/* Dashboard Mode Toggle on Mobile */}
+            <div className="md:hidden flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200 shadow-inner">
+              <button
+                onClick={() => setDashboardMode("PRODUKSI")}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1 ${dashboardMode === "PRODUKSI"
+                  ? "bg-white text-[#0070bc] shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
+                  : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                <BarChart2 className="w-3 h-3" />
+                Produksi
+              </button>
+              <button
+                onClick={() => setDashboardMode("KEHADIRAN")}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1 ${dashboardMode === "KEHADIRAN"
+                  ? "bg-white text-emerald-600 shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
+                  : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                <Users className="w-3 h-3" />
+                Hadir
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar w-full md:w-auto pb-0.5 md:pb-0">
             <button
               type="button"
               onClick={() => setIsTourOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50 px-3.5 py-1.5 text-xs font-extrabold text-[#0070bc] shadow-sm transition-all hover:bg-sky-100"
+              className="inline-flex items-center gap-1.5 shrink-0 rounded-full border border-sky-100 bg-sky-50 px-3 py-1.5 text-xs font-extrabold text-[#0070bc] shadow-sm transition-all hover:bg-sky-100"
             >
               <HelpCircle className="w-3.5 h-3.5" />
               Tutorial
@@ -2501,14 +2525,14 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setIsMonthlyRekapModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-[#0070bc] px-3.5 py-1.5 text-xs font-extrabold text-white shadow-sm transition-all hover:bg-[#005a96]"
+              className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-[#0070bc] px-3 py-1.5 text-xs font-extrabold text-white shadow-sm transition-all hover:bg-[#005a96]"
               title="Download Rekap Laporan Bulanan"
             >
               <Download className="w-3.5 h-3.5" />
               Rekap Excel
             </button>
-            {/* Dashboard Mode Toggle */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200 shadow-inner">
+            {/* Dashboard Mode Toggle (Desktop & Tablet) */}
+            <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200 shadow-inner shrink-0">
               <button
                 onClick={() => setDashboardMode("PRODUKSI")}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1.5 ${dashboardMode === "PRODUKSI"
@@ -2534,7 +2558,7 @@ export default function DashboardPage() {
             <button
               onClick={() => loadLiveData(true)}
               disabled={isRefreshing}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group disabled:opacity-50"
+              className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group disabled:opacity-50"
               title="Segarkan data dari server"
             >
               <RefreshCw className={`w-3.5 h-3.5 transition-transform duration-500 ${isRefreshing ? "animate-spin text-sky-600" : "group-hover:rotate-180"}`} />
@@ -2543,7 +2567,7 @@ export default function DashboardPage() {
 
             <button
               onClick={handleResetFilters}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group"
+              className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group"
               title="Reset Slicer"
             >
               Reset
@@ -2555,23 +2579,23 @@ export default function DashboardPage() {
       {/* Slicers Container */}
       <div
         data-tour="dashboard-slicers"
-        className="flex flex-col lg:flex-row lg:flex-wrap xl:flex-nowrap gap-4"
+        className="grid grid-cols-2 lg:flex lg:flex-row lg:flex-wrap xl:flex-nowrap gap-2.5 sm:gap-4"
       >
         {/* Date Range Slicer */}
-        <div className="flex-1 flex flex-wrap items-center justify-between gap-2 bg-white border border-[#e9ecef] rounded-[24px] p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400">
-              <Calendar className="w-4 h-4" />
+        <div className={`flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:flex-1 lg:flex-row lg:items-center ${dateRangeMode === "CUSTOM" ? "col-span-2 lg:col-span-1" : ""}`}>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
-            <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 whitespace-nowrap">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 whitespace-nowrap">
               Range Waktu:
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full lg:w-auto">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full sm:w-auto">
               <button
                 onClick={() => setDateRangeMode("TODAY")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "TODAY"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer text-center ${dateRangeMode === "TODAY"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -2580,7 +2604,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("7DAYS")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "7DAYS"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer text-center ${dateRangeMode === "7DAYS"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -2589,7 +2613,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("30DAYS")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "30DAYS"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer text-center ${dateRangeMode === "30DAYS"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -2598,7 +2622,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("CUSTOM")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "CUSTOM"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer text-center ${dateRangeMode === "CUSTOM"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -2609,8 +2633,8 @@ export default function DashboardPage() {
 
             {/* Custom Calendar Inputs (Only visible when CUSTOM is active) */}
             {dateRangeMode === "CUSTOM" && (
-              <div className="flex items-center gap-3 animate-fadeIn">
-                <div className="flex items-center gap-1.5">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto animate-fadeIn mt-1 sm:mt-0">
+                <div className="flex items-center justify-between sm:justify-start gap-1.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">
                     Mulai:
                   </span>
@@ -2618,10 +2642,10 @@ export default function DashboardPage() {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer"
+                    className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer flex-1 sm:flex-initial"
                   />
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center justify-between sm:justify-start gap-1.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">
                     Sampai:
                   </span>
@@ -2629,7 +2653,7 @@ export default function DashboardPage() {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer"
+                    className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer flex-1 sm:flex-initial"
                   />
                 </div>
               </div>
@@ -2638,22 +2662,22 @@ export default function DashboardPage() {
         </div>
 
         {/* Metric Mode Slicer */}
-        <div className="flex items-center justify-between gap-2 bg-white border border-[#e9ecef] rounded-[24px] p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] lg:shrink-0 w-full lg:w-auto">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400">
-              <SlidersHorizontal className="w-4 h-4" />
+        <div className="flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:w-auto lg:shrink-0 lg:flex-row lg:items-center">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+              <SlidersHorizontal className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
-            <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 whitespace-nowrap">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 whitespace-nowrap">
               Kategori:
             </span>
           </div>
-          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150">
+          <div className="grid grid-cols-2 lg:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full lg:w-auto">
             <button
               onClick={() => {
                 setMetricMode("PCS");
                 setSelectedMachines([]);
               }}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${metricMode === "PCS"
+              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center ${metricMode === "PCS"
                 ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                 : "text-slate-500 hover:text-slate-800"
                 }`}
@@ -2665,7 +2689,7 @@ export default function DashboardPage() {
                 setMetricMode("METER");
                 setSelectedMachines([]);
               }}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${metricMode === "METER"
+              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center ${metricMode === "METER"
                 ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                 : "text-slate-500 hover:text-slate-800"
                 }`}
@@ -2676,31 +2700,31 @@ export default function DashboardPage() {
         </div>
 
         {/* Entity Filters (Machine & Operator) */}
-        <div className="flex flex-col gap-3 bg-white border border-[#e9ecef] rounded-[24px] p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] lg:shrink-0 flex-1 lg:flex-none">
+        <div className="contents lg:flex lg:flex-col lg:gap-3 lg:bg-white lg:border lg:border-[#e9ecef] lg:rounded-[24px] lg:p-4 lg:shadow-[0_8px_30px_rgba(0,0,0,0.015)] lg:shrink-0 lg:flex-1 xl:flex-none">
 
           {/* Machine Slicer */}
-          <div className="flex items-center justify-between w-full gap-4 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400">
-                <Layers className="w-4 h-4" />
+          <div className="flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl p-3 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:bg-transparent lg:border-0 lg:rounded-none lg:p-0 lg:shadow-none lg:flex-row lg:items-center lg:gap-4 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+                <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
-              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1">
+              <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1">
                 Mesin:
               </span>
             </div>
-            <div className="relative" ref={machineDropdownRef}>
+            <div className="relative w-full lg:w-auto" ref={machineDropdownRef}>
               <button
                 onClick={() => setIsMachineDropdownOpen(!isMachineDropdownOpen)}
-                className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer min-w-[120px] flex justify-between items-center transition-colors"
+                className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer w-full lg:min-w-[120px] flex justify-between items-center transition-colors"
               >
-                <span className="truncate max-w-[100px]" title={machineButtonLabel}>
+                <span className="truncate max-w-[110px]" title={machineButtonLabel}>
                   {machineButtonLabel}
                 </span>
-                <span className="text-[9px] ml-2 text-slate-400">▼</span>
+                <span className="text-[9px] ml-1.5 text-slate-400">▼</span>
               </button>
 
               {isMachineDropdownOpen && (
-                <div className="absolute top-full mt-2 right-0 w-72 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.14)] z-50 p-3 max-h-[440px] flex flex-col">
+                <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto top-28 sm:top-full mt-2 sm:right-0 sm:w-80 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] z-50 p-3 max-h-[75vh] sm:max-h-[440px] flex flex-col">
                   {/* Header */}
                   <div className="flex justify-between items-center pb-2.5 mb-2.5 border-b border-slate-100">
                     <div className="flex items-center gap-1.5">
@@ -2858,31 +2882,31 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="w-full h-px bg-slate-100 shrink-0" />
+          <div className="hidden lg:block w-full h-px bg-slate-100 shrink-0" />
 
           {/* Operator Slicer */}
-          <div className="flex items-center justify-between w-full gap-4 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400">
-                <Users className="w-4 h-4" />
+          <div className="flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl p-3 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:bg-transparent lg:border-0 lg:rounded-none lg:p-0 lg:shadow-none lg:flex-row lg:items-center lg:gap-4 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
-              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1">
+              <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1">
                 Pegawai:
               </span>
             </div>
-            <div className="relative" ref={operatorDropdownRef}>
+            <div className="relative w-full lg:w-auto" ref={operatorDropdownRef}>
               <button
                 onClick={() => setIsOperatorDropdownOpen(!isOperatorDropdownOpen)}
-                className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer min-w-[130px] flex justify-between items-center transition-colors"
+                className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer w-full lg:min-w-[130px] flex justify-between items-center transition-colors"
               >
                 <span className="truncate max-w-[110px]" title={operatorButtonLabel}>
                   {operatorButtonLabel}
                 </span>
-                <span className="text-[9px] ml-2 text-slate-400">▼</span>
+                <span className="text-[9px] ml-1.5 text-slate-400">▼</span>
               </button>
 
               {isOperatorDropdownOpen && (
-                <div className="absolute top-full mt-2 right-0 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.14)] z-50 p-3 max-h-[440px] flex flex-col">
+                <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto top-28 sm:top-full mt-2 sm:right-0 sm:w-96 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] z-50 p-3 max-h-[75vh] sm:max-h-[440px] flex flex-col">
                   {/* Header */}
                   <div className="flex justify-between items-center pb-2.5 mb-2.5 border-b border-slate-100">
                     <div className="flex items-center gap-1.5">
@@ -3054,7 +3078,7 @@ export default function DashboardPage() {
           {/* Grid KPI Cards / Slicer Buttons */}
           <div
             data-tour="dashboard-kpi"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
+            className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-5"
           >
             {dashboardViewType === "OEE" ? (
               <>
@@ -3364,8 +3388,8 @@ export default function DashboardPage() {
               <>
                 {/* CLASSIC Card 1: Hasil Produksi (Slider Slicer) */}
                 <div
-                  className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] group transition-all duration-300 flex flex-col ${activeFilter === "ALL"
-                    ? "bg-[#004777] shadow-xl scale-[1.03] ring-2 ring-[#0070bc] ring-offset-2 text-white"
+                  className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[8.5rem] sm:min-h-[11rem] group transition-all duration-300 flex flex-col ${activeFilter === "ALL"
+                    ? "bg-[#004777] shadow-xl scale-[1.02] sm:scale-[1.03] ring-2 ring-[#0070bc] ring-offset-2 text-white"
                     : "bg-[#0070bc] shadow-md hover:scale-[1.01] text-white"
                     }`}
                   onTouchStart={handleTouchStart}
@@ -3383,26 +3407,26 @@ export default function DashboardPage() {
                         setActiveFilter("ALL");
                         setMetricMode("PCS");
                       }}
-                      className="w-1/2 cursor-pointer p-5 flex flex-col justify-between h-full relative"
+                      className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
                     >
-                      <div className="flex justify-between items-start relative z-10">
-                        <span className="text-sky-100 text-[10px] font-bold uppercase tracking-wider">
+                      <div className="flex justify-between items-start relative z-10 gap-1">
+                        <span className="text-sky-100 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
                           Total Produksi ({gradeLabel})
                         </span>
-                        <span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[10px] font-bold">
+                        <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[9px] sm:text-[10px] font-bold shrink-0">
                           All
                         </span>
                       </div>
-                      <div className="mt-2 relative z-10">
-                        <div className="text-3xl font-black tracking-tight flex items-baseline gap-1">
+                      <div className="mt-1 sm:mt-2 relative z-10">
+                        <div className="text-xl sm:text-3xl font-black tracking-tight flex items-baseline gap-1">
                           {stats.totalProduksi.toLocaleString()}
-                          <span className="text-sm font-semibold opacity-80">
+                          <span className="text-xs sm:text-sm font-semibold opacity-80">
                             Panel
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 mt-1 text-[11px] text-sky-200 font-semibold">
-                          <TrendingUp className="w-3.5 h-3.5" />
-                          <span>Panel</span>
+                        <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-sky-200 font-semibold truncate">
+                          <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                          <span className="truncate">Panel</span>
                         </div>
                       </div>
                     </div>
@@ -3412,55 +3436,55 @@ export default function DashboardPage() {
                         setActiveFilter("ALL");
                         setMetricMode("METER");
                       }}
-                      className="w-1/2 cursor-pointer p-5 flex flex-col justify-between h-full relative"
+                      className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
                     >
-                      <div className="flex justify-between items-start relative z-10">
-                        <span className="text-sky-100 text-[10px] font-bold uppercase tracking-wider">
+                      <div className="flex justify-between items-start relative z-10 gap-1">
+                        <span className="text-sky-100 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
                           Total Produksi ({gradeLabel})
                         </span>
-                        <span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[10px] font-bold">
+                        <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[9px] sm:text-[10px] font-bold shrink-0">
                           All
                         </span>
                       </div>
-                      <div className="mt-2 relative z-10">
-                        <div className="text-3xl font-black tracking-tight flex items-baseline gap-1">
+                      <div className="mt-1 sm:mt-2 relative z-10">
+                        <div className="text-xl sm:text-3xl font-black tracking-tight flex items-baseline gap-1">
                           {stats.totalProduksiMeter.toLocaleString()}
-                          <span className="text-sm font-semibold opacity-80">
+                          <span className="text-xs sm:text-sm font-semibold opacity-80">
                             Meter
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 mt-1 text-[11px] text-sky-200 font-semibold">
-                          <Layers className="w-3.5 h-3.5" />
-                          <span>Bentuk Gulungan</span>
+                        <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-sky-200 font-semibold truncate">
+                          <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                          <span className="truncate">Gulungan</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div
-                    className="absolute bottom-3 right-3 flex items-center gap-1 z-20"
+                    className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 flex items-center gap-1 z-20"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
                       onClick={() => {
                         setMetricMode("PCS");
                       }}
-                      className="p-3 -m-3 cursor-pointer"
+                      className="p-2 sm:p-3 -m-2 sm:-m-3 cursor-pointer"
                       title="Geser ke PCS"
                     >
                       <div
-                        className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "PCS" ? "w-4 bg-white" : "w-1.5 bg-sky-350"}`}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "PCS" ? "w-3.5 sm:w-4 bg-white" : "w-1.5 bg-sky-350"}`}
                       />
                     </button>
                     <button
                       onClick={() => {
                         setMetricMode("METER");
                       }}
-                      className="p-3 -m-3 cursor-pointer ml-3"
+                      className="p-2 sm:p-3 -m-2 sm:-m-3 cursor-pointer ml-2 sm:ml-3"
                       title="Geser ke METER"
                     >
                       <div
-                        className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "METER" ? "w-4 bg-white" : "w-1.5 bg-sky-350"}`}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "METER" ? "w-3.5 sm:w-4 bg-white" : "w-1.5 bg-sky-350"}`}
                       />
                     </button>
                   </div>
@@ -3468,8 +3492,8 @@ export default function DashboardPage() {
 
                 {/* CLASSIC Card 2: Lolos QC */}
                 <div
-                  className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] group border transition-all duration-300 flex flex-col ${activeFilter === "LOLOS"
-                    ? "bg-sky-50/50 border-sky-500 text-slate-800 shadow-md scale-[1.03] ring-2 ring-sky-500"
+                  className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[8.5rem] sm:min-h-[11rem] group border transition-all duration-300 flex flex-col ${activeFilter === "LOLOS"
+                    ? "bg-sky-50/50 border-sky-500 text-slate-800 shadow-md scale-[1.02] sm:scale-[1.03] ring-2 ring-sky-500"
                     : "bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs"
                     }`}
                   onTouchStart={handleTouchStart}
@@ -3486,14 +3510,14 @@ export default function DashboardPage() {
                         setActiveFilter("LOLOS");
                         setMetricMode("PCS");
                       }}
-                      className="w-1/2 cursor-pointer p-5 flex flex-col justify-between h-full relative"
+                      className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
                     >
-                      <div className="flex justify-between items-start relative z-10">
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                          Cacat Produksi Panel ({gradeLabel})
+                      <div className="flex justify-between items-start relative z-10 gap-1">
+                        <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
+                          Cacat Panel ({gradeLabel})
                         </span>
                         <span
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${activeFilter === "LOLOS"
+                          className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${activeFilter === "LOLOS"
                             ? "bg-sky-100 text-[#0070bc]"
                             : "bg-slate-100 text-slate-500"
                             }`}
@@ -3501,15 +3525,14 @@ export default function DashboardPage() {
                           QC
                         </span>
                       </div>
-                      <div className="mt-2 relative z-10">
-                        <div className="text-3xl font-black tracking-tight text-slate-800">
+                      <div className="mt-1 sm:mt-2 relative z-10">
+                        <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800">
                           {stats.persentaseCacatPanel.toFixed(1)}%
                         </div>
-                        <div className="flex items-center gap-1 mt-1 text-[11px] text-[#0070bc] font-bold">
-                          <TrendingUp className="w-3.5 h-3.5" />
-                          <span>
-                            {stats.countMasalahPanel} panel cacat dari{" "}
-                            {stats.totalPanelValid} panel
+                        <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-[#0070bc] font-bold truncate">
+                          <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                          <span className="truncate">
+                            {stats.countMasalahPanel} cacat / {stats.totalPanelValid} panel
                           </span>
                         </div>
                       </div>
@@ -3520,14 +3543,14 @@ export default function DashboardPage() {
                         setActiveFilter("LOLOS");
                         setMetricMode("METER");
                       }}
-                      className="w-1/2 cursor-pointer p-5 flex flex-col justify-between h-full relative"
+                      className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
                     >
-                      <div className="flex justify-between items-start relative z-10">
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                          Cacat Produksi Meteran ({gradeLabel})
+                      <div className="flex justify-between items-start relative z-10 gap-1">
+                        <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
+                          Cacat Meter ({gradeLabel})
                         </span>
                         <span
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${activeFilter === "LOLOS"
+                          className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${activeFilter === "LOLOS"
                             ? "bg-sky-100 text-[#0070bc]"
                             : "bg-slate-100 text-slate-500"
                             }`}
@@ -3535,20 +3558,20 @@ export default function DashboardPage() {
                           QC
                         </span>
                       </div>
-                      <div className="mt-2 relative z-10">
-                        <div className="text-3xl font-black tracking-tight text-slate-800">
+                      <div className="mt-1 sm:mt-2 relative z-10">
+                        <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800">
                           {stats.persentaseCacatMeteran.toFixed(1)}%
                         </div>
-                        <div className="flex items-center gap-1 mt-1 text-[11px] text-[#0070bc] font-bold">
-                          <Layers className="w-3.5 h-3.5" />
-                          <span>{stats.countMasalahMeteran} titik</span>
+                        <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-[#0070bc] font-bold truncate">
+                          <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                          <span className="truncate">{stats.countMasalahMeteran} titik</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div
-                    className="absolute bottom-3 right-3 flex items-center gap-1 z-20"
+                    className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 flex items-center gap-1 z-20"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
@@ -3556,11 +3579,11 @@ export default function DashboardPage() {
                         setMetricMode("PCS");
                         if (activeFilter === "LOLOS") setActiveFilter("LOLOS");
                       }}
-                      className="p-3 -m-3 cursor-pointer"
+                      className="p-2 sm:p-3 -m-2 sm:-m-3 cursor-pointer"
                       title="Geser ke QC Panel"
                     >
                       <div
-                        className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "PCS" ? (activeFilter === "LOLOS" ? "w-4 bg-sky-500" : "w-4 bg-slate-800") : "w-1.5 bg-slate-300 hover:bg-slate-400"}`}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "PCS" ? (activeFilter === "LOLOS" ? "w-3.5 sm:w-4 bg-sky-500" : "w-3.5 sm:w-4 bg-slate-800") : "w-1.5 bg-slate-300 hover:bg-slate-400"}`}
                       />
                     </button>
                     <button
@@ -3568,11 +3591,11 @@ export default function DashboardPage() {
                         setMetricMode("METER");
                         if (activeFilter === "LOLOS") setActiveFilter("LOLOS");
                       }}
-                      className="p-3 -m-3 cursor-pointer ml-3"
+                      className="p-2 sm:p-3 -m-2 sm:-m-3 cursor-pointer ml-2 sm:ml-3"
                       title="Geser ke QC Meter"
                     >
                       <div
-                        className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "METER" ? (activeFilter === "LOLOS" ? "w-4 bg-sky-500" : "w-4 bg-slate-800") : "w-1.5 bg-slate-300 hover:bg-slate-400"}`}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${metricMode === "METER" ? (activeFilter === "LOLOS" ? "w-3.5 sm:w-4 bg-sky-500" : "w-3.5 sm:w-4 bg-slate-800") : "w-1.5 bg-slate-300 hover:bg-slate-400"}`}
                       />
                     </button>
                   </div>
@@ -3581,20 +3604,20 @@ export default function DashboardPage() {
                 {/* CLASSIC Card 3: Efisiensi Waktu */}
                 <div
                   onClick={() => setActiveFilter("EFISIENSI")}
-                  className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] border border-[#e9ecef] cursor-pointer p-5 flex flex-col justify-between transition-all duration-300 ${activeFilter === "EFISIENSI"
-                    ? "bg-emerald-50/40 shadow-[0_8px_30px_rgba(16,185,129,0.12)] text-slate-800"
+                  className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[8.5rem] sm:min-h-[11rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-5 flex flex-col justify-between transition-all duration-300 ${activeFilter === "EFISIENSI"
+                    ? "bg-emerald-50/40 shadow-[0_8px_30px_rgba(16,185,129,0.12)] text-slate-800 scale-[1.02] sm:scale-[1.03]"
                     : "bg-white hover:shadow-xs text-slate-800"
                     }`}
                 >
                   {activeFilter === "EFISIENSI" && (
-                    <div className="absolute inset-0 ring-2 ring-emerald-500 rounded-[24px] pointer-events-none" />
+                    <div className="absolute inset-0 ring-2 ring-emerald-500 rounded-2xl sm:rounded-[24px] pointer-events-none" />
                   )}
-                  <div className="flex justify-between items-start relative z-10">
-                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                      Efisiensi Waktu Kerja ({gradeLabel})
+                  <div className="flex justify-between items-start relative z-10 gap-1">
+                    <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
+                      Efisiensi Kerja ({gradeLabel})
                     </span>
                     <span
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${activeFilter === "EFISIENSI"
+                      className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${activeFilter === "EFISIENSI"
                         ? "bg-emerald-100 text-emerald-600"
                         : "bg-slate-100 text-slate-500"
                         }`}
@@ -3602,28 +3625,25 @@ export default function DashboardPage() {
                       %
                     </span>
                   </div>
-                  <div className="mt-2 relative z-10">
-                    <div className="text-3xl font-black tracking-tight text-slate-800">
+                  <div className="mt-1 sm:mt-2 relative z-10">
+                    <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800">
                       {stats.efisiensi.toFixed(1)}%
                     </div>
                     <div
-                      className={`flex items-center gap-1.5 mt-1 text-[11px] font-extrabold ${stats.totalDowntimeDetik > 0 ? "text-amber-600" : "text-emerald-600"}`}
+                      className={`flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] font-extrabold truncate ${stats.totalDowntimeDetik > 0 ? "text-amber-600" : "text-emerald-600"}`}
                     >
                       {stats.totalDowntimeDetik > 0 ? (
                         <>
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                          <span>
-                            Downtime: {formatDuration(stats.totalDowntimeDetik)}{" "}
-                            / Total:{" "}
-                            {formatTotalHours(stats.totalDetikTersedia)}
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                          <span className="truncate">
+                            DT: {formatDuration(stats.totalDowntimeDetik)}
                           </span>
                         </>
                       ) : (
                         <>
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          <span>
-                            Downtime: 0s / Total:{" "}
-                            {formatTotalHours(stats.totalDetikTersedia)}
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="truncate">
+                            Downtime: 0s
                           </span>
                         </>
                       )}
@@ -3637,34 +3657,34 @@ export default function DashboardPage() {
                     setActiveFilter("PROBLEMS");
                     setMetricMode("PCS");
                   }}
-                  className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] border border-[#e9ecef] cursor-pointer p-5 flex flex-col justify-between transition-all duration-300 ${activeFilter === "PROBLEMS"
-                    ? "bg-red-50/40 shadow-[0_8px_30px_rgba(239,68,68,0.12)] text-slate-800"
+                  className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[8.5rem] sm:min-h-[11rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-5 flex flex-col justify-between transition-all duration-300 ${activeFilter === "PROBLEMS"
+                    ? "bg-red-50/40 shadow-[0_8px_30px_rgba(239,68,68,0.12)] text-slate-800 scale-[1.02] sm:scale-[1.03]"
                     : "bg-white hover:shadow-xs text-slate-800"
                     }`}
                 >
                   {activeFilter === "PROBLEMS" && (
-                    <div className="absolute inset-0 ring-2 ring-red-500 rounded-[24px] pointer-events-none" />
+                    <div className="absolute inset-0 ring-2 ring-red-500 rounded-2xl sm:rounded-[24px] pointer-events-none" />
                   )}
-                  <div className="flex justify-between items-start relative z-10">
-                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <div className="flex justify-between items-start relative z-10 gap-1">
+                    <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
                       Masalah ({gradeLabel})
                     </span>
                     <span
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${activeFilter === "PROBLEMS"
+                      className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${activeFilter === "PROBLEMS"
                         ? "bg-red-100 text-red-600 animate-pulse"
                         : "bg-slate-100 text-slate-500"
                         }`}
                     >
-                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     </span>
                   </div>
-                  <div className="mt-2 relative z-10">
-                    <div className="text-3xl font-black tracking-tight text-slate-800">
-                      {stats.countMasalah} Masalah
+                  <div className="mt-1 sm:mt-2 relative z-10">
+                    <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800 flex items-baseline gap-1">
+                      {stats.countMasalah} <span className="text-xs sm:text-base font-bold">Masalah</span>
                     </div>
-                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-red-600 font-extrabold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                      <span>Butuh Pemeriksaan</span>
+                    <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-red-600 font-extrabold truncate">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                      <span className="truncate">Perlu Periksa</span>
                     </div>
                   </div>
                 </div>
@@ -3678,8 +3698,8 @@ export default function DashboardPage() {
             className="grid grid-cols-1 lg:grid-cols-3 gap-6"
           >
             {/* Dynamic Production Trend Chart */}
-            <div className="lg:col-span-2 bg-white border border-[#e9ecef] rounded-[32px] p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4 mb-6">
+            <div className="lg:col-span-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4 mb-4 sm:mb-6">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-800">
                     Tren Hasil Produksi & Analisis Kualitas
@@ -3721,159 +3741,163 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Chart Control Toggles */}
-                <div className="flex flex-wrap items-center gap-3">
-                  {/* Chart View Toggles */}
-                  <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
-                    <button
-                      onClick={() => setChartGroupBy("HARI")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${chartGroupBy === "HARI"
-                        ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                        : "text-slate-500 hover:text-slate-800"
-                        }`}
-                    >
-                      <BarChart2 className="w-3 h-3" /> Tanggal
-                    </button>
-                    <button
-                      onClick={() => setChartGroupBy("DESIGN")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${chartGroupBy === "DESIGN"
-                        ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                        : "text-slate-500 hover:text-slate-800"
-                        }`}
-                    >
-                      <Palette className="w-3 h-3" /> Design
-                    </button>
-                    <button
-                      onClick={() => setChartGroupBy("PEGAWAI")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${chartGroupBy === "PEGAWAI"
-                        ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                        : "text-slate-500 hover:text-slate-800"
-                        }`}
-                    >
-                      <Users className="w-3 h-3" /> Pegawai
-                    </button>
-                    <button
-                      onClick={() => setChartGroupBy("GROUP")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${chartGroupBy === "GROUP"
-                        ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                        : "text-slate-500 hover:text-slate-800"
-                        }`}
-                    >
-                      <Layers className="w-3 h-3" /> Group
-                    </button>
-                    <button
-                      onClick={() => setChartGroupBy("MESIN")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${chartGroupBy === "MESIN"
-                        ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                        : "text-slate-500 hover:text-slate-800"
-                        }`}
-                    >
-                      <Cpu className="w-3 h-3" /> Mesin
-                    </button>
-                  </div>
+                <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2.5 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full w-full sm:w-auto pb-0.5 sm:pb-0">
+                    {/* Chart View Toggles */}
+                    <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200 shrink-0">
+                      <button
+                        onClick={() => setChartGroupBy("HARI")}
+                        className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 shrink-0 ${chartGroupBy === "HARI"
+                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          : "text-slate-500 hover:text-slate-800"
+                          }`}
+                      >
+                        <BarChart2 className="w-3 h-3" /> Tanggal
+                      </button>
+                      <button
+                        onClick={() => setChartGroupBy("DESIGN")}
+                        className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 shrink-0 ${chartGroupBy === "DESIGN"
+                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          : "text-slate-500 hover:text-slate-800"
+                          }`}
+                      >
+                        <Palette className="w-3 h-3" /> Design
+                      </button>
+                      <button
+                        onClick={() => setChartGroupBy("PEGAWAI")}
+                        className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 shrink-0 ${chartGroupBy === "PEGAWAI"
+                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          : "text-slate-500 hover:text-slate-800"
+                          }`}
+                      >
+                        <Users className="w-3 h-3" /> Pegawai
+                      </button>
+                      <button
+                        onClick={() => setChartGroupBy("GROUP")}
+                        className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 shrink-0 ${chartGroupBy === "GROUP"
+                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          : "text-slate-500 hover:text-slate-800"
+                          }`}
+                      >
+                        <Layers className="w-3 h-3" /> Group
+                      </button>
+                      <button
+                        onClick={() => setChartGroupBy("MESIN")}
+                        className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 shrink-0 ${chartGroupBy === "MESIN"
+                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          : "text-slate-500 hover:text-slate-800"
+                          }`}
+                      >
+                        <Cpu className="w-3 h-3" /> Mesin
+                      </button>
+                    </div>
 
-                  {/* Chart Type Toggles */}
-                  <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
-                    <button
-                      onClick={() => setChartType("BAR")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartType === "BAR"
-                        ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                        : "text-slate-500 hover:text-slate-800"
-                        }`}
-                    >
-                      Bar
-                    </button>
-                    <button
-                      onClick={() => setChartType("LINE")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartType === "LINE"
-                        ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                        : "text-slate-500 hover:text-slate-800"
-                        }`}
-                    >
-                      Line
-                    </button>
+                    {/* Chart Type Toggles */}
+                    <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200 shrink-0">
+                      <button
+                        onClick={() => setChartType("BAR")}
+                        className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer shrink-0 ${chartType === "BAR"
+                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          : "text-slate-500 hover:text-slate-800"
+                          }`}
+                      >
+                        Bar
+                      </button>
+                      <button
+                        onClick={() => setChartType("LINE")}
+                        className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer shrink-0 ${chartType === "LINE"
+                          ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                          : "text-slate-500 hover:text-slate-800"
+                          }`}
+                      >
+                        Line
+                      </button>
+                    </div>
                   </div>
 
                   {/* Slicer Toggles depending on qualityViewMode */}
-                  <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
-                    {qualityViewMode === "QC_GRADE" ? (
-                      <>
-                        <button
-                          onClick={() => setChartGradeFilter("ALL")}
-                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "ALL"
-                            ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                            : "text-slate-500 hover:text-slate-800"
-                            }`}
-                        >
-                          Semua
-                        </button>
-                        <button
-                          onClick={() => setChartGradeFilter("GRADE_A")}
-                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "GRADE_A"
-                            ? "bg-sky-600 text-white shadow-xs"
-                            : "text-[#0070bc] hover:bg-sky-50"
-                            }`}
-                        >
-                          Grade A
-                        </button>
-                        <button
-                          onClick={() => setChartGradeFilter("GRADE_B")}
-                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "GRADE_B"
-                            ? "bg-amber-500 text-white shadow-xs"
-                            : "text-amber-700 hover:bg-amber-50"
-                            }`}
-                        >
-                          Grade B
-                        </button>
-                        <button
-                          onClick={() => setChartGradeFilter("BS")}
-                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "BS"
-                            ? "bg-rose-500 text-white shadow-xs"
-                            : "text-rose-700 hover:bg-rose-50"
-                            }`}
-                        >
-                          BS
-                        </button>
-                        <button
-                          onClick={() => setChartGradeFilter("UNGRADED")}
-                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${chartGradeFilter === "UNGRADED"
-                            ? "bg-slate-500 text-white shadow-xs"
-                            : "text-slate-500 hover:bg-slate-50"
-                            }`}
-                        >
-                          Belum Diinspeksi
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => setOperatorStatusFilter("ALL")}
-                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer ${operatorStatusFilter === "ALL"
-                            ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                            : "text-slate-500 hover:text-slate-800"
-                            }`}
-                        >
-                          Semua
-                        </button>
-                        <button
-                          onClick={() => setOperatorStatusFilter("CEKLIS")}
-                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${operatorStatusFilter === "CEKLIS"
-                            ? "bg-sky-600 text-white shadow-xs"
-                            : "text-[#0070bc] hover:bg-sky-50"
-                            }`}
-                        >
-                          <CheckCircle2 className="w-3 h-3" /> Normal
-                        </button>
-                        <button
-                          onClick={() => setOperatorStatusFilter("SILANG")}
-                          className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 ${operatorStatusFilter === "SILANG"
-                            ? "bg-rose-500 text-white shadow-xs"
-                            : "text-rose-700 hover:bg-rose-50"
-                            }`}
-                        >
-                          <XCircle className="w-3 h-3" /> Cacat
-                        </button>
-                      </>
-                    )}
+                  <div className="overflow-x-auto no-scrollbar max-w-full w-full sm:w-auto pb-0.5 sm:pb-0">
+                    <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200 shrink-0">
+                      {qualityViewMode === "QC_GRADE" ? (
+                        <>
+                          <button
+                            onClick={() => setChartGradeFilter("ALL")}
+                            className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer shrink-0 ${chartGradeFilter === "ALL"
+                              ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                              : "text-slate-500 hover:text-slate-800"
+                              }`}
+                          >
+                            Semua
+                          </button>
+                          <button
+                            onClick={() => setChartGradeFilter("GRADE_A")}
+                            className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer shrink-0 ${chartGradeFilter === "GRADE_A"
+                              ? "bg-sky-600 text-white shadow-xs"
+                              : "text-[#0070bc] hover:bg-sky-50"
+                              }`}
+                          >
+                            Grade A
+                          </button>
+                          <button
+                            onClick={() => setChartGradeFilter("GRADE_B")}
+                            className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer shrink-0 ${chartGradeFilter === "GRADE_B"
+                              ? "bg-amber-500 text-white shadow-xs"
+                              : "text-amber-700 hover:bg-amber-50"
+                              }`}
+                          >
+                            Grade B
+                          </button>
+                          <button
+                            onClick={() => setChartGradeFilter("BS")}
+                            className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer shrink-0 ${chartGradeFilter === "BS"
+                              ? "bg-rose-500 text-white shadow-xs"
+                              : "text-rose-700 hover:bg-rose-50"
+                              }`}
+                          >
+                            BS
+                          </button>
+                          <button
+                            onClick={() => setChartGradeFilter("UNGRADED")}
+                            className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer shrink-0 ${chartGradeFilter === "UNGRADED"
+                              ? "bg-slate-500 text-white shadow-xs"
+                              : "text-slate-500 hover:bg-slate-50"
+                              }`}
+                          >
+                            Ungraded
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setOperatorStatusFilter("ALL")}
+                            className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer shrink-0 ${operatorStatusFilter === "ALL"
+                              ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                              : "text-slate-500 hover:text-slate-800"
+                              }`}
+                          >
+                            Semua
+                          </button>
+                          <button
+                            onClick={() => setOperatorStatusFilter("CEKLIS")}
+                            className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 shrink-0 ${operatorStatusFilter === "CEKLIS"
+                              ? "bg-sky-600 text-white shadow-xs"
+                              : "text-[#0070bc] hover:bg-sky-50"
+                              }`}
+                          >
+                            <CheckCircle2 className="w-3 h-3" /> Normal
+                          </button>
+                          <button
+                            onClick={() => setOperatorStatusFilter("SILANG")}
+                            className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 shrink-0 ${operatorStatusFilter === "SILANG"
+                              ? "bg-rose-500 text-white shadow-xs"
+                              : "text-rose-700 hover:bg-rose-50"
+                              }`}
+                          >
+                            <XCircle className="w-3 h-3" /> Cacat
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -5844,16 +5868,16 @@ export default function DashboardPage() {
             const list = paretoProblemData.list;
 
             return (
-              <div className="bg-white border border-[#e9ecef] rounded-[32px] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] mt-6">
+              <div className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] mt-6">
                 {/* Header */}
                 <div className="border-b border-slate-100 pb-4 mb-5 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-sky-50 text-[#0070bc] rounded-2xl border border-sky-100 shadow-xs">
+                    <div className="p-2.5 bg-sky-50 text-[#0070bc] rounded-2xl border border-sky-100 shadow-xs shrink-0">
                       <BarChart2 className="w-5 h-5" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-extrabold text-slate-800">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base sm:text-lg font-extrabold text-slate-800">
                           Analisis Pareto (Aturan 80/20)
                         </h3>
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-[#0070bc] border border-sky-200/80 uppercase tracking-wide">
@@ -5867,12 +5891,12 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Filter Controls Group */}
-                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-2.5 w-full xl:w-auto">
                     {/* Group By Selector */}
-                    <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/80">
+                    <div className="flex items-center justify-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/80">
                       <button
                         onClick={() => setParetoGroupBy("KATEGORI")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoGroupBy === "KATEGORI"
+                        className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoGroupBy === "KATEGORI"
                           ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
                           }`}
@@ -5881,7 +5905,7 @@ export default function DashboardPage() {
                       </button>
                       <button
                         onClick={() => setParetoGroupBy("MESIN")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoGroupBy === "MESIN"
+                        className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoGroupBy === "MESIN"
                           ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
                           }`}
@@ -5895,7 +5919,7 @@ export default function DashboardPage() {
                       <select
                         value={selectedParetoMachine}
                         onChange={(e) => setSelectedParetoMachine(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-extrabold py-1.5 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0070bc] cursor-pointer"
+                        className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-extrabold py-2 sm:py-1.5 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0070bc] cursor-pointer w-full sm:w-auto"
                       >
                         <option value="ALL">Semua Mesin</option>
                         {availableParetoMachines.map((m) => (
@@ -5910,10 +5934,10 @@ export default function DashboardPage() {
                     <div className="hidden sm:block w-px h-6 bg-slate-200 mx-0.5" />
 
                     {/* Metric Mode Selector */}
-                    <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/80">
+                    <div className="flex items-center justify-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/80">
                       <button
                         onClick={() => setParetoMode("COUNT")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoMode === "COUNT"
+                        className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoMode === "COUNT"
                           ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
                           }`}
@@ -5922,7 +5946,7 @@ export default function DashboardPage() {
                       </button>
                       <button
                         onClick={() => setParetoMode("DURATION")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoMode === "DURATION"
+                        className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${paretoMode === "DURATION"
                           ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
                           }`}
@@ -6440,9 +6464,9 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Card 1: Daftar Pegawai Hadir */}
-            <div className="bg-white border border-[#e9ecef] rounded-[32px] p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
+            <div className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
               <div className="border-b border-slate-100 pb-4 mb-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
@@ -6512,7 +6536,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 2: Daftar Tidak Hadir */}
-            <div className="bg-white border border-[#e9ecef] rounded-[32px] p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
+            <div className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
               <div className="border-b border-slate-100 pb-4 mb-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
@@ -6577,7 +6601,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 3: Visualisasi Kehadiran per Tim */}
-            <div className="md:col-span-2 lg:col-span-1 bg-white border border-[#e9ecef] rounded-[32px] p-6 flex flex-col justify-between shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
+            <div className="md:col-span-2 lg:col-span-1 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 flex flex-col justify-between shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
               <div>
                 <div className="border-b border-slate-100 pb-4 mb-4">
                   <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">

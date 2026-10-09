@@ -280,13 +280,13 @@ export default function ShiftPerformancePage() {
   const currentShiftTheme = SHIFT_THEMES[selectedShift.toUpperCase()] || SHIFT_THEMES.A;
 
   return (
-    <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 animate-fadeIn space-y-6">
+    <div className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-20 sm:pb-24 animate-fadeIn space-y-4 sm:space-y-6">
       {/* Top Header Card */}
-      <div className="bg-white/90 backdrop-blur-md rounded-[32px] p-6 sm:p-7 border border-[#e9ecef] shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-5">
+      <div className="bg-white/90 backdrop-blur-md rounded-2xl sm:rounded-[32px] p-4 sm:p-7 border border-[#e9ecef] shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-5">
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <div className="p-2 rounded-2xl bg-amber-50 border border-amber-200/80 shadow-xs shrink-0">
-              <Trophy className="w-6 h-6 text-amber-500" />
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 rounded-xl sm:rounded-2xl bg-amber-50 border border-amber-200/80 shadow-xs shrink-0">
+              <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
             </div>
             <span>Kinerja Tim Produksi</span>
           </h1>
@@ -296,11 +296,11 @@ export default function ShiftPerformancePage() {
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto pb-0.5 sm:pb-0 shrink-0">
           <button
             onClick={fetchData}
             disabled={isLoading}
-            className="h-10 px-4 rounded-full border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl sm:rounded-full border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 whitespace-nowrap"
             title="Muat Ulang Data"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-[#0070bc]" : "text-slate-500"}`} />
@@ -309,7 +309,7 @@ export default function ShiftPerformancePage() {
           <button
             onClick={handleExportExcel}
             disabled={isLoading || !data}
-            className="h-10 px-4 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl sm:rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 whitespace-nowrap"
           >
             <FileSpreadsheet className="w-4 h-4" />
             <span>Export Excel</span>
@@ -317,7 +317,7 @@ export default function ShiftPerformancePage() {
           <button
             onClick={handlePrint}
             disabled={isLoading || !data}
-            className="h-10 px-4 rounded-full bg-[#0070bc] hover:bg-[#005a96] text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl sm:rounded-full bg-[#0070bc] hover:bg-[#005a96] text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 whitespace-nowrap"
           >
             <Printer className="w-4 h-4" />
             <span>Cetak Rekap</span>
@@ -326,12 +326,12 @@ export default function ShiftPerformancePage() {
       </div>
 
       {/* Filter Toolbar & Switchers */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 sm:p-5 shadow-xs space-y-3.5 sm:space-y-4">
         {/* Row 1: Team Selector */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-black text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-slate-400" /> Pilih Tim:
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 w-full lg:w-auto">
+            <span className="text-xs font-black text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1.5 shrink-0">
+              <Users className="w-4 h-4 text-slate-400" /> Tim:
             </span>
             {[
               { id: "A", label: "Tim A" },
@@ -345,7 +345,7 @@ export default function ShiftPerformancePage() {
                 <button
                   key={s.id}
                   onClick={() => setSelectedShift(s.id)}
-                  className={`h-10 px-4 rounded-xl font-extrabold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer active:scale-98 ${
+                  className={`h-9 sm:h-10 px-3 sm:px-4 rounded-xl font-extrabold text-xs sm:text-sm transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer active:scale-98 shrink-0 ${
                     isSelected
                       ? `${theme.activeBg} shadow-md`
                       : "bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700"
@@ -371,10 +371,10 @@ export default function ShiftPerformancePage() {
           </div>
 
           {/* Period & Machine Selectors */}
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 w-full lg:w-auto">
             {/* Bulan Selector */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-              <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 shrink-0">
+              <Calendar className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-slate-400 shrink-0" />
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
@@ -389,7 +389,7 @@ export default function ShiftPerformancePage() {
             </div>
 
             {/* Tahun Selector */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 shrink-0">
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -404,8 +404,8 @@ export default function ShiftPerformancePage() {
             </div>
 
             {/* Mesin Filter */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-              <Factory className="w-4 h-4 text-slate-400 shrink-0" />
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 shrink-0">
+              <Factory className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-slate-400 shrink-0" />
               <select
                 value={selectedMachine}
                 onChange={(e) => setSelectedMachine(e.target.value)}
@@ -423,47 +423,47 @@ export default function ShiftPerformancePage() {
         </div>
 
         {/* Row 2: Jenis Kain Switcher (Panel vs Meteran vs Semua) */}
-        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-black text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1.5">
+        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 w-full sm:w-auto">
+            <span className="text-xs font-black text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1.5 shrink-0">
               <Layers className="w-4 h-4 text-slate-400" /> Jenis Kain:
             </span>
             <button
               onClick={() => setSelectedFabricType("all")}
-              className={`h-9 px-3.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                 selectedFabricType === "all"
                   ? "bg-slate-900 text-white shadow-xs"
                   : "bg-slate-100 hover:bg-slate-200 text-slate-700"
               }`}
             >
               <Grid className="w-3.5 h-3.5" />
-              <span>Semua Jenis (Panel & Meteran)</span>
+              <span>Semua Jenis</span>
             </button>
             <button
               onClick={() => setSelectedFabricType("panel")}
-              className={`h-9 px-3.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                 selectedFabricType === "panel"
                   ? "bg-indigo-600 text-white shadow-xs"
                   : "bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200"
               }`}
             >
               <Layers className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Khusus Kain Panel</span>
+              <span>Khusus Panel</span>
             </button>
             <button
               onClick={() => setSelectedFabricType("meter")}
-              className={`h-9 px-3.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
                 selectedFabricType === "meter"
                   ? "bg-teal-600 text-white shadow-xs"
                   : "bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200"
               }`}
             >
               <Ruler className="w-3.5 h-3.5 text-teal-500" />
-              <span>Khusus Kain Meteran</span>
+              <span>Khusus Meteran</span>
             </button>
           </div>
 
-          <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+          <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             Mode: <span className="text-slate-700 uppercase">{selectedFabricType === "all" ? "Gabungan Panel & Meter" : selectedFabricType === "panel" ? "Satuan Panel (Pcs)" : "Satuan Meter (m)"}</span>
           </div>
@@ -495,14 +495,14 @@ export default function ShiftPerformancePage() {
         <div className="space-y-6">
           {/* Hero Banner with Shift Status */}
           <div
-            className={`rounded-3xl p-6 sm:p-8 bg-gradient-to-r ${currentShiftTheme.gradient} text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6`}
+            className={`rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 bg-gradient-to-r ${currentShiftTheme.gradient} text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6`}
           >
             {/* Background Decorative Pattern */}
             <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 skew-x-12 pointer-events-none" />
             <div className="absolute right-20 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
 
-            <div className="relative z-10 space-y-2">
-              <h2 className="text-2xl sm:text-4xl font-black tracking-tight">
+            <div className="relative z-10 space-y-1.5 sm:space-y-2">
+              <h2 className="text-xl sm:text-2xl md:text-4xl font-black tracking-tight">
                 {selectedShift === "all" ? "Rekap Kinerja Seluruh Tim" : `Hasil Kinerja Tim ${selectedShift}`}
               </h2>
               <p className="text-xs sm:text-sm text-white/80 font-medium max-w-xl">
@@ -514,10 +514,10 @@ export default function ShiftPerformancePage() {
           </div>
 
           {/* KPI Summary Cards - Segregated by Panel & Meteran */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 ${selectedFabricType === "all" ? "lg:grid-cols-3" : "lg:grid-cols-2"} gap-4`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${selectedFabricType === "all" ? "lg:grid-cols-3" : "lg:grid-cols-2"} gap-3 sm:gap-4`}>
             {/* Card 1: Produksi Kain Panel */}
             {(selectedFabricType === "all" || selectedFabricType === "panel") && (
-              <div className="bg-white rounded-2xl border border-indigo-100 p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden">
+              <div className="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50/50 rounded-bl-full pointer-events-none" />
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -536,7 +536,7 @@ export default function ShiftPerformancePage() {
                     <span className="text-rose-600 font-extrabold">{data.totalDefectsPanel} Cacat</span>
                   </div>
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <div className="mt-3.5 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
                   <span>Defect Rate Panel</span>
                   <span className={`font-black ${data.defectRatePanel <= 5 ? "text-emerald-600" : "text-rose-600"}`}>
                     {data.defectRatePanel}%
@@ -547,7 +547,7 @@ export default function ShiftPerformancePage() {
 
             {/* Card 2: Produksi Kain Meteran */}
             {(selectedFabricType === "all" || selectedFabricType === "meter") && (
-              <div className="bg-white rounded-2xl border border-teal-100 p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden">
+              <div className="bg-white rounded-2xl border border-teal-100 p-4 sm:p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50/50 rounded-bl-full pointer-events-none" />
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -566,7 +566,7 @@ export default function ShiftPerformancePage() {
                     <span className="text-rose-600 font-extrabold">{data.totalDefectsMeter}m Cacat</span>
                   </div>
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <div className="mt-3.5 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
                   <span>Defect Rate Meteran</span>
                   <span className={`font-black ${data.defectRateMeter <= 5 ? "text-emerald-600" : "text-rose-600"}`}>
                     {data.defectRateMeter}%
@@ -576,7 +576,7 @@ export default function ShiftPerformancePage() {
             )}
 
             {/* Card 3: Total Downtime */}
-            <div className="bg-white rounded-2xl border border-amber-100 p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between">
+            <div className="bg-white rounded-2xl border border-amber-100 p-4 sm:p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-black uppercase text-amber-700 tracking-wider flex items-center gap-1.5">
@@ -594,7 +594,7 @@ export default function ShiftPerformancePage() {
                   {data.totalDowntimeMinutes} menit terhenti
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+              <div className="mt-3.5 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
                 <span>Rata-rata/hari</span>
                 <span className="font-bold text-amber-700">{data.avgDailyDowntimeMinutes} mnt/hari</span>
               </div>
@@ -602,7 +602,7 @@ export default function ShiftPerformancePage() {
           </div>
 
           {/* Navigation Tabs for Views */}
-          <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-px">
+          <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto no-scrollbar pb-px">
             {[
               { id: "overview", label: "Tren & Grafik Harian", icon: BarChart3 },
               { id: "operators", label: `Kinerja Operator (${data.operators.length})`, icon: Trophy },
@@ -615,7 +615,7 @@ export default function ShiftPerformancePage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-4 sm:px-5 py-3 font-extrabold text-xs sm:text-sm transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
+                  className={`px-3.5 sm:px-5 py-2.5 sm:py-3 font-extrabold text-xs sm:text-sm transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer shrink-0 ${
                     isCurrent
                       ? "border-[#0070bc] text-[#0070bc] bg-sky-50/50 rounded-t-xl"
                       : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
@@ -630,9 +630,9 @@ export default function ShiftPerformancePage() {
 
           {/* TAB 1: OVERVIEW & DAILY TREND CHART */}
           {activeTab === "overview" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Daily Bar Chart Card */}
-              <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
                   <div>
                     <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -717,7 +717,7 @@ export default function ShiftPerformancePage() {
                 </div>
 
                 {/* Custom Responsive Bar Chart with Headroom so Tooltip is never clipped */}
-                <div className="overflow-x-auto pt-2 pb-2 custom-scrollbar">
+                <div className="overflow-x-auto pt-2 pb-2 no-scrollbar">
                   <div className="min-w-[760px] h-72 flex items-end gap-2 px-3 pt-32 pb-2 border-b border-slate-200 relative">
                     {data.dailyTrends.map((trend) => {
                       const heightPercent = maxDailyOutput > 0 ? Math.round((trend.output / maxDailyOutput) * 100) : 0;
@@ -821,16 +821,16 @@ export default function ShiftPerformancePage() {
               </div>
 
               {/* Daily Table Details */}
-              <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
-                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
+                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 bg-slate-50/50">
+                  <h4 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
                     Rincian Tabel Harian Shift ({selectedFabricType === "all" ? "Panel & Meteran" : selectedFabricType === "panel" ? "Khusus Panel" : "Khusus Meteran"})
                   </h4>
-                  <span className="text-xs font-bold text-slate-500">
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-500">
                     Total {data.dailyTrends.filter((d) => d.output > 0).length} hari kerja tercatat
                   </span>
                 </div>
-                <div className="overflow-x-auto max-h-96 overflow-y-auto custom-scrollbar">
+                <div className="overflow-x-auto max-h-96 overflow-y-auto no-scrollbar">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="sticky top-0 bg-slate-100 border-b border-slate-200 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider z-10">
                       <tr>
@@ -884,12 +884,12 @@ export default function ShiftPerformancePage() {
 
           {/* TAB 2: OPERATOR LEADERBOARD & BREAKDOWN */}
           {activeTab === "operators" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Podium for Top 3 Performers */}
               {data.operators.length >= 3 && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
                   {/* 2nd Place */}
-                  <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center text-center order-2 md:order-1 relative overflow-hidden">
+                  <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-5 shadow-xs flex flex-col items-center text-center order-2 md:order-1 relative overflow-hidden">
                     <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 font-black text-xl flex items-center justify-center mb-3 shadow-xs">
                       <Medal className="w-6 h-6 text-slate-500" />
                     </div>
@@ -906,12 +906,12 @@ export default function ShiftPerformancePage() {
                   </div>
 
                   {/* 1st Place Champion */}
-                  <div className="bg-gradient-to-b from-amber-500/10 via-white to-white rounded-3xl border-2 border-amber-400 p-6 shadow-md flex flex-col items-center text-center order-1 md:order-2 relative overflow-hidden">
+                  <div className="bg-gradient-to-b from-amber-500/10 via-white to-white rounded-2xl sm:rounded-3xl border-2 border-amber-400 p-5 sm:p-6 shadow-md flex flex-col items-center text-center order-1 md:order-2 relative overflow-hidden">
                     <div className="absolute top-3 right-3">
                       <CrownBadge />
                     </div>
-                    <div className="w-16 h-16 rounded-3xl bg-amber-400 text-white font-black text-3xl flex items-center justify-center mb-3 shadow-lg shadow-amber-500/30 animate-bounce">
-                      <Trophy className="w-8 h-8 text-white" />
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl bg-amber-400 text-white font-black text-3xl flex items-center justify-center mb-3 shadow-lg shadow-amber-500/30 animate-bounce">
+                      <Trophy className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
                     </div>
                     <span className="text-[11px] font-black uppercase text-amber-700 tracking-wider">Top Performer Shift</span>
                     <h4 className="text-lg font-black text-slate-900 mt-1">{data.operators[0].operatorName}</h4>
@@ -926,7 +926,7 @@ export default function ShiftPerformancePage() {
                   </div>
 
                   {/* 3rd Place */}
-                  <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center text-center order-3 relative overflow-hidden">
+                  <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-5 shadow-xs flex flex-col items-center text-center order-3 relative overflow-hidden">
                     <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 font-black text-xl flex items-center justify-center mb-3 shadow-xs">
                       <Medal className="w-6 h-6 text-amber-700" />
                     </div>
@@ -945,7 +945,7 @@ export default function ShiftPerformancePage() {
               )}
 
               {/* Operators Table Card */}
-              <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs space-y-4 p-5">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs space-y-4 p-4 sm:p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                   <div>
                     <h3 className="text-base font-black text-slate-900 tracking-tight">
@@ -968,7 +968,7 @@ export default function ShiftPerformancePage() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto custom-scrollbar">
+                <div className="overflow-x-auto no-scrollbar">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider">
                       <tr>
@@ -1069,8 +1069,8 @@ export default function ShiftPerformancePage() {
 
           {/* TAB 3: PROBLEM CATEGORIES & DOWNTIME ROOT CAUSE */}
           {activeTab === "problems" && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4">
+            <div className="space-y-4 sm:space-y-6">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-xs space-y-4">
                 <div className="border-b border-slate-100 pb-4">
                   <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
                     <Wrench className="w-5 h-5 text-amber-600" />
@@ -1082,11 +1082,11 @@ export default function ShiftPerformancePage() {
                 </div>
 
                 {/* Category Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
                   {data.problemCategories.map((cat) => (
                     <div
                       key={cat.category}
-                      className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4.5 flex flex-col justify-between hover:border-slate-300 transition-all shadow-2xs"
+                      className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between hover:border-slate-300 transition-all shadow-2xs"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
@@ -1146,8 +1146,8 @@ export default function ShiftPerformancePage() {
 
           {/* TAB 4: MACHINE PERFORMANCE IN THIS SHIFT */}
           {activeTab === "machines" && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs p-5 space-y-4">
+            <div className="space-y-4 sm:space-y-6">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs p-4 sm:p-5 space-y-4">
                 <div className="border-b border-slate-100 pb-4">
                   <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
                     <Factory className="w-5 h-5 text-indigo-600" />
@@ -1158,7 +1158,7 @@ export default function ShiftPerformancePage() {
                   </p>
                 </div>
 
-                <div className="overflow-x-auto custom-scrollbar">
+                <div className="overflow-x-auto no-scrollbar">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider">
                       <tr>

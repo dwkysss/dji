@@ -121,6 +121,9 @@ export async function updateSession(request: NextRequest) {
         const loginUrl = request.nextUrl.clone();
         loginUrl.pathname = "/login";
         loginUrl.searchParams.set("session_expired", "1");
+        if (pathname && pathname !== "/" && pathname !== "/login") {
+          loginUrl.searchParams.set("returnUrl", pathname + request.nextUrl.search);
+        }
 
         const redirectResponse = NextResponse.redirect(loginUrl);
 

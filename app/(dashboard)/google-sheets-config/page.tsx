@@ -111,10 +111,10 @@ export default function GoogleSheetsConfigPage() {
   };
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto pb-24 animate-fadeIn">
+    <div className="w-full max-w-[1400px] mx-auto pb-24 animate-fadeIn space-y-4 sm:space-y-6">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 text-white ${
+        <div className={`fixed bottom-4 sm:bottom-6 right-4 sm:right-6 left-4 sm:left-auto z-50 px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 text-white ${
           toast.type === "success" ? "bg-emerald-600" : "bg-rose-600"
         }`}>
           {toast.type === "success" ? (
@@ -127,32 +127,32 @@ export default function GoogleSheetsConfigPage() {
       )}
 
       {/* HEADER CARD */}
-      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-[28px] border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-emerald-600 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-200 text-white shrink-0">
-            <FileSpreadsheet className="w-7 h-7 stroke-[2.2]" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-6 sm:p-8 rounded-2xl sm:rounded-[28px] border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-linear-to-br from-emerald-600 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-200 text-white shrink-0">
+            <FileSpreadsheet className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.2]" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">
                 Integrasi Google Sheets
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wide">
                 Admin Panel
               </span>
             </div>
-            <p className="text-sm font-semibold text-slate-500 mt-0.5">
+            <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5 line-clamp-2">
               Kelola endpoint URL Google Apps Script dan Spreadsheet ID untuk masing-masing laporan.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 self-start md:self-auto">
+        <div className="flex items-center gap-3 self-end sm:self-auto">
           <button
             type="button"
             onClick={() => fetchConfigs()}
             disabled={isLoading}
-            className="p-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-all cursor-pointer shadow-2xs"
+            className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-all cursor-pointer shadow-2xs"
             title="Refresh Data"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
@@ -188,7 +188,7 @@ export default function GoogleSheetsConfigPage() {
             return (
               <div
                 key={cfg.id}
-                className="bg-white rounded-[28px] p-6 sm:p-7 shadow-sm border border-slate-200 transition-all hover:border-emerald-300 flex flex-col gap-5"
+                className="bg-white rounded-2xl sm:rounded-[28px] p-4 sm:p-6 sm:p-7 shadow-sm border border-slate-200 transition-all hover:border-emerald-300 flex flex-col gap-4 sm:gap-5"
               >
                 {/* Header Item */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
@@ -222,7 +222,7 @@ export default function GoogleSheetsConfigPage() {
                 </div>
 
                 {/* Form Inputs */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-center">
                   {/* Web App URL */}
                   <div className="lg:col-span-8 space-y-1.5">
                     <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -255,7 +255,7 @@ export default function GoogleSheetsConfigPage() {
                 </div>
 
                 {/* Card Actions */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
                   <div className="text-[11px] font-mono font-bold text-slate-400">
                     Kunci Laporan: <span className="bg-slate-100 px-2 py-0.5 rounded-md text-slate-600">{cfg.id}</span>
                   </div>
@@ -264,7 +264,7 @@ export default function GoogleSheetsConfigPage() {
                     type="button"
                     onClick={() => handleSaveConfig(cfg.id)}
                     disabled={isSaving}
-                    className="h-10 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                    className="w-full sm:w-auto h-10 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-200 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                   >
                     {isSaving ? (
                       <>

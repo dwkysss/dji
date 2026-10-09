@@ -353,6 +353,10 @@ export default function QCPage() {
     if (activeQcPcs) {
       await deleteTimerSession("qc", activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke, activeQcPcs.pcs_index);
       fetchActiveSessions();
+      try {
+        localStorage.removeItem(`dji_qc_draft_${activeQcPcs.nomor_mc}_${activeQcPcs.potongan_ke}_${activeQcPcs.pcs_index}`);
+        localStorage.removeItem("dji_qc_active_session");
+      } catch (e) {}
     }
     setActiveQcPcs(null);
     setFullActiveQcDetails([]);
@@ -366,6 +370,37 @@ export default function QCPage() {
   // Map of detailId -> finalInspectionId (1, 2, or 3)
   const [selections, setSelections] = useState<Record<string, number>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Auto-save selections to localStorage draft per PCS
+  useEffect(() => {
+    if (activeQcPcs && selections && Object.keys(selections).length > 0) {
+      try {
+        const key = `dji_qc_draft_${activeQcPcs.nomor_mc}_${activeQcPcs.potongan_ke}_${activeQcPcs.pcs_index}`;
+        localStorage.setItem(key, JSON.stringify(selections));
+      } catch (e) {}
+    }
+  }, [selections, activeQcPcs]);
+
+  // Keep active session in localStorage for reload recovery
+  useEffect(() => {
+    if (activeQcPcs) {
+      try {
+        localStorage.setItem("dji_qc_active_session", JSON.stringify(activeQcPcs));
+      } catch (e) {}
+    }
+  }, [activeQcPcs]);
+
+  // Warn user on accidental browser close / reload / exit when inspection is active
+  useEffect(() => {
+    if (!activeQcPcs) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [activeQcPcs]);
 
   // Bulk Selection & Edit States
   const [selectedDetailIds, setSelectedDetailIds] = useState<string[]>([]);
@@ -443,6 +478,14 @@ export default function QCPage() {
     let initP = "";
     let initS: "desc" | "asc" = "desc";
 
+    let activeSessionToRestore: any = null;
+    try {
+      const savedActive = localStorage.getItem("dji_qc_active_session");
+      if (savedActive) {
+        activeSessionToRestore = JSON.parse(savedActive);
+      }
+    } catch (e) {}
+
     try {
       const saved = sessionStorage.getItem("dji_qc_filters") || localStorage.getItem("dji_qc_filters");
       if (saved) {
@@ -458,15 +501,26 @@ export default function QCPage() {
       }
     } catch (e) {}
 
-    handleSearch(initStart, initEnd, initM, initP);
+    handleSearch(initStart, initEnd, initM, initP, !!activeSessionToRestore).then(() => {
+      if (activeSessionToRestore?.nomor_mc && activeSessionToRestore?.design_id && activeSessionToRestore?.potongan_ke) {
+        handleStartQC(
+          activeSessionToRestore.nomor_mc,
+          activeSessionToRestore.design_id,
+          activeSessionToRestore.potongan_ke,
+          activeSessionToRestore.pcs_index || "1"
+        );
+      }
+    });
   }, []);
 
-  const handleSearch = async (startDate?: string, endDate?: string, mesin?: string, potongan?: string) => {
+  const handleSearch = async (startDate?: string, endDate?: string, mesin?: string, potongan?: string, keepActive: boolean = false) => {
     setIsSearching(true);
     setErrorMsg(null);
     setAllDetails([]);
-    setActiveQcPcs(null);
-    setSelections({});
+    if (!keepActive) {
+      setActiveQcPcs(null);
+      setSelections({});
+    }
     setCurrentPage(1);
 
     const sDate = startDate !== undefined ? startDate : searchStartDate;
@@ -581,8 +635,27 @@ export default function QCPage() {
   }, [searchMesin, searchTanggal, searchPotongan, sortOrder]);
 
   const handleStartQC = async (nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string) => {
-    setActiveQcPcs({ nomor_mc: String(nomor_mc), design_id: String(design_id), potongan_ke: String(potongan_ke), pcs_index: String(pcs_index) });
-    setSelections({});
+    const pcsKey = String(pcs_index || "1");
+    const activeObj = { nomor_mc: String(nomor_mc), design_id: String(design_id), potongan_ke: String(potongan_ke), pcs_index: pcsKey };
+    setActiveQcPcs(activeObj);
+    try {
+      localStorage.setItem("dji_qc_active_session", JSON.stringify(activeObj));
+    } catch (e) {}
+
+    // Periksa apakah ada draft inspeksi yang tersimpan sebelumnya di localStorage
+    let savedDraft: Record<string, number> = {};
+    try {
+      const raw = localStorage.getItem(`dji_qc_draft_${nomor_mc}_${potongan_ke}_${pcsKey}`);
+      if (raw) {
+        savedDraft = JSON.parse(raw);
+      }
+    } catch (e) {}
+
+    if (Object.keys(savedDraft).length > 0) {
+      setSelections(savedDraft);
+    } else {
+      setSelections({});
+    }
     const now = new Date();
     setNowMs(now.getTime());
     const defaultIso = now.toISOString();
@@ -753,6 +826,15 @@ export default function QCPage() {
 
   useEffect(() => {
     if (detailsToDisplay.length > 0) {
+      // Ambil draft dari localStorage jika ada untuk batch & PCS aktif saat ini
+      let currentDraft: Record<string, number> = {};
+      if (activeQcPcs) {
+        try {
+          const raw = localStorage.getItem(`dji_qc_draft_${activeQcPcs.nomor_mc}_${activeQcPcs.potongan_ke}_${activeQcPcs.pcs_index}`);
+          if (raw) currentDraft = JSON.parse(raw);
+        } catch (e) {}
+      }
+
       setSelections((prev) => {
         const newSelections: Record<string, number> = {};
         const isMeteran = detailsToDisplay.some(
@@ -765,8 +847,12 @@ export default function QCPage() {
           const isSisa = pNo.includes("AWAL") || pNo.includes("AKHIR");
           const isGagalCacat = isPanelGagalCacatAja(d);
 
-          if (prev[d.id]) {
-            newSelections[d.id] = prev[d.id];
+          // Prioritas 1: State saat ini prev[d.id]
+          // Prioritas 2: Draft localStorage currentDraft[d.id] (agar jika baru kembali/refresh tidak ter-reset ke 1)
+          const existingSelection = prev[d.id] ?? currentDraft[d.id];
+
+          if (existingSelection !== undefined) {
+            newSelections[d.id] = existingSelection;
           } else if (d.final_inspection_id && [1, 2, 3, 4].includes(d.final_inspection_id)) {
             newSelections[d.id] = d.final_inspection_id;
           } else if (isGagalCacat) {
@@ -789,7 +875,7 @@ export default function QCPage() {
         return newSelections;
       });
     }
-  }, [detailsToDisplay]);
+  }, [detailsToDisplay, activeQcPcs]);
 
   const handleSelectGrade = (detailId: string, grade: number) => {
     setSelections((prev) => ({ ...prev, [detailId]: grade }));
@@ -1210,6 +1296,9 @@ export default function QCPage() {
                 pause_seconds: pauseSeconds,
                 elapsed_seconds: elapsedSeconds,
               });
+              try {
+                localStorage.removeItem("dji_qc_active_session");
+              } catch (e) {}
             }
             setActiveQcPcs(null);
             setFullActiveQcDetails([]);
@@ -1477,15 +1566,15 @@ export default function QCPage() {
                 </div>
               )}
               
-              <div data-tour="qc-inspection-submit" className="p-5 border-t border-slate-200 bg-slate-50 flex justify-end">
+              <div data-tour="qc-inspection-submit" className="p-3.5 sm:p-5 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-end">
                 <button
                   disabled={!isAllSelected}
                   onClick={() => setIsModalOpen(true)}
-                  className={`h-12 px-8 rounded-xl font-bold text-sm text-white flex items-center gap-2 transition-all duration-300 ${
+                  className={`w-full sm:w-auto h-12 px-6 sm:px-8 rounded-xl font-bold text-xs sm:text-sm text-white flex items-center justify-center gap-2 transition-all duration-300 ${
                     isAllSelected ? "bg-[#0070bc] hover:bg-[#004777] shadow-lg shadow-[#0070bc]/30 active:scale-95" : "bg-slate-300 cursor-not-allowed"
                   }`}
                 >
-                  <CheckCircle className="w-5 h-5" />
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                   Isi Rangkuman & Kirim Inspeksi
                 </button>
               </div>
@@ -1495,8 +1584,8 @@ export default function QCPage() {
 
         {/* Cancel QC Confirmation Modal */}
         {isCancelConfirmOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-4 sm:p-6 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto no-scrollbar">
               <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-4 mx-auto">
                 <AlertTriangle className="w-6 h-6 text-rose-600" />
               </div>
@@ -1536,6 +1625,10 @@ export default function QCPage() {
               if (activeQcPcs) {
                 await deleteTimerSession("qc", activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke, activeQcPcs.pcs_index);
                 fetchActiveSessions();
+                try {
+                  localStorage.removeItem(`dji_qc_draft_${activeQcPcs.nomor_mc}_${activeQcPcs.potongan_ke}_${activeQcPcs.pcs_index}`);
+                  localStorage.removeItem("dji_qc_active_session");
+                } catch (e) {}
               }
               setActiveQcPcs(null);
               setFullActiveQcDetails([]);
@@ -1920,7 +2013,7 @@ export default function QCPage() {
       {/* Filter Card with Integrated Header */}
       <div
         data-tour="qc-inspection-filter"
-        className="bg-white/95 backdrop-blur-sm rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-6"
+        className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-4 sm:mb-6"
       >
         {/* Decorative Top Accent */}
         <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
@@ -1935,7 +2028,7 @@ export default function QCPage() {
               <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
                 Inspeksi QC
               </h1>
               <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">
@@ -1944,43 +2037,43 @@ export default function QCPage() {
             </div>
           </div>
 
-          <button
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+            <button
             type="button"
             onClick={() => setIsTourOpen(true)}
-            className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 self-start sm:self-auto cursor-pointer shrink-0"
+            className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 cursor-pointer shrink-0"
           >
             <HelpCircle className="w-4 h-4 text-[#0070bc]" />
             Tutorial
           </button>
+          {(searchStartDate || searchMesin || searchPotongan) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchStartDate("");
+                setSearchEndDate("");
+                setSearchTanggal("");
+                setSearchMesin("");
+                setSearchPotongan("");
+                saveQCFilters("", "", "", "", sortOrder);
+                handleSearch("", "", "", "");
+              }}
+              className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 animate-fadeIn"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset Filter
+            </button>
+          )}
+        </div>
         </div>
 
         {/* Filter Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 items-end gap-4 w-full mt-5">
+        <div className="grid grid-cols-2 md:grid-cols-5 items-end gap-2.5 sm:gap-4 w-full mt-4 sm:mt-5">
           {/* TANGGAL */}
           <div className="flex flex-col gap-1.5 w-full">
-            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-sky-500" />
-                <span>Tanggal</span>
-              </span>
-              {(searchStartDate || searchMesin || searchPotongan) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchStartDate("");
-                    setSearchEndDate("");
-                    setSearchTanggal("");
-                    setSearchMesin("");
-                    setSearchPotongan("");
-                    saveQCFilters("", "", "", "", sortOrder);
-                    handleSearch("", "", "", "");
-                  }}
-                  className="text-[10px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 transition-colors hover:underline cursor-pointer normal-case"
-                >
-                  <RotateCcw className="w-2.5 h-2.5" />
-                  Reset
-                </button>
-              )}
+            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-sky-500" />
+              <span>Tanggal</span>
             </label>
             <DateRangePicker
               startDate={searchStartDate}
@@ -2010,7 +2103,7 @@ export default function QCPage() {
                   setSearchMesin(val);
                   saveQCFilters(searchStartDate, searchEndDate, val, searchPotongan, sortOrder);
                 }}
-                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+                className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none pr-8 truncate"
               >
                 <option value="">Semua Mesin</option>
                 {REGISTERED_MACHINES.map((m) => (
@@ -2039,7 +2132,7 @@ export default function QCPage() {
                 setSearchPotongan(val);
                 saveQCFilters(searchStartDate, searchEndDate, searchMesin, val, sortOrder);
               }}
-              className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
+              className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-normal shadow-xs w-full"
               placeholder="Cari Potongan..."
             />
           </div>
@@ -2058,7 +2151,7 @@ export default function QCPage() {
                   setSortOrder(val);
                   saveQCFilters(searchStartDate, searchEndDate, searchMesin, searchPotongan, val);
                 }}
-                className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
+                className="h-11 px-3 sm:px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-xs sm:text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none pr-8 truncate"
               >
                 <option value="desc">Terbaru</option>
                 <option value="asc">Terlama</option>
@@ -2073,7 +2166,7 @@ export default function QCPage() {
           <button
             onClick={() => handleSearch(searchStartDate, searchEndDate, searchMesin, searchPotongan)}
             disabled={isSearching}
-            className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#0070bc] to-[#005a96] hover:from-[#005a96] hover:to-[#004777] active:scale-[0.98] disabled:opacity-50 text-white text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-2 shadow-md shadow-[#0070bc]/25 hover:shadow-lg hover:shadow-[#0070bc]/35 cursor-pointer w-full col-span-1 sm:col-span-2 md:col-span-1 group"
+            className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#0070bc] to-[#005a96] hover:from-[#005a96] hover:to-[#004777] active:scale-[0.98] disabled:opacity-50 text-white text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-2 shadow-md shadow-[#0070bc]/25 hover:shadow-lg hover:shadow-[#0070bc]/35 cursor-pointer w-full col-span-2 md:col-span-1 group"
           >
             {isSearching ? (
               <>
@@ -2106,7 +2199,7 @@ export default function QCPage() {
         ) : (
           <div>
             {/* Mobile & Tablet Card View (< md) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 md:hidden">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 p-3 sm:p-4 md:hidden">
               {currentPcsList.map((g: any) => {
                 const targetPcs = g.start_pcs_index || g.pcs_index;
                 const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${targetPcs}`;
@@ -2115,9 +2208,9 @@ export default function QCPage() {
                 const isProcessingItem = session && !session.is_paused;
 
                 return (
-                  <div key={sessionKey} className={`p-4 rounded-2xl border transition-all ${isPausedItem ? "bg-amber-50/50 border-amber-300" : (isProcessingItem ? "bg-emerald-50/30 border-emerald-300" : "bg-white border-slate-200 shadow-xs hover:shadow-sm")}`}>
+                  <div key={sessionKey} className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all ${isPausedItem ? "bg-amber-50/50 border-amber-300" : (isProcessingItem ? "bg-emerald-50/30 border-emerald-300" : "bg-white border-slate-200 shadow-xs hover:shadow-sm")}`}>
                     {/* Top Section: ONLY Mesin, Potongan & PCS */}
-                    <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-100">
+                    <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <div className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-black text-xs">
                           {g.header?.nomor_mc}
@@ -2132,7 +2225,7 @@ export default function QCPage() {
                     </div>
 
                     {/* Middle Section: Tanggal/Waktu & Desain */}
-                    <div className="flex flex-col gap-2 mb-3 text-xs">
+                    <div className="flex flex-col gap-1.5 mb-2.5 text-xs">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] uppercase font-bold text-slate-400">Tanggal & Waktu</span>
                         <span className="font-bold text-slate-800 text-right">
@@ -2155,7 +2248,7 @@ export default function QCPage() {
                     {/* Bottom Section: Action Button */}
                     <button
                       onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
-                      className={`w-full h-10 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
+                      className={`w-full h-9 sm:h-10 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
                         isPausedItem 
                           ? "bg-amber-500 hover:bg-amber-600 text-white" 
                           : (isProcessingItem ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-[#0070bc] hover:bg-[#004777] text-white")
