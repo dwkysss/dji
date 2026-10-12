@@ -220,7 +220,8 @@ export default function MeterHistoryTable({
         (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") ||
         (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") ||
         (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") ||
-        (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
+        (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR") ||
+        (h.jenis_laporan || "").toUpperCase().includes("ISTIRAHAT")
       );
       const hasIstirahat = hasIstirahatRaw && !hasRealDefectsMap;
       const isIstirahat = hasIstirahat && !item.kategori_masalah && !item.detail_masalah;
@@ -240,6 +241,7 @@ export default function MeterHistoryTable({
         rawJam,
         operatorStr,
         hasIstirahat,
+        hasIstirahatRaw,
         backupOp: h.operator_backup,
       };
     });
@@ -883,6 +885,7 @@ export default function MeterHistoryTable({
           hasErrorDetail,
           isIstirahat,
           hasIstirahat,
+          hasIstirahatRaw: Boolean(p.hasIstirahatRaw),
           isMasuk: Boolean(p.isMasuk),
           isMulaiIstirahat: Boolean(p.isMulaiIstirahat),
           isIstirahatFinish,
@@ -1267,7 +1270,7 @@ export default function MeterHistoryTable({
                 })()}
               </td>
               <td className={`px-3 py-1.5 text-[11px] font-medium whitespace-pre leading-tight border-r border-slate-100 border-b border-slate-100 ${item.hasIstirahat ? 'text-slate-500' : 'text-slate-700'}`}>
-                {(item.hasIstirahat || (item.backupOpName && item.backupOpName.trim().toLowerCase() !== (item.oprStr || "").trim().toLowerCase())) && (
+                {Boolean(item.hasIstirahat || item.hasIstirahatRaw || (item.keterangan_cacat && item.keterangan_cacat.toUpperCase().includes("ISTIRAHAT")) || (item.detail_masalah && item.detail_masalah.toUpperCase().includes("ISTIRAHAT"))) && (
                   <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                     {(item.backupOpName && item.backupOpName.trim().toLowerCase() !== (item.oprStr || "").trim().toLowerCase()) ? (
                       <span className="text-slate-700 font-bold">{item.backupOpName}</span>

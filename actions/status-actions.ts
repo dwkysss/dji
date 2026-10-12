@@ -2,6 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getShiftDate } from "@/lib/shift-utils";
 
 // Helper untuk menghasilkan ID acak 8 karakter seperti di Excel
 function generateExcelStyleId(): string {
@@ -22,7 +23,9 @@ export interface StatusMesinInput {
   course?: string;
   rpm?: string;
   designId?: string;
+  potonganKe?: string | number;
   status: string; // e.g. "TUNGGU ORDER"
+  kategoriMasalah?: string; // e.g. "A" s/d "G"
   tanggalOff?: string;
   sampaiTanggalOff?: string;
   cakupan?: "FULL_DAY" | "SHIFT";
@@ -46,7 +49,8 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
     const currentDate = currentWibDateTime.split(" ")[0];
     const currentTime = currentWibDateTime.split(" ")[1] || "08:00:00";
 
-    const startDateStr = inputData.tanggalOff || currentDate;
+    const operationalDate = getShiftDate(now);
+    const startDateStr = inputData.tanggalOff || operationalDate;
     const dates: string[] = [startDateStr];
 
     if (inputData.sampaiTanggalOff && inputData.sampaiTanggalOff > startDateStr) {
@@ -63,7 +67,9 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
 
     const statusUpper = (inputData.status || "").trim().toUpperCase();
     let kategori = "G";
-    if (statusUpper.includes("MAINTENANCE") || statusUpper.includes("SERVIS") || statusUpper.includes("OVERHAUL")) {
+    if (inputData.kategoriMasalah) {
+      kategori = inputData.kategoriMasalah.trim().toUpperCase();
+    } else if (statusUpper.includes("MAINTENANCE") || statusUpper.includes("SERVIS") || statusUpper.includes("OVERHAUL")) {
       kategori = "F";
     } else if (statusUpper.includes("RUSAK") || statusUpper.includes("ERROR") || statusUpper.includes("TROUBLE")) {
       kategori = "B";
@@ -84,6 +90,8 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
     for (const d of dates) {
       if (isFullDay) {
         // Buat 3 catatan untuk setiap shift (A, B, C) pada tanggal tersebut
+        const potonganKeNum = inputData.potonganKe ? parseInt(String(inputData.potonganKe)) : null;
+
         for (const grp of GROUPS_CONFIG) {
           const headerId = generateExcelStyleId();
           headersToInsert.push({
@@ -91,6 +99,7 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
             tgl: d,
             tanggal_jam: `${d} ${grp.time}`,
             nomor_mc: inputData.nomorMc,
+            potongan_ke: potonganKeNum,
             panel_no: "BERHENTI",
             pcs: null,
             pick: inputData.pick || null,
@@ -100,7 +109,7 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
             total_downtime_detik: 0,
             idempotency_key: inputData.idempotencyKey ? `${inputData.idempotencyKey}-${d}-${grp.id}` : null,
             pic: inputData.pic || "-",
-            operator_id: null,
+            operator_id: inputData.operatorId ? parseInt(inputData.operatorId) : null,
             group_id: grp.id,
           });
 
@@ -118,11 +127,13 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
         // Hanya untuk 1 shift tertentu
         const headerId = generateExcelStyleId();
         const safeTime = (currentTime >= "07:10:00" && currentTime <= "23:59:59") ? currentTime : "08:00:00";
+        const potonganKeNum = inputData.potonganKe ? parseInt(String(inputData.potonganKe)) : null;
         headersToInsert.push({
           id: headerId,
           tgl: d,
           tanggal_jam: `${d} ${safeTime}`,
           nomor_mc: inputData.nomorMc,
+          potongan_ke: potonganKeNum,
           panel_no: "BERHENTI",
           pcs: null,
           pick: inputData.pick || null,
@@ -197,8 +208,16 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
         throw new Error(`Gagal menyimpan detail status: ${detailError.message}`);
       }
 
-      revalidatePath("/reports/monthly-machine");
+      revalidatePath("/(dashboard)/reports/monthly-machine");
+      revalidatePath("/(dashboard)/reports/mending-production");
+      revalidatePath("/(dashboard)/reports/daily-inspect-mending");
+      revalidatePath("/(dashboard)/shift-history");
+      revalidatePath("/(dashboard)/shift-history/detail");
       revalidatePath("/(employee)/history");
+      revalidatePath("/(employee)/history/detail");
+      revalidatePath("/history");
+      revalidatePath("/history/detail");
+      revalidatePath("/reports/monthly-machine");
       return { success: true, count: headersToInsert.length, productionId: headersToInsert[0]?.id };
     }
 

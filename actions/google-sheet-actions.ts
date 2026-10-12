@@ -12,6 +12,14 @@ export interface GoogleSheetConfigItem {
   updated_at?: string;
 }
 
+function notifySchedulerCacheInvalidation() {
+  if (typeof globalThis !== "undefined" && typeof (globalThis as any).__dji_scheduler_cache_invalidate === "function") {
+    try {
+      (globalThis as any).__dji_scheduler_cache_invalidate();
+    } catch {}
+  }
+}
+
 /**
  * Mengambil seluruh konfigurasi integrasi Google Sheets dari database
  */
@@ -69,6 +77,7 @@ export async function updateGoogleSheetConfig(
       return { success: false, error: error.message };
     }
 
+    notifySchedulerCacheInvalidation();
     return { success: true };
   } catch (err: any) {
     console.error("Error in updateGoogleSheetConfig:", err);
@@ -278,6 +287,7 @@ export async function updateAutoSyncScheduleSettings(payload: {
     if (error) {
       return { success: false, error: error.message };
     }
+    notifySchedulerCacheInvalidation();
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || "Gagal menyimpan jadwal" };
@@ -396,6 +406,22 @@ export async function syncAllMonthlyMachines(
                 }).join(" | ");
             }
 
+            let potongKainStr = "";
+            if (td.potong_kain_list && td.potong_kain_list.length > 0) {
+              potongKainStr = td.potong_kain_list
+                .map((p: string) => `Potong Kain Ke-${String(p).replace(/^ke-?/i, "").trim()}`)
+                .join(", ");
+            }
+
+            let fullKeterangan = "";
+            if (potongKainStr && ketString) {
+              fullKeterangan = `${potongKainStr} | ${ketString}`;
+            } else if (potongKainStr) {
+              fullKeterangan = potongKainStr;
+            } else {
+              fullKeterangan = ketString;
+            }
+
             const formatSec = (totalSec: number) => {
               if (!totalSec || totalSec <= 0) return "";
               const hours = Math.floor(totalSec / 3600);
@@ -408,7 +434,7 @@ export async function syncAllMonthlyMachines(
             return {
               team: teamObj.teamName,
               desain: td.desain || "",
-              keterangan: ketString,
+              keterangan: fullKeterangan,
               courses: td.courses || "",
               rpm: td.rpm || "",
               eff_100: td.eff_100 || 0,
@@ -547,6 +573,7 @@ export async function updatePotongKainScheduleSettings(payload: {
     if (error) {
       return { success: false, error: error.message };
     }
+    notifySchedulerCacheInvalidation();
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || "Gagal menyimpan jadwal potong kain" };
@@ -981,6 +1008,7 @@ export async function updateDailyInspectMendingScheduleSettings(payload: {
       });
 
     if (error) return { success: false, error: error.message };
+    notifySchedulerCacheInvalidation();
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || "Gagal menyimpan jadwal inspect & mending" };

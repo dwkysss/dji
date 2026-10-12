@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient, getAuthenticatedUser } from '@/lib/supabase/server';
 import { getShiftDate, getShiftName } from '@/lib/shift-utils';
 
 const FALLBACK_MODELS = [
@@ -289,6 +289,15 @@ function generateSmartRuleReply(query: string, factoryData: any): string {
 
 export async function POST(req: Request) {
   try {
+    // 🔐 Proteksi: Hanya user terautentikasi dengan role admin atau manager yang diizinkan
+    const { user, role } = await getAuthenticatedUser();
+    if (!user || !["admin", "manager"].includes(role ?? "")) {
+      return NextResponse.json(
+        { reply: "Akses ditolak: Hanya pengguna dengan role admin atau manager yang diizinkan berkonsultasi dengan DJI AI." },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const { message, userRole, userName, history = [], image } = body;
 

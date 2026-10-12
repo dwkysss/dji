@@ -189,3 +189,13 @@ export const REGISTERED_MACHINES = [
 ];
 
 export const PROBLEM_DETAILS = DEFAULT_PROBLEM_DETAILS;
+
+export const PROBLEM_CATEGORIES = [
+  { id: "A", name: "Kode A: Masalah dan Perbaikan Benang", short: "Benang" },
+  { id: "B", name: "Kode B: Perbaikan Jarum dan Element Rajutan (Mechanical)", short: "Jarum & Mekanik" },
+  { id: "C", name: "Kode C: Pengaturan dan Design stup", short: "Design & Setup" },
+  { id: "D", name: "Kode D: Bahan Baku dan penggantian Benang", short: "Bahan Baku" },
+  { id: "E", name: "Kode E: Masalah Kelistrikan", short: "Kelistrikan" },
+  { id: "F", name: "Kode F: Perawatan Mesin,Perbaikan Mekanik (maintenance)", short: "Maintenance" },
+  { id: "G", name: "Kode G: Faktor Eksternal dan Non-Teknis", short: "Eksternal & Non-Teknis" },
+];

@@ -168,6 +168,44 @@ function FormulaTooltip({
   );
 }
 
+function formatKeteranganWithPotongKain(
+  potongKainList?: string[],
+  keteranganPerKategori?: Record<string, string[]>
+): string {
+  let ketString = "";
+  if (keteranganPerKategori && Object.keys(keteranganPerKategori).length > 0) {
+    ketString = Object.entries(keteranganPerKategori)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([kat, details]) => {
+        const counts: Record<string, number> = {};
+        (details as string[]).forEach((d) => {
+          const key = d?.trim() || "Detail umum";
+          counts[key] = (counts[key] || 0) + 1;
+        });
+        const formatted = Object.entries(counts).map(([d, cnt]) =>
+          cnt > 1 ? `${d} (${cnt}x)` : d
+        );
+        return formatted.length > 0 ? `[${kat}] ${formatted.join(", ")}` : `[${kat}]`;
+      })
+      .join(" | ");
+  }
+
+  let potongKainStr = "";
+  if (potongKainList && potongKainList.length > 0) {
+    potongKainStr = potongKainList
+      .map((p) => `Potong Kain Ke-${String(p).replace(/^ke-?/i, "").trim()}`)
+      .join(", ");
+  }
+
+  if (potongKainStr && ketString) {
+    return `${potongKainStr} | ${ketString}`;
+  }
+  if (potongKainStr) {
+    return potongKainStr;
+  }
+  return ketString;
+}
+
 export default function MonthlyMachineReportPage() {
   const router = useRouter();
   const [machines, setMachines] = useState<string[]>([]);
@@ -216,10 +254,16 @@ export default function MonthlyMachineReportPage() {
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
   // Modal State for Keterangan
-  const [modalData, setModalData] = useState<{ isOpen: boolean; title: string; contentObj: Record<string, string[]> | null }>({
+  const [modalData, setModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    contentObj: Record<string, string[]> | null;
+    potongKain?: string[];
+  }>({
     isOpen: false,
     title: "",
     contentObj: null,
+    potongKain: undefined,
   });
 
   // Load schedule settings on mount
@@ -460,20 +504,7 @@ export default function MonthlyMachineReportPage() {
           const pCacat = td.jumlah_cacat > 0 && td.hasil_produksi > 0 ? ((td.jumlah_cacat / td.hasil_produksi) * 100).toFixed(2) + "%" : "0.00%";
           const pEff = ((shiftDurationSecs - td.downtime_detik) / shiftDurationSecs * 100).toFixed(2) + "%";
           
-          let ketString = "";
-          if (td.keterangan_per_kategori) {
-            ketString = Object.entries(td.keterangan_per_kategori)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([kat, details]) => {
-                const counts: Record<string, number> = {};
-                (details as string[]).forEach((d) => {
-                  const key = d?.trim() || "Detail umum";
-                  counts[key] = (counts[key] || 0) + 1;
-                });
-                const formatted = Object.entries(counts).map(([d, cnt]) => cnt > 1 ? `${d} (${cnt}x)` : d);
-                return formatted.length > 0 ? `[${kat}] ${formatted.join(", ")}` : `[${kat}]`;
-              }).join(" | ");
-          }
+          const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori);
 
           wsData.push([
             isFirst ? dayData.tanggal : "",
@@ -519,20 +550,7 @@ export default function MonthlyMachineReportPage() {
           tanggal: dayData.tanggal,
           teams: teamsToRender.map((teamObj) => {
             const td = teamObj.data;
-            let ketString = "";
-            if (td.keterangan_per_kategori) {
-              ketString = Object.entries(td.keterangan_per_kategori)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([kat, details]) => {
-                  const counts: Record<string, number> = {};
-                  (details as string[]).forEach((d) => {
-                    const key = d?.trim() || "Detail umum";
-                    counts[key] = (counts[key] || 0) + 1;
-                  });
-                  const formatted = Object.entries(counts).map(([d, cnt]) => cnt > 1 ? `${d} (${cnt}x)` : d);
-                  return formatted.length > 0 ? `[${kat}] ${formatted.join(", ")}` : `[${kat}]`;
-                }).join(" | ");
-            }
+            const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori);
 
             return {
               team: teamObj.teamName,
@@ -664,20 +682,7 @@ export default function MonthlyMachineReportPage() {
           const pCacat = td.jumlah_cacat > 0 && td.hasil_produksi > 0 ? ((td.jumlah_cacat / td.hasil_produksi) * 100).toFixed(2) + "%" : "0.00%";
           const pEff = ((shiftDurationSecs - td.downtime_detik) / shiftDurationSecs * 100).toFixed(2) + "%";
           
-          let ketString = "";
-          if (td.keterangan_per_kategori) {
-            ketString = Object.entries(td.keterangan_per_kategori)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([kat, details]) => {
-                const counts: Record<string, number> = {};
-                (details as string[]).forEach((d) => {
-                  const key = d?.trim() || "Detail umum";
-                  counts[key] = (counts[key] || 0) + 1;
-                });
-                const formatted = Object.entries(counts).map(([d, cnt]) => cnt > 1 ? `${d} (${cnt}x)` : d);
-                return formatted.length > 0 ? `[${kat}] ${formatted.join(", ")}` : `[${kat}]`;
-              }).join(" | ");
-          }
+          const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori);
 
           const row = [
             isFirst ? dayData.tanggal : "",
@@ -1336,20 +1341,7 @@ export default function MonthlyMachineReportPage() {
                     // We'll alternate slightly for rows to look like the image.
                     const rowBgClass = team === "B" ? "bg-[#fdf9f4]" : (team === "C" ? "bg-[#faf5ec]" : "bg-white");
                     
-                    let ketString = "";
-                    if (td.keterangan_per_kategori) {
-                      ketString = Object.entries(td.keterangan_per_kategori)
-                        .sort(([a], [b]) => a.localeCompare(b))
-                        .map(([kat, details]) => {
-                          const counts: Record<string, number> = {};
-                          (details as string[]).forEach((d) => {
-                            const key = d?.trim() || "Detail umum";
-                            counts[key] = (counts[key] || 0) + 1;
-                          });
-                          const formatted = Object.entries(counts).map(([d, cnt]) => cnt > 1 ? `${d} (${cnt}x)` : d);
-                          return formatted.length > 0 ? `[${kat}] ${formatted.join(", ")}` : `[${kat}]`;
-                        }).join(" | ");
-                    }
+                    const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori);
 
                     return (
                       <tr key={`${dayData.tanggal}-${team}`} className={`${rowBgClass} hover:bg-sky-50/50 transition-colors`}>
@@ -1358,10 +1350,15 @@ export default function MonthlyMachineReportPage() {
                         )}
                         <td className="border border-slate-300 p-2 text-center font-bold text-slate-800">{td.desain || ""}</td>
                         <td className="border border-slate-300 p-2 text-center text-slate-500 text-xs">
-                          {Object.keys(td.keterangan_per_kategori || {}).length > 0 ? (
+                          {ketString ? (
                             <button
-                              onClick={() => setModalData({ isOpen: true, title: `Keterangan (Tgl ${dayData.tanggal} Tim ${team})`, contentObj: td.keterangan_per_kategori! })}
-                              className="w-full text-left truncate max-w-[120px] hover:text-sky-600 transition-colors group relative flex items-center justify-between"
+                              onClick={() => setModalData({
+                                isOpen: true,
+                                title: `Keterangan (Tgl ${dayData.tanggal} Tim ${team})`,
+                                contentObj: td.keterangan_per_kategori || null,
+                                potongKain: td.potong_kain_list,
+                              })}
+                              className="w-full text-left truncate max-w-[120px] hover:text-sky-600 transition-colors group relative flex items-center justify-between cursor-pointer"
                             >
                               <span className="truncate">{ketString}</span>
                               <Info className="w-3 h-3 ml-1 shrink-0 opacity-50 group-hover:opacity-100" />
@@ -1738,7 +1735,23 @@ export default function MonthlyMachineReportPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar flex flex-col gap-4">
+              {modalData.potongKain && modalData.potongKain.length > 0 && (
+                <div className="bg-sky-50 border border-sky-200 rounded-xl p-3.5 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#0070bc] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                    ✂️
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold text-sky-800 uppercase tracking-wide">
+                      Operasi Potong Kain
+                    </div>
+                    <div className="text-xs font-black text-sky-950 mt-0.5">
+                      {modalData.potongKain.map((p) => `Potong Kain Ke-${String(p).replace(/^ke-?/i, "").trim()}`).join(", ")}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {modalData.contentObj && Object.entries(modalData.contentObj).length > 0 ? (
                 <div className="flex flex-col gap-4">
                   {Object.entries(modalData.contentObj).sort(([a], [b]) => a.localeCompare(b)).map(([kat, details]) => (
@@ -1775,7 +1788,9 @@ export default function MonthlyMachineReportPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-400 italic text-center py-4">Tidak ada keterangan.</p>
+                (!modalData.potongKain || modalData.potongKain.length === 0) && (
+                  <p className="text-slate-400 italic text-center py-4">Tidak ada keterangan.</p>
+                )
               )}
             </div>
             <div className="p-4 border-t border-slate-100 flex justify-end bg-slate-50/50 shrink-0">

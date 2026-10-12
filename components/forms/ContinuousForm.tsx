@@ -48,6 +48,7 @@ import {
   AlertTriangle,
   Info,
   Lock,
+  PowerOff,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import HeaderSummaryCard from "./HeaderSummaryCard";
@@ -56,6 +57,9 @@ import WifiDowntimeTrigger from "./WifiDowntimeTrigger";
 
 // Dynamic imports: code-split heavy components to reduce initial JS bundle
 const ProductionHeaderModal = dynamic(() => import("./ProductionHeaderModal"), {
+  ssr: false,
+});
+const MachineStopModal = dynamic(() => import("./MachineStopModal"), {
   ssr: false,
 });
 import DowntimeTracker from "./DowntimeTracker";
@@ -485,6 +489,8 @@ export default function ContinuousForm({
   const [handoverModalError, setHandoverModalError] = useState<string | null>(null);
   const prevOperatorRef = useRef<string>("");
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+  const [isStopModalOpen, setIsStopModalOpen] = useState(false);
+  const [stopModalSuccessMsg, setStopModalSuccessMsg] = useState<string | null>(null);
   const [originalT2ATarget, setOriginalT2ATarget] = useState<number | null>(
     null,
   );
@@ -982,23 +988,47 @@ export default function ContinuousForm({
 
 
   useEffect(() => {
+    const currentOperatorId = watch("operatorId");
+    const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
+    const shiftToUse = currentOp?.shift || activeShiftName;
+
     if (watchJenisLaporan === "Selesai Istirahat") {
       refreshAutomaticMeterStart();
       setBackupOperator((prev) => {
-        if (!prev) {
-          return localStorage.getItem("dji_last_backup_operator") || "";
-        }
-        return prev;
+        const isPrevValid = Boolean(prev && operators.some((o) => o.shift === shiftToUse && o.name === prev && o.id.toString() !== currentOperatorId));
+        if (isPrevValid) return prev;
+
+        const saved = typeof window !== "undefined" ? localStorage.getItem(`dji_last_backup_operator_${shiftToUse}`) : null;
+        const isSavedValid = Boolean(saved && operators.some((o) => o.shift === shiftToUse && o.name === saved && o.id.toString() !== currentOperatorId));
+        return isSavedValid && saved ? saved : "";
       });
     } else if (watchJenisLaporan === "Mulai Istirahat") {
       setBackupOperator((prev) => {
-        if (!prev) {
-          return localStorage.getItem("dji_last_backup_operator") || "";
-        }
-        return prev;
+        const isPrevValid = Boolean(prev && operators.some((o) => o.shift === shiftToUse && o.name === prev && o.id.toString() !== currentOperatorId));
+        if (isPrevValid) return prev;
+
+        const saved = typeof window !== "undefined" ? localStorage.getItem(`dji_last_backup_operator_${shiftToUse}`) : null;
+        const isSavedValid = Boolean(saved && operators.some((o) => o.shift === shiftToUse && o.name === saved && o.id.toString() !== currentOperatorId));
+        return isSavedValid && saved ? saved : "";
       });
     }
-  }, [watchJenisLaporan]);
+  }, [watchJenisLaporan, activeShiftName, watch("operatorId"), operators]);
+
+  // Validasi keamanan: Jika backupOperator di state tidak sesuai dengan shift yang aktif, reset otomatis
+  useEffect(() => {
+    if (!backupOperator) return;
+    const currentOperatorId = watch("operatorId");
+    const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
+    const shiftToUse = currentOp?.shift || activeShiftName;
+    const isValid = operators.some((o) => o.shift === shiftToUse && o.name === backupOperator && o.id.toString() !== currentOperatorId);
+    if (!isValid) {
+      setBackupOperator("");
+      try {
+        localStorage.removeItem(`dji_last_backup_operator_${shiftToUse}`);
+        localStorage.removeItem("dji_last_backup_operator");
+      } catch {}
+    }
+  }, [activeShiftName, watch("operatorId"), operators, backupOperator]);
 
   useEffect(() => {
     if (isMeterModalOpen) {
@@ -1429,18 +1459,29 @@ export default function ContinuousForm({
       // Jika ini pelaporan titik cacat / downtime murni (tanpa mengisi meter akhir):
       // Jangan set jenisLaporan sebagai checkpoint istirahat/masuk
       data.jenisLaporan = "";
-      // Namun jika sedang dalam masa istirahat (ada backup operator), tetap sertakan backupOperator agar tercatat
-      if (backupOperator) {
+      // Namun jika sedang dalam masa istirahat aktif (Selesai Istirahat = belum masuk kembali), dan backup operator valid se-shift:
+      const isInActiveBreak = watchJenisLaporan === "Selesai Istirahat";
+      const currentOperatorId = watch("operatorId");
+      const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
+      const shiftToUse = currentOp?.shift || activeShiftName;
+      const isBackupValid = Boolean(backupOperator && operators.some((o) => o.shift === shiftToUse && o.name === backupOperator && o.id.toString() !== currentOperatorId));
+
+      if (isInActiveBreak && isBackupValid) {
         data.backupOperator = backupOperator;
       } else {
         data.backupOperator = undefined;
       }
     } else {
       if (data.jenisLaporan === "Mulai Istirahat" || data.jenisLaporan === "Selesai Istirahat") {
-        if (!backupOperator) {
+        const currentOperatorId = watch("operatorId");
+        const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
+        const shiftToUse = currentOp?.shift || activeShiftName;
+        const isBackupValid = Boolean(backupOperator && operators.some((o) => o.shift === shiftToUse && o.name === backupOperator && o.id.toString() !== currentOperatorId));
+
+        if (!backupOperator || !isBackupValid) {
           setIsSubmitting(false);
           setIsProcessingSubmit(false);
-          setErrorMsg(`Wajib memilih Operator Backup yang menjaga mesin saat ${data.jenisLaporan}.`);
+          setErrorMsg(`Wajib memilih Operator Backup dari Shift ${shiftToUse} yang menjaga mesin saat ${data.jenisLaporan}.`);
           return;
         }
         data.backupOperator = backupOperator;
@@ -1728,7 +1769,10 @@ export default function ContinuousForm({
         nextJenisLaporan = "Selesai Istirahat";
       } else if (submittedJenis === "Selesai Istirahat") {
         nextJenisLaporan = "";
-        localStorage.removeItem("dji_last_backup_operator");
+        try {
+          localStorage.removeItem(`dji_last_backup_operator_${activeShiftName}`);
+          localStorage.removeItem("dji_last_backup_operator");
+        } catch {}
         setBackupOperator("");
       }
     }
@@ -1960,15 +2004,46 @@ export default function ContinuousForm({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsHistoryDrawerOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group w-full sm:w-auto"
-          >
-            <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors" />
-            <span>Riwayat Potongan Ini</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setIsStopModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
+              title="Lapor jika mesin mati/rusak/standby selama shift ini tanpa ada hasil kain"
+            >
+              <PowerOff className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+              <span>Mesin Mati</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsHistoryDrawerOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
+            >
+              <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors" />
+              <span>Riwayat Potongan Ini</span>
+            </button>
+          </div>
         </div>
+
+        {stopModalSuccessMsg && (
+          <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="text-xs font-bold text-emerald-900 leading-snug">
+                {stopModalSuccessMsg}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStopModalSuccessMsg(null)}
+              className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-100 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "PANEL" && (
           <div className="p-3 bg-indigo-50 border border-indigo-200/80 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
@@ -2803,26 +2878,38 @@ export default function ContinuousForm({
                     {(watchJenisLaporan === "Mulai Istirahat" || watchJenisLaporan === "Selesai Istirahat") && (
                       <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
                         <label className="text-[10px] font-black text-amber-800 uppercase block mb-1">
-                          Siapa yang menjaga mesin (Backup)?
+                          Siapa yang menjaga mesin (Backup) - Shift {activeShiftName}?
                         </label>
                         <select
                           value={backupOperator}
                           onChange={(e) => {
-                            setBackupOperator(e.target.value);
-                            if (e.target.value) {
-                              localStorage.setItem("dji_last_backup_operator", e.target.value);
-                            }
+                            const val = e.target.value;
+                            setBackupOperator(val);
+                            const currentOperatorId = watch("operatorId");
+                            const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
+                            const shiftToUse = currentOp?.shift || activeShiftName;
+                            try {
+                              if (val) {
+                                localStorage.setItem(`dji_last_backup_operator_${shiftToUse}`, val);
+                              } else {
+                                localStorage.removeItem(`dji_last_backup_operator_${shiftToUse}`);
+                              }
+                            } catch {}
                           }}
                           className="w-full h-10 px-3 rounded-lg border border-amber-300 text-sm font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-amber-400 outline-none"
                         >
-                          <option value="">-- Pilih Operator --</option>
+                          <option value="">-- Pilih Operator Backup (Shift {activeShiftName}) --</option>
                           {(() => {
                             const currentOperatorId = watch("operatorId");
-                            const currentOp = operators.find(o => o.id.toString() === currentOperatorId);
-                            const backupOps = currentOp?.shift
-                              ? operators.filter(o => o.shift === currentOp.shift && o.id.toString() !== currentOperatorId)
-                              : operators;
-                            return backupOps.map(op => (
+                            const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
+                            const shiftToUse = currentOp?.shift || activeShiftName;
+                            const backupOps = operators.filter(
+                              (o) => o.shift === shiftToUse && o.id.toString() !== currentOperatorId?.toString()
+                            );
+                            if (backupOps.length === 0) {
+                              return <option value="" disabled>Tidak ada operator lain di Shift {shiftToUse}</option>;
+                            }
+                            return backupOps.map((op) => (
                               <option key={op.id} value={op.name}>{op.name}</option>
                             ));
                           })()}
@@ -3452,6 +3539,27 @@ export default function ContinuousForm({
           setIsHeaderModalOpen(false);
           setHighlightPotonganKe(false);
           setHighlightOperator(false);
+          try {
+            const currentHeader = {
+              nomorMc: watch("nomorMc"),
+              operatorId: watch("operatorId"),
+              groupId: watchGroupId,
+              potonganKe: watch("potonganKe"),
+              designId: watch("designId"),
+              rpm: watch("rpm"),
+              pick: watch("pick"),
+              course: watch("course"),
+              statusMatching: watch("statusMatching"),
+              noOrderBarang: watch("noOrderBarang"),
+              noCustomer: watch("noCustomer"),
+              jenisBenangDasar: watch("jenisBenangDasar"),
+              liner: watch("liner"),
+              heavy: watch("heavy"),
+              shadow: watch("shadow"),
+              pinggiran: watch("pinggiran"),
+            };
+            localStorage.setItem("dji_form_header", JSON.stringify(currentHeader));
+          } catch (e) {}
           checkAndPromptHandover();
         }}
         register={register}
@@ -3466,6 +3574,26 @@ export default function ContinuousForm({
         highlightOperator={highlightOperator}
         pcsCount={fields.length}
         onChangePcsCount={handleChangePcsCount}
+      />
+
+      {/* MODAL LAPOR MESIN BERHENTI / MATI */}
+      <MachineStopModal
+        isOpen={isStopModalOpen}
+        onClose={() => setIsStopModalOpen(false)}
+        nomorMc={watch("nomorMc") || ""}
+        operatorId={watch("operatorId") || ""}
+        operatorName={getOperatorName(watch("operatorId")) || ""}
+        groupId={watchGroupId || "1"}
+        shiftName={activeShiftName}
+        potonganKe={watch("potonganKe")}
+        designId={watch("designId") || ""}
+        rpm={watch("rpm") || ""}
+        pick={watch("pick") || ""}
+        course={watch("course") || ""}
+        onSuccess={(msg) => {
+          setStopModalSuccessMsg(msg || "Laporan mesin berhenti berhasil disimpan!");
+          setTimeout(() => setStopModalSuccessMsg(null), 7000);
+        }}
       />
 
       {/* SLIDE-OVER DRAWER RIWAYAT SHIFT */}

@@ -43,6 +43,7 @@ import {
   AlertTriangle,
   Hash,
   History,
+  PowerOff,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -51,6 +52,9 @@ import HeaderSummaryCard from "./HeaderSummaryCard";
 // Dynamic imports: these components are code-split into separate JS chunks.
 // They are NOT downloaded on initial page load, reducing TBT significantly.
 const ProductionHeaderModal = dynamic(() => import("./ProductionHeaderModal"), {
+  ssr: false,
+});
+const MachineStopModal = dynamic(() => import("./MachineStopModal"), {
   ssr: false,
 });
 import DowntimeTracker from "./DowntimeTracker";
@@ -482,19 +486,7 @@ export default function EmployeeForm({
     setBreakWarningModal({ isOpen: false, timeStr: "", shiftName: "", allowedRange: "", pendingEvent: null });
   };
 
-  // Persist backupOperatorName to localStorage for drafts
-  useEffect(() => {
-    if (isEdit) return;
-    const saved = localStorage.getItem("dji_backup_operator_name");
-    if (saved) {
-      setBackupOperatorName(saved);
-    }
-  }, [isEdit]);
 
-  useEffect(() => {
-    if (isEdit) return;
-    localStorage.setItem("dji_backup_operator_name", backupOperatorName);
-  }, [backupOperatorName, isEdit]);
 
   const [previews, setPreviews] = useState<{
     before: string | null;
@@ -563,6 +555,8 @@ export default function EmployeeForm({
   };
 
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+  const [isStopModalOpen, setIsStopModalOpen] = useState(false);
+  const [stopModalSuccessMsg, setStopModalSuccessMsg] = useState<string | null>(null);
 
 
   // Load designs & groups from Supabase lazily when the Header Modal opens
@@ -842,6 +836,53 @@ export default function EmployeeForm({
   const watchNomorMc = watch("nomorMc");
   const watchOperatorId = watch("operatorId");
   const watchPanelNo = watch("panelNo");
+
+  // Persist backupOperatorName to localStorage for drafts
+  useEffect(() => {
+    if (isEdit) return;
+    const currentShift = activeShiftName;
+    const saved = localStorage.getItem(`dji_backup_operator_name_${currentShift}`);
+    if (saved) {
+      const isValid = operators.some((o: any) => o.shift === currentShift && (o.name || o.nama_operator) === saved && o.id.toString() !== watchOperatorId);
+      if (isValid) {
+        setBackupOperatorName(saved);
+      } else {
+        localStorage.removeItem(`dji_backup_operator_name_${currentShift}`);
+        setBackupOperatorName("");
+      }
+    } else {
+      setBackupOperatorName("");
+    }
+    try {
+      localStorage.removeItem("dji_backup_operator_name");
+    } catch {}
+  }, [isEdit, activeShiftName, watchOperatorId, operators]);
+
+  useEffect(() => {
+    if (isEdit) return;
+    const currentShift = activeShiftName;
+    if (backupOperatorName) {
+      localStorage.setItem(`dji_backup_operator_name_${currentShift}`, backupOperatorName);
+    } else {
+      localStorage.removeItem(`dji_backup_operator_name_${currentShift}`);
+    }
+  }, [backupOperatorName, activeShiftName, isEdit]);
+
+  // Validasi keamanan: jika backupOperatorName di state tidak cocok dengan shift saat ini, reset
+  useEffect(() => {
+    if (!backupOperatorName) return;
+    const currentOperator = operators.find((o: any) => o.id.toString() === watchOperatorId);
+    const currentShift = currentOperator?.shift || activeShiftName;
+    const isValid = operators.some((o: any) => o.shift === currentShift && (o.name || o.nama_operator) === backupOperatorName && o.id.toString() !== watchOperatorId);
+    if (!isValid) {
+      setBackupOperatorName("");
+      setValue("operatorBackup", "");
+      try {
+        localStorage.removeItem(`dji_backup_operator_name_${currentShift}`);
+        localStorage.removeItem("dji_backup_operator_name");
+      } catch {}
+    }
+  }, [activeShiftName, watchOperatorId, operators, backupOperatorName, setValue]);
 
   const prevNomorMcRef = useRef<string>("");
   // Sync machine config from cached ref (no extra network request)
@@ -1433,15 +1474,46 @@ export default function EmployeeForm({
               Data Header akan otomatis tersimpan untuk panel berikutnya.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsHistoryDrawerOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group w-full sm:w-auto"
-          >
-            <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors" />
-            <span>Riwayat Potongan Ini</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setIsStopModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
+              title="Lapor jika mesin mati/rusak/standby selama shift ini tanpa ada hasil kain"
+            >
+              <PowerOff className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+              <span>Mesin Mati</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsHistoryDrawerOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
+            >
+              <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors" />
+              <span>Riwayat Potongan Ini</span>
+            </button>
+          </div>
         </div>
+
+        {stopModalSuccessMsg && (
+          <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="text-xs font-bold text-emerald-900 leading-snug">
+                {stopModalSuccessMsg}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStopModalSuccessMsg(null)}
+              className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-100 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {isMeterMachine && (
           <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
@@ -1593,6 +1665,27 @@ export default function EmployeeForm({
               setIsHeaderModalOpen(false);
               setHighlightPotonganKe(false);
               setHighlightOperator(false);
+              try {
+                const currentHeader = {
+                  nomorMc: watchNomorMc,
+                  operatorId: watch("operatorId"),
+                  groupId: watchGroupId,
+                  potonganKe: watchPotonganKe,
+                  designId: watch("designId"),
+                  rpm: watch("rpm"),
+                  pick: watch("pick"),
+                  course: watch("course"),
+                  statusMatching: watch("statusMatching"),
+                  noOrderBarang: watch("noOrderBarang"),
+                  noCustomer: watch("noCustomer"),
+                  jenisBenangDasar: watch("jenisBenangDasar"),
+                  liner: watch("liner"),
+                  heavy: watch("heavy"),
+                  shadow: watch("shadow"),
+                  pinggiran: watch("pinggiran"),
+                };
+                localStorage.setItem("dji_form_header", JSON.stringify(currentHeader));
+              } catch (e) {}
             }}
             register={register}
             errors={errors}
@@ -1606,6 +1699,25 @@ export default function EmployeeForm({
             highlightOperator={highlightOperator}
             pcsCount={fields.length}
             onChangePcsCount={handleChangePcsCount}
+          />
+
+          <MachineStopModal
+            isOpen={isStopModalOpen}
+            onClose={() => setIsStopModalOpen(false)}
+            nomorMc={watchNomorMc || ""}
+            operatorId={watch("operatorId") || ""}
+            operatorName={currentOperatorName || ""}
+            groupId={watchGroupId || "1"}
+            shiftName={activeShiftName}
+            potonganKe={watchPotonganKe}
+            designId={watch("designId") || ""}
+            rpm={watch("rpm") || ""}
+            pick={watch("pick") || ""}
+            course={watch("course") || ""}
+            onSuccess={(msg) => {
+              setStopModalSuccessMsg(msg || "Laporan mesin berhenti berhasil disimpan!");
+              setTimeout(() => setStopModalSuccessMsg(null), 7000);
+            }}
           />
 
           {/* Hidden PCS fields to match the array structure for form submission */}
@@ -2120,11 +2232,10 @@ export default function EmployeeForm({
       {showBackupModal && (() => {
         const currentOperatorId = watchOperatorId;
         const currentOperator = operators.find((o: any) => o.id.toString() === currentOperatorId);
-        const currentShift = currentOperator?.shift;
-        const backupOperatorsSeShift = operators.filter((o: any) => o.shift === currentShift && o.id.toString() !== currentOperatorId);
-        const backupOperators = backupOperatorsSeShift.length > 0
-          ? backupOperatorsSeShift
-          : operators.filter((o: any) => o.id.toString() !== currentOperatorId);
+        const currentShift = currentOperator?.shift || activeShiftName;
+        const backupOperators = operators.filter(
+          (o: any) => o.shift === currentShift && o.id.toString() !== currentOperatorId
+        );
 
         const handleCloseModal = () => {
           if (!backupOperatorName) {
@@ -2172,7 +2283,7 @@ export default function EmployeeForm({
                     </button>
                   );
                 }) : (
-                  <p className="text-sm text-slate-500 text-center py-4">Tidak ada operator lain yang terdaftar.</p>
+                  <p className="text-sm text-slate-500 text-center py-4">Tidak ada operator lain yang terdaftar di Shift {currentShift}.</p>
                 )}
               </div>
               <div className="flex gap-3 mt-2">

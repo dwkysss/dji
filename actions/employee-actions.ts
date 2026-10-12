@@ -1260,6 +1260,103 @@ export async function searchEmployeeHistory(filters: {
       batch.panels.push(row);
     });
 
+    // Jika dilakukan filter tanggal, ambil total downtime riil per potongan secara utuh agar sinkron dengan halaman detail
+    if ((startDate || endDate) && !filters.includeDetails && batchesMap.size > 0) {
+      const validBatches = Array.from(batchesMap.values()).filter(
+        (b) =>
+          b.nomor_mc &&
+          b.potongan_ke !== undefined &&
+          b.potongan_ke !== null &&
+          String(b.potongan_ke).trim() !== ""
+      );
+
+      if (validBatches.length > 0) {
+        const uniqueMcs = Array.from(
+          new Set(
+            validBatches.flatMap((b) => [
+              String(b.nomor_mc).trim(),
+              String(b.nomor_mc).trim().toUpperCase(),
+            ])
+          )
+        );
+        const uniquePots = Array.from(
+          new Set(
+            validBatches
+              .map((b) => parseInt(String(b.potongan_ke)))
+              .filter((n) => !isNaN(n))
+          )
+        );
+
+        if (uniquePots.length > 0) {
+          const CHUNK_SIZE = 200;
+          let allPotHeaders: any[] = [];
+          for (let i = 0; i < uniquePots.length; i += CHUNK_SIZE) {
+            const potChunk = uniquePots.slice(i, i + CHUNK_SIZE);
+            const { data: chunkData, error: chunkErr } = await supabase
+              .from("production_headers")
+              .select("nomor_mc, potongan_ke, total_downtime_detik, downtime_events, downtime_records(durasi_detik)")
+              .in("nomor_mc", uniqueMcs)
+              .in("potongan_ke", potChunk);
+
+            if (!chunkErr && chunkData) {
+              allPotHeaders = allPotHeaders.concat(chunkData);
+            }
+          }
+
+          if (allPotHeaders.length > 0) {
+            const potDowntimeMap = new Map<string, number>();
+
+            allPotHeaders.forEach((row: any) => {
+              const mcNorm = (row.nomor_mc || "").trim().toUpperCase();
+              const potNorm = String(row.potongan_ke || "").trim();
+              const k = `${mcNorm}_${potNorm}`;
+
+              let dtDetik = row.total_downtime_detik || 0;
+              if (
+                dtDetik === 0 &&
+                row.downtime_records &&
+                Array.isArray(row.downtime_records) &&
+                row.downtime_records.length > 0
+              ) {
+                dtDetik = row.downtime_records.reduce(
+                  (sum: number, rec: any) => sum + (rec.durasi_detik || 0),
+                  0
+                );
+              }
+              if (dtDetik === 0 && row.downtime_events) {
+                try {
+                  const events =
+                    typeof row.downtime_events === "string"
+                      ? JSON.parse(row.downtime_events)
+                      : row.downtime_events;
+                  if (Array.isArray(events)) {
+                    dtDetik = events.reduce(
+                      (sum: number, ev: any) =>
+                        sum +
+                        (parseInt(ev.durasiDetik || ev.durasi_detik, 10) || 0),
+                      0
+                    );
+                  }
+                } catch (e) {}
+              }
+
+              potDowntimeMap.set(k, (potDowntimeMap.get(k) || 0) + dtDetik);
+            });
+
+            for (const batch of validBatches) {
+              const mcNorm = (batch.nomor_mc || "").trim().toUpperCase();
+              const potNorm = String(batch.potongan_ke || "").trim();
+              const k = `${mcNorm}_${potNorm}`;
+
+              if (potDowntimeMap.has(k)) {
+                batch.total_downtime_detik = potDowntimeMap.get(k) || 0;
+              }
+            }
+          }
+        }
+      }
+    }
+
     let batches = Array.from(batchesMap.values()).map(b => {
       let finalTotalMeter = b.total_meter;
       if (b.is_meter && b.panels && b.panels.length > 0) {

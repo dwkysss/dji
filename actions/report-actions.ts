@@ -23,6 +23,7 @@ export interface TeamData {
   desain?: string;
   keterangan?: string;
   keterangan_per_kategori?: Record<string, string[]>;
+  potong_kain_list?: string[];
   earliestTimestamp?: string;
 }
 
@@ -57,64 +58,137 @@ export async function getMonthlyMachineReport(
     const prevDate = new Date(year, month - 1, 0).toISOString().split("T")[0];
     const nextDate = new Date(year, month, 2).toISOString().split("T")[0];
 
-    // Fetch all production details joined with headers for the specific machine and month (paginated to overcome 1000 limit)
-    let data: any[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
+    // 1. Fetch all production_headers directly with pagination.
+    // Querying production_headers by indexed fields (nomor_mc, tgl) is fast (< 1s for thousands of records)
+    // and avoids Postgres statement timeouts (code 57014) caused by deep joining and offsetting production_details.
+    let allHeaders: any[] = [];
+    let headerPage = 0;
+    const headerPageSize = 1000;
+    let hasMoreHeaders = true;
 
-    while (hasMore) {
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
-      const { data: pageData, error } = await supabase
-        .from("production_details")
+    while (hasMoreHeaders) {
+      const from = headerPage * headerPageSize;
+      const to = from + headerPageSize - 1;
+      const { data: hPage, error: hErr } = await supabase
+        .from("production_headers")
         .select(`
           id,
-          jml_hasil_produksi,
-          kategori_masalah,
-          detail_masalah,
-          indikator_stop,
-          production_defects(kategori, detail),
-          production_headers!inner (
-            id,
-            nomor_mc,
-            tgl,
-            tanggal_jam,
-            panel_no,
-            potongan_ke,
-            total_produksi_meter,
-            pcs,
-            design_id,
-            course,
-            pick,
-            rpm,
-            total_downtime_detik,
-            pic,
-            groups ( nama_grup ),
-            operators ( nama_operator )
-          )
+          nomor_mc,
+          tgl,
+          tanggal_jam,
+          panel_no,
+          potongan_ke,
+          tanggal_potong,
+          total_produksi_meter,
+          pcs,
+          design_id,
+          course,
+          pick,
+          rpm,
+          total_downtime_detik,
+          pic,
+          groups ( nama_grup ),
+          operators ( nama_operator )
         `)
-        .eq("production_headers.nomor_mc", machineId)
-        .gte("production_headers.tgl", prevDate)
-        .lte("production_headers.tgl", nextDate)
+        .eq("nomor_mc", machineId)
+        .gte("tgl", prevDate)
+        .lte("tgl", nextDate)
+        .order("tgl", { ascending: true })
+        .order("id", { ascending: true })
         .range(from, to);
 
-      if (error) {
-        console.error("Error fetching report data:", error);
-        throw new Error("Gagal mengambil data laporan: " + error.message);
+      if (hErr) {
+        console.error("Error fetching report headers:", hErr);
+        throw new Error("Gagal mengambil data header laporan: " + hErr.message);
       }
 
-      if (pageData && pageData.length > 0) {
-        data.push(...pageData);
-        if (pageData.length < pageSize) {
-          hasMore = false;
+      if (hPage && hPage.length > 0) {
+        allHeaders.push(...hPage);
+        if (hPage.length < headerPageSize) {
+          hasMoreHeaders = false;
         } else {
-          page++;
+          headerPage++;
         }
       } else {
-        hasMore = false;
+        hasMoreHeaders = false;
       }
     }
+
+    // 2. Fetch corresponding production_details in safe URL-length chunks (chunk size 60 UUIDs)
+    // with concurrency control to avoid Nginx 502 Bad Gateway and connection limits.
+    const allHeaderIds = allHeaders.map((h) => h.id);
+    let allDetails: any[] = [];
+
+    if (allHeaderIds.length > 0) {
+      const chunkSize = 60;
+      const chunks: string[][] = [];
+      for (let i = 0; i < allHeaderIds.length; i += chunkSize) {
+        chunks.push(allHeaderIds.slice(i, i + chunkSize));
+      }
+
+      const concurrency = 5;
+      for (let i = 0; i < chunks.length; i += concurrency) {
+        const batch = chunks.slice(i, i + concurrency);
+        const results = await Promise.all(
+          batch.map((chunkIds) =>
+            supabase
+              .from("production_details")
+              .select(`
+                id,
+                header_id,
+                jml_hasil_produksi,
+                kategori_masalah,
+                detail_masalah,
+                indikator_stop,
+                production_defects ( kategori, detail )
+              `)
+              .in("header_id", chunkIds)
+          )
+        );
+
+        for (const res of results) {
+          if (res.error) {
+            console.error("Error fetching report details chunk:", res.error);
+            throw new Error("Gagal mengambil detail laporan: " + res.error.message);
+          }
+          if (res.data) {
+            allDetails.push(...res.data);
+          }
+        }
+      }
+    }
+
+    // 3. Map details with headers and ensure headers without details (stops/downtime) are also represented
+    const detailsByHeader = new Map<string, any[]>();
+    allDetails.forEach((d) => {
+      if (!detailsByHeader.has(d.header_id)) {
+        detailsByHeader.set(d.header_id, []);
+      }
+      detailsByHeader.get(d.header_id)!.push(d);
+    });
+
+    const data: any[] = [];
+    allHeaders.forEach((header) => {
+      const details = detailsByHeader.get(header.id);
+      if (details && details.length > 0) {
+        details.forEach((d) => {
+          data.push({
+            ...d,
+            production_headers: header,
+          });
+        });
+      } else {
+        data.push({
+          id: `hdr-${header.id}`,
+          jml_hasil_produksi: 0,
+          kategori_masalah: "",
+          detail_masalah: "",
+          indikator_stop: null,
+          production_defects: [],
+          production_headers: header,
+        });
+      }
+    });
 
     // Process data to aggregate by date (1-31) and team (A, B, C)
     const reportMap = new Map<number, MonthlyMachineReportData>();
@@ -220,6 +294,39 @@ export async function getMonthlyMachineReport(
       };
     });
 
+    // Identifikasi header yang merupakan momen Potong Kain
+    const cutHeaderIds = new Map<string, string>(); // headerId -> potonganKe string
+
+    // 1. Kelompokkan headers per potongan_ke
+    const headersByPotongan = new Map<string, any[]>();
+    sortedHeaders.forEach((h: any) => {
+      if (h.potongan_ke !== undefined && h.potongan_ke !== null && String(h.potongan_ke).trim() !== "") {
+        const potKey = String(h.potongan_ke).trim();
+        if (!headersByPotongan.has(potKey)) headersByPotongan.set(potKey, []);
+        headersByPotongan.get(potKey)!.push(h);
+      }
+    });
+
+    // 2. Untuk setiap potongan_ke, temukan header penutup (Potong Kain)
+    headersByPotongan.forEach((hList, potKey) => {
+      // Prioritas 1: Header dengan panel_no BS AKHIR
+      const bsAkhir = hList.find((h) => String(h.panel_no || "").toUpperCase().includes("BS AKHIR"));
+      if (bsAkhir) {
+        cutHeaderIds.set(bsAkhir.id, potKey);
+        return;
+      }
+
+      // Prioritas 2: Jika ada tanggal_potong pada potongan ini (misal meteran)
+      const hasTanggalPotong = hList.some((h) => Boolean(h.tanggal_potong));
+      if (hasTanggalPotong) {
+        // Ambil header terakhir secara kronologis dari potongan tersebut
+        const lastH = hList[hList.length - 1];
+        if (lastH) {
+          cutHeaderIds.set(lastH.id, potKey);
+        }
+      }
+    });
+
     // To prevent double counting downtime per header, keep track of processed headers per team
     const processedHeaders = new Set<string>();
     // To track unique panels and whether they have failed/stopped
@@ -259,6 +366,16 @@ export async function getMonthlyMachineReport(
       }
 
       const team = reportDay.teamData[groupName];
+
+      if (cutHeaderIds.has(header.id)) {
+        const potNum = cutHeaderIds.get(header.id)!;
+        if (!team.potong_kain_list) {
+          team.potong_kain_list = [];
+        }
+        if (!team.potong_kain_list.includes(potNum)) {
+          team.potong_kain_list.push(potNum);
+        }
+      }
 
       // Track earliest timestamp for shift ordering
       const timeStamp = header.tanggal_jam || String(header.id);
@@ -490,6 +607,26 @@ export async function getMonthlyMachineReport(
       }
     });
 
+    // Pastikan semua momen potong kain terdata pada teamData meskipun header tidak memiliki baris detail cacat
+    cutHeaderIds.forEach((potNum, hId) => {
+      const assignment = headerAssignment.get(hId);
+      if (!assignment) return;
+      if (assignment.month !== month || assignment.year !== year) return;
+      const reportDay = reportMap.get(assignment.day);
+      if (!reportDay) return;
+      const groupName = assignment.groupName || "A";
+      if (!reportDay.teamData[groupName]) {
+        reportDay.teamData[groupName] = createEmptyTeamData();
+      }
+      const team = reportDay.teamData[groupName];
+      if (!team.potong_kain_list) {
+        team.potong_kain_list = [];
+      }
+      if (!team.potong_kain_list.includes(potNum)) {
+        team.potong_kain_list.push(potNum);
+      }
+    });
+
     // --- FETCH MECHANIC DOWNTIME ---
     // Mechanic dummy headers do not have production_details, so they were missed by the inner join above.
     // We fetch them directly from downtime_records joined with production_headers.
@@ -680,6 +817,7 @@ function createEmptyTeamData(): TeamData {
     eff_100: 0,
     kode_tindakan: {
       "A": 0, "B": 0, "C": 0, "D": 0, "E": 0, "F": 0, "G": 0, "H": 0
-    }
+    },
+    potong_kain_list: [],
   };
 }

@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { getRealProductionsData } from "@/actions/dashboard-actions";
 import { isBsAwalAkhir, isPanelGagalCacat, hasRealDefect } from "@/lib/mending-grade-utils";
-import { getShiftDate } from "@/lib/shift-utils";
+import { getShiftDate, getShiftName } from "@/lib/shift-utils";
 import { DEFAULT_PROBLEM_DETAILS, REGISTERED_MACHINES } from "@/lib/constants";
 import { getOperatorsList } from "@/actions/operator-actions";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
@@ -108,6 +108,8 @@ const DASHBOARD_TOUR_STEPS: ProductTourStep[] = [
 interface Transaction {
   id: string | number;
   tanggal: string;
+  tanggal_jam?: string;
+  shift?: "Shift 1" | "Shift 2" | "Shift 3";
   hari: string;
   header_id: string;
   panel_no?: number;
@@ -131,6 +133,15 @@ interface Transaction {
   kategori_masalah?: string;
   detail_masalah?: string;
   keterangan_cacat?: string;
+}
+
+function getTransactionShift(item: Transaction): "Shift 1" | "Shift 2" | "Shift 3" {
+  if (item.shift) return item.shift;
+  const ts = item.tanggal_jam || (item as any).created_at;
+  if (ts && (String(ts).includes(":") || String(ts).includes("T"))) {
+    return getShiftName(ts);
+  }
+  return "Shift 1";
 }
 
 const isMeterItem = (item: {
@@ -1999,6 +2010,14 @@ export default function DashboardPage() {
     };
   }, [transactions, uniqueOperators, operatorsByShift, dateRangeMode, startDate, endDate]);
 
+  // Deteksi apakah dashboard sedang menampilkan rentang waktu 1 hari saja
+  const isSingleDay = useMemo(() => {
+    if (dateRangeMode === "TODAY") return true;
+    if (dateRangeMode === "CUSTOM" && startDate && endDate && startDate === endDate) return true;
+    const uniqueDates = new Set(filteredData.map((d) => d.tanggal).filter(Boolean));
+    return uniqueDates.size <= 1;
+  }, [dateRangeMode, startDate, endDate, filteredData]);
+
   // Aggregate daily production data for dynamic chart, segmented by grade
   const chartData = useMemo(() => {
     if (activeFilter === "PROBLEMS") {
@@ -2019,17 +2038,22 @@ export default function DashboardPage() {
     let groups: string[] = [];
 
     if (chartGroupBy === "HARI") {
-      // Get unique dates from the filtered data and sort them chronologically
-      const dates = Array.from(
-        new Set(filteredData.map((item) => item.tanggal)),
-      );
-      groups = dates.sort(
-        (a, b) => new Date(a).getTime() - new Date(b).getTime(),
-      );
+      if (isSingleDay) {
+        // Jika filter hanya 1 hari, pecah sumbu X menjadi Shift 1, Shift 2, Shift 3
+        groups = ["Shift 1", "Shift 2", "Shift 3"];
+      } else {
+        // Get unique dates from the filtered data and sort them chronologically
+        const dates = Array.from(
+          new Set(filteredData.map((item) => item.tanggal)),
+        );
+        groups = dates.sort(
+          (a, b) => new Date(a).getTime() - new Date(b).getTime(),
+        );
 
-      // If no data, show at least today's date
-      if (groups.length === 0) {
-        groups = [new Date().toISOString().split("T")[0]];
+        // If no data, show at least today's date
+        if (groups.length === 0) {
+          groups = [new Date().toISOString().split("T")[0]];
+        }
       }
     } else if (chartGroupBy === "DESIGN") {
       // Get unique designs, sorted
@@ -2066,7 +2090,11 @@ export default function DashboardPage() {
     return groups.map((groupName) => {
       let items: Transaction[] = [];
       if (chartGroupBy === "HARI") {
-        items = filteredData.filter((item) => item.tanggal === groupName);
+        if (isSingleDay) {
+          items = filteredData.filter((item) => getTransactionShift(item) === groupName);
+        } else {
+          items = filteredData.filter((item) => item.tanggal === groupName);
+        }
       } else if (chartGroupBy === "DESIGN") {
         items = filteredData.filter(
           (item) => (item.design || "Tanpa Design") === groupName,
@@ -2196,12 +2224,16 @@ export default function DashboardPage() {
 
       let displayLabel = groupName;
       if (chartGroupBy === "HARI") {
-        const d = new Date(groupName);
-        if (!isNaN(d.getTime())) {
-          displayLabel = d.toLocaleDateString("id-ID", {
-            day: "numeric",
-            month: "short",
-          });
+        if (isSingleDay) {
+          displayLabel = groupName; // "Shift 1", "Shift 2", "Shift 3"
+        } else {
+          const d = new Date(groupName);
+          if (!isNaN(d.getTime())) {
+            displayLabel = d.toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+            });
+          }
         }
       }
 
@@ -2216,7 +2248,7 @@ export default function DashboardPage() {
         total,
       };
     });
-  }, [filteredData, chartGroupBy, metricMode, qualityViewMode]);
+  }, [filteredData, chartGroupBy, metricMode, qualityViewMode, isSingleDay]);
 
   const maxChartValue = useMemo(() => {
     if (activeFilter === "PROBLEMS") {
@@ -3731,11 +3763,16 @@ export default function DashboardPage() {
                       </button>
                     </div>
 
-                    <span className="text-[11px] text-slate-400 font-semibold">
-                      • Filter Aktif:{" "}
+                    <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1.5">
+                      <span>• Filter Aktif:</span>
                       <span className="font-extrabold text-[#0070bc] uppercase">
                         {activeFilter}
                       </span>
+                      {isSingleDay && chartGroupBy === "HARI" && (
+                        <span className="ml-1 px-2 py-0.5 rounded-md bg-sky-50 text-[#0070bc] border border-sky-200 text-[10px] font-black uppercase">
+                          Breakdown 3 Shift
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -3752,7 +3789,7 @@ export default function DashboardPage() {
                           : "text-slate-500 hover:text-slate-800"
                           }`}
                       >
-                        <BarChart2 className="w-3 h-3" /> Tanggal
+                        <BarChart2 className="w-3 h-3" /> {isSingleDay ? "Shift" : "Tanggal"}
                       </button>
                       <button
                         onClick={() => setChartGroupBy("DESIGN")}
@@ -4249,9 +4286,10 @@ export default function DashboardPage() {
                                 const yCeklis = 195 - displayHCeklis;
                                 const ySilang = 195 - displayHSilang;
 
-                                const barW = 16;
-                                const xCeklis = groupCenter - 18;
-                                const xSilang = groupCenter + 2;
+                                const barW = totalBars <= 4 ? 24 : 16;
+                                const gap = totalBars <= 4 ? 6 : 4;
+                                const xCeklis = groupCenter - barW - gap / 2;
+                                const xSilang = groupCenter + gap / 2;
 
                                 return (
                                   <g
@@ -4432,8 +4470,8 @@ export default function DashboardPage() {
                                     {/* X-Axis Label */}
                                     <text
                                       x={groupCenter}
-                                      y={220}
-                                      fill="#94a3b8"
+                                      y={218}
+                                      fill="#475569"
                                       fontSize="10"
                                       fontWeight="extrabold"
                                       textAnchor="middle"
@@ -4442,6 +4480,22 @@ export default function DashboardPage() {
                                         ? d.label.substring(0, 10) + "..."
                                         : d.label}
                                     </text>
+                                    {d.label.startsWith("Shift") && (
+                                      <text
+                                        x={groupCenter}
+                                        y={231}
+                                        fill="#94a3b8"
+                                        fontSize="8"
+                                        fontWeight="bold"
+                                        textAnchor="middle"
+                                      >
+                                        {d.label === "Shift 1"
+                                          ? "07:10 - 15:10 WIB"
+                                          : d.label === "Shift 2"
+                                          ? "15:10 - 23:10 WIB"
+                                          : "23:10 - 07:10 WIB"}
+                                      </text>
+                                    )}
                                   </g>
                                 );
                               } else {
@@ -4455,7 +4509,7 @@ export default function DashboardPage() {
                                     : 0;
                                 const displayHVal = Math.max(hVal, 1.5);
                                 const yVal = 195 - displayHVal;
-                                const barW = 28;
+                                const barW = totalBars <= 4 ? 36 : 28;
                                 const xVal = groupCenter - barW / 2;
 
                                 return (
@@ -4567,9 +4621,9 @@ export default function DashboardPage() {
                                     {/* X-Axis Label */}
                                     <text
                                       x={groupCenter}
-                                      y="215"
-                                      fill="#94a3b8"
-                                      fontSize="9"
+                                      y={218}
+                                      fill="#475569"
+                                      fontSize="10"
                                       fontWeight="extrabold"
                                       textAnchor="middle"
                                     >
@@ -4577,6 +4631,22 @@ export default function DashboardPage() {
                                         ? d.label.substring(0, 10) + "..."
                                         : d.label}
                                     </text>
+                                    {d.label.startsWith("Shift") && (
+                                      <text
+                                        x={groupCenter}
+                                        y={231}
+                                        fill="#94a3b8"
+                                        fontSize="8"
+                                        fontWeight="bold"
+                                        textAnchor="middle"
+                                      >
+                                        {d.label === "Shift 1"
+                                          ? "07:10 - 15:10 WIB"
+                                          : d.label === "Shift 2"
+                                          ? "15:10 - 23:10 WIB"
+                                          : "23:10 - 07:10 WIB"}
+                                      </text>
+                                    )}
                                   </g>
                                 );
                               }
@@ -4703,8 +4773,8 @@ export default function DashboardPage() {
                                     {/* X-Axis Label */}
                                     <text
                                       x={groupCenter}
-                                      y={220}
-                                      fill="#94a3b8"
+                                      y={218}
+                                      fill="#475569"
                                       fontSize="10"
                                       fontWeight="extrabold"
                                       textAnchor="middle"
@@ -4713,6 +4783,22 @@ export default function DashboardPage() {
                                         ? d.label.substring(0, 10) + "..."
                                         : d.label}
                                     </text>
+                                    {d.label.startsWith("Shift") && (
+                                      <text
+                                        x={groupCenter}
+                                        y={231}
+                                        fill="#94a3b8"
+                                        fontSize="8"
+                                        fontWeight="bold"
+                                        textAnchor="middle"
+                                      >
+                                        {d.label === "Shift 1"
+                                          ? "07:10 - 15:10 WIB"
+                                          : d.label === "Shift 2"
+                                          ? "15:10 - 23:10 WIB"
+                                          : "23:10 - 07:10 WIB"}
+                                      </text>
+                                    )}
                                   </g>
                                 );
                               }
@@ -4744,11 +4830,13 @@ export default function DashboardPage() {
                               const yBS = 195 - displayHBS;
                               const yUN = 195 - displayHUN;
 
-                              const barW = 10;
-                              const xA = groupCenter - 24;
-                              const xB = groupCenter - 12;
-                              const xBS = groupCenter;
-                              const xUN = groupCenter + 12;
+                              const barW = totalBars <= 4 ? 16 : 10;
+                              const gap = totalBars <= 4 ? 3 : 2;
+                              const groupW = 4 * barW + 3 * gap;
+                              const xA = groupCenter - groupW / 2;
+                              const xB = xA + barW + gap;
+                              const xBS = xB + barW + gap;
+                              const xUN = xBS + barW + gap;
 
                               return (
                                 <g
@@ -5020,8 +5108,8 @@ export default function DashboardPage() {
                                   {/* X-Axis Label */}
                                   <text
                                     x={groupCenter}
-                                    y={220}
-                                    fill="#94a3b8"
+                                    y={218}
+                                    fill="#475569"
                                     fontSize="10"
                                     fontWeight="extrabold"
                                     textAnchor="middle"
@@ -5030,6 +5118,22 @@ export default function DashboardPage() {
                                       ? d.label.substring(0, 10) + "..."
                                       : d.label}
                                   </text>
+                                  {d.label.startsWith("Shift") && (
+                                    <text
+                                      x={groupCenter}
+                                      y={231}
+                                      fill="#94a3b8"
+                                      fontSize="8"
+                                      fontWeight="bold"
+                                      textAnchor="middle"
+                                    >
+                                      {d.label === "Shift 1"
+                                        ? "07:10 - 15:10 WIB"
+                                        : d.label === "Shift 2"
+                                        ? "15:10 - 23:10 WIB"
+                                        : "23:10 - 07:10 WIB"}
+                                    </text>
+                                  )}
                                 </g>
                               );
                             } else {
@@ -5057,7 +5161,7 @@ export default function DashboardPage() {
                                   : 0;
                               const displayHVal = Math.max(hVal, 1.5);
                               const yVal = 195 - displayHVal;
-                              const barW = 28;
+                              const barW = totalBars <= 4 ? 36 : 28;
                               const xVal = groupCenter - barW / 2;
 
                               return (
@@ -5169,9 +5273,9 @@ export default function DashboardPage() {
                                   {/* X-Axis Label */}
                                   <text
                                     x={groupCenter}
-                                    y="215"
-                                    fill="#94a3b8"
-                                    fontSize="9"
+                                    y={218}
+                                    fill="#475569"
+                                    fontSize="10"
                                     fontWeight="extrabold"
                                     textAnchor="middle"
                                   >
@@ -5179,6 +5283,22 @@ export default function DashboardPage() {
                                       ? d.label.substring(0, 10) + "..."
                                       : d.label}
                                   </text>
+                                  {d.label.startsWith("Shift") && (
+                                    <text
+                                      x={groupCenter}
+                                      y={231}
+                                      fill="#94a3b8"
+                                      fontSize="8"
+                                      fontWeight="bold"
+                                      textAnchor="middle"
+                                    >
+                                      {d.label === "Shift 1"
+                                        ? "07:10 - 15:10 WIB"
+                                        : d.label === "Shift 2"
+                                        ? "15:10 - 23:10 WIB"
+                                        : "23:10 - 07:10 WIB"}
+                                    </text>
+                                  )}
                                 </g>
                               );
                             }

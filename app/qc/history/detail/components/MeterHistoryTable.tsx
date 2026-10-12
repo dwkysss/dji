@@ -196,12 +196,12 @@ export default function MeterHistoryTable({
         }
       }
       const hasIstirahatRaw = (
-        Boolean(h.operator_backup) ||
         (item.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("ISTIRAHAT") || 
         (item.detail_masalah || "").toUpperCase().includes("OPLOS SHIFT") || 
-        (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR")
+        (item.detail_masalah || "").toUpperCase().includes("GANTI OPERATOR") ||
+        (h.jenis_laporan || "").toUpperCase().includes("ISTIRAHAT")
       );
       const hasIstirahat = hasIstirahatRaw;
       const isMasuk = Boolean(item.isMasuk);

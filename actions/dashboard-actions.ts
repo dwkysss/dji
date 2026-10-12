@@ -1,12 +1,14 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getShiftDate } from "@/lib/shift-utils";
+import { getShiftDate, getShiftName } from "@/lib/shift-utils";
 import { isPanelGagalCacat, isPanelGagalCacatAja, hasRealDefect } from "@/lib/mending-grade-utils";
 
 export interface RealProductionItem {
   id: string;
   tanggal: string;
+  tanggal_jam?: string;
+  shift?: "Shift 1" | "Shift 2" | "Shift 3";
   hari: string;
   header_id: string;
   panel_no?: number;
@@ -208,6 +210,7 @@ export async function getRealProductionsData(options?: {
       const headerTs = headerTimeMap.get(String(item.header_id));
       const targetTs = item.tanggal_jam || item.created_at || headerTs || item.tanggal;
       const shiftTanggal = getShiftDate(targetTs);
+      const shiftName = getShiftName(targetTs);
 
       const computedStatusQc: "Lolos" | "Recheck" =
         isDefective
@@ -229,6 +232,8 @@ export async function getRealProductionsData(options?: {
       return {
         id: item.id || `header_${item.header_id}_${Math.random().toString().slice(2, 8)}`,
         header_id: String(item.header_id),
+        tanggal_jam: targetTs ? String(targetTs) : undefined,
+        shift: shiftName,
         panel_no: parsedPanelNo,
         panel_no_str: rawPanelNo,
         is_dummy_downtime: isDummyDowntime,
