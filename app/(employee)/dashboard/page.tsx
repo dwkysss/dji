@@ -137,10 +137,10 @@ const getNiceChartMax = (rawValue: number, minimum = 5) => {
   const normalized = roughTick / magnitude;
   const niceNormalized =
     normalized <= 1 ? 1 :
-    normalized <= 2 ? 2 :
-    normalized <= 2.5 ? 2.5 :
-    normalized <= 5 ? 5 :
-    10;
+      normalized <= 2 ? 2 :
+        normalized <= 2.5 ? 2.5 :
+          normalized <= 5 ? 5 :
+            10;
 
   return niceNormalized * magnitude * 4;
 };
@@ -466,7 +466,7 @@ export default function DashboardPage() {
           setOperatorShiftMap(shiftMap);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Auto-select operator for users with operator role
@@ -1106,7 +1106,7 @@ export default function DashboardPage() {
   if (!activeEmployeeName) {
     const filteredOperators = operatorList.filter((op) => {
       const matchSearch = op.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       let matchGroup = true;
       if (selectedGrupId) {
         const activeShiftName = FALLBACK_GROUPS.find(g => g.id.toString() === selectedGrupId)?.name;
@@ -1115,7 +1115,7 @@ export default function DashboardPage() {
           matchGroup = shift === activeShiftName;
         } else {
           // If operator not in fallback list but a group is selected, hide them
-          matchGroup = false; 
+          matchGroup = false;
         }
       }
 
@@ -1288,47 +1288,43 @@ export default function DashboardPage() {
                 <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 sm:mr-2">
-                Range Waktu:
+                Waktu:
               </span>
             </div>
             <div className="grid grid-cols-4 sm:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full sm:w-auto">
               <button
                 onClick={() => setDateRangeMode("TODAY")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
-                  dateRangeMode === "TODAY"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "TODAY"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 Hari Ini
               </button>
               <button
                 onClick={() => setDateRangeMode("7DAYS")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
-                  dateRangeMode === "7DAYS"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "7DAYS"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 Minggu
               </button>
               <button
                 onClick={() => setDateRangeMode("30DAYS")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
-                  dateRangeMode === "30DAYS"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "30DAYS"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 Bulan
               </button>
               <button
                 onClick={() => setDateRangeMode("CUSTOM")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
-                  dateRangeMode === "CUSTOM"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "CUSTOM"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 Kustom
               </button>
@@ -1380,11 +1376,10 @@ export default function DashboardPage() {
                 setMetricMode("PCS");
                 setSelectedMachines([]);
               }}
-              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
-                metricMode === "PCS"
+              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${metricMode === "PCS"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
             >
               Panel
             </button>
@@ -1393,11 +1388,10 @@ export default function DashboardPage() {
                 setMetricMode("METER");
                 setSelectedMachines([]);
               }}
-              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
-                metricMode === "METER"
+              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${metricMode === "METER"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
             >
               Meteran
             </button>
@@ -1454,11 +1448,10 @@ export default function DashboardPage() {
                         className="accent-sky-500 w-4 h-4 sm:w-3.5 sm:h-3.5 cursor-pointer"
                       />
                       <span
-                        className={`text-xs font-bold transition-colors ${
-                          selectedMachines.length === 0
+                        className={`text-xs font-bold transition-colors ${selectedMachines.length === 0
                             ? "text-sky-700"
                             : "text-slate-600 group-hover:text-slate-800"
-                        }`}
+                          }`}
                       >
                         Semua Mesin
                       </span>
@@ -1484,11 +1477,10 @@ export default function DashboardPage() {
                           className="accent-sky-500 w-4 h-4 sm:w-3.5 sm:h-3.5 cursor-pointer"
                         />
                         <span
-                          className={`text-xs font-semibold transition-colors ${
-                            selectedMachines.includes(mac)
+                          className={`text-xs font-semibold transition-colors ${selectedMachines.includes(mac)
                               ? "text-sky-700"
                               : "text-slate-600 group-hover:text-slate-800"
-                          }`}
+                            }`}
                         >
                           {mac}
                         </span>
@@ -1509,11 +1501,10 @@ export default function DashboardPage() {
       >
         {/* Card 1: Hasil Produksi & Meteran (Slider Slicer) */}
         <div
-          className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[9rem] sm:min-h-[11rem] group transition-all duration-300 flex flex-col ${
-            activeFilter === "ALL"
+          className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[9rem] sm:min-h-[11rem] group transition-all duration-300 flex flex-col ${activeFilter === "ALL"
               ? "bg-[#004777] shadow-xl scale-[1.01] sm:scale-[1.03] ring-2 ring-[#0070bc] ring-offset-2"
               : "bg-[#0070bc] shadow-md hover:scale-[1.01]"
-          }`}
+            }`}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEndMetric}
         >
@@ -1620,11 +1611,10 @@ export default function DashboardPage() {
 
         {/* Card 2: Persentase Cacat (Slider Slicer) */}
         <div
-          className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[9rem] sm:min-h-[11rem] group border transition-all duration-300 flex flex-col ${
-            activeFilter === "PROBLEMS"
+          className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[9rem] sm:min-h-[11rem] group border transition-all duration-300 flex flex-col ${activeFilter === "PROBLEMS"
               ? "bg-rose-50/50 border-rose-500 text-slate-800 shadow-md scale-[1.01] sm:scale-[1.03] ring-2 ring-rose-500"
               : "bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs"
-          }`}
+            }`}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEndMetric}
         >
@@ -1648,11 +1638,10 @@ export default function DashboardPage() {
                   Cacat Panel ({gradeLabel})
                 </span>
                 <span
-                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                    activeFilter === "PROBLEMS"
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${activeFilter === "PROBLEMS"
                       ? "bg-rose-100 text-rose-600"
                       : "bg-slate-100 text-slate-500"
-                  }`}
+                    }`}
                 >
                   <AlertTriangle className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5" />
                 </span>
@@ -1683,11 +1672,10 @@ export default function DashboardPage() {
                   Cacat Meteran ({gradeLabel})
                 </span>
                 <span
-                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                    activeFilter === "PROBLEMS"
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${activeFilter === "PROBLEMS"
                       ? "bg-rose-100 text-rose-600"
                       : "bg-slate-100 text-slate-500"
-                  }`}
+                    }`}
                 >
                   <AlertTriangle className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5" />
                 </span>
@@ -1770,10 +1758,10 @@ export default function DashboardPage() {
                 {dateRangeMode === "7DAYS"
                   ? "1 Minggu (48 Jam)"
                   : dateRangeMode === "30DAYS"
-                  ? `1 Bulan (${stats.effectiveWorkingDays * 8} Jam)`
-                  : stats.effectiveWorkingDays > 1
-                  ? `${stats.effectiveWorkingDays} Hari (${stats.effectiveWorkingDays * 8} Jam)`
-                  : "Shift 8 Jam (480 mnt)"}
+                    ? `1 Bulan (${stats.effectiveWorkingDays * 8} Jam)`
+                    : stats.effectiveWorkingDays > 1
+                      ? `${stats.effectiveWorkingDays} Hari (${stats.effectiveWorkingDays * 8} Jam)`
+                      : "Shift 8 Jam (480 mnt)"}
               </span>
             </div>
           </div>
@@ -1785,11 +1773,10 @@ export default function DashboardPage() {
             setActiveFilter("PROBLEMS");
             setMetricMode("PCS");
           }}
-          className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[9rem] sm:min-h-[11rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-5 flex flex-col justify-between transition-all duration-300 ${
-            activeFilter === "PROBLEMS"
+          className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[9rem] sm:min-h-[11rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-5 flex flex-col justify-between transition-all duration-300 ${activeFilter === "PROBLEMS"
               ? "bg-red-50/40 shadow-[0_8px_30px_rgba(239,68,68,0.12)] text-slate-800"
               : "bg-white hover:shadow-xs text-slate-800"
-          }`}
+            }`}
         >
           {activeFilter === "PROBLEMS" && (
             <div className="absolute inset-0 ring-2 ring-red-500 rounded-2xl sm:rounded-[24px] pointer-events-none" />
@@ -1799,11 +1786,10 @@ export default function DashboardPage() {
               Masalah ({gradeLabel})
             </span>
             <span
-              className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                activeFilter === "PROBLEMS"
+              className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${activeFilter === "PROBLEMS"
                   ? "bg-red-100 text-red-600 animate-pulse"
                   : "bg-slate-100 text-slate-500"
-              }`}
+                }`}
             >
               <AlertTriangle className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5" />
             </span>
@@ -1837,34 +1823,25 @@ export default function DashboardPage() {
                 <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
                   <button
                     onClick={() => setQualityViewMode("QC_GRADE")}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
-                      qualityViewMode === "QC_GRADE"
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${qualityViewMode === "QC_GRADE"
                         ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                         : "text-slate-500 hover:text-slate-800"
-                    }`}
+                      }`}
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
                     Grade QC
                   </button>
                   <button
                     onClick={() => setQualityViewMode("OPERATOR_STATUS")}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
-                      qualityViewMode === "OPERATOR_STATUS"
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${qualityViewMode === "OPERATOR_STATUS"
                         ? "bg-white text-emerald-600 shadow-xs border border-slate-200"
                         : "text-slate-500 hover:text-slate-800"
-                    }`}
+                      }`}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Input Operator
                   </button>
                 </div>
-
-                <span className="text-[11px] text-slate-400 font-semibold">
-                  • Filter Aktif:{" "}
-                  <span className="font-extrabold text-[#0070bc] uppercase">
-                    {activeFilter}
-                  </span>
-                </span>
               </div>
             </div>
 
@@ -1874,51 +1851,46 @@ export default function DashboardPage() {
               <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200 shrink-0">
                 <button
                   onClick={() => setChartGroupBy("HARI")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                    chartGroupBy === "HARI"
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${chartGroupBy === "HARI"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   <BarChart2 className="w-3 h-3" /> Tanggal
                 </button>
                 <button
                   onClick={() => setChartGroupBy("DESIGN")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                    chartGroupBy === "DESIGN"
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${chartGroupBy === "DESIGN"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   <Palette className="w-3 h-3" /> Design
                 </button>
                 <button
                   onClick={() => setChartGroupBy("PEGAWAI")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                    chartGroupBy === "PEGAWAI"
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${chartGroupBy === "PEGAWAI"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   <Users className="w-3 h-3" /> Pegawai
                 </button>
                 <button
                   onClick={() => setChartGroupBy("GROUP")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                    chartGroupBy === "GROUP"
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${chartGroupBy === "GROUP"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   <Layers className="w-3 h-3" /> Group
                 </button>
                 <button
                   onClick={() => setChartGroupBy("MESIN")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                    chartGroupBy === "MESIN"
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${chartGroupBy === "MESIN"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   <Cpu className="w-3 h-3" /> Mesin
                 </button>
@@ -1927,21 +1899,19 @@ export default function DashboardPage() {
               <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200 shrink-0">
                 <button
                   onClick={() => setChartType("BAR")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
-                    chartType === "BAR"
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${chartType === "BAR"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   Bar
                 </button>
                 <button
                   onClick={() => setChartType("LINE")}
-                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
-                    chartType === "LINE"
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${chartType === "LINE"
                       ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   Line
                 </button>
@@ -1953,41 +1923,37 @@ export default function DashboardPage() {
                   <>
                     <button
                       onClick={() => setChartGradeFilter("ALL")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
-                        chartGradeFilter === "ALL"
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${chartGradeFilter === "ALL"
                           ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
-                      }`}
+                        }`}
                     >
                       Semua
                     </button>
                     <button
                       onClick={() => setChartGradeFilter("GRADE_A")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
-                        chartGradeFilter === "GRADE_A"
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${chartGradeFilter === "GRADE_A"
                           ? "bg-sky-600 text-white shadow-xs"
                           : "text-[#0070bc] hover:bg-sky-50"
-                      }`}
+                        }`}
                     >
                       Grade A
                     </button>
                     <button
                       onClick={() => setChartGradeFilter("GRADE_B")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
-                        chartGradeFilter === "GRADE_B"
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${chartGradeFilter === "GRADE_B"
                           ? "bg-amber-500 text-white shadow-xs"
                           : "text-amber-700 hover:bg-amber-50"
-                      }`}
+                        }`}
                     >
                       Grade B
                     </button>
                     <button
                       onClick={() => setChartGradeFilter("BS")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
-                        chartGradeFilter === "BS"
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${chartGradeFilter === "BS"
                           ? "bg-rose-500 text-white shadow-xs"
                           : "text-rose-700 hover:bg-rose-50"
-                      }`}
+                        }`}
                     >
                       BS
                     </button>
@@ -1996,31 +1962,28 @@ export default function DashboardPage() {
                   <>
                     <button
                       onClick={() => setOperatorStatusFilter("ALL")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${
-                        operatorStatusFilter === "ALL"
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer whitespace-nowrap ${operatorStatusFilter === "ALL"
                           ? "bg-white text-slate-800 shadow-xs border border-slate-200"
                           : "text-slate-500 hover:text-slate-800"
-                      }`}
+                        }`}
                     >
                       Semua
                     </button>
                     <button
                       onClick={() => setOperatorStatusFilter("CEKLIS")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                        operatorStatusFilter === "CEKLIS"
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${operatorStatusFilter === "CEKLIS"
                           ? "bg-sky-600 text-white shadow-xs"
                           : "text-[#0070bc] hover:bg-sky-50"
-                      }`}
+                        }`}
                     >
                       <CheckCircle2 className="w-3 h-3" /> Normal
                     </button>
                     <button
                       onClick={() => setOperatorStatusFilter("SILANG")}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                        operatorStatusFilter === "SILANG"
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${operatorStatusFilter === "SILANG"
                           ? "bg-rose-500 text-white shadow-xs"
                           : "text-rose-700 hover:bg-rose-50"
-                      }`}
+                        }`}
                     >
                       <XCircle className="w-3 h-3" /> Cacat
                     </button>

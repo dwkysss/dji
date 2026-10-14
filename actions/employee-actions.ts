@@ -2,9 +2,8 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { productionFormSchema, ProductionFormInput } from "@/lib/schemas";
-import { crypto } from "next/dist/compiled/@edge-runtime/primitives/crypto";
 import { revalidatePath } from "next/cache";
-import { getShiftDate, parseAsWibDate } from "@/lib/shift-utils";
+import { getShiftDate, parseAsWibDate, getJakartaDateTimeString } from "@/lib/shift-utils";
 
 // Helper untuk menghasilkan ID acak 8 karakter seperti di Excel (misal: e78cbacd)
 function generateExcelStyleId(): string {
@@ -55,25 +54,11 @@ export async function createProductionReport(
     // 1. Validasi data input secara server-side menggunakan Zod
     const validated = productionFormSchema.parse(inputData);
 
-    const now = new Date();
-
-    // Dapatkan waktu di zona WIB (Asia/Jakarta)
-    const formatter = new Intl.DateTimeFormat("sv-SE", {
-      timeZone: "Asia/Jakarta",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-
-    // Format timestamp lengkap ke YYYY-MM-DD HH:mm:ss
-    const tanggalJam = formatter.format(now);
-
-    // Format tanggal ke YYYY-MM-DD
-    const tgl = tanggalJam.split(" ")[0];
+    // Gunakan waktu asli submittedAt dari client (saat operator submit di mesin/lokal)
+    // agar sinkronisasi terlambat akibat lag tidak mengubah jam atau shift operasional kerja
+    const recordTime = validated.submittedAt ? parseAsWibDate(validated.submittedAt) : new Date();
+    const tanggalJam = getJakartaDateTimeString(recordTime);
+    const tgl = getShiftDate(recordTime);
 
     const operatorIdNum =
       validated.operatorId && !isNaN(parseInt(validated.operatorId))

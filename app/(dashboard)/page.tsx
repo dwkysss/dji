@@ -25,6 +25,8 @@ import {
   CheckCircle2,
   XCircle,
   ShieldCheck,
+  Clock,
+  AlertCircle,
 } from "lucide-react";
 import { getRealProductionsData } from "@/actions/dashboard-actions";
 import { isBsAwalAkhir, isPanelGagalCacat, hasRealDefect } from "@/lib/mending-grade-utils";
@@ -755,7 +757,7 @@ export default function DashboardPage() {
           );
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Operators Grouped by Shift (A, B, C, and Lainnya for any unassigned/historical names)
@@ -1498,8 +1500,8 @@ export default function DashboardPage() {
           !isPanelGagalCacat(item) &&
           hasRealDefect(item) &&
           (item.grade === "BS" ||
-          (item.kategori_masalah && item.kategori_masalah.trim() !== "") ||
-          (item.detail_masalah && item.detail_masalah.trim() !== ""))
+            (item.kategori_masalah && item.kategori_masalah.trim() !== "") ||
+            (item.detail_masalah && item.detail_masalah.trim() !== ""))
       );
 
       const PROBLEM_DETAILS_MAP: Record<string, string[]> = {
@@ -2493,7 +2495,7 @@ export default function DashboardPage() {
       {/* Welcome Header */}
       <div
         data-tour="dashboard-header"
-        className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.015)] relative z-10"
+        className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.015)] relative z-10"
       >
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3.5 sm:gap-4">
           <div className="flex items-center justify-between w-full md:w-auto">
@@ -2521,10 +2523,10 @@ export default function DashboardPage() {
             </div>
 
             {/* Dashboard Mode Toggle on Mobile */}
-            <div className="md:hidden flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200 shadow-inner">
+            <div className="md:hidden flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
               <button
                 onClick={() => setDashboardMode("PRODUKSI")}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1 ${dashboardMode === "PRODUKSI"
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1 ${dashboardMode === "PRODUKSI"
                   ? "bg-white text-[#0070bc] shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
                   : "text-slate-500 hover:text-slate-700"
                   }`}
@@ -2534,7 +2536,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDashboardMode("KEHADIRAN")}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1 ${dashboardMode === "KEHADIRAN"
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1 ${dashboardMode === "KEHADIRAN"
                   ? "bg-white text-emerald-600 shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
                   : "text-slate-500 hover:text-slate-700"
                   }`}
@@ -2549,7 +2551,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setIsTourOpen(true)}
-              className="inline-flex items-center gap-1.5 shrink-0 rounded-full border border-sky-100 bg-sky-50 px-3 py-1.5 text-xs font-extrabold text-[#0070bc] shadow-sm transition-all hover:bg-sky-100"
+              className="inline-flex items-center gap-1.5 shrink-0 rounded-xl border border-sky-100 bg-sky-50 px-3 py-1.5 text-xs font-extrabold text-[#0070bc] shadow-sm transition-all hover:bg-sky-100 cursor-pointer"
             >
               <HelpCircle className="w-3.5 h-3.5" />
               Tutorial
@@ -2557,17 +2559,17 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setIsMonthlyRekapModalOpen(true)}
-              className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-[#0070bc] px-3 py-1.5 text-xs font-extrabold text-white shadow-sm transition-all hover:bg-[#005a96]"
+              className="inline-flex items-center gap-1.5 shrink-0 rounded-xl bg-[#0070bc] px-3.5 py-1.5 text-xs font-extrabold text-white shadow-sm transition-all hover:bg-[#005a96] cursor-pointer"
               title="Download Rekap Laporan Bulanan"
             >
               <Download className="w-3.5 h-3.5" />
               Rekap Excel
             </button>
             {/* Dashboard Mode Toggle (Desktop & Tablet) */}
-            <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200 shadow-inner shrink-0">
+            <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner shrink-0">
               <button
                 onClick={() => setDashboardMode("PRODUKSI")}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1.5 ${dashboardMode === "PRODUKSI"
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1.5 ${dashboardMode === "PRODUKSI"
                   ? "bg-white text-[#0070bc] shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
                   : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
                   }`}
@@ -2577,7 +2579,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDashboardMode("KEHADIRAN")}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1.5 ${dashboardMode === "KEHADIRAN"
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1.5 ${dashboardMode === "KEHADIRAN"
                   ? "bg-white text-emerald-600 shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
                   : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
                   }`}
@@ -2590,7 +2592,7 @@ export default function DashboardPage() {
             <button
               onClick={() => loadLiveData(true)}
               disabled={isRefreshing}
-              className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group disabled:opacity-50"
+              className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-xl border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group disabled:opacity-50"
               title="Segarkan data dari server"
             >
               <RefreshCw className={`w-3.5 h-3.5 transition-transform duration-500 ${isRefreshing ? "animate-spin text-sky-600" : "group-hover:rotate-180"}`} />
@@ -2599,7 +2601,7 @@ export default function DashboardPage() {
 
             <button
               onClick={handleResetFilters}
-              className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-full border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group"
+              className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 hover:text-[#0070bc] hover:border-sky-200 rounded-xl border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all duration-300 group"
               title="Reset Slicer"
             >
               Reset
@@ -2611,23 +2613,23 @@ export default function DashboardPage() {
       {/* Slicers Container */}
       <div
         data-tour="dashboard-slicers"
-        className="grid grid-cols-2 lg:flex lg:flex-row lg:flex-wrap xl:flex-nowrap gap-2.5 sm:gap-4"
+        className="grid grid-cols-2 gap-2 sm:gap-2.5 lg:flex lg:flex-row lg:items-center lg:flex-nowrap w-full"
       >
         {/* Date Range Slicer */}
-        <div className={`flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:flex-1 lg:flex-row lg:items-center ${dateRangeMode === "CUSTOM" ? "col-span-2 lg:col-span-1" : ""}`}>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
-              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+        <div className={`bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-1.5 sm:px-3 sm:py-2 shadow-[0_8px_30px_rgba(0,0,0,0.015)] col-span-2 sm:col-span-1 lg:w-auto shrink-0 flex items-center justify-between sm:justify-start gap-2 sm:gap-2.5 ${dateRangeMode === "CUSTOM" ? "flex-wrap" : ""}`}>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="p-1 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+              <Calendar className="w-3.5 h-3.5" />
             </div>
-            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 whitespace-nowrap">
-              Range Waktu:
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+              Waktu:
             </span>
           </div>
-          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full lg:w-auto">
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 shrink-0">
               <button
                 onClick={() => setDateRangeMode("TODAY")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer text-center ${dateRangeMode === "TODAY"
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer text-center ${dateRangeMode === "TODAY"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -2636,7 +2638,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("7DAYS")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer text-center ${dateRangeMode === "7DAYS"
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer text-center ${dateRangeMode === "7DAYS"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -2645,7 +2647,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("30DAYS")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer text-center ${dateRangeMode === "30DAYS"
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer text-center ${dateRangeMode === "30DAYS"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -2654,7 +2656,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("CUSTOM")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer text-center ${dateRangeMode === "CUSTOM"
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer text-center ${dateRangeMode === "CUSTOM"
                   ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                   : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -2665,51 +2667,42 @@ export default function DashboardPage() {
 
             {/* Custom Calendar Inputs (Only visible when CUSTOM is active) */}
             {dateRangeMode === "CUSTOM" && (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto animate-fadeIn mt-1 sm:mt-0">
-                <div className="flex items-center justify-between sm:justify-start gap-1.5">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">
-                    Mulai:
-                  </span>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer flex-1 sm:flex-initial"
-                  />
-                </div>
-                <div className="flex items-center justify-between sm:justify-start gap-1.5">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">
-                    Sampai:
-                  </span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer flex-1 sm:flex-initial"
-                  />
-                </div>
+              <div className="flex items-center gap-1.5 sm:gap-2 animate-fadeIn">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer"
+                />
+                <span className="text-[10px] text-slate-400 font-bold">-</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold cursor-pointer"
+                />
               </div>
             )}
           </div>
         </div>
 
         {/* Metric Mode Slicer */}
-        <div className="flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:w-auto lg:shrink-0 lg:flex-row lg:items-center">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
-              <SlidersHorizontal className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+        <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-1.5 sm:px-3 sm:py-2 shadow-[0_8px_30px_rgba(0,0,0,0.015)] col-span-2 sm:col-span-1 lg:w-auto shrink-0 flex items-center justify-between sm:justify-start gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="p-1 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
             </div>
-            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1 whitespace-nowrap">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
               Kategori:
             </span>
           </div>
-          <div className="grid grid-cols-2 lg:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full lg:w-auto">
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 shrink-0">
             <button
               onClick={() => {
                 setMetricMode("PCS");
                 setSelectedMachines([]);
               }}
-              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center ${metricMode === "PCS"
+              className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer text-center ${metricMode === "PCS"
                 ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                 : "text-slate-500 hover:text-slate-800"
                 }`}
@@ -2721,7 +2714,7 @@ export default function DashboardPage() {
                 setMetricMode("METER");
                 setSelectedMachines([]);
               }}
-              className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center ${metricMode === "METER"
+              className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer text-center ${metricMode === "METER"
                 ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                 : "text-slate-500 hover:text-slate-800"
                 }`}
@@ -2731,32 +2724,29 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Entity Filters (Machine & Operator) */}
-        <div className="contents lg:flex lg:flex-col lg:gap-3 lg:bg-white lg:border lg:border-[#e9ecef] lg:rounded-[24px] lg:p-4 lg:shadow-[0_8px_30px_rgba(0,0,0,0.015)] lg:shrink-0 lg:flex-1 xl:flex-none">
-
-          {/* Machine Slicer */}
-          <div className="flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl p-3 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:bg-transparent lg:border-0 lg:rounded-none lg:p-0 lg:shadow-none lg:flex-row lg:items-center lg:gap-4 shrink-0">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
-                <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </div>
-              <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1">
-                Mesin:
-              </span>
+        {/* Machine Slicer */}
+        <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-1.5 sm:px-3 sm:py-2 shadow-[0_8px_30px_rgba(0,0,0,0.015)] col-span-1 lg:w-auto shrink-0 flex items-center justify-between sm:justify-start gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="p-1 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+              <Layers className="w-3.5 h-3.5" />
             </div>
-            <div className="relative w-full lg:w-auto" ref={machineDropdownRef}>
-              <button
-                onClick={() => setIsMachineDropdownOpen(!isMachineDropdownOpen)}
-                className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer w-full lg:min-w-[120px] flex justify-between items-center transition-colors"
-              >
-                <span className="truncate max-w-[110px]" title={machineButtonLabel}>
-                  {machineButtonLabel}
-                </span>
-                <span className="text-[9px] ml-1.5 text-slate-400">▼</span>
-              </button>
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+              Mesin:
+            </span>
+          </div>
+          <div className="relative flex-1 sm:flex-initial" ref={machineDropdownRef}>
+            <button
+              onClick={() => setIsMachineDropdownOpen(!isMachineDropdownOpen)}
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-1 text-[11px] sm:text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer min-w-[85px] sm:min-w-[95px] flex justify-between items-center transition-colors"
+            >
+              <span className="truncate max-w-[110px]" title={machineButtonLabel}>
+                {machineButtonLabel}
+              </span>
+              <span className="text-[9px] ml-1.5 text-slate-400">▼</span>
+            </button>
 
-              {isMachineDropdownOpen && (
-                <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto top-28 sm:top-full mt-2 sm:right-0 sm:w-80 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] z-50 p-3 max-h-[75vh] sm:max-h-[440px] flex flex-col">
+            {isMachineDropdownOpen && (
+              <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto top-28 sm:top-full mt-2 sm:left-0 sm:right-auto sm:w-80 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] z-50 p-3 max-h-[75vh] sm:max-h-[440px] flex flex-col">
                   {/* Header */}
                   <div className="flex justify-between items-center pb-2.5 mb-2.5 border-b border-slate-100">
                     <div className="flex items-center gap-1.5">
@@ -2770,7 +2760,7 @@ export default function DashboardPage() {
                     </div>
                     <button
                       onClick={() => setIsMachineDropdownOpen(false)}
-                      className="text-[10px] font-bold text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md transition-colors"
+                      className="text-[10px] font-bold text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg transition-colors"
                     >
                       ✕ Tutup
                     </button>
@@ -2784,24 +2774,22 @@ export default function DashboardPage() {
                     <div className={`grid ${machinesByType.T.length > 0 ? "grid-cols-3" : "grid-cols-2"} gap-1.5`}>
                       <button
                         onClick={() => setSelectedMachines([])}
-                        className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${
-                          selectedMachines.length === 0
+                        className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${selectedMachines.length === 0
                             ? "bg-sky-600 text-white shadow-sm"
                             : "bg-slate-50 border border-slate-200/80 text-slate-600 hover:bg-slate-100"
-                        }`}
+                          }`}
                       >
                         Semua
                       </button>
                       {machinesByType.R.length > 0 && (
                         <button
                           onClick={() => setSelectedMachines([...machinesByType.R])}
-                          className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${
-                            machinesByType.R.length > 0 &&
-                            selectedMachines.length === machinesByType.R.length &&
-                            machinesByType.R.every((m) => selectedMachines.includes(m))
+                          className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${machinesByType.R.length > 0 &&
+                              selectedMachines.length === machinesByType.R.length &&
+                              machinesByType.R.every((m) => selectedMachines.includes(m))
                               ? "bg-blue-600 text-white shadow-sm"
                               : "bg-blue-50/70 border border-blue-200/80 text-blue-700 hover:bg-blue-100/70"
-                          }`}
+                            }`}
                         >
                           Mesin R
                         </button>
@@ -2809,13 +2797,12 @@ export default function DashboardPage() {
                       {machinesByType.T.length > 0 && (
                         <button
                           onClick={() => setSelectedMachines([...machinesByType.T])}
-                          className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${
-                            machinesByType.T.length > 0 &&
-                            selectedMachines.length === machinesByType.T.length &&
-                            machinesByType.T.every((m) => selectedMachines.includes(m))
+                          className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${machinesByType.T.length > 0 &&
+                              selectedMachines.length === machinesByType.T.length &&
+                              machinesByType.T.every((m) => selectedMachines.includes(m))
                               ? "bg-emerald-600 text-white shadow-sm"
                               : "bg-emerald-50/70 border border-emerald-200/80 text-emerald-700 hover:bg-emerald-100/70"
-                          }`}
+                            }`}
                         >
                           Mesin T
                         </button>
@@ -2893,11 +2880,10 @@ export default function DashboardPage() {
                                     className="accent-sky-500 w-3.5 h-3.5 cursor-pointer rounded shrink-0"
                                   />
                                   <span
-                                    className={`text-xs truncate transition-colors ${
-                                      isChecked
+                                    className={`text-xs truncate transition-colors ${isChecked
                                         ? "font-bold text-sky-700"
                                         : "font-medium text-slate-600 group-hover:text-slate-800"
-                                    }`}
+                                      }`}
                                   >
                                     {mac}
                                   </span>
@@ -2912,33 +2898,31 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-          </div>
+        </div>
 
-          <div className="hidden lg:block w-full h-px bg-slate-100 shrink-0" />
-
-          {/* Operator Slicer */}
-          <div className="flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl p-3 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:bg-transparent lg:border-0 lg:rounded-none lg:p-0 lg:shadow-none lg:flex-row lg:items-center lg:gap-4 shrink-0">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
-                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </div>
-              <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-1">
-                Pegawai:
-              </span>
+        {/* Operator Slicer */}
+        <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-1.5 sm:px-3 sm:py-2 shadow-[0_8px_30px_rgba(0,0,0,0.015)] col-span-1 lg:w-auto shrink-0 flex items-center justify-between sm:justify-start gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="p-1 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
+              <Users className="w-3.5 h-3.5" />
             </div>
-            <div className="relative w-full lg:w-auto" ref={operatorDropdownRef}>
-              <button
-                onClick={() => setIsOperatorDropdownOpen(!isOperatorDropdownOpen)}
-                className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer w-full lg:min-w-[130px] flex justify-between items-center transition-colors"
-              >
-                <span className="truncate max-w-[110px]" title={operatorButtonLabel}>
-                  {operatorButtonLabel}
-                </span>
-                <span className="text-[9px] ml-1.5 text-slate-400">▼</span>
-              </button>
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+              Pegawai:
+            </span>
+          </div>
+          <div className="relative flex-1 sm:flex-initial" ref={operatorDropdownRef}>
+            <button
+              onClick={() => setIsOperatorDropdownOpen(!isOperatorDropdownOpen)}
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-1 text-[11px] sm:text-xs text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold cursor-pointer min-w-[85px] sm:min-w-[95px] flex justify-between items-center transition-colors"
+            >
+              <span className="truncate max-w-[110px]" title={operatorButtonLabel}>
+                {operatorButtonLabel}
+              </span>
+              <span className="text-[9px] ml-1.5 text-slate-400">▼</span>
+            </button>
 
-              {isOperatorDropdownOpen && (
-                <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto top-28 sm:top-full mt-2 sm:right-0 sm:w-96 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] z-50 p-3 max-h-[75vh] sm:max-h-[440px] flex flex-col">
+            {isOperatorDropdownOpen && (
+              <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto top-28 sm:top-full mt-2 sm:right-0 sm:left-auto sm:w-96 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] z-50 p-3 max-h-[75vh] sm:max-h-[440px] flex flex-col">
                   {/* Header */}
                   <div className="flex justify-between items-center pb-2.5 mb-2.5 border-b border-slate-100">
                     <div className="flex items-center gap-1.5">
@@ -2952,7 +2936,7 @@ export default function DashboardPage() {
                     </div>
                     <button
                       onClick={() => setIsOperatorDropdownOpen(false)}
-                      className="text-[10px] font-bold text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md transition-colors"
+                      className="text-[10px] font-bold text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg transition-colors"
                     >
                       ✕ Tutup
                     </button>
@@ -2966,11 +2950,10 @@ export default function DashboardPage() {
                     <div className="grid grid-cols-4 gap-1.5">
                       <button
                         onClick={() => setSelectedOperators([])}
-                        className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${
-                          selectedOperators.length === 0
+                        className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${selectedOperators.length === 0
                             ? "bg-sky-600 text-white shadow-sm"
                             : "bg-slate-50 border border-slate-200/80 text-slate-600 hover:bg-slate-100"
-                        }`}
+                          }`}
                       >
                         Semua
                       </button>
@@ -2987,12 +2970,12 @@ export default function DashboardPage() {
                               ? "bg-blue-600 text-white shadow-sm"
                               : "bg-blue-50/70 border border-blue-200/80 text-blue-700 hover:bg-blue-100/70"
                             : s === "B"
-                            ? isAllShiftSelected
-                              ? "bg-emerald-600 text-white shadow-sm"
-                              : "bg-emerald-50/70 border border-emerald-200/80 text-emerald-700 hover:bg-emerald-100/70"
-                            : isAllShiftSelected
-                            ? "bg-purple-600 text-white shadow-sm"
-                            : "bg-purple-50/70 border border-purple-200/80 text-purple-700 hover:bg-purple-100/70";
+                              ? isAllShiftSelected
+                                ? "bg-emerald-600 text-white shadow-sm"
+                                : "bg-emerald-50/70 border border-emerald-200/80 text-emerald-700 hover:bg-emerald-100/70"
+                              : isAllShiftSelected
+                                ? "bg-purple-600 text-white shadow-sm"
+                                : "bg-purple-50/70 border border-purple-200/80 text-purple-700 hover:bg-purple-100/70";
 
                         return (
                           <button
@@ -3081,11 +3064,10 @@ export default function DashboardPage() {
                                     className="accent-sky-500 w-3.5 h-3.5 cursor-pointer rounded shrink-0"
                                   />
                                   <span
-                                    className={`text-xs truncate transition-colors ${
-                                      isChecked
+                                    className={`text-xs truncate transition-colors ${isChecked
                                         ? "font-bold text-sky-700"
                                         : "font-medium text-slate-600 group-hover:text-slate-800"
-                                    }`}
+                                      }`}
                                   >
                                     {name}
                                   </span>
@@ -3100,8 +3082,6 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-          </div>
-
         </div>
       </div>
 
@@ -3115,7 +3095,7 @@ export default function DashboardPage() {
             {dashboardViewType === "OEE" ? (
               <>
                 {/* Card 1: OEE Score (Master KPI) */}
-                <div className="relative overflow-hidden rounded-[24px] h-full min-h-[11rem] bg-[#004777] shadow-xl ring-2 ring-[#0070bc] ring-offset-2 text-white p-5 flex flex-col justify-between transition-all duration-300 group">
+                <div className="relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[11rem] bg-[#004777] shadow-xl ring-2 ring-[#0070bc] ring-offset-2 text-white p-5 flex flex-col justify-between transition-all duration-300 group">
                   {/* Background decoration */}
                   <div className="absolute -right-8 -bottom-8 w-24 h-24 rounded-full bg-sky-400/20 blur-xl group-hover:scale-125 transition-all duration-300 pointer-events-none" />
 
@@ -3164,7 +3144,7 @@ export default function DashboardPage() {
                 {/* Card 2: Availability (Ketersediaan Mesin) */}
                 <div
                   onClick={() => setActiveFilter("ALL")}
-                  className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] border border-[#e9ecef] cursor-pointer p-5 flex flex-col justify-between transition-all duration-300 ${activeFilter === "ALL" && metricMode === "PCS"
+                  className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[11rem] border border-[#e9ecef] cursor-pointer p-5 flex flex-col justify-between transition-all duration-300 ${activeFilter === "ALL" && metricMode === "PCS"
                     ? "bg-slate-50/50 border-slate-500 text-slate-800 shadow-md"
                     : "bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs"
                     }`}
@@ -3197,7 +3177,7 @@ export default function DashboardPage() {
 
                 {/* Card 3: Performance (Kinerja Produksi) */}
                 <div
-                  className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] border transition-all duration-300 flex flex-col bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs`}
+                  className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[11rem] border transition-all duration-300 flex flex-col bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs`}
                   onTouchStart={handleTouchStart}
                   onTouchEnd={handleTouchEndMetric}
                 >
@@ -3306,7 +3286,7 @@ export default function DashboardPage() {
 
                 {/* Card 4: Quality / FPY (First Pass Yield) */}
                 <div
-                  className={`relative overflow-hidden rounded-[24px] h-full min-h-[11rem] border transition-all duration-300 flex flex-col bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs`}
+                  className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[11rem] border transition-all duration-300 flex flex-col bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs`}
                   onTouchStart={handleTouchStart}
                   onTouchEnd={handleTouchEndMetric}
                 >
@@ -3420,7 +3400,7 @@ export default function DashboardPage() {
               <>
                 {/* CLASSIC Card 1: Hasil Produksi (Slider Slicer) */}
                 <div
-                  className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[8.5rem] sm:min-h-[11rem] group transition-all duration-300 flex flex-col ${activeFilter === "ALL"
+                  className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[7.25rem] sm:min-h-[8.5rem] group transition-all duration-300 flex flex-col ${activeFilter === "ALL"
                     ? "bg-[#004777] shadow-xl scale-[1.02] sm:scale-[1.03] ring-2 ring-[#0070bc] ring-offset-2 text-white"
                     : "bg-[#0070bc] shadow-md hover:scale-[1.01] text-white"
                     }`}
@@ -3439,7 +3419,7 @@ export default function DashboardPage() {
                         setActiveFilter("ALL");
                         setMetricMode("PCS");
                       }}
-                      className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
+                      className="w-1/2 cursor-pointer p-3 sm:p-4 flex flex-col justify-between h-full relative"
                     >
                       <div className="flex justify-between items-start relative z-10 gap-1">
                         <span className="text-sky-100 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
@@ -3468,7 +3448,7 @@ export default function DashboardPage() {
                         setActiveFilter("ALL");
                         setMetricMode("METER");
                       }}
-                      className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
+                      className="w-1/2 cursor-pointer p-3 sm:p-4 flex flex-col justify-between h-full relative"
                     >
                       <div className="flex justify-between items-start relative z-10 gap-1">
                         <span className="text-sky-100 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
@@ -3524,7 +3504,7 @@ export default function DashboardPage() {
 
                 {/* CLASSIC Card 2: Lolos QC */}
                 <div
-                  className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[8.5rem] sm:min-h-[11rem] group border transition-all duration-300 flex flex-col ${activeFilter === "LOLOS"
+                  className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[7.25rem] sm:min-h-[8.5rem] group border transition-all duration-300 flex flex-col ${activeFilter === "LOLOS"
                     ? "bg-sky-50/50 border-sky-500 text-slate-800 shadow-md scale-[1.02] sm:scale-[1.03] ring-2 ring-sky-500"
                     : "bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs"
                     }`}
@@ -3542,7 +3522,7 @@ export default function DashboardPage() {
                         setActiveFilter("LOLOS");
                         setMetricMode("PCS");
                       }}
-                      className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
+                      className="w-1/2 cursor-pointer p-3 sm:p-4 flex flex-col justify-between h-full relative"
                     >
                       <div className="flex justify-between items-start relative z-10 gap-1">
                         <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
@@ -3575,7 +3555,7 @@ export default function DashboardPage() {
                         setActiveFilter("LOLOS");
                         setMetricMode("METER");
                       }}
-                      className="w-1/2 cursor-pointer p-3 sm:p-5 flex flex-col justify-between h-full relative"
+                      className="w-1/2 cursor-pointer p-3 sm:p-4 flex flex-col justify-between h-full relative"
                     >
                       <div className="flex justify-between items-start relative z-10 gap-1">
                         <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
@@ -3636,13 +3616,13 @@ export default function DashboardPage() {
                 {/* CLASSIC Card 3: Efisiensi Waktu */}
                 <div
                   onClick={() => setActiveFilter("EFISIENSI")}
-                  className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[8.5rem] sm:min-h-[11rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-5 flex flex-col justify-between transition-all duration-300 ${activeFilter === "EFISIENSI"
+                  className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[7.25rem] sm:min-h-[8.5rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-4 flex flex-col justify-between transition-all duration-300 ${activeFilter === "EFISIENSI"
                     ? "bg-emerald-50/40 shadow-[0_8px_30px_rgba(16,185,129,0.12)] text-slate-800 scale-[1.02] sm:scale-[1.03]"
                     : "bg-white hover:shadow-xs text-slate-800"
                     }`}
                 >
                   {activeFilter === "EFISIENSI" && (
-                    <div className="absolute inset-0 ring-2 ring-emerald-500 rounded-2xl sm:rounded-[24px] pointer-events-none" />
+                    <div className="absolute inset-0 ring-2 ring-emerald-500 rounded-xl sm:rounded-2xl pointer-events-none" />
                   )}
                   <div className="flex justify-between items-start relative z-10 gap-1">
                     <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
@@ -3662,18 +3642,18 @@ export default function DashboardPage() {
                       {stats.efisiensi.toFixed(1)}%
                     </div>
                     <div
-                      className={`flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] font-extrabold truncate ${stats.totalDowntimeDetik > 0 ? "text-amber-600" : "text-emerald-600"}`}
+                      className={`flex items-center gap-1.5 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] font-extrabold truncate ${stats.totalDowntimeDetik > 0 ? "text-amber-600" : "text-emerald-600"}`}
                     >
                       {stats.totalDowntimeDetik > 0 ? (
                         <>
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                          <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
                           <span className="truncate">
                             DT: {formatDuration(stats.totalDowntimeDetik)}
                           </span>
                         </>
                       ) : (
                         <>
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                          <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
                           <span className="truncate">
                             Downtime: 0s
                           </span>
@@ -3689,13 +3669,13 @@ export default function DashboardPage() {
                     setActiveFilter("PROBLEMS");
                     setMetricMode("PCS");
                   }}
-                  className={`relative overflow-hidden rounded-2xl sm:rounded-[24px] h-full min-h-[8.5rem] sm:min-h-[11rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-5 flex flex-col justify-between transition-all duration-300 ${activeFilter === "PROBLEMS"
+                  className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[7.25rem] sm:min-h-[8.5rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-4 flex flex-col justify-between transition-all duration-300 ${activeFilter === "PROBLEMS"
                     ? "bg-red-50/40 shadow-[0_8px_30px_rgba(239,68,68,0.12)] text-slate-800 scale-[1.02] sm:scale-[1.03]"
                     : "bg-white hover:shadow-xs text-slate-800"
                     }`}
                 >
                   {activeFilter === "PROBLEMS" && (
-                    <div className="absolute inset-0 ring-2 ring-red-500 rounded-2xl sm:rounded-[24px] pointer-events-none" />
+                    <div className="absolute inset-0 ring-2 ring-red-500 rounded-xl sm:rounded-2xl pointer-events-none" />
                   )}
                   <div className="flex justify-between items-start relative z-10 gap-1">
                     <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
@@ -3714,9 +3694,20 @@ export default function DashboardPage() {
                     <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800 flex items-baseline gap-1">
                       {stats.countMasalah} <span className="text-xs sm:text-base font-bold">Masalah</span>
                     </div>
-                    <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-red-600 font-extrabold truncate">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
-                      <span className="truncate">Perlu Periksa</span>
+                    <div
+                      className={`flex items-center gap-1.5 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] font-extrabold truncate ${stats.countMasalah > 0 ? "text-red-600" : "text-emerald-600"}`}
+                    >
+                      {stats.countMasalah > 0 ? (
+                        <>
+                          <AlertCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                          <span className="truncate">Perlu Periksa</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                          <span className="truncate">Kondisi Normal</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3730,50 +3721,36 @@ export default function DashboardPage() {
             className="grid grid-cols-1 lg:grid-cols-3 gap-6"
           >
             {/* Dynamic Production Trend Chart */}
-            <div className="lg:col-span-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+            <div className="lg:col-span-2 bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4 mb-4 sm:mb-6">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-800">
                     Tren Hasil Produksi & Analisis Kualitas
                   </h3>
-                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  <div className="flex items-center gap-2 mt-1.5">
                     {/* Quality View Mode Switch */}
                     <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
                       <button
                         onClick={() => setQualityViewMode("QC_GRADE")}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
-                          qualityViewMode === "QC_GRADE"
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${qualityViewMode === "QC_GRADE"
                             ? "bg-white text-[#0070bc] shadow-xs border border-slate-200"
                             : "text-slate-500 hover:text-slate-800"
-                        }`}
+                          }`}
                       >
                         <ShieldCheck className="w-3.5 h-3.5" />
                         Grade QC
                       </button>
                       <button
                         onClick={() => setQualityViewMode("OPERATOR_STATUS")}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
-                          qualityViewMode === "OPERATOR_STATUS"
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${qualityViewMode === "OPERATOR_STATUS"
                             ? "bg-white text-emerald-600 shadow-xs border border-slate-200"
                             : "text-slate-500 hover:text-slate-800"
-                        }`}
+                          }`}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Input Operator
                       </button>
                     </div>
-
-                    <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1.5">
-                      <span>• Filter Aktif:</span>
-                      <span className="font-extrabold text-[#0070bc] uppercase">
-                        {activeFilter}
-                      </span>
-                      {isSingleDay && chartGroupBy === "HARI" && (
-                        <span className="ml-1 px-2 py-0.5 rounded-md bg-sky-50 text-[#0070bc] border border-sky-200 text-[10px] font-black uppercase">
-                          Breakdown 3 Shift
-                        </span>
-                      )}
-                    </span>
                   </div>
                 </div>
 
@@ -4492,8 +4469,8 @@ export default function DashboardPage() {
                                         {d.label === "Shift 1"
                                           ? "07:10 - 15:10 WIB"
                                           : d.label === "Shift 2"
-                                          ? "15:10 - 23:10 WIB"
-                                          : "23:10 - 07:10 WIB"}
+                                            ? "15:10 - 23:10 WIB"
+                                            : "23:10 - 07:10 WIB"}
                                       </text>
                                     )}
                                   </g>
@@ -4643,8 +4620,8 @@ export default function DashboardPage() {
                                         {d.label === "Shift 1"
                                           ? "07:10 - 15:10 WIB"
                                           : d.label === "Shift 2"
-                                          ? "15:10 - 23:10 WIB"
-                                          : "23:10 - 07:10 WIB"}
+                                            ? "15:10 - 23:10 WIB"
+                                            : "23:10 - 07:10 WIB"}
                                       </text>
                                     )}
                                   </g>
@@ -4795,8 +4772,8 @@ export default function DashboardPage() {
                                         {d.label === "Shift 1"
                                           ? "07:10 - 15:10 WIB"
                                           : d.label === "Shift 2"
-                                          ? "15:10 - 23:10 WIB"
-                                          : "23:10 - 07:10 WIB"}
+                                            ? "15:10 - 23:10 WIB"
+                                            : "23:10 - 07:10 WIB"}
                                       </text>
                                     )}
                                   </g>
@@ -5130,8 +5107,8 @@ export default function DashboardPage() {
                                       {d.label === "Shift 1"
                                         ? "07:10 - 15:10 WIB"
                                         : d.label === "Shift 2"
-                                        ? "15:10 - 23:10 WIB"
-                                        : "23:10 - 07:10 WIB"}
+                                          ? "15:10 - 23:10 WIB"
+                                          : "23:10 - 07:10 WIB"}
                                     </text>
                                   )}
                                 </g>
@@ -5295,8 +5272,8 @@ export default function DashboardPage() {
                                       {d.label === "Shift 1"
                                         ? "07:10 - 15:10 WIB"
                                         : d.label === "Shift 2"
-                                        ? "15:10 - 23:10 WIB"
-                                        : "23:10 - 07:10 WIB"}
+                                          ? "15:10 - 23:10 WIB"
+                                          : "23:10 - 07:10 WIB"}
                                     </text>
                                   )}
                                 </g>
@@ -5485,7 +5462,7 @@ export default function DashboardPage() {
 
               return (
                 <div className="space-y-6 flex flex-col flex-1">
-                  <div className="bg-white border border-[#e9ecef] rounded-[32px] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between flex-1">
+                  <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between flex-1">
                     <div>
                       <div className="border-b border-slate-100 pb-4 mb-6">
                         <div className="flex items-start justify-between gap-3">
@@ -5518,11 +5495,10 @@ export default function DashboardPage() {
                             <button
                               type="button"
                               onClick={() => setQualityViewMode("QC_GRADE")}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                                qualityViewMode === "QC_GRADE"
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${qualityViewMode === "QC_GRADE"
                                   ? "bg-white text-[#0070bc] shadow-xs border border-slate-200/80"
                                   : "text-slate-500 hover:text-slate-800"
-                              }`}
+                                }`}
                             >
                               <ShieldCheck className="w-3 h-3" />
                               Grade QC
@@ -5530,11 +5506,10 @@ export default function DashboardPage() {
                             <button
                               type="button"
                               onClick={() => setQualityViewMode("OPERATOR_STATUS")}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                                qualityViewMode === "OPERATOR_STATUS"
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${qualityViewMode === "OPERATOR_STATUS"
                                   ? "bg-white text-emerald-600 shadow-xs border border-slate-200/80"
                                   : "text-slate-500 hover:text-slate-800"
-                              }`}
+                                }`}
                             >
                               <CheckCircle2 className="w-3 h-3" />
                               Input Operator
@@ -5809,7 +5784,7 @@ export default function DashboardPage() {
             className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6"
           >
             {/* Card 1: Top Operators */}
-            <div className="bg-white border border-[#e9ecef] rounded-[32px] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 hover:shadow-md">
+            <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 hover:shadow-md">
               <div>
                 <div className="border-b border-slate-100 pb-3 mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -5870,7 +5845,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 2: Top Machines */}
-            <div className="bg-white border border-[#e9ecef] rounded-[32px] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 hover:shadow-md">
+            <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 hover:shadow-md">
               <div>
                 <div className="border-b border-slate-100 pb-3 mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -5924,7 +5899,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 3: Critical Machines */}
-            <div className="bg-white border border-[#e9ecef] rounded-[32px] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 hover:shadow-md relative overflow-hidden">
+            <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 hover:shadow-md relative overflow-hidden">
               {leaderboard.criticalMachines.length > 0 && (
                 <div className="absolute top-0 left-0 right-0 h-1 bg-red-500 animate-pulse" />
               )}
@@ -5988,7 +5963,7 @@ export default function DashboardPage() {
             const list = paretoProblemData.list;
 
             return (
-              <div className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] mt-6">
+              <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] mt-6">
                 {/* Header */}
                 <div className="border-b border-slate-100 pb-4 mb-5 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                   <div className="flex items-center gap-3">
@@ -6104,16 +6079,14 @@ export default function DashboardPage() {
                       {vitalFewItems.map((item, i) => (
                         <div
                           key={item.code}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
-                            i === 0
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${i === 0
                               ? "bg-[#0070bc] text-white border-[#005a96] shadow-xs"
                               : "bg-white text-slate-800 border-sky-200 shadow-2xs hover:border-[#0070bc]"
-                          }`}
+                            }`}
                         >
                           <span
-                            className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${
-                              i === 0 ? "bg-white text-[#0070bc]" : "bg-sky-100 text-[#0070bc]"
-                            }`}
+                            className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${i === 0 ? "bg-white text-[#0070bc]" : "bg-sky-100 text-[#0070bc]"
+                              }`}
                           >
                             {i + 1}
                           </span>
@@ -6382,24 +6355,22 @@ export default function DashboardPage() {
                           return (
                             <div
                               key={item.code}
-                              className={`p-4 rounded-2xl transition-all border ${
-                                isRank1
+                              className={`p-4 rounded-2xl transition-all border ${isRank1
                                   ? "bg-gradient-to-br from-sky-500/[0.08] via-sky-500/[0.03] to-white border-sky-300 shadow-xs ring-1 ring-[#0070bc]/20"
                                   : item.isVital80
-                                  ? "bg-sky-50/40 border-sky-200/80 shadow-2xs hover:border-[#0070bc]/50"
-                                  : "bg-slate-50/40 border-slate-200/60 hover:border-slate-300"
-                              }`}
+                                    ? "bg-sky-50/40 border-sky-200/80 shadow-2xs hover:border-[#0070bc]/50"
+                                    : "bg-slate-50/40 border-slate-200/60 hover:border-slate-300"
+                                }`}
                             >
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2 min-w-0">
                                   <span
-                                    className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
-                                      isRank1
+                                    className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${isRank1
                                         ? "bg-[#0070bc] text-white shadow-xs"
                                         : item.isVital80
-                                        ? "bg-sky-100 text-[#0070bc]"
-                                        : "bg-slate-200 text-slate-700"
-                                    }`}
+                                          ? "bg-sky-100 text-[#0070bc]"
+                                          : "bg-slate-200 text-slate-700"
+                                      }`}
                                   >
                                     {idx + 1}
                                   </span>
@@ -6492,7 +6463,7 @@ export default function DashboardPage() {
             data-tour="dashboard-kpi"
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
           >
-            <div className="bg-white border border-[#e9ecef] rounded-[24px] p-5 flex flex-col justify-between h-full min-h-[11rem] shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
+            <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-5 flex flex-col justify-between h-full min-h-[11rem] shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
               <div className="flex justify-between items-start">
                 <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                   Total Pegawai Pabrik
@@ -6514,7 +6485,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="bg-[#0070bc] rounded-[24px] p-5 flex flex-col justify-between h-full min-h-[11rem] shadow-md text-white relative overflow-hidden group hover:scale-[1.01] transition-transform">
+            <div className="bg-[#0070bc] rounded-xl sm:rounded-2xl p-5 flex flex-col justify-between h-full min-h-[11rem] shadow-md text-white relative overflow-hidden group hover:scale-[1.01] transition-transform">
               <div className="absolute -right-8 -bottom-8 w-24 h-24 rounded-full bg-sky-400/20 blur-xl group-hover:scale-125 transition-all duration-300 pointer-events-none" />
               <div className="flex justify-between items-start relative z-10">
                 <span className="text-sky-100 text-[10px] font-bold uppercase tracking-wider">
@@ -6537,9 +6508,9 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="bg-rose-50/40 border border-rose-100 rounded-[24px] p-5 flex flex-col justify-between h-full min-h-[11rem] shadow-[0_8px_30px_rgba(0,0,0,0.015)] relative">
+            <div className="bg-rose-50/40 border border-rose-100 rounded-xl sm:rounded-2xl p-5 flex flex-col justify-between h-full min-h-[11rem] shadow-[0_8px_30px_rgba(0,0,0,0.015)] relative">
               {attendanceStats.countTidakHadir > 0 && (
-                <div className="absolute inset-0 ring-2 ring-rose-500 rounded-[24px] pointer-events-none" />
+                <div className="absolute inset-0 ring-2 ring-rose-500 rounded-xl sm:rounded-2xl pointer-events-none" />
               )}
               <div className="flex justify-between items-start">
                 <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
@@ -6564,7 +6535,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="bg-white border border-[#e9ecef] rounded-[24px] p-5 flex flex-col justify-between h-full min-h-[11rem] shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
+            <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-5 flex flex-col justify-between h-full min-h-[11rem] shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
               <div className="flex justify-between items-start">
                 <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                   Tingkat Kehadiran
@@ -6586,7 +6557,7 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Card 1: Daftar Pegawai Hadir */}
-            <div className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
+            <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
               <div className="border-b border-slate-100 pb-4 mb-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
@@ -6610,8 +6581,8 @@ export default function DashboardPage() {
                       opObj?.shift?.toUpperCase() === "A"
                         ? "bg-blue-50 text-blue-700 border-blue-200"
                         : opObj?.shift?.toUpperCase() === "B"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-purple-50 text-purple-700 border-purple-200";
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-purple-50 text-purple-700 border-purple-200";
 
                     return (
                       <div
@@ -6656,7 +6627,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 2: Daftar Tidak Hadir */}
-            <div className="bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
+            <div className="bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-4 sm:p-6 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
               <div className="border-b border-slate-100 pb-4 mb-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
@@ -6680,8 +6651,8 @@ export default function DashboardPage() {
                       opObj?.shift?.toUpperCase() === "A"
                         ? "bg-blue-50 text-blue-700 border-blue-200"
                         : opObj?.shift?.toUpperCase() === "B"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-purple-50 text-purple-700 border-purple-200";
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-purple-50 text-purple-700 border-purple-200";
 
                     return (
                       <div
@@ -6721,7 +6692,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 3: Visualisasi Kehadiran per Tim */}
-            <div className="md:col-span-2 lg:col-span-1 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[32px] p-4 sm:p-6 flex flex-col justify-between shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
+            <div className="md:col-span-2 lg:col-span-1 bg-white border border-[#e9ecef] rounded-xl sm:rounded-2xl p-4 sm:p-6 flex flex-col justify-between shadow-[0_8px_30px_rgba(0,0,0,0.02)] h-[440px]">
               <div>
                 <div className="border-b border-slate-100 pb-4 mb-4">
                   <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
@@ -6740,8 +6711,8 @@ export default function DashboardPage() {
                       tb.key === "A"
                         ? "bg-blue-500"
                         : tb.key === "B"
-                        ? "bg-emerald-500"
-                        : "bg-purple-500";
+                          ? "bg-emerald-500"
+                          : "bg-purple-500";
 
                     return (
                       <div key={tb.key} className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-100">

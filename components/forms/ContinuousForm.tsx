@@ -18,6 +18,9 @@ import { getProductionPlan, getLatestMachineHeader } from "@/actions/plan-action
 import { getMachineConfigs } from "@/actions/machine-config-actions";
 import { getOperatorsList } from "@/actions/operator-actions";
 import { createClient } from "@/lib/supabase/client";
+import { getJakartaDateTimeString } from "@/lib/shift-utils";
+import { triggerPiggybackSync } from "@/lib/offline-store";
+import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 
 import {
   AlertCircle,
@@ -135,48 +138,107 @@ const NEW_PROBLEM_CATEGORIES = [
   { id: "G", name: "Kode G: Faktor Eksternal dan Non-Teknis" },
 ];
 
-const METER_TOUR_STEPS = [
+const METER_TOUR_STEPS: ProductTourStep[] = [
   {
     target: "meter-mode-switch",
-    title: "Jenis Input Meteran",
+    badge: "JENIS INPUT",
+    title: "Pilihan Mode Input Meteran",
     description:
-      "Mode Kontinu digunakan untuk input per roll atau meteran. Kalau hanya input per panel, pindah ke mode Panel.",
+      "Mode ini dikhususkan untuk mesin kain kontinu / meteran (seperti mesin R11, R12, T2A, dsb).",
+    tips: [
+      "Pencatatan produksi dihitung berdasarkan panjang meter kain (bukan lembar panel).",
+      "Pindah ke tab PANEL jika Anda mencatat mesin dengan inputan per nomor panel.",
+    ],
   },
   {
-    target: "meter-final-report",
-    title: "Laporan Meteran Akhir",
+    target: "meter-stop-machine",
+    badge: "STATUS KHUSUS",
+    title: "Lapor Mesin Mati / Berhenti Total",
     description:
-      "Gunakan tombol ini saat shift selesai atau roll sudah dipotong untuk mengisi start meter, finish meter, dan total produksi.",
+      "Gunakan tombol ini jika mesin berhenti beroperasi sepanjang shift tanpa menghasilkan meter kain.",
+    tips: [
+      "Mencegah mesin dianggap mangkir pada KPI dan Laporan Bulanan.",
+      "Status berhenti langsung tercatat tanpa perlu mengisi meteran kain.",
+    ],
+  },
+  {
+    target: "meter-potongan-history",
+    badge: "RIWAYAT CEPAT",
+    title: "Riwayat Meteran Potongan Ini",
+    description:
+      "Buka laci riwayat cepat untuk memantau data meteran dan titik cacat yang sudah direkam pada potongan aktif.",
+    tips: [
+      "Melihat daftar titik cacat, downtime, dan status laporan meteran.",
+      "Memastikan inputan sebelumnya sudah terekam dengan baik.",
+    ],
   },
   {
     target: "meter-header-summary",
-    title: "Data Header",
+    badge: "PARAMETER UTAMA",
+    title: "Ringkasan Header Mesin Meteran",
     description:
-      "Cek operator, shift, mesin, design, status matching, dan potongan sebelum mengirim data meteran atau titik cacat.",
+      "Menampilkan parameter mesin aktif: Operator, Shift, Nomor Mesin, Desain, Target Meter, dan Potongan Ke.",
+    tips: [
+      "Klik kartu ini atau tombol 'Ubah Header' untuk memperbarui parameter produksi.",
+      "Data header otomatis tersimpan dan digunakan untuk pelaporan berkelanjutan.",
+    ],
   },
   {
-    target: "meter-pcs-detail",
-    title: "Titik Cacat per PCS",
+    target: "meter-final-report",
+    badge: "LAPORAN AKHIR",
+    title: "Laporan Meteran Akhir",
     description:
-      "Centang jika ada cacat atau kendala, lalu pilih kategori dan minimal satu detail masalah.",
+      "Gunakan tombol ini untuk membuka formulir pelaporan meteran: mengisi Meter Awal, Meter Akhir, dan Total Produksi Meter.",
+    tips: [
+      "Diisi saat shift selesai atau saat kain telah dipotong/selesai satu roll.",
+      "Hasil produksi meter bersih otomatis dihitung dari selisih meter akhir dan meter awal.",
+    ],
   },
   {
-    target: "meter-pcs-detail",
-    title: "Timer Downtime",
+    target: "block-mesin",
+    badge: "PERBAIKAN BERAT",
+    title: "Fitur Block Mesin (Multi-Shift)",
     description:
-      "Saat kendala dicentang, timer downtime muncul. Mulai saat masalah terjadi dan stop saat mesin kembali jalan.",
+      "Gunakan fitur Block Mesin jika mesin meteran mengalami kerusakan mekanik lama atau stop melintasi pergantian shift.",
+    tips: [
+      "Tekan tombol 'BLOCK MESIN' untuk mengunci status mesin dan menghitung total lama perbaikan.",
+      "Tersedia fitur 'Catatan Shift' untuk serah terima ke operator shift berikutnya.",
+      "Tekan tombol 'BUKA BLOCK' ketika perbaikan selesai dan mesin siap dijalankan kembali.",
+    ],
+  },
+  {
+    target: "downtime-timer",
+    badge: "TIMER DOWNTIME",
+    title: "Timer Downtime & Titik Meter Cacat",
+    description:
+      "Catat waktu henti (downtime) dan titik meter saat mesin berhenti sementara karena kendala operasional atau benang putus.",
+    tips: [
+      "Tekan 'MULAI MANUAL' (atau otomatis jika terhubung IoT) saat mesin berhenti.",
+      "Ketik posisi meter kain saat kendala ditemukan pada kolom Meter Kain.",
+      "Pilih kategori masalah (Kode A - G) lalu tekan 'STOP' saat mesin berjalan normal kembali.",
+    ],
   },
   {
     target: "meter-cut-roll",
-    title: "Potong Kain",
+    badge: "POTONG ROLL",
+    title: "Tandai Potong Kain / Roll",
     description:
-      "Centang ini hanya untuk potongan terakhir dalam roll, lalu lanjut isi total produksi meteran.",
+      "Centang opsi ini jika roll kain sudah selesai dan dipotong pada shift ini.",
+    tips: [
+      "Menandai penutupan roll pada nomor potongan saat ini.",
+      "Tanggal potong otomatis terisi sesuai tanggal hari ini.",
+    ],
   },
   {
     target: "meter-submit-defect",
-    title: "Kirim Titik Cacat",
+    badge: "KIRIM DATA",
+    title: "Kirim Titik Cacat / Laporan",
     description:
-      "Gunakan tombol ini untuk mengirim laporan titik cacat tanpa mengisi laporan meteran akhir.",
+      "Kirim laporan titik cacat atau simpan hasil meteran kain setelah data terisi lengkap.",
+    tips: [
+      "Tombol ini menyimpan titik cacat ke database produksi.",
+      "Mendukung mode offline jika jaringan internet terputus.",
+    ],
   },
 ];
 
@@ -376,13 +438,25 @@ export default function ContinuousForm({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [backupOperator, setBackupOperator] = useState("");
   const [isTourOpen, setIsTourOpen] = useState(false);
-  const [tourStepIndex, setTourStepIndex] = useState(0);
-  const [tourRect, setTourRect] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    height: number;
-  } | null>(null);
+  const [pendingOfflineCount, setPendingOfflineCount] = useState<number>(0);
+
+  useEffect(() => {
+    const updatePendingCount = async () => {
+      try {
+        const { getAllPendingPayloads } = await import("@/lib/offline-store");
+        const items = await getAllPendingPayloads();
+        setPendingOfflineCount(items.length);
+      } catch (e) {}
+    };
+
+    updatePendingCount();
+    window.addEventListener("dji_offline_queue_changed", updatePendingCount);
+    window.addEventListener("dji_trigger_sync", updatePendingCount);
+    return () => {
+      window.removeEventListener("dji_offline_queue_changed", updatePendingCount);
+      window.removeEventListener("dji_trigger_sync", updatePendingCount);
+    };
+  }, []);
 
   const router = useRouter();
 
@@ -467,6 +541,18 @@ export default function ContinuousForm({
     loadOperators();
   }, []);
 
+  useEffect(() => {
+    const startMeterTour = () => {
+      if (isEdit) return;
+      setIsMeterModalOpen(false);
+      setIsTourOpen(true);
+    };
+
+    window.addEventListener("dji:start-meter-tour", startMeterTour);
+    return () =>
+      window.removeEventListener("dji:start-meter-tour", startMeterTour);
+  }, [isEdit]);
+
   // States untuk upload foto
   const [isUploading, setIsUploading] = useState<{
     before: boolean;
@@ -512,66 +598,6 @@ export default function ContinuousForm({
     }
     return () => clearInterval(interval);
   }, [isTimerRunning, timerStartRef]);
-
-  useEffect(() => {
-    const startMeterTour = () => {
-      if (isEdit) return;
-      setTourStepIndex(0);
-      setIsMeterModalOpen(false);
-      setIsTourOpen(true);
-    };
-
-    window.addEventListener("dji:start-meter-tour", startMeterTour);
-    return () =>
-      window.removeEventListener("dji:start-meter-tour", startMeterTour);
-  }, [isEdit]);
-
-  useEffect(() => {
-    if (!isTourOpen) return;
-
-    const currentStep = METER_TOUR_STEPS[tourStepIndex];
-    const element = document.querySelector(
-      `[data-tour="${currentStep.target}"]`,
-    );
-
-    const updateTourRect = () => {
-      if (!element) {
-        setTourRect(null);
-        return;
-      }
-
-      const rect = element.getBoundingClientRect();
-      setTourRect({
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height,
-      });
-    };
-
-    if (element) {
-      element.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "nearest",
-      });
-    }
-
-    const timeoutId = window.setTimeout(updateTourRect, 220);
-    window.addEventListener("resize", updateTourRect);
-    window.addEventListener("scroll", updateTourRect, true);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.removeEventListener("resize", updateTourRect);
-      window.removeEventListener("scroll", updateTourRect, true);
-    };
-  }, [isTourOpen, tourStepIndex]);
-
-  const closeTour = () => {
-    setIsTourOpen(false);
-    setTourStepIndex(0);
-  };
 
   const handleStartTimer = () => {
     setIsTimerRunning(true);
@@ -1429,6 +1455,11 @@ export default function ContinuousForm({
     // Gunakan idempotency key dari ref yang stabil
     data.idempotencyKey = idempotencyKeyRef.current;
 
+    // Catat waktu asli submit (WIB) dari perangkat operator saat tombol ditekan
+    if (!data.submittedAt) {
+      data.submittedAt = getJakartaDateTimeString();
+    }
+
     // Filter dan pisahkan event yang sudah selesai (resolved) vs antrean pending
     const allDowntime = data.downtimeEvents || [];
     const resolvedDowntime = allDowntime.filter(
@@ -1611,8 +1642,9 @@ export default function ContinuousForm({
       }
 
       let result: any;
+      // Batas toleransi sinyal lag: 7 detik (sesuai instruksi). Jika lewat 7s, langsung selamatkan data ke penyimpanan lokal
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Network timeout: koneksi database lambat")), 15000)
+        setTimeout(() => reject(new Error("Network timeout: koneksi database lambat")), 7000)
       );
 
       if (isEdit && initialData?.id) {
@@ -1637,6 +1669,9 @@ export default function ContinuousForm({
           autoAdjustedDowntimeMsg: adjustedMsg,
           isCutSubmit: isT2ACutSubmit,
         } as any);
+
+        // Inputan ini sukses terkirim langsung (sinyal lancar), picu pengiriman antrean data lokal tertunda
+        triggerPiggybackSync();
       } else {
         setErrorMsg(result.error || "Gagal menyimpan laporan produksi rajut.");
       }
@@ -1644,6 +1679,7 @@ export default function ContinuousForm({
       if (
         err.message?.includes("fetch") ||
         err.message?.includes("Network") ||
+        err.message?.includes("timeout") ||
         !navigator.onLine
       ) {
         const { addPendingPayload } = await import("@/lib/offline-store");
@@ -1934,22 +1970,6 @@ export default function ContinuousForm({
   const getDesignName = (id: string) =>
     designs.find((d) => d.id.toString() === id)?.name || id;
 
-  const currentTourStep = METER_TOUR_STEPS[tourStepIndex];
-  const isLastTourStep = tourStepIndex === METER_TOUR_STEPS.length - 1;
-  const viewportHeight =
-    typeof window !== "undefined" ? window.innerHeight : 768;
-  const viewportWidth =
-    typeof window !== "undefined" ? window.innerWidth : 1024;
-  const tourCardTop = tourRect
-    ? Math.min(
-      Math.max(tourRect.top + tourRect.height + 16, 16),
-      Math.max(viewportHeight - 260, 16),
-    )
-    : 96;
-  const tourCardLeft = tourRect
-    ? Math.min(Math.max(tourRect.left, 16), Math.max(viewportWidth - 368, 16))
-    : 16;
-
   return (
     <div className="w-full bg-gradient-to-br from-emerald-50/40 via-white to-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3.5 sm:p-6 lg:p-8 shadow-[0_8px_30px_rgba(16,185,129,0.06)] text-slate-800 relative overflow-hidden">
       {/* Decorative background shape */}
@@ -2006,6 +2026,7 @@ export default function ContinuousForm({
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <button
+              data-tour="meter-stop-machine"
               type="button"
               onClick={() => setIsStopModalOpen(true)}
               className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
@@ -2015,6 +2036,7 @@ export default function ContinuousForm({
               <span>Mesin Mati</span>
             </button>
             <button
+              data-tour="meter-potongan-history"
               type="button"
               onClick={() => setIsHistoryDrawerOpen(true)}
               className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
@@ -2253,7 +2275,7 @@ export default function ContinuousForm({
 
             {/* Kolom Kanan: Downtime Tracker (Timer & Blok) */}
             <div className="flex flex-col w-full self-start">
-              <div data-tour="downtime" className="w-full">
+              <div className="w-full">
                 <input type="hidden" {...register("totalDowntime")} />
                 <DowntimeTracker
                   control={control}
@@ -2576,7 +2598,27 @@ export default function ContinuousForm({
           </div>
         )}
 
-        <div className="flex flex-col gap-4 mt-6">
+        {/* Indikator Antrean Data Tertunda Akibat Lag */}
+        {pendingOfflineCount > 0 && (
+          <div className="flex items-center justify-between p-3.5 bg-amber-50 border border-amber-200/90 rounded-2xl text-amber-900 text-xs font-semibold shadow-xs mt-6 animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
+              <span><strong>{pendingOfflineCount} data</strong> tersimpan di perangkat (antre kirim saat ada sinyal)</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => triggerPiggybackSync()}
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+            >
+              Kirim Sekarang
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-4 mt-4">
           {watch("nomorMc") && machineInputTypes[watch("nomorMc").toUpperCase()] === "PANEL" ? (
             <button
               type="button"
@@ -3128,73 +3170,14 @@ export default function ContinuousForm({
         )}
       </form>
 
-      {isTourOpen && currentTourStep && (
-        <div className="fixed inset-0 z-[70]">
-          <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-[1px]" />
-          {tourRect && (
-            <div
-              className="absolute rounded-2xl border-2 border-emerald-300 bg-white/10 shadow-[0_0_0_9999px_rgba(15,23,42,0.45),0_0_0_6px_rgba(16,185,129,0.18)] transition-all duration-200 pointer-events-none"
-              style={{
-                top: Math.max(tourRect.top - 8, 8),
-                left: Math.max(tourRect.left - 8, 8),
-                width: tourRect.width + 16,
-                height: tourRect.height + 16,
-              }}
-            />
-          )}
-          <div
-            className="absolute w-[calc(100vw-2rem)] max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 p-5"
-            style={{ top: tourCardTop, left: tourCardLeft }}
-          >
-            <div className="flex items-start justify-between gap-4 mb-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
-                  Step {tourStepIndex + 1} dari {METER_TOUR_STEPS.length}
-                </p>
-                <h4 className="text-base font-black text-slate-900 mt-1">
-                  {currentTourStep.title}
-                </h4>
-              </div>
-              <button
-                type="button"
-                onClick={closeTour}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors shrink-0"
-                aria-label="Tutup tour"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              {currentTourStep.description}
-            </p>
-            <div className="flex items-center gap-2 mt-5">
-              <button
-                type="button"
-                onClick={() =>
-                  setTourStepIndex((step) => Math.max(step - 1, 0))
-                }
-                disabled={tourStepIndex === 0}
-                className="h-10 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Kembali
-              </button>
-              <button
-                type="button"
-                onClick={
-                  isLastTourStep
-                    ? closeTour
-                    : () => setTourStepIndex((step) => step + 1)
-                }
-                className="flex-1 h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-              >
-                {isLastTourStep ? "Selesai" : "Lanjut"}
-                {!isLastTourStep && <ArrowRight className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Interactive Tour Guide */}
+      <ProductTour
+        steps={METER_TOUR_STEPS}
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+        accentClass="text-emerald-600"
+        buttonClass="bg-emerald-600 hover:bg-emerald-700"
+      />
 
       {/* Modal Sukses */}
       {successData && (

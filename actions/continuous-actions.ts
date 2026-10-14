@@ -3,7 +3,7 @@
 import { continuousFormSchema, ContinuousFormInput } from "@/lib/schemas";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getShiftDate } from "@/lib/shift-utils";
+import { getShiftDate, parseAsWibDate, getJakartaDateTimeString } from "@/lib/shift-utils";
 
 async function resolveAutomaticMeterStart(input: {
   nomorMc?: string | null;
@@ -544,19 +544,11 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
   try {
     const validated = continuousFormSchema.parse(inputData);
 
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat("sv-SE", {
-      timeZone: "Asia/Jakarta",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-    const tanggalJam = formatter.format(now);
-    const tgl = getShiftDate(now);
+    // Gunakan waktu asli submittedAt dari client (saat operator submit di mesin/lokal)
+    // agar sinkronisasi terlambat akibat lag tidak mengubah jam atau shift operasional kerja
+    const recordTime = validated.submittedAt ? parseAsWibDate(validated.submittedAt) : new Date();
+    const tanggalJam = getJakartaDateTimeString(recordTime);
+    const tgl = getShiftDate(recordTime);
 
     const rpmNum = validated.rpm ? parseInt(validated.rpm) : null;
     const potonganKeNum = validated.potonganKe

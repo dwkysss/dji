@@ -35,19 +35,35 @@ export default function OfflineSyncManager() {
       setIsOffline(true);
     };
 
+    // Piggyback sync: terpanggil ketika ada inputan berikutnya yang berhasil terkirim langsung (sinyal lancar)
+    const handleTriggerSync = () => {
+      if (!isSyncing) {
+        processQueue();
+      }
+    };
+
+    // Update counter antrean saat ada data lokal baru ditambahkan atau dihapus
+    const handleQueueChanged = () => {
+      checkPendingQueue();
+    };
+
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+    window.addEventListener("dji_trigger_sync", handleTriggerSync);
+    window.addEventListener("dji_offline_queue_changed", handleQueueChanged);
 
-    // Set interval to periodically check queue if online
+    // Pengecekan berkala santai (tiap 45 detik, bukan 15 detik agresif) agar tidak membebani jaringan saat lag
     const interval = setInterval(() => {
       if (navigator.onLine && !isSyncing) {
         checkPendingQueue();
       }
-    }, 15000); // 15 detik
+    }, 45000);
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("dji_trigger_sync", handleTriggerSync);
+      window.removeEventListener("dji_offline_queue_changed", handleQueueChanged);
       clearInterval(interval);
     };
   }, [isSyncing, isLoggedIn]);
@@ -56,9 +72,6 @@ export default function OfflineSyncManager() {
     try {
       const items = await getAllPendingPayloads();
       setPendingCount(items.length);
-      if (items.length > 0 && navigator.onLine && !isSyncing) {
-        processQueue();
-      }
     } catch (e) {
       console.error(e);
     }
@@ -82,6 +95,11 @@ export default function OfflineSyncManager() {
         let result: any = { success: false, error: "" };
         
         try {
+          // Pastikan submittedAt asli tetap terbawa agar waktu tidak bergeser saat sinkronisasi
+          if (item.data && !item.data.submittedAt && item.timestamp) {
+            item.data.submittedAt = item.timestamp;
+          }
+
           if (item.type === "employee") {
             result = await createProductionReport(item.data);
           } else if (item.type === "continuous") {
@@ -103,8 +121,8 @@ export default function OfflineSyncManager() {
           } else {
             // Jika gagal, catat retry count
             const currentRetries = (item.retryCount || 0) + 1;
-            if (currentRetries >= 3) {
-              console.warn(`[OfflineSync] Payload ${item.id} gagal setelah 3 percobaan (${result?.error}). Dihapus dari antrean lokal.`);
+            if (currentRetries >= 5) {
+              console.warn(`[OfflineSync] Payload ${item.id} gagal setelah 5 percobaan (${result?.error}). Dihapus dari antrean lokal.`);
               await removePendingPayload(item.id);
             } else {
               await updatePendingPayload({
@@ -116,7 +134,7 @@ export default function OfflineSyncManager() {
         } catch (err: any) {
           console.error("Gagal sync payload", item.id, err);
           const currentRetries = (item.retryCount || 0) + 1;
-          if (currentRetries >= 3) {
+          if (currentRetries >= 5) {
             await removePendingPayload(item.id);
           } else {
             await updatePendingPayload({
@@ -124,6 +142,8 @@ export default function OfflineSyncManager() {
               retryCount: currentRetries,
             });
           }
+          // Jika koneksi putus atau timeout di tengah proses, hentikan loop sementara
+          break;
         }
       }
 
@@ -142,12 +162,14 @@ export default function OfflineSyncManager() {
 
   const handleClearQueue = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      await clearAllPendingPayloads();
-      setPendingCount(0);
-      setIsSyncing(false);
-    } catch (e) {
-      console.error(e);
+    if (window.confirm("Yakin ingin menghapus semua antrean data lokal yang belum terkirim?")) {
+      try {
+        await clearAllPendingPayloads();
+        setPendingCount(0);
+        setIsSyncing(false);
+      } catch (e) {
+        console.error(e);
+      }
     }
   };
 
@@ -156,7 +178,31 @@ export default function OfflineSyncManager() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 animate-in fade-in slide-in-from-bottom-4">
+    <div className="fixed bottom-4 left-4 z-50 animate-in fade-in slide-in-from-bottom-4 flex flex-col gap-2">
+      {/* Jika ada antrean tersimpan tapi belum tersinkron (misal akibat lag) */}
+      {!isOffline && !isSyncing && pendingCount > 0 && (
+        <div className="flex items-center gap-2.5 bg-slate-900/90 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-slate-700/80 text-xs font-semibold">
+          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+          <span>{pendingCount} Data Tersimpan di Perangkat</span>
+          <button
+            type="button"
+            onClick={() => processQueue()}
+            className="ml-1 px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Kirim Sekarang</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleClearQueue}
+            className="p-1 text-slate-400 hover:text-rose-400 rounded-md transition-colors cursor-pointer"
+            title="Hapus antrean"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {isOffline && (
         <div className="flex items-center gap-2 bg-rose-500 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
           <WifiOff className="w-4 h-4" />
@@ -172,7 +218,7 @@ export default function OfflineSyncManager() {
       {isSyncing && !isOffline && (
         <div className="flex items-center gap-2.5 bg-amber-500 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
           <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
-          <span>Menyinkronkan {pendingCount} data...</span>
+          <span>Menyinkronkan {pendingCount} data lokal...</span>
           <button
             type="button"
             onClick={handleClearQueue}
@@ -187,7 +233,7 @@ export default function OfflineSyncManager() {
       {showSuccessMsg && !isSyncing && !isOffline && (
         <div className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
           <CheckCircle2 className="w-4 h-4" />
-          <span>Sinkronisasi Offline Selesai</span>
+          <span>Sinkronisasi Data Lokal Selesai!</span>
         </div>
       )}
     </div>

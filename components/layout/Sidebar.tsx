@@ -300,6 +300,12 @@ export default function Sidebar() {
           roles: ["admin", "manager", "inspeksi", "mending"],
         },
         {
+          name: "Laporan Per Design",
+          href: "/reports/design-report",
+          icon: FileSpreadsheet,
+          roles: ["admin", "manager", "inspeksi", "mending", "kepala_shift"],
+        },
+        {
           name: "Laporan Harian Inspect & Mending",
           href: "/reports/daily-inspect-mending",
           icon: FileSpreadsheet,

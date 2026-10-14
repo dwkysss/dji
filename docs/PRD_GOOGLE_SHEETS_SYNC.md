@@ -269,13 +269,12 @@ function doPost(e) {
       var webOp = String(tData.operator_name || "").trim();
       var webProd = Number(tData.hasil_produksi || 0);
 
-      // Cek apakah baris ini sebelumnya adalah hasil sync web (kuning), kelanjutan shift, atau produksinya bertambah
+      // Cek apakah baris ini sebelumnya adalah hasil sync web (kuning)
       var isFromWebSync = (existingBg === "#ffff00");
-      var isSameOperator = (webOp !== "" && webOp.toLowerCase() === existingOp.toLowerCase());
-      var isProductionIncreased = (webProd > existingProd);
 
-      // Safe Mode HANYA melindungi ketikan manual staf (bukan dari sync web dan bukan penambahan produksi)
-      if (isSafeMode && hasExisting && !isFromWebSync && !isSameOperator && !isProductionIncreased) {
+      // Safe Mode MURNI: Jika baris sudah terisi data manual di sheet (dan bukan hasil sync kuning web sebelumnya),
+      // maka MUTLAK LINDUNGI dan JANGAN DITIMPA sama sekali!
+      if (isSafeMode && hasExisting && !isFromWebSync) {
         skippedCount++;
         continue;
       }

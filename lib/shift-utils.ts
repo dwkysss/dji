@@ -42,6 +42,24 @@ export function parseAsWibDate(dateInput: Date | string | number): Date {
 }
 
 /**
+ * Returns a formatted date-time string in Asia/Jakarta (WIB) timezone: "YYYY-MM-DD HH:mm:ss".
+ */
+export function getJakartaDateTimeString(dateInput?: Date | string | number): string {
+  const dt = dateInput ? parseAsWibDate(dateInput) : new Date();
+  const formatter = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  return formatter.format(dt);
+}
+
+/**
  * Returns the operational shift date (YYYY-MM-DD) in Asia/Jakarta timezone.
  * Any timestamp occurring between 00:00:00 and 07:09:59 WIB belongs to Shift 3 of the PREVIOUS day.
  */

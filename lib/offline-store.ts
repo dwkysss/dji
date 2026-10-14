@@ -51,7 +51,12 @@ export async function addPendingPayload(type: "employee" | "continuous" | "qc", 
 
     const request = store.add(payload);
 
-    request.onsuccess = () => resolve();
+    request.onsuccess = () => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("dji_offline_queue_changed"));
+      }
+      resolve();
+    };
     request.onerror = () => reject("Gagal menyimpan ke antrean offline.");
   });
 }
@@ -83,7 +88,12 @@ export async function updatePendingPayload(payload: OfflinePayload): Promise<voi
     const store = transaction.objectStore(STORE_NAME);
     const request = store.put(payload);
 
-    request.onsuccess = () => resolve();
+    request.onsuccess = () => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("dji_offline_queue_changed"));
+      }
+      resolve();
+    };
     request.onerror = () => reject("Gagal mengupdate antrean offline.");
   });
 }
@@ -95,7 +105,12 @@ export async function removePendingPayload(id: string): Promise<void> {
     const store = transaction.objectStore(STORE_NAME);
     const request = store.delete(id);
 
-    request.onsuccess = () => resolve();
+    request.onsuccess = () => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("dji_offline_queue_changed"));
+      }
+      resolve();
+    };
     request.onerror = () => reject("Gagal menghapus antrean offline.");
   });
 }
@@ -107,7 +122,22 @@ export async function clearAllPendingPayloads(): Promise<void> {
     const store = transaction.objectStore(STORE_NAME);
     const request = store.clear();
 
-    request.onsuccess = () => resolve();
+    request.onsuccess = () => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("dji_offline_queue_changed"));
+      }
+      resolve();
+    };
     request.onerror = () => reject("Gagal mengosongkan antrean offline.");
   });
+}
+
+/**
+ * Memicu sinkronisasi antrean offline seketika (piggyback sync).
+ * Dipanggil saat inputan live berikutnya berhasil terkirim (sinyal terbukti lancar).
+ */
+export function triggerPiggybackSync() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("dji_trigger_sync"));
+  }
 }

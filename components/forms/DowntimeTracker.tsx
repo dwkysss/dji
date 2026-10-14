@@ -1630,7 +1630,7 @@ export default function DowntimeTracker({
       {viewMode !== "events_only" && (
         <>
           {/* 1. SEKSI BLOCK MESIN */}
-          <div className="flex flex-col gap-3 w-full">
+          <div data-tour="block-mesin" className="flex flex-col gap-3 w-full">
             {!activeBlock ? (
               <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
@@ -1778,7 +1778,7 @@ export default function DowntimeTracker({
           </div>
 
           {/* 2. CARD DOWNTIME UTAMA (KHUSUS TIMER & KONTROL MESIN) */}
-          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative overflow-hidden mb-4">
+          <div data-tour="downtime-timer" className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative overflow-hidden mb-4">
             <div className="flex flex-col gap-2 mb-4">
               <div className="flex items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
                 <div className="flex items-center gap-2 shrink-0">

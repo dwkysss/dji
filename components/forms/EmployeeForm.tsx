@@ -15,6 +15,9 @@ import { getProductionPlan, getLatestMachineHeader } from "@/actions/plan-action
 import { getMachineConfigs } from "@/actions/machine-config-actions";
 import { getOperatorsList } from "@/actions/operator-actions";
 import { createClient } from "@/lib/supabase/client";
+import { getJakartaDateTimeString } from "@/lib/shift-utils";
+import { triggerPiggybackSync } from "@/lib/offline-store";
+import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import {
   AlertCircle,
   RefreshCw,
@@ -134,48 +137,130 @@ const NEW_PROBLEM_CATEGORIES = [
   { id: "G", name: "Kode G: Faktor Eksternal dan Non-Teknis" },
 ];
 
-const PANEL_TOUR_STEPS = [
+const PANEL_TOUR_STEPS: ProductTourStep[] = [
   {
     target: "mode-switch",
-    title: "Jenis Input",
+    badge: "JENIS INPUT",
+    title: "Pilihan Mode Input (Panel vs Meter)",
     description:
-      "Pastikan mode Panel aktif untuk input per panel. Kalau input per roll atau meteran, pindah ke Kontinu.",
+      "Gunakan tab ini untuk beralih antara input per panel atau input kontinu roll/meteran sesuai tipe mesin rajut Anda.",
+    tips: [
+      "Tab PANEL: Pencatatan per lembar panel rajut dengan status cacat dan downtime per PCS.",
+      "Tab METER: Khusus mesin kain kontinu / roll panjang (seperti R11, R12, T2A, dsb).",
+    ],
+  },
+  {
+    target: "stop-machine",
+    badge: "STATUS KHUSUS",
+    title: "Lapor Mesin Mati / Berhenti Total",
+    description:
+      "Gunakan tombol ini jika mesin berhenti beroperasi sepanjang shift Anda (misal: listrik padam, rusak/maintenance, libur, atau menunggu bahan).",
+    tips: [
+      "Mencegah mesin dianggap mangkir tanpa hasil kerja di KPI produksi.",
+      "Data status henti langsung tersinkron ke Laporan Bulanan tanpa harus mengisi nomor panel.",
+    ],
+  },
+  {
+    target: "potongan-history",
+    badge: "RIWAYAT CEPAT",
+    title: "Riwayat Panel Potongan Ini",
+    description:
+      "Buka laci riwayat cepat untuk memantau panel-panel yang sudah berhasil dikirim pada nomor potongan aktif saat ini.",
+    tips: [
+      "Melihat jam input, status cacat/normal, operator penanggung jawab, dan total downtime.",
+      "Memastikan panel sebelumnya sudah tersimpan dengan benar sebelum lanjut input.",
+    ],
   },
   {
     target: "header-summary",
-    title: "Data Header",
+    badge: "PARAMETER UTAMA",
+    title: "Ringkasan Header & Tombol Ubah Header",
     description:
-      "Cek operator, shift, mesin, design, status matching, dan potongan. Tekan kartu ini untuk mengubah header.",
+      "Menampilkan parameter produksi aktif: Nama Operator, Shift/Group, Nomor Mesin, Desain, Status Matching, Potongan Ke, dan Target Panel.",
+    tips: [
+      "Klik kartu ini atau tombol 'Ubah Header' untuk mengganti mesin, operator, desain, atau parameter lainnya.",
+      "Data header otomatis tersimpan dan berlanjut ke panel berikutnya tanpa perlu input ulang.",
+    ],
   },
   {
     target: "panel-info",
-    title: "Nomor Panel",
+    badge: "NOMOR URUT",
+    title: "Nomor Panel & Target Potongan",
     description:
-      "Nomor panel terisi otomatis dari potongan dan mesin. Setelah kirim, sistem menyiapkan nomor berikutnya.",
+      "Nomor panel yang sedang berjalan dihitung otomatis oleh sistem. Terdapat juga informasi target panel per potongan.",
+    tips: [
+      "Menampilkan sisa panel menuju target potongan (contoh: Target 50 Panel).",
+      "Saat target tercapai, formulir otomatis berganti ke nomor potongan berikutnya (Panel 1).",
+    ],
   },
   {
-    target: "pcs-detail",
-    title: "Detail PCS",
+    target: "block-mesin",
+    badge: "PERBAIKAN BERAT",
+    title: "Fitur Block Mesin (Multi-Shift)",
     description:
-      "Centang kalau ada cacat atau kendala pada PCS. Setelah dicentang, pilih kategori dan minimal satu detail masalah.",
+      "Gunakan fitur Block Mesin jika mesin mengalami masalah besar/perbaikan mekanik berdurasi lama yang berlanjut hingga melewati pergantian shift.",
+    tips: [
+      "Tekan tombol 'BLOCK MESIN' untuk mengunci status mesin dan menghitung total lama perbaikan.",
+      "Tersedia fitur 'Catatan Shift' untuk mencatat kronologi serah terima kendala ke operator shift berikutnya.",
+      "Setelah mesin normal kembali, tekan tombol 'BUKA BLOCK' untuk mengakhiri status block.",
+    ],
   },
   {
-    target: "pcs-detail",
-    title: "Timer Downtime",
+    target: "downtime-timer",
+    badge: "TIMER DOWNTIME",
+    title: "Timer Downtime & Pencatat Kendala",
     description:
-      "Saat kendala dicentang, timer downtime muncul di bawah detail PCS. Mulai saat masalah terjadi dan stop saat mesin kembali jalan.",
+      "Catat waktu henti (downtime) saat mesin berhenti sementara karena kendala operasional, benang putus, jarum patah, atau perbaikan ringan.",
+    tips: [
+      "Tekan 'MULAI MANUAL' (atau otomatis jika terkoneksi IoT) saat mesin berhenti.",
+      "Tentukan nomor blok mesin jika ada titik benang/jarum tertentu yang bermasalah.",
+      "Pilih kategori masalah (Kode A - G) dan rincian masalah, lalu tekan 'STOP' saat mesin kembali jalan normal.",
+    ],
   },
   {
-    target: "cut-panel",
-    title: "Potong Kain",
+    target: "downtime-events",
+    badge: "LOG KENDALA",
+    title: "Daftar Kendala Panel Ini",
     description:
-      "Centang ini hanya jika panel yang sedang diinput adalah panel terakhir dalam roll.",
+      "Bagian ini merangkum seluruh event kendala dan durasi waktu henti yang telah dicatat pada panel yang sedang diinput.",
+    tips: [
+      "Anda dapat mencatat lebih dari 1 kendala jika terjadi beberapa kali stop dalam satu panel.",
+      "Menampilkan detail perbaikan, durasi henti, dan penanggung jawab perbaikan.",
+    ],
+  },
+  {
+    target: "advanced-actions",
+    badge: "OPSI LANJUTAN",
+    title: "Opsi Lanjutan (Potong Kain & Tandai PCS BS)",
+    description:
+      "Menu khusus untuk menandai panel akhir dari satu potongan kain atau jika ada PCS yang mengalami cacat berat.",
+    tips: [
+      "Potong Kain: Centang khusus pada panel terakhir dalam satu potongan/roll (membuat baris BS Akhir).",
+      "Tandai PCS BS: Centang jika PCS tertentu gagal / rusak agar urutan nomor panel normal tetap terjaga.",
+    ],
+  },
+  {
+    target: "break-mode",
+    badge: "SHIFT & ISTIRAHAT",
+    title: "Jenis Laporan / Mode Istirahat",
+    description:
+      "Tentukan apakah panel ini dikerjakan oleh Anda sendiri (Normal) atau oleh operator pengganti (backup) saat jam istirahat.",
+    tips: [
+      "Pilih 'Normal' untuk pengerjaan rutin oleh operator yang bertugas.",
+      "Pilih 'Istirahat' saat Anda istirahat dan pilih nama operator backup yang menggantikan Anda.",
+      "Nama operator backup otomatis tercatat di keterangan riwayat kerja.",
+    ],
   },
   {
     target: "submit-panel",
-    title: "Kirim Laporan",
+    badge: "SIMPAN DATA",
+    title: "Kirim Laporan Panel",
     description:
-      "Kirim setelah semua data benar. Kalau offline, data akan masuk antrean sinkronisasi otomatis.",
+      "Tekan tombol ini setelah seluruh data panel, kendala mesin, dan parameter lainnya sudah terisi dengan benar.",
+    tips: [
+      "Jika online: Data langsung terkirim dan Laporan Bulanan terupdate seketika.",
+      "Jika sinyal hilang: Data otomatis disimpan di memori perangkat dan dikirim otomatis begitu koneksi pulih.",
+    ],
   },
 ];
 
@@ -356,13 +441,25 @@ export default function EmployeeForm({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLastPanel, setIsLastPanel] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
-  const [tourStepIndex, setTourStepIndex] = useState(0);
-  const [tourRect, setTourRect] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    height: number;
-  } | null>(null);
+  const [pendingOfflineCount, setPendingOfflineCount] = useState<number>(0);
+
+  useEffect(() => {
+    const updatePendingCount = async () => {
+      try {
+        const { getAllPendingPayloads } = await import("@/lib/offline-store");
+        const items = await getAllPendingPayloads();
+        setPendingOfflineCount(items.length);
+      } catch (e) {}
+    };
+
+    updatePendingCount();
+    window.addEventListener("dji_offline_queue_changed", updatePendingCount);
+    window.addEventListener("dji_trigger_sync", updatePendingCount);
+    return () => {
+      window.removeEventListener("dji_offline_queue_changed", updatePendingCount);
+      window.removeEventListener("dji_trigger_sync", updatePendingCount);
+    };
+  }, []);
 
   // Photo States
   const [fotoBefore, setFotoBefore] = useState<File | null>(null);
@@ -498,7 +595,6 @@ export default function EmployeeForm({
   useEffect(() => {
     const startPanelTour = () => {
       if (isEdit) return;
-      setTourStepIndex(0);
       setIsTourOpen(true);
     };
 
@@ -506,53 +602,6 @@ export default function EmployeeForm({
     return () =>
       window.removeEventListener("dji:start-panel-tour", startPanelTour);
   }, [isEdit]);
-
-  useEffect(() => {
-    if (!isTourOpen) return;
-
-    const currentStep = PANEL_TOUR_STEPS[tourStepIndex];
-    const element = document.querySelector(
-      `[data-tour="${currentStep.target}"]`,
-    );
-
-    const updateTourRect = () => {
-      if (!element) {
-        setTourRect(null);
-        return;
-      }
-
-      const rect = element.getBoundingClientRect();
-      setTourRect({
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height,
-      });
-    };
-
-    if (element) {
-      element.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "nearest",
-      });
-    }
-
-    const timeoutId = window.setTimeout(updateTourRect, 220);
-    window.addEventListener("resize", updateTourRect);
-    window.addEventListener("scroll", updateTourRect, true);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.removeEventListener("resize", updateTourRect);
-      window.removeEventListener("scroll", updateTourRect, true);
-    };
-  }, [isTourOpen, tourStepIndex]);
-
-  const closeTour = () => {
-    setIsTourOpen(false);
-    setTourStepIndex(0);
-  };
 
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isStopModalOpen, setIsStopModalOpen] = useState(false);
@@ -1020,8 +1069,14 @@ export default function EmployeeForm({
         (data as any)[field] = (data[field] as string).toUpperCase();
       }
     });
+
     // Gunakan idempotency key dari ref yang stabil
     data.idempotencyKey = idempotencyKeyRef.current;
+
+    // Catat waktu asli submit (WIB) dari perangkat operator saat tombol ditekan
+    if (!data.submittedAt) {
+      data.submittedAt = getJakartaDateTimeString();
+    }
 
     // Otomatis set isPanelGagal jika ada PCS yang BS
     if (data.pcsData?.some((p) => p.isBs)) {
@@ -1140,8 +1195,9 @@ export default function EmployeeForm({
       }
 
       let result: any;
+      // Batas toleransi sinyal lag: 7 detik (sesuai instruksi). Jika lewat 7s, langsung selamatkan data ke penyimpanan lokal
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Network timeout: koneksi database lambat")), 15000)
+        setTimeout(() => reject(new Error("Network timeout: koneksi database lambat")), 7000)
       );
 
       if (isEdit && initialData?.id) {
@@ -1168,6 +1224,9 @@ export default function EmployeeForm({
           nextPotonganTarget: nextPotonganKeForSave,
           maxPanelLimit,
         } as any);
+
+        // Inputan ini sukses terkirim langsung (sinyal lancar), picu pengiriman antrean data lokal tertunda
+        triggerPiggybackSync();
       } else {
         setErrorMsg(result.error || "Gagal menyimpan laporan produksi rajut.");
       }
@@ -1175,6 +1234,7 @@ export default function EmployeeForm({
       if (
         err.message?.includes("fetch") ||
         err.message?.includes("Network") ||
+        err.message?.includes("timeout") ||
         !navigator.onLine
       ) {
         const { addPendingPayload } = await import("@/lib/offline-store");
@@ -1340,22 +1400,6 @@ export default function EmployeeForm({
     };
   }, [successData]);
 
-  const currentTourStep = PANEL_TOUR_STEPS[tourStepIndex];
-  const isLastTourStep = tourStepIndex === PANEL_TOUR_STEPS.length - 1;
-  const viewportHeight =
-    typeof window !== "undefined" ? window.innerHeight : 768;
-  const viewportWidth =
-    typeof window !== "undefined" ? window.innerWidth : 1024;
-  const tourCardTop = tourRect
-    ? Math.min(
-      Math.max(tourRect.top + tourRect.height + 16, 16),
-      Math.max(viewportHeight - 260, 16),
-    )
-    : 96;
-  const tourCardLeft = tourRect
-    ? Math.min(Math.max(tourRect.left, 16), Math.max(viewportWidth - 368, 16))
-    : 16;
-
   const handlePhotoUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     type: "before" | "after",
@@ -1476,6 +1520,7 @@ export default function EmployeeForm({
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <button
+              data-tour="stop-machine"
               type="button"
               onClick={() => setIsStopModalOpen(true)}
               className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
@@ -1485,6 +1530,7 @@ export default function EmployeeForm({
               <span>Mesin Mati</span>
             </button>
             <button
+              data-tour="potongan-history"
               type="button"
               onClick={() => setIsHistoryDrawerOpen(true)}
               className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
@@ -1626,7 +1672,7 @@ export default function EmployeeForm({
 
             {/* Kolom Kanan: Downtime Tracker (Timer & Blok) */}
             <div className="flex flex-col w-full self-start">
-              <div data-tour="downtime" className="w-full">
+              <div className="w-full">
                 <input type="hidden" {...register("totalDowntime")} />
                 <DowntimeTracker
                   control={control}
@@ -1645,7 +1691,7 @@ export default function EmployeeForm({
           </div>
 
           {/* Section Merentang Penuh (Full Width): Antrean & Riwayat Kendala Mesin */}
-          <div className="w-full mt-4">
+          <div data-tour="downtime-events" className="w-full mt-4">
             <DowntimeTracker
               control={control}
               setValue={setValue}
@@ -1701,25 +1747,6 @@ export default function EmployeeForm({
             onChangePcsCount={handleChangePcsCount}
           />
 
-          <MachineStopModal
-            isOpen={isStopModalOpen}
-            onClose={() => setIsStopModalOpen(false)}
-            nomorMc={watchNomorMc || ""}
-            operatorId={watch("operatorId") || ""}
-            operatorName={currentOperatorName || ""}
-            groupId={watchGroupId || "1"}
-            shiftName={activeShiftName}
-            potonganKe={watchPotonganKe}
-            designId={watch("designId") || ""}
-            rpm={watch("rpm") || ""}
-            pick={watch("pick") || ""}
-            course={watch("course") || ""}
-            onSuccess={(msg) => {
-              setStopModalSuccessMsg(msg || "Laporan mesin berhenti berhasil disimpan!");
-              setTimeout(() => setStopModalSuccessMsg(null), 7000);
-            }}
-          />
-
           {/* Hidden PCS fields to match the array structure for form submission */}
           {fields.map((field, index) => (
             <input
@@ -1733,6 +1760,7 @@ export default function EmployeeForm({
 
         {/* Tindakan Akhir Panel Toggle Button */}
         <button
+          data-tour="advanced-actions"
           type="button"
           onClick={() => {
             if (showAdvancedActions) {
@@ -1902,7 +1930,7 @@ export default function EmployeeForm({
           </div>
         )}
 
-        <div className="mt-4 bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-3">
+        <div data-tour="break-mode" className="mt-4 bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold text-slate-700 uppercase">
               Jenis Laporan / Info Istirahat
@@ -2034,6 +2062,26 @@ export default function EmployeeForm({
           </p>
         </div>
 
+        {/* Indikator Antrean Data Tertunda Akibat Lag */}
+        {pendingOfflineCount > 0 && (
+          <div className="flex items-center justify-between p-3.5 bg-amber-50 border border-amber-200/90 rounded-2xl text-amber-900 text-xs font-semibold shadow-xs animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
+              <span><strong>{pendingOfflineCount} data</strong> tersimpan di perangkat (antre kirim saat ada sinyal)</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => triggerPiggybackSync()}
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+            >
+              Kirim Sekarang
+            </button>
+          </div>
+        )}
+
         {/* Kirim Button */}
         {isMeterMachine ? (
           <button
@@ -2065,11 +2113,34 @@ export default function EmployeeForm({
         )}
       </form>
 
-      {isTourOpen && currentTourStep && (
-        <div className="fixed inset-0 z-[70]" onClick={closeTour}>
-          <div className="absolute inset-0 bg-slate-950/55" />
-        </div>
-      )}
+      {/* Modal Lapor Mesin Berhenti / Mati */}
+      <MachineStopModal
+        isOpen={isStopModalOpen}
+        onClose={() => setIsStopModalOpen(false)}
+        nomorMc={watchNomorMc || ""}
+        operatorId={watch("operatorId") || ""}
+        operatorName={currentOperatorName || ""}
+        groupId={watchGroupId || "1"}
+        shiftName={activeShiftName}
+        potonganKe={watchPotonganKe}
+        designId={watch("designId") || ""}
+        rpm={watch("rpm") || ""}
+        pick={watch("pick") || ""}
+        course={watch("course") || ""}
+        onSuccess={(msg) => {
+          setStopModalSuccessMsg(msg || "Laporan mesin berhenti berhasil disimpan!");
+          setTimeout(() => setStopModalSuccessMsg(null), 7000);
+        }}
+      />
+
+      {/* Interactive Tour Guide */}
+      <ProductTour
+        steps={PANEL_TOUR_STEPS}
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+        accentClass="text-[#0070bc]"
+        buttonClass="bg-[#0070bc] hover:bg-[#004777]"
+      />
 
       {/* Modal Sukses */}
       {successData && (

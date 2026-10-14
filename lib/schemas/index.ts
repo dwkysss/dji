@@ -101,6 +101,7 @@ export const productionFormSchemaBase = z.object({
     })
   ).min(1, "Minimal harus ada 1 PCS"),
   idempotencyKey: z.string().optional(),
+  submittedAt: z.string().optional().nullable(),
 });
 
 export const productionFormSchema = productionFormSchemaBase.superRefine((data, ctx) => {
