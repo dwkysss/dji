@@ -86,6 +86,7 @@ export const productionFormSchemaBase = z.object({
           details: z.array(z.string()),
           blok: z.string().optional(),
           meter: z.string().optional(),
+          pcsKe: z.string().optional(),
         })
       ).optional(),
     })

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useFieldArray, Control, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info, Edit3, Link2, Lightbulb, Pin } from "lucide-react";
+import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info, Edit3, Link2, Lightbulb, Pin, Layers } from "lucide-react";
 import { ContinuousFormInput } from "@/lib/schemas";
 import { submitMechanicDowntime } from "@/actions/mechanic-actions";
 import { getProblemDetailsGrouped, createProblemDetail } from "@/actions/problem-detail-actions";
@@ -23,6 +23,8 @@ const PROBLEM_CATEGORIES = [
 import { GROUPED_PROBLEM_DETAILS, PROBLEM_DETAILS } from "@/lib/constants";
 import { getProblemGroupMapping } from "@/actions/problem-detail-actions";
 import { useAuth } from "@/lib/auth-context";
+import { useInputTheme } from "@/lib/input-theme-context";
+import { cn } from "@/lib/utils";
 
 interface DowntimeTrackerProps {
   control: any;
@@ -62,6 +64,7 @@ export default function DowntimeTracker({
   onAutoSubmit,
 }: DowntimeTrackerProps) {
   const { user } = useAuth();
+  const { isDark } = useInputTheme();
   const isKepalaShiftOrAdmin = user?.role === "kepala_shift" || user?.role === "admin" || user?.role === "manager";
 
   const {
@@ -140,27 +143,240 @@ export default function DowntimeTracker({
   const [dynamicProblemDetails, setDynamicProblemDetails] = useState<Record<string, string[]>>(PROBLEM_DETAILS);
   const [manualInputDetails, setManualInputDetails] = useState<Record<string, string>>({});
 
+  // State untuk mode masalah multi-PCS ("Sama Semua PCS" vs "Beda Tiap PCS")
+  const [problemInputMode, setProblemInputMode] = useState<"same" | "per_pcs">("same");
+  const [activePcsProblemTab, setActivePcsProblemTab] = useState<string>("1");
+  const [perPcsProblems, setPerPcsProblems] = useState<Record<string, {
+    categories: string[];
+    details: Record<string, string[]>;
+    bloks: Record<string, string>;
+    manualDetails?: Record<string, string>;
+  }>>({});
+
+  // Helper getters untuk masalah pada tab aktif (atau mode sama)
+  const currentCategories = problemInputMode === "per_pcs"
+    ? (perPcsProblems[activePcsProblemTab]?.categories || [])
+    : selectedCategories;
+
+  const currentDetails = problemInputMode === "per_pcs"
+    ? (perPcsProblems[activePcsProblemTab]?.details || {})
+    : selectedDetails;
+
+  const currentBloks = problemInputMode === "per_pcs"
+    ? (perPcsProblems[activePcsProblemTab]?.bloks || {})
+    : inputBloks;
+
+  const currentManualDetails = problemInputMode === "per_pcs"
+    ? (perPcsProblems[activePcsProblemTab]?.manualDetails || {})
+    : manualInputDetails;
+
+  const handleSetProblemInputMode = (mode: "same" | "per_pcs") => {
+    setProblemInputMode(mode);
+    if (mode === "per_pcs") {
+      setPerPcsProblems((prev) => {
+        const next = { ...prev };
+        selectedPcsKeList.forEach((pcsKey) => {
+          if (!next[pcsKey]) {
+            next[pcsKey] = {
+              categories: [...selectedCategories],
+              details: JSON.parse(JSON.stringify(selectedDetails || {})),
+              bloks: { ...inputBloks },
+              manualDetails: { ...manualInputDetails },
+            };
+          }
+        });
+        return next;
+      });
+      if (!selectedPcsKeList.includes(activePcsProblemTab) && selectedPcsKeList.length > 0) {
+        setActivePcsProblemTab(selectedPcsKeList[0]);
+      }
+    }
+  };
+
+  const handleCategoryToggle = (catId: string, isChecked: boolean) => {
+    if (problemInputMode === "per_pcs") {
+      setPerPcsProblems((prev) => {
+        const curPcs = prev[activePcsProblemTab] || { categories: [], details: {}, bloks: {}, manualDetails: {} };
+        let newCats = [...curPcs.categories];
+        let newDets = { ...curPcs.details };
+        let newBlks = { ...curPcs.bloks };
+
+        if (isChecked) {
+          if (!newCats.includes(catId)) newCats.push(catId);
+        } else {
+          newCats = newCats.filter((c) => c !== catId);
+          delete newDets[catId];
+          delete newBlks[catId];
+        }
+        return {
+          ...prev,
+          [activePcsProblemTab]: {
+            ...curPcs,
+            categories: newCats,
+            details: newDets,
+            bloks: newBlks,
+          },
+        };
+      });
+    } else {
+      if (isChecked) {
+        setSelectedCategories((prev) => [...prev, catId]);
+      } else {
+        setSelectedCategories((prev) => prev.filter((c) => c !== catId));
+        setSelectedDetails((prev) => {
+          const next = { ...prev };
+          delete next[catId];
+          return next;
+        });
+        setInputBloks((prev) => {
+          const next = { ...prev };
+          delete next[catId];
+          return next;
+        });
+      }
+    }
+  };
+
+  const handleDetailToggle = (catId: string, detail: string, isChecked: boolean) => {
+    if (problemInputMode === "per_pcs") {
+      setPerPcsProblems((prev) => {
+        const curPcs = prev[activePcsProblemTab] || { categories: [], details: {}, bloks: {}, manualDetails: {} };
+        const curDets = curPcs.details[catId] || [];
+        const nextDets = isChecked
+          ? [...curDets, detail]
+          : curDets.filter((d) => d !== detail);
+        return {
+          ...prev,
+          [activePcsProblemTab]: {
+            ...curPcs,
+            details: {
+              ...curPcs.details,
+              [catId]: nextDets,
+            },
+          },
+        };
+      });
+    } else {
+      setSelectedDetails((prev) => {
+        const current = prev[catId] || [];
+        return {
+          ...prev,
+          [catId]: isChecked ? [...current, detail] : current.filter((d) => d !== detail),
+        };
+      });
+    }
+  };
+
+  const handleBlockListChange = (catId: string, joinedBlok: string) => {
+    setBlockValidationError(null);
+    if (problemInputMode === "per_pcs") {
+      setPerPcsProblems((prev) => {
+        const curPcs = prev[activePcsProblemTab] || { categories: [], details: {}, bloks: {}, manualDetails: {} };
+        return {
+          ...prev,
+          [activePcsProblemTab]: {
+            ...curPcs,
+            bloks: {
+              ...curPcs.bloks,
+              [catId]: joinedBlok,
+            },
+          },
+        };
+      });
+    } else {
+      setInputBloks((prev) => ({ ...prev, [catId]: joinedBlok }));
+    }
+  };
+
+  const handleRemoveCustomDetail = (catId: string, customDetail: string) => {
+    if (problemInputMode === "per_pcs") {
+      setPerPcsProblems((prev) => {
+        const curPcs = prev[activePcsProblemTab] || { categories: [], details: {}, bloks: {}, manualDetails: {} };
+        const curDets = curPcs.details[catId] || [];
+        return {
+          ...prev,
+          [activePcsProblemTab]: {
+            ...curPcs,
+            details: {
+              ...curPcs.details,
+              [catId]: curDets.filter((d) => d !== customDetail),
+            },
+          },
+        };
+      });
+    } else {
+      setSelectedDetails((prev) => ({
+        ...prev,
+        [catId]: (prev[catId] || []).filter((d) => d !== customDetail),
+      }));
+    }
+  };
+
+  const handleManualDetailTextChange = (catId: string, value: string) => {
+    if (problemInputMode === "per_pcs") {
+      setPerPcsProblems((prev) => {
+        const curPcs = prev[activePcsProblemTab] || { categories: [], details: {}, bloks: {}, manualDetails: {} };
+        return {
+          ...prev,
+          [activePcsProblemTab]: {
+            ...curPcs,
+            manualDetails: {
+              ...(curPcs.manualDetails || {}),
+              [catId]: value,
+            },
+          },
+        };
+      });
+    } else {
+      setManualInputDetails((prev) => ({ ...prev, [catId]: value }));
+    }
+  };
+
   const handleAddManualDetail = (catId: string) => {
-    const text = (manualInputDetails[catId] || "").trim();
+    const text = (currentManualDetails[catId] || "").trim();
     if (!text) return;
 
-    if (!selectedCategories.includes(catId)) {
-      setSelectedCategories((prev) => [...prev, catId]);
-    }
+    if (problemInputMode === "per_pcs") {
+      setPerPcsProblems((prev) => {
+        const curPcs = prev[activePcsProblemTab] || { categories: [], details: {}, bloks: {}, manualDetails: {} };
+        const cats = curPcs.categories.includes(catId) ? curPcs.categories : [...curPcs.categories, catId];
+        const dets = curPcs.details[catId] || [];
+        const newDets = dets.includes(text) ? dets : [...dets, text];
+        return {
+          ...prev,
+          [activePcsProblemTab]: {
+            ...curPcs,
+            categories: cats,
+            details: {
+              ...curPcs.details,
+              [catId]: newDets,
+            },
+            manualDetails: {
+              ...(curPcs.manualDetails || {}),
+              [catId]: "",
+            },
+          },
+        };
+      });
+    } else {
+      if (!selectedCategories.includes(catId)) {
+        setSelectedCategories((prev) => [...prev, catId]);
+      }
 
-    setSelectedDetails((prev) => {
-      const current = prev[catId] || [];
-      if (current.includes(text)) return prev;
-      return {
+      setSelectedDetails((prev) => {
+        const current = prev[catId] || [];
+        if (current.includes(text)) return prev;
+        return {
+          ...prev,
+          [catId]: [...current, text],
+        };
+      });
+
+      setManualInputDetails((prev) => ({
         ...prev,
-        [catId]: [...current, text],
-      };
-    });
-
-    setManualInputDetails((prev) => ({
-      ...prev,
-      [catId]: "",
-    }));
+        [catId]: "",
+      }));
+    }
 
     try {
       createProblemDetail({ kategori: catId, nama_detail: text }).then((res) => {
@@ -465,11 +681,19 @@ export default function DowntimeTracker({
       return;
     }
 
-    const now = Date.now();
+    const initialDuration = typeof source === "object" && typeof source?.duration === "number" && source.duration > 0 ? source.duration : 0;
+    const now = Date.now() - (initialDuration * 1000);
     if (activeTimerStartRef.current !== null) {
-      const elapsedSec = (now - activeTimerStartRef.current) / 1000;
+      const elapsedSec = (Date.now() - activeTimerStartRef.current) / 1000;
       // Jika timer aktif di background berjalan kurang dari 24 jam, tetap gunakan timer tersebut
       if (elapsedSec < 24 * 3600) {
+        // Jika ada durasi presisi dari ESP32 (misal reconnect), perbarui referensi start
+        if (initialDuration > 0) {
+          activeTimerStartRef.current = now;
+          setTimerStartRef(now);
+          setLiveTimerSeconds(initialDuration);
+          localStorage.setItem("dji_active_downtime_start", now.toString());
+        }
         return;
       }
       // Jika > 24 jam, buang timer lama dan timpa dengan timer baru 'now'
@@ -479,7 +703,7 @@ export default function DowntimeTracker({
     activeTimerStartRef.current = now;
     setIsTimerRunning(true);
     setTimerStartRef(now);
-    setLiveTimerSeconds(0);
+    setLiveTimerSeconds(initialDuration);
     localStorage.setItem("dji_active_downtime_start", now.toString());
 
     const srcStr = typeof source === "string" ? source : (source?.source || "Manual");
@@ -543,7 +767,10 @@ export default function DowntimeTracker({
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
 
-    const rawDuration = Math.max(0, Math.floor((Date.now() - startTimestamp) / 1000));
+    const explicitDuration = typeof source === "object" && typeof source?.duration === "number" && source.duration > 0 ? source.duration : undefined;
+    const rawDuration = explicitDuration !== undefined
+      ? explicitDuration
+      : Math.max(0, Math.floor((Date.now() - startTimestamp) / 1000));
     // Batasi durasi maksimum 24 jam (86.400 detik) agar perbaikan lama sah tetap tercatat utuh 100%
     const MAX_ALLOWED_SEC = 24 * 3600;
     const finalDuration = rawDuration > MAX_ALLOWED_SEC ? MAX_ALLOWED_SEC : (rawDuration < 1 ? 1 : rawDuration);
@@ -655,6 +882,10 @@ export default function DowntimeTracker({
     setIsUnblockingBlock(false);
     setCurrentTimerSource("Manual");
 
+    setProblemInputMode("same");
+    setActivePcsProblemTab(pcsKeys[0] || "1");
+    setPerPcsProblems({});
+
     if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
       setSelectedPcsKeList([defaultPcsIndex]);
     } else if (pcsKeys.length === 1) {
@@ -698,6 +929,9 @@ export default function DowntimeTracker({
     setCustomizedPcsKeys({});
     setLeaderPcsKey(null);
     setSelectedPcsKeList([]);
+    setProblemInputMode("same");
+    setActivePcsProblemTab(pcsKeys[0] || "1");
+    setPerPcsProblems({});
   };
 
   const handlePcsMeterChange = (pcsKey: string, rawVal: string) => {
@@ -787,18 +1021,39 @@ export default function DowntimeTracker({
           return next;
         });
       }
+      setPerPcsProblems((p) => {
+        const next = { ...p };
+        pcsKeys.forEach((k) => {
+          if (!next[k]) {
+            next[k] = {
+              categories: [...selectedCategories],
+              details: JSON.parse(JSON.stringify(selectedDetails || {})),
+              bloks: { ...inputBloks },
+              manualDetails: { ...manualInputDetails },
+            };
+          }
+        });
+        return next;
+      });
+      if (!selectedPcsKeList.includes(activePcsProblemTab)) {
+        setActivePcsProblemTab(pcsKeys[0] || "1");
+      }
     }
   };
 
   const handleTogglePcs = (pcsKey: string) => {
     setSelectedPcsKeList((prev) => {
+      let nextList: string[];
       if (prev.includes(pcsKey)) {
         setInputMeters((m) => {
           const next = { ...m };
           delete next[pcsKey];
           return next;
         });
-        return prev.filter((x) => x !== pcsKey);
+        nextList = prev.filter((x) => x !== pcsKey);
+        if (activePcsProblemTab === pcsKey) {
+          setActivePcsProblemTab(nextList[0] || pcsKeys[0] || "1");
+        }
       } else {
         const defaultVal = singleMeterInput.trim() || Object.values(inputMeters).find(v => v && v.trim() !== "")?.trim() || "";
         if (defaultVal) {
@@ -807,8 +1062,21 @@ export default function DowntimeTracker({
             [pcsKey]: defaultVal,
           }));
         }
-        return [...prev, pcsKey];
+        nextList = [...prev, pcsKey];
+        setPerPcsProblems((p) => {
+          if (p[pcsKey]) return p;
+          return {
+            ...p,
+            [pcsKey]: {
+              categories: [...selectedCategories],
+              details: JSON.parse(JSON.stringify(selectedDetails || {})),
+              bloks: { ...inputBloks },
+              manualDetails: { ...manualInputDetails },
+            },
+          };
+        });
       }
+      return nextList;
     });
   };
 
@@ -971,6 +1239,59 @@ export default function DowntimeTracker({
     setIsPerPcsMeterMode(false);
     setLeaderPcsKey(null);
     setCustomizedPcsKeys({});
+
+    // Parse existing problems (check if per-PCS mode was saved)
+    const existingProblems = targetEvent.problems || [];
+    const hasPerPcs = existingProblems.some((p: any) => p.pcsKe && p.pcsKe !== "Semua" && !p.pcsKe.includes(","));
+
+    if (hasPerPcs) {
+      setProblemInputMode("per_pcs");
+      const reconstructed: Record<string, {
+        categories: string[];
+        details: Record<string, string[]>;
+        bloks: Record<string, string>;
+        manualDetails?: Record<string, string>;
+      }> = {};
+      const pcsWithProblems: string[] = [];
+
+      existingProblems.forEach((p: any) => {
+        const pPcs = p.pcsKe || "1";
+        if (!pcsWithProblems.includes(pPcs)) pcsWithProblems.push(pPcs);
+        if (!reconstructed[pPcs]) {
+          reconstructed[pPcs] = {
+            categories: [],
+            details: {},
+            bloks: {},
+            manualDetails: {},
+          };
+        }
+        if (!reconstructed[pPcs].categories.includes(p.kategori)) {
+          reconstructed[pPcs].categories.push(p.kategori);
+        }
+        reconstructed[pPcs].details[p.kategori] = Array.isArray(p.details) ? p.details : (p.details ? [p.details] : []);
+        if (p.blok) {
+          reconstructed[pPcs].bloks[p.kategori] = p.blok;
+        }
+      });
+      setPerPcsProblems(reconstructed);
+      setActivePcsProblemTab(pcsWithProblems[0] || pcsKeys[0] || "1");
+    } else {
+      setProblemInputMode("same");
+      setPerPcsProblems({});
+      const initialCats: string[] = [];
+      const initialDets: Record<string, string[]> = {};
+      const initialBlks: Record<string, string> = {};
+
+      existingProblems.forEach((p: any) => {
+        if (!initialCats.includes(p.kategori)) initialCats.push(p.kategori);
+        initialDets[p.kategori] = Array.isArray(p.details) ? p.details : (p.details ? [p.details] : []);
+        if (p.blok) initialBlks[p.kategori] = p.blok;
+      });
+
+      setSelectedCategories(initialCats);
+      setSelectedDetails(initialDets);
+      setInputBloks(initialBlks);
+    }
 
     // Parse existing meters
     const initialMeters: Record<string, string> = {};
@@ -1203,10 +1524,10 @@ export default function DowntimeTracker({
 
         if (batchClassifyIds.length > 0) {
           const filtered = currentList.filter((e: any, idx: number) => !batchClassifyIds.includes(e.id || `evt-${idx}`));
-          try { replace(filtered); } catch (_) {}
+          try { replace(filtered); } catch (_) { }
           updateFormDowntimeEvents(filtered);
         } else if (editingIndex !== null) {
-          try { remove(editingIndex); } catch (_) {}
+          try { remove(editingIndex); } catch (_) { }
           const filtered = currentList.filter((_: any, idx: number) => idx !== editingIndex);
           updateFormDowntimeEvents(filtered);
         }
@@ -1243,19 +1564,19 @@ export default function DowntimeTracker({
         batchClassifyIds.forEach((targetId) => {
           const idx = currentList.findIndex((e: any, i: number) => (e.id || `evt-${i}`) === targetId);
           if (idx !== -1 && idx < fields.length) {
-            try { update(idx, updatedList[idx]); } catch (_) {}
+            try { update(idx, updatedList[idx]); } catch (_) { }
           }
         });
       } else if (editingIndex !== null) {
         updatedList[editingIndex] = finalEvent;
         if (editingIndex < fields.length) {
-          try { update(editingIndex, finalEvent); } catch (_) {}
+          try { update(editingIndex, finalEvent); } catch (_) { }
         } else {
-          try { replace(updatedList); } catch (_) {}
+          try { replace(updatedList); } catch (_) { }
         }
       } else {
         updatedList.push(finalEvent);
-        try { append(finalEvent); } catch (_) {}
+        try { append(finalEvent); } catch (_) { }
       }
 
       updateFormDowntimeEvents(updatedList);
@@ -1296,8 +1617,44 @@ export default function DowntimeTracker({
 
   const handleSaveEvent = async () => {
     if (isSavingEvent || isSavingMechanic) return;
-    if (selectedCategories.length === 0) return;
     if (dikerjakanOleh === "Operator" && selectedPcsKeList.length === 0) return;
+
+    if (problemInputMode === "per_pcs" && dikerjakanOleh === "Operator" && selectedPcsKeList.length > 1) {
+      for (const pcsKey of selectedPcsKeList) {
+        const pcsCats = perPcsProblems[pcsKey]?.categories || [];
+        if (pcsCats.length === 0) {
+          alert(`Pilih minimal 1 kategori masalah untuk PCS ${pcsKey}!`);
+          return;
+        }
+        const pcsDetails = perPcsProblems[pcsKey]?.details || {};
+        const pcsBloks = perPcsProblems[pcsKey]?.bloks || {};
+        for (const catId of pcsCats) {
+          const details = pcsDetails[catId] || [];
+          const reqDetails = details.filter((d) => requiredBlockDefects.includes(d));
+          if (reqDetails.length > 0) {
+            const blockVal = pcsBloks[catId]?.trim();
+            if (!blockVal) {
+              setBlockValidationError(`Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}" pada PCS ${pcsKey}!`);
+              return;
+            }
+          }
+        }
+      }
+    } else {
+      if (selectedCategories.length === 0) return;
+      for (const catId of selectedCategories) {
+        const details = selectedDetails[catId] || [];
+        const reqDetails = details.filter((d) => requiredBlockDefects.includes(d));
+        if (reqDetails.length > 0) {
+          const blockVal = inputBloks[catId]?.trim();
+          if (!blockVal) {
+            setBlockValidationError(`Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}"`);
+            return;
+          }
+        }
+      }
+    }
+    setBlockValidationError(null);
 
     // Smart auto-fill meter jika semua PCS dipilih atau jika dalam 1 meter bersama
     let currentMeters = { ...inputMeters };
@@ -1321,18 +1678,6 @@ export default function DowntimeTracker({
       }
     }
 
-    for (const catId of selectedCategories) {
-      const details = selectedDetails[catId] || [];
-      const reqDetails = details.filter((d) => requiredBlockDefects.includes(d));
-      if (reqDetails.length > 0) {
-        const blockVal = inputBloks[catId]?.trim();
-        if (!blockVal) {
-          setBlockValidationError(`Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}"`);
-          return;
-        }
-      }
-    }
-    setBlockValidationError(null);
     try {
       setIsSavingEvent(true);
 
@@ -1342,33 +1687,61 @@ export default function DowntimeTracker({
         return s.replace(/\b0+(\d+)\b/g, "$1");
       };
 
-      const meterStr = pcsKeys.length === 1
-        ? cleanMeterInputVal(currentMeters[pcsKeys[0]] || singleMeterInput)
-        : Object.entries(currentMeters)
-          .filter(([k, v]) => selectedPcsKeList.includes(k) && v && typeof v === "string" && v.trim() !== "")
-          .map(([pcs, val]) => `PCS ${pcs}: ${cleanMeterInputVal(val)}`)
-          .join(", ");
-
-      const problems = selectedCategories.map(catId => {
-        let details = [...(selectedDetails[catId] || [])];
-        const manualText = (manualInputDetails[catId] || "").trim();
-        if (manualText && !details.includes(manualText)) {
-          details.push(manualText);
-          try {
-            createProblemDetail({ kategori: catId, nama_detail: manualText });
-          } catch (e) { }
-        }
-        return {
-          kategori: catId,
-          details: details,
-          blok: inputBloks[catId]?.trim() !== "" ? inputBloks[catId]?.trim() : undefined,
-          meter: dikerjakanOleh === "Operator" && meterStr ? meterStr : undefined,
-        };
-      });
-
       const pcsKeStr = dikerjakanOleh === "Operator"
         ? (selectedPcsKeList.length === pcsCount ? "Semua" : selectedPcsKeList.join(", "))
         : "Semua";
+
+      let problems: any[] = [];
+
+      if (problemInputMode === "per_pcs" && dikerjakanOleh === "Operator" && selectedPcsKeList.length > 1) {
+        selectedPcsKeList.forEach((pcsKey) => {
+          const pcsData = perPcsProblems[pcsKey] || { categories: [], details: {}, bloks: {} };
+          const pcsMeterVal = cleanMeterInputVal(currentMeters[pcsKey] || singleMeterInput);
+
+          pcsData.categories.forEach((catId) => {
+            let details = [...(pcsData.details[catId] || [])];
+            const manualText = (pcsData.manualDetails?.[catId] || "").trim();
+            if (manualText && !details.includes(manualText)) {
+              details.push(manualText);
+              try {
+                createProblemDetail({ kategori: catId, nama_detail: manualText });
+              } catch (e) { }
+            }
+            problems.push({
+              kategori: catId,
+              details: details,
+              blok: pcsData.bloks[catId]?.trim() !== "" ? pcsData.bloks[catId]?.trim() : undefined,
+              meter: dikerjakanOleh === "Operator" && pcsMeterVal ? pcsMeterVal : undefined,
+              pcsKe: pcsKey,
+            });
+          });
+        });
+      } else {
+        const meterStr = pcsKeys.length === 1
+          ? cleanMeterInputVal(currentMeters[pcsKeys[0]] || singleMeterInput)
+          : Object.entries(currentMeters)
+            .filter(([k, v]) => selectedPcsKeList.includes(k) && v && typeof v === "string" && v.trim() !== "")
+            .map(([pcs, val]) => `PCS ${pcs}: ${cleanMeterInputVal(val)}`)
+            .join(", ");
+
+        problems = selectedCategories.map((catId) => {
+          let details = [...(selectedDetails[catId] || [])];
+          const manualText = (manualInputDetails[catId] || "").trim();
+          if (manualText && !details.includes(manualText)) {
+            details.push(manualText);
+            try {
+              createProblemDetail({ kategori: catId, nama_detail: manualText });
+            } catch (e) { }
+          }
+          return {
+            kategori: catId,
+            details: details,
+            blok: inputBloks[catId]?.trim() !== "" ? inputBloks[catId]?.trim() : undefined,
+            meter: dikerjakanOleh === "Operator" && meterStr ? meterStr : undefined,
+            pcsKe: pcsKeStr,
+          };
+        });
+      }
 
       let dikerjakanGabungan = dikerjakanOleh;
       if (dikerjakanOleh === "Operator") {
@@ -1426,10 +1799,10 @@ export default function DowntimeTracker({
         // Bersihkan event yang dialokasikan dari list form saat ini
         if (batchClassifyIds.length > 0) {
           const filtered = currentList.filter((e: any, idx: number) => !batchClassifyIds.includes(e.id || `evt-${idx}`));
-          try { replace(filtered); } catch (_) {}
+          try { replace(filtered); } catch (_) { }
           updateFormDowntimeEvents(filtered);
         } else if (editingIndex !== null) {
-          try { remove(editingIndex); } catch (_) {}
+          try { remove(editingIndex); } catch (_) { }
           const filtered = currentList.filter((_: any, idx: number) => idx !== editingIndex);
           updateFormDowntimeEvents(filtered);
         }
@@ -1564,19 +1937,19 @@ export default function DowntimeTracker({
         batchClassifyIds.forEach((targetId) => {
           const idx = currentList.findIndex((e: any, i: number) => (e.id || `evt-${i}`) === targetId);
           if (idx !== -1 && idx < fields.length) {
-            try { update(idx, updatedList[idx]); } catch (_) {}
+            try { update(idx, updatedList[idx]); } catch (_) { }
           }
         });
       } else if (editingIndex !== null) {
         updatedList[editingIndex] = finalEvent;
         if (editingIndex < fields.length) {
-          try { update(editingIndex, finalEvent); } catch (_) {}
+          try { update(editingIndex, finalEvent); } catch (_) { }
         } else {
-          try { replace(updatedList); } catch (_) {}
+          try { replace(updatedList); } catch (_) { }
         }
       } else {
         updatedList.push(finalEvent);
-        try { append(finalEvent); } catch (_) {}
+        try { append(finalEvent); } catch (_) { }
       }
 
       updateFormDowntimeEvents(updatedList);
@@ -1632,21 +2005,41 @@ export default function DowntimeTracker({
           {/* 1. SEKSI BLOCK MESIN */}
           <div data-tour="block-mesin" className="flex flex-col gap-3 w-full">
             {!activeBlock ? (
-              <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between">
+              <div
+                className={cn(
+                  "border-2 rounded-3xl p-5 flex flex-col justify-between transition-colors duration-300",
+                  isDark
+                    ? "bg-slate-900/95 border-slate-800 text-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+                    : "bg-slate-50 border-slate-200 shadow-xs"
+                )}
+              >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-colors",
+                        isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"
+                      )}
+                    >
                       <Lock className="w-4 h-4" />
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                        <h4
+                          className={cn(
+                            "text-xs font-black uppercase tracking-wide transition-colors",
+                            isDark ? "text-slate-100" : "text-slate-800"
+                          )}
+                        >
                           Block Mesin
                         </h4>
                         <button
                           type="button"
                           onClick={() => setShowBlockInfo((prev) => !prev)}
-                          className="p-1 rounded-full text-sky-600 hover:bg-sky-100/80 transition-colors cursor-pointer"
+                          className={cn(
+                            "p-1 rounded-full transition-colors cursor-pointer",
+                            isDark ? "text-sky-400 hover:bg-slate-800" : "text-sky-600 hover:bg-sky-100/80"
+                          )}
                           title="Klik untuk info Block Mesin"
                         >
                           <Info className="w-3.5 h-3.5" />
@@ -1654,21 +2047,38 @@ export default function DowntimeTracker({
                       </div>
                     </div>
                   </div>
-                  <span className="text-[9px] font-extrabold text-slate-700 bg-slate-200 px-2.5 py-1 rounded-full border border-slate-300 shrink-0 self-start sm:self-auto">
+                  <span
+                    className={cn(
+                      "text-[9px] font-extrabold px-2.5 py-1 rounded-full border shrink-0 self-start sm:self-auto transition-colors",
+                      isDark
+                        ? "text-slate-300 bg-slate-800 border-slate-700"
+                        : "text-slate-700 bg-slate-200 border-slate-300"
+                    )}
+                  >
                     Mesin Stop
                   </span>
                 </div>
 
                 {showBlockInfo && (
-                  <div className="my-2 p-2.5 bg-sky-50 border border-sky-200/80 rounded-xl text-[10px] font-medium text-sky-900 flex items-start gap-2 animate-fadeIn shadow-xs">
-                    <Info className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+                  <div
+                    className={cn(
+                      "my-2 p-2.5 border rounded-xl text-[10px] font-medium flex items-start gap-2 animate-fadeIn shadow-xs",
+                      isDark
+                        ? "bg-sky-950/70 border-sky-800 text-sky-200"
+                        : "bg-sky-50 border-sky-200/80 text-sky-900"
+                    )}
+                  >
+                    <Info className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
                     <p className="leading-relaxed flex-1">
                       Untuk perbaikan berat / mesin mati total lintas shift (tanpa produksi kain)
                     </p>
                     <button
                       type="button"
                       onClick={() => setShowBlockInfo(false)}
-                      className="text-sky-400 hover:text-sky-800 p-0.5 rounded cursor-pointer"
+                      className={cn(
+                        "p-0.5 rounded cursor-pointer",
+                        isDark ? "text-sky-400 hover:text-sky-200" : "text-sky-400 hover:text-sky-800"
+                      )}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -1678,32 +2088,78 @@ export default function DowntimeTracker({
                 <button
                   type="button"
                   onClick={handleInitiateBlock}
-                  className="flex items-center justify-center gap-2 w-full h-11 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wide rounded-2xl transition-all shadow-md shadow-slate-800/20 active:scale-[0.98] cursor-pointer mt-4"
+                  className={cn(
+                    "flex items-center justify-center gap-2 w-full h-11 font-black text-xs uppercase tracking-wide rounded-2xl transition-all active:scale-[0.98] cursor-pointer mt-4",
+                    isDark
+                      ? "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 shadow-md shadow-slate-950/50"
+                      : "bg-slate-800 hover:bg-slate-900 text-white shadow-md shadow-slate-800/20"
+                  )}
                 >
                   <Lock className="w-4 h-4" /> Block Mesin
                 </button>
               </div>
             ) : (
               /* Banner Active Block Mesin (Multi Shift) - Minimalist & Sleek */
-              <div className="p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-3xl shadow-xs animate-fadeIn space-y-3">
+              <div
+                className={cn(
+                  "p-3.5 sm:p-4 border rounded-3xl shadow-xs animate-fadeIn space-y-3 transition-colors",
+                  isDark
+                    ? "bg-slate-900/95 border-slate-800 text-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+                    : "bg-slate-50 border-slate-200"
+                )}
+              >
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="flex items-start gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-2xl bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 shadow-sm mt-0.5 transition-colors",
+                        isDark ? "bg-slate-800 text-amber-400" : "bg-slate-800 text-white"
+                      )}
+                    >
                       <Lock className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide truncate">
+                      <h4
+                        className={cn(
+                          "text-xs font-black uppercase tracking-wide truncate transition-colors",
+                          isDark ? "text-slate-100" : "text-slate-800"
+                        )}
+                      >
                         Mesin Diblok (Dalam Perbaikan)
                       </h4>
-                      <p className="text-[10px] font-semibold text-slate-500 mt-0.5 leading-snug">
-                        Mulai perbaikan {activeBlock.startDateStr} pkl {activeBlock.startTimeStr} • Pelapor: <strong className="text-slate-700">{activeBlock.initialReporter}</strong>
+                      <p
+                        className={cn(
+                          "text-[10px] font-semibold mt-0.5 leading-snug transition-colors",
+                          isDark ? "text-slate-400" : "text-slate-500"
+                        )}
+                      >
+                        Mulai perbaikan {activeBlock.startDateStr} pkl {activeBlock.startTimeStr} • Pelapor: <strong className={isDark ? "text-slate-200" : "text-slate-700"}>{activeBlock.initialReporter}</strong>
                       </p>
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0 bg-white/80 px-2.5 py-1 rounded-xl border border-slate-200/80 shadow-2xs">
-                    <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Total Stop:</span>
-                    <span className="text-sm font-black text-slate-800 font-mono">
+                  <div
+                    className={cn(
+                      "text-right shrink-0 px-2.5 py-1 rounded-xl border shadow-2xs transition-colors",
+                      isDark
+                        ? "bg-slate-950/80 border-slate-800 text-slate-100"
+                        : "bg-white/80 border-slate-200/80 text-slate-800"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "text-[9px] font-extrabold uppercase block",
+                        isDark ? "text-slate-500" : "text-slate-400"
+                      )}
+                    >
+                      Total Stop:
+                    </span>
+                    <span
+                      className={cn(
+                        "text-sm font-black font-mono",
+                        isDark ? "text-amber-400" : "text-slate-800"
+                      )}
+                    >
                       {formatTimer(blockLiveSeconds)}
                     </span>
                   </div>
@@ -1711,21 +2167,39 @@ export default function DowntimeTracker({
 
                 {/* Handoff Logs List */}
                 {activeBlock.handoffLogs && activeBlock.handoffLogs.length > 1 && (
-                  <div className="bg-white rounded-2xl p-3 border border-slate-200 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
-                    <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-slate-600 uppercase tracking-wider block">
-                      <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
+                  <div
+                    className={cn(
+                      "rounded-2xl p-3 border space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar transition-colors",
+                      isDark ? "bg-slate-950/80 border-slate-800" : "bg-white border-slate-200"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider block",
+                        isDark ? "text-slate-400" : "text-slate-600"
+                      )}
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" />
                       <span>Riwayat Serah Terima ({activeBlock.handoffLogs.length}):</span>
                     </div>
                     {activeBlock.handoffLogs.map((log: any, lIdx: number) => (
-                      <div key={log.id || lIdx} className="text-[10px] text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100 leading-relaxed">
-                        <div className="flex justify-between items-center text-[9px] font-extrabold text-slate-700 mb-0.5">
+                      <div
+                        key={log.id || lIdx}
+                        className={cn(
+                          "text-[10px] p-2 rounded-xl border leading-relaxed transition-colors",
+                          isDark
+                            ? "text-slate-300 bg-slate-900 border-slate-800"
+                            : "text-slate-700 bg-slate-50 border-slate-100"
+                        )}
+                      >
+                        <div className="flex justify-between items-center text-[9px] font-extrabold mb-0.5">
                           <span className="flex items-center gap-1">
                             <User className="w-3 h-3 text-slate-500" />
                             {log.operatorName} ({formatShiftLabel(log.shift)})
                           </span>
-                          <span className="text-slate-500">{log.dateStr} • {log.timestamp}</span>
+                          <span className={isDark ? "text-slate-500" : "text-slate-500"}>{log.dateStr} • {log.timestamp}</span>
                         </div>
-                        <p className="text-slate-600 font-medium pl-4">{log.notes}</p>
+                        <p className={cn("font-medium pl-4", isDark ? "text-slate-400" : "text-slate-600")}>{log.notes}</p>
                       </div>
                     ))}
                   </div>
@@ -1737,7 +2211,12 @@ export default function DowntimeTracker({
                     <button
                       type="button"
                       onClick={() => setShowAddNoteModal(true)}
-                      className="w-full py-2 px-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-xs transition-all border border-slate-200/80 flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
+                      className={cn(
+                        "w-full py-2 px-2.5 rounded-xl font-extrabold text-xs transition-all border flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap",
+                        isDark
+                          ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
+                          : "bg-white hover:bg-slate-100 text-slate-700 border-slate-200/80"
+                      )}
                     >
                       <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                       <span>Catat Progres</span>
@@ -1746,7 +2225,12 @@ export default function DowntimeTracker({
                     <button
                       type="button"
                       onClick={() => setShowHandoffModal(true)}
-                      className="w-full py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-xs transition-all border border-sky-200/70 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap"
+                      className={cn(
+                        "w-full py-2 px-2.5 rounded-xl font-extrabold text-xs transition-all border flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap",
+                        isDark
+                          ? "bg-sky-950/60 hover:bg-sky-900/70 text-sky-300 border-sky-800"
+                          : "bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200/70"
+                      )}
                     >
                       <RefreshCw className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                       <span>Serah Terima</span>
@@ -1766,7 +2250,10 @@ export default function DowntimeTracker({
                     <button
                       type="button"
                       onClick={handleCancelBlock}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50/80 font-bold text-[11px] transition-all flex items-center gap-1.5 px-3 py-1 rounded-lg cursor-pointer"
+                      className={cn(
+                        "font-bold text-[11px] transition-all flex items-center gap-1.5 px-3 py-1 rounded-lg cursor-pointer",
+                        isDark ? "text-red-400 hover:text-red-300 hover:bg-red-950/40" : "text-red-500 hover:text-red-700 hover:bg-red-50/80"
+                      )}
                     >
                       <X className="w-3.5 h-3.5 shrink-0" />
                       <span>Batalkan Block</span>
@@ -1778,20 +2265,40 @@ export default function DowntimeTracker({
           </div>
 
           {/* 2. CARD DOWNTIME UTAMA (KHUSUS TIMER & KONTROL MESIN) */}
-          <div data-tour="downtime-timer" className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative overflow-hidden mb-4">
+          <div
+            data-tour="downtime-timer"
+            className={cn(
+              "rounded-3xl p-5 border relative overflow-hidden mb-4 transition-colors duration-300",
+              isDark
+                ? "bg-slate-900/95 border-slate-800 text-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+                : "bg-white border-slate-200 shadow-sm"
+            )}
+          >
             <div className="flex flex-col gap-2 mb-4">
               <div className="flex items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100 shrink-0">
+                  <div
+                    className={cn(
+                      "w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors",
+                      isDark
+                        ? "bg-amber-950/60 text-amber-400 border-amber-800/80"
+                        : "bg-amber-50 text-amber-600 border-amber-100"
+                    )}
+                  >
                     <Timer className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
-                  <h3 className="text-xs sm:text-sm font-black text-slate-800 whitespace-nowrap">
+                  <h3
+                    className={cn(
+                      "text-xs sm:text-sm font-black whitespace-nowrap transition-colors",
+                      isDark ? "text-slate-100" : "text-slate-800"
+                    )}
+                  >
                     Downtime
                   </h3>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="text-[10px] sm:text-xs font-bold text-slate-400">Total: </span>
-                  <span className="text-sm sm:text-base font-black text-amber-600">
+                  <span className={cn("text-[10px] sm:text-xs font-bold", isDark ? "text-slate-400" : "text-slate-400")}>Total: </span>
+                  <span className={cn("text-sm sm:text-base font-black", isDark ? "text-amber-400" : "text-amber-600")}>
                     {formatTimer((watch("downtimeEvents") || fields || []).reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0))}
                   </span>
                 </div>
@@ -1813,15 +2320,22 @@ export default function DowntimeTracker({
 
             {/* Banner Notifikasi Alokasi Downtime Panel */}
             {deferredToast && (
-              <div className="p-3 bg-sky-50 border border-sky-200 text-sky-900 rounded-2xl mb-4 flex items-center justify-between gap-2 text-xs font-bold animate-fadeIn shadow-xs">
+              <div
+                className={cn(
+                  "p-3 border rounded-2xl mb-4 flex items-center justify-between gap-2 text-xs font-bold animate-fadeIn shadow-xs",
+                  isDark
+                    ? "bg-sky-950/60 border-sky-800 text-sky-200"
+                    : "bg-sky-50 border-sky-200 text-sky-900"
+                )}
+              >
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-sky-500 shrink-0" />
                   <span>{deferredToast}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setDeferredToast(null)}
-                  className="p-1 text-sky-400 hover:text-sky-800 rounded-lg cursor-pointer"
+                  className="p-1 text-sky-400 hover:text-sky-200 rounded-lg cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1830,12 +2344,19 @@ export default function DowntimeTracker({
 
             {/* Banner Masalah Lanjut Shift (jika ada) */}
             {unresolvedDowntime && !isTimerRunning && !isEdit && (
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-2xl mb-4 flex flex-col gap-3 animate-fadeIn">
+              <div
+                className={cn(
+                  "p-4 border rounded-2xl mb-4 flex flex-col gap-3 animate-fadeIn",
+                  isDark
+                    ? "bg-yellow-950/50 border-yellow-800"
+                    : "bg-yellow-50 border-yellow-200"
+                )}
+              >
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
+                  <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <h4 className="text-xs font-black text-yellow-800 uppercase">Terdapat Masalah Tertunda</h4>
-                    <p className="text-[10px] font-medium text-yellow-700 leading-relaxed mt-0.5">
+                    <h4 className={cn("text-xs font-black uppercase", isDark ? "text-yellow-300" : "text-yellow-800")}>Terdapat Masalah Tertunda</h4>
+                    <p className={cn("text-[10px] font-medium leading-relaxed mt-0.5", isDark ? "text-yellow-400/90" : "text-yellow-700")}>
                       Shift sebelumnya meninggalkan catatan masalah yang belum selesai.
                     </p>
                   </div>
@@ -1851,7 +2372,12 @@ export default function DowntimeTracker({
               </div>
             )}
 
-            <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl w-full">
+            <div
+              className={cn(
+                "p-4 border rounded-2xl w-full transition-colors",
+                isDark ? "bg-slate-950/80 border-slate-800" : "bg-amber-50 border-amber-100"
+              )}
+            >
               {isEdit ? (
                 <div className="flex flex-col gap-2">
                   <button
@@ -1878,7 +2404,12 @@ export default function DowntimeTracker({
                       <button
                         type="button"
                         onClick={handleCancelTimer}
-                        className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 font-bold text-[11px] transition-all flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200/80 cursor-pointer"
+                        className={cn(
+                          "font-bold text-[11px] transition-all flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border cursor-pointer",
+                          isDark
+                            ? "text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border-rose-900/60"
+                            : "text-rose-500 hover:text-rose-700 hover:bg-rose-50 border-rose-200/80"
+                        )}
                       >
                         <X className="w-3.5 h-3.5 shrink-0" />
                         <span>Hapus Hitungan ({formatTimer(tempDuration)})</span>
@@ -1891,12 +2422,24 @@ export default function DowntimeTracker({
                       if (isR11) {
                         return (
                           <div className="flex flex-col gap-2.5">
-                            <div className="flex flex-col items-center justify-center p-2.5 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center gap-1">
-                              <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs">
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <div
+                              className={cn(
+                                "flex flex-col items-center justify-center p-2.5 border rounded-2xl text-center gap-1 transition-colors",
+                                isDark
+                                  ? "bg-emerald-950/40 border-emerald-800/80 text-emerald-300"
+                                  : "bg-emerald-50 border-emerald-200/80 text-emerald-700"
+                              )}
+                            >
+                              <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                                 <span>ESP32 Wi-Fi Terhubung</span>
                               </div>
-                              <p className="text-[10px] text-emerald-600/90 font-medium leading-tight">
+                              <p
+                                className={cn(
+                                  "text-[10px] font-medium leading-tight",
+                                  isDark ? "text-emerald-400/90" : "text-emerald-600/90"
+                                )}
+                              >
                                 Sensor kabel Mesin R11 belum terhubung. Gunakan tombol manual di bawah.
                               </p>
                             </div>
@@ -1912,12 +2455,24 @@ export default function DowntimeTracker({
                         );
                       }
                       return (
-                        <div className="flex flex-col items-center justify-center p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center gap-1.5">
-                          <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div
+                          className={cn(
+                            "flex flex-col items-center justify-center p-3 border rounded-2xl text-center gap-1.5 transition-colors",
+                            isDark
+                              ? "bg-emerald-950/40 border-emerald-800/80 text-emerald-300"
+                              : "bg-emerald-50 border-emerald-200/80 text-emerald-700"
+                          )}
+                        >
+                          <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                             <span>ESP32 Wi-Fi Terhubung</span>
                           </div>
-                          <p className="text-[10px] text-emerald-600/90 font-medium leading-tight">
+                          <p
+                            className={cn(
+                              "text-[10px] font-medium leading-tight",
+                              isDark ? "text-emerald-400/90" : "text-emerald-600/90"
+                            )}
+                          >
                             Timer downtime dikontrol otomatis oleh sensor mesin.
                           </p>
                         </div>
@@ -1936,16 +2491,28 @@ export default function DowntimeTracker({
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  <div className="w-full bg-white border-2 border-amber-200 rounded-2xl h-14 flex items-center justify-center">
-                    <span className="text-2xl font-black text-amber-600 font-mono tracking-wider animate-pulse">
+                  <div
+                    className={cn(
+                      "w-full rounded-2xl h-14 flex items-center justify-center border-2 transition-colors",
+                      isDark ? "bg-slate-950 border-amber-500/60" : "bg-white border-amber-200"
+                    )}
+                  >
+                    <span className="text-2xl font-black text-amber-500 font-mono tracking-wider animate-pulse">
                       {formatTimer(liveTimerSeconds)}
                     </span>
                   </div>
                   {currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32") ? (
                     <div className="flex flex-col gap-2">
-                      <div className="flex flex-col items-center justify-center p-3 bg-amber-100/90 border border-amber-300 rounded-2xl text-center gap-1">
-                        <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                      <div
+                        className={cn(
+                          "flex flex-col items-center justify-center p-3 rounded-2xl text-center gap-1 border transition-colors",
+                          isDark
+                            ? "bg-amber-950/50 border-amber-800 text-amber-200"
+                            : "bg-amber-100/90 border-amber-300 text-amber-900"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                          <RefreshCw className={cn("w-3.5 h-3.5 animate-spin", isDark ? "text-amber-400" : "text-amber-700")} />
                           <span>Sensor ESP32 Berjalan</span>
                         </div>
                         <p className="text-[10px] text-amber-800 font-medium leading-tight">
@@ -1994,7 +2561,14 @@ export default function DowntimeTracker({
         const currentList = watch("downtimeEvents") || fields || [];
         return currentList.some((evt: any) => evt.isResolved === false || (!evt.isResolved && (!evt.problems || evt.problems.length === 0)));
       })()) && (
-          <div className="bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border border-slate-200/90 border-t-4 border-t-amber-400 mb-4 relative overflow-hidden animate-fadeIn">
+          <div
+            className={cn(
+              "rounded-2xl p-3.5 sm:p-4 shadow-sm border mb-4 relative overflow-hidden animate-fadeIn transition-colors duration-300",
+              isDark
+                ? "bg-slate-900/95 border-slate-800 text-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+                : "bg-white border-slate-200 text-slate-800"
+            )}
+          >
             <div className={viewMode === "events_only" ? "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 items-start" : "flex flex-col gap-4"}>
               {/* SECTION A: ANTREAN EVENT BELUM DIKLASIFIKASI */}
               {(() => {
@@ -2012,8 +2586,8 @@ export default function DowntimeTracker({
                 const hasResolvedEvents = currentList.some((evt: any) => evt.isResolved !== false && (evt.isResolved || (evt.problems && evt.problems.length > 0)));
 
                 const sectionAClass = viewMode === "events_only"
-                  ? (hasResolvedEvents ? "border-b sm:border-b-0 sm:border-r border-amber-100 pb-3 sm:pb-0 sm:pr-3 min-w-0" : "sm:col-span-2")
-                  : (hasResolvedEvents ? "pb-3 border-b border-amber-100" : "");
+                  ? (hasResolvedEvents ? (isDark ? "border-b sm:border-b-0 sm:border-r border-slate-800 pb-3 sm:pb-0 sm:pr-3 min-w-0" : "border-b sm:border-b-0 sm:border-r border-amber-100 pb-3 sm:pb-0 sm:pr-3 min-w-0") : "sm:col-span-2")
+                  : (hasResolvedEvents ? (isDark ? "pb-3 border-b border-slate-800" : "pb-3 border-b border-amber-100") : "");
 
                 return (
                   <div className={sectionAClass}>
@@ -2021,7 +2595,12 @@ export default function DowntimeTracker({
                     <div className="flex items-center justify-between gap-1.5 mb-2.5 min-w-0 flex-wrap">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-                        <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider whitespace-nowrap">
+                        <h4
+                          className={cn(
+                            "text-xs font-black uppercase tracking-wider whitespace-nowrap",
+                            isDark ? "text-amber-400" : "text-amber-950"
+                          )}
+                        >
                           ANTREAN
                         </h4>
                         <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-2xs whitespace-nowrap">
@@ -2029,7 +2608,14 @@ export default function DowntimeTracker({
                         </span>
                       </div>
 
-                      <label className="flex items-center gap-1 cursor-pointer bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg border border-amber-300/80 text-[10px] font-extrabold text-amber-950 shadow-2xs transition-all select-none shrink-0">
+                      <label
+                        className={cn(
+                          "flex items-center gap-1 cursor-pointer px-2 py-1 rounded-lg border text-[10px] font-extrabold shadow-2xs transition-all select-none shrink-0",
+                          isDark
+                            ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300"
+                            : "bg-amber-50 hover:bg-amber-100 border-amber-300/80 text-amber-950"
+                        )}
+                      >
                         <input
                           type="checkbox"
                           checked={isAllSelected}
@@ -2042,25 +2628,42 @@ export default function DowntimeTracker({
 
                     {/* Batch Action Bar */}
                     {selectedUnclassifiedIds.length > 0 && (
-                      <div className="flex flex-col bg-amber-100/90 border border-amber-300 rounded-2xl p-2 mb-2.5 gap-1.5 animate-fadeIn min-w-0">
-                        <span className="text-[10px] font-black text-amber-950 flex items-center gap-1">
-                          <Pin className="w-3 h-3 text-amber-700 shrink-0" />
+                      <div
+                        className={cn(
+                          "flex flex-col border rounded-2xl p-2 mb-2.5 gap-1.5 animate-fadeIn min-w-0",
+                          isDark
+                            ? "bg-amber-950/50 border-amber-800 text-amber-200"
+                            : "bg-amber-100/90 border-amber-300 text-amber-950"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "text-[10px] font-black flex items-center gap-1",
+                            isDark ? "text-amber-300" : "text-amber-950"
+                          )}
+                        >
+                          <Pin className="w-3 h-3 text-amber-500 shrink-0" />
                           <span>Terpilih {selectedUnclassifiedIds.length} dari {unclassifiedItems.length} Event</span>
                         </span>
                         <div className="flex flex-col gap-1 w-full">
                           <button
                             type="button"
                             onClick={handleBatchResolveSensorGlitch}
-                            className="w-full py-1.5 px-2 text-[10px] font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1"
+                            className={cn(
+                              "w-full py-1.5 px-2 text-[10px] font-black border rounded transition-all shadow-2xs cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1",
+                              isDark
+                                ? "text-white bg-emerald-700 hover:bg-emerald-600 border-emerald-600 shadow-xs"
+                                : "text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border-emerald-300"
+                            )}
                             title="Tandai semua event terpilih sebagai Gagal Cacat"
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <CheckCircle2 className={cn("w-3.5 h-3.5 shrink-0", isDark ? "text-emerald-200" : "text-emerald-600")} />
                             <span>Semua Gagal Cacat</span>
                           </button>
                           <button
                             type="button"
                             onClick={handleOpenBatchClassifyModal}
-                            className="w-full py-1.5 px-2 text-[10px] font-black text-white bg-sky-500 hover:bg-sky-600 border border-sky-600 rounded-xl transition-all shadow-md shadow-sky-500/20 cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1"
+                            className="w-full py-1.5 px-2 text-[10px] font-black text-white bg-sky-500 hover:bg-sky-600 border border-sky-600 rounded transition-all shadow-md shadow-sky-500/20 cursor-pointer active:scale-95 text-center flex items-center justify-center gap-1"
                             title="Isi detail kendala/cacat untuk semua event terpilih"
                           >
                             <span>Klasifikasi Sekaligus ({selectedUnclassifiedIds.length})</span>
@@ -2077,10 +2680,16 @@ export default function DowntimeTracker({
                         return (
                           <div
                             key={`unclass-${eventId}-${index}`}
-                            className={`flex flex-col p-2 border rounded-xl gap-1.5 transition-all min-w-0 ${isSelected
-                              ? "bg-amber-100/90 border-amber-400 ring-2 ring-amber-300/60 shadow-xs"
-                              : "bg-amber-50/50 border-amber-200/90 hover:bg-amber-100/50 shadow-2xs"
-                              }`}
+                            className={cn(
+                              "flex flex-col p-2 border rounded-xl gap-1.5 transition-all min-w-0",
+                              isSelected
+                                ? isDark
+                                  ? "bg-amber-950/70 border-amber-500 ring-2 ring-amber-500/50 shadow-xs"
+                                  : "bg-amber-100/90 border-amber-400 ring-2 ring-amber-300/60 shadow-xs"
+                                : isDark
+                                  ? "bg-slate-900 border-slate-700/90 hover:bg-slate-850 hover:border-slate-600 shadow-2xs"
+                                  : "bg-amber-50/50 border-amber-200/90 hover:bg-amber-100/50 shadow-2xs"
+                            )}
                           >
                             {/* Row 1: Checkbox + Duration + Time */}
                             <div className="flex items-center gap-1.5 min-w-0">
@@ -2090,11 +2699,18 @@ export default function DowntimeTracker({
                                 onChange={() => handleToggleSelectUnclassified(eventId)}
                                 className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer shrink-0"
                               />
-                              <span className="text-[10px] font-mono font-black text-amber-950 bg-amber-100/90 px-1.5 py-0.5 rounded border border-amber-300/80 shadow-2xs">
+                              <span
+                                className={cn(
+                                  "text-[10px] font-mono font-black px-1.5 py-0.5 rounded border shadow-2xs",
+                                  isDark
+                                    ? "text-amber-200 bg-amber-950 border-amber-600/80"
+                                    : "text-amber-950 bg-amber-100/90 border-amber-300/80"
+                                )}
+                              >
                                 {formatTimer(event.durasiDetik)}
                               </span>
                               {event.stopStartTime && (
-                                <span className="text-[10px] text-slate-600 font-bold truncate">
+                                <span className={cn("text-[10px] font-bold truncate", isDark ? "text-slate-200" : "text-slate-600")}>
                                   • Jam {event.stopStartTime}
                                 </span>
                               )}
@@ -2108,10 +2724,15 @@ export default function DowntimeTracker({
                                   e.stopPropagation();
                                   handleResolveSensorGlitch(index);
                                 }}
-                                className="flex-1 py-1 px-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-100/80 hover:bg-emerald-200/90 border border-emerald-300/80 rounded-lg transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95 text-center whitespace-nowrap"
+                                className={cn(
+                                  "flex-1 py-1 px-1.5 text-[10px] font-black border rounded transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95 text-center whitespace-nowrap",
+                                  isDark
+                                    ? "text-white bg-emerald-700 hover:bg-emerald-600 border-emerald-600 shadow-emerald-950/40"
+                                    : "text-emerald-800 bg-emerald-100/80 hover:bg-emerald-200/90 border-emerald-300/80"
+                                )}
                                 title="Tandai sebagai false alarm (gagal cacat)"
                               >
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <CheckCircle2 className={cn("w-3 h-3 shrink-0", isDark ? "text-emerald-200" : "text-emerald-600")} />
                                 <span>Gagal Cacat</span>
                               </button>
                               <button
@@ -2120,7 +2741,12 @@ export default function DowntimeTracker({
                                   e.stopPropagation();
                                   handleOpenClassifyModal(index);
                                 }}
-                                className="flex-1 py-1 px-1.5 text-[10px] font-black text-white bg-amber-500 hover:bg-amber-600 border border-amber-600 rounded-lg transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95 text-center whitespace-nowrap"
+                                className={cn(
+                                  "flex-1 py-1 px-1.5 text-[10px] font-black text-white border rounded transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95 text-center whitespace-nowrap",
+                                  isDark
+                                    ? "bg-amber-600 hover:bg-amber-500 border-amber-700 shadow-amber-950/40"
+                                    : "bg-amber-500 hover:bg-amber-600 border-amber-600"
+                                )}
                                 title="Isi detail kendala/cacat kain"
                               >
                                 <span>+ Klasifikasi</span>
@@ -2145,10 +2771,22 @@ export default function DowntimeTracker({
                 return (
                   <div className={viewMode === "events_only" ? (hasPending ? "" : "sm:col-span-2") : ""}>
                     <div className="flex items-center justify-between mb-2.5 min-w-0">
-                      <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
+                      <h4
+                        className={cn(
+                          "text-xs font-black uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
+                          isDark ? "text-slate-200" : "text-slate-700"
+                        )}
+                      >
                         <span>RIWAYAT BERHENTI:</span>
                       </h4>
-                      <span className="bg-slate-100/80 text-slate-700 text-[9px] px-2.5 py-0.5 rounded-full border border-slate-200 uppercase tracking-wider font-extrabold whitespace-nowrap">
+                      <span
+                        className={cn(
+                          "text-[9px] px-2.5 py-0.5 rounded-full border uppercase tracking-wider font-extrabold whitespace-nowrap",
+                          isDark
+                            ? "bg-slate-800 text-slate-300 border-slate-700"
+                            : "bg-slate-100/80 text-slate-700 border-slate-200"
+                        )}
+                      >
                         {resolvedEvents.length} KEJADIAN
                       </span>
                     </div>
@@ -2159,10 +2797,25 @@ export default function DowntimeTracker({
                         if (!isResolved) return null;
 
                         return (
-                          <div key={`resolved-${event.id || 'evt'}-${index}`} className="flex flex-row items-start justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl gap-2 shadow-2xs">
+                          <div
+                            key={`resolved-${event.id || 'evt'}-${index}`}
+                            className={cn(
+                              "flex flex-row items-start justify-between p-2.5 border rounded-xl gap-2 shadow-2xs transition-colors",
+                              isDark
+                                ? "bg-slate-950/60 border-slate-800 text-slate-200"
+                                : "bg-slate-50 border-slate-200/80 text-slate-800"
+                            )}
+                          >
                             <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[10px] font-bold text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-xs font-mono">
+                                <span
+                                  className={cn(
+                                    "text-[10px] font-bold px-1.5 py-0.5 rounded border shadow-xs font-mono",
+                                    isDark
+                                      ? "text-slate-100 bg-slate-800 border-slate-700"
+                                      : "text-slate-800 bg-white border-slate-200"
+                                  )}
+                                >
                                   {formatTimer(event.durasiDetik)}
                                 </span>
                                 {(() => {
@@ -2240,11 +2893,38 @@ export default function DowntimeTracker({
                                 const detailStr = Array.isArray(prob.details) ? prob.details.join(", ") : (prob.details || "");
 
                                 return (
-                                  <div key={pIdx} className="pl-2 border-l-2 border-slate-200/90 ml-0.5 my-1 text-[11px] text-slate-800 leading-relaxed break-words">
-                                    <span className="font-black text-slate-900 mr-1">{codeLabel}</span>
-                                    <span className="font-medium text-slate-700">{detailStr}</span>
+                                  <div
+                                    key={pIdx}
+                                    className={cn(
+                                      "pl-2 border-l-2 ml-0.5 my-1 text-[11px] leading-relaxed break-words",
+                                      isDark
+                                        ? "border-slate-700 text-slate-200"
+                                        : "border-slate-200/90 text-slate-800"
+                                    )}
+                                  >
+                                    {prob.pcsKe && prob.pcsKe !== "Semua" && (
+                                      <span
+                                        className={cn(
+                                          "inline-flex font-black px-1.5 py-0.5 rounded text-[9px] mr-1.5 border shadow-2xs",
+                                          isDark
+                                            ? "text-sky-300 bg-sky-950/80 border-sky-800/80"
+                                            : "text-sky-800 bg-sky-100/90 border-sky-200/70"
+                                        )}
+                                      >
+                                        PCS {prob.pcsKe}
+                                      </span>
+                                    )}
+                                    <span className={cn("font-black mr-1", isDark ? "text-white" : "text-slate-900")}>{codeLabel}</span>
+                                    <span className={cn("font-medium", isDark ? "text-slate-300" : "text-slate-700")}>{detailStr}</span>
                                     {prob.blok && (
-                                      <span className="inline-flex font-bold text-sky-700 bg-sky-50/50 px-1 py-0.5 rounded items-center gap-0.5 text-[9px] ml-1.5 border border-sky-100/60">
+                                      <span
+                                        className={cn(
+                                          "inline-flex font-bold px-1 py-0.5 rounded items-center gap-0.5 text-[9px] ml-1.5 border",
+                                          isDark
+                                            ? "text-sky-300 bg-sky-950/60 border-sky-800/60"
+                                            : "text-sky-700 bg-sky-50/50 border-sky-100/60"
+                                        )}
+                                      >
                                         <Box className="w-2.5 h-2.5" /> Blok {prob.blok}
                                       </span>
                                     )}
@@ -2540,11 +3220,10 @@ export default function DowntimeTracker({
                               value={inputMeters[selectedPcsKeList[0]] || ""}
                               onChange={(e) => handlePcsMeterChange(selectedPcsKeList[0], e.target.value)}
                               placeholder="Contoh: 18"
-                              className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${
-                                !inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
+                              className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${!inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
                                   ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
                                   : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-emerald-50/30 text-emerald-900"
-                              }`}
+                                }`}
                             />
                             <span className="absolute right-3.5 px-2 py-0.5 bg-slate-100 rounded-md text-xs font-bold text-slate-500 pointer-events-none border border-slate-200">
                               meter
@@ -2574,11 +3253,10 @@ export default function DowntimeTracker({
                             </button>
                           </div>
 
-                          <div className={`grid gap-2.5 w-full ${
-                            selectedPcsKeList.length === 2 ? "grid-cols-2" :
-                            selectedPcsKeList.length === 3 ? "grid-cols-3" :
-                            "grid-cols-2 sm:grid-cols-4"
-                          }`}>
+                          <div className={`grid gap-2.5 w-full ${selectedPcsKeList.length === 2 ? "grid-cols-2" :
+                              selectedPcsKeList.length === 3 ? "grid-cols-3" :
+                                "grid-cols-2 sm:grid-cols-4"
+                            }`}>
                             {selectedPcsKeList.map((pcsKey) => {
                               const val = inputMeters[pcsKey] || "";
                               const isMeterEmpty = !val || val.trim() === "";
@@ -2601,11 +3279,10 @@ export default function DowntimeTracker({
                                       value={val}
                                       onChange={(e) => handlePcsMeterChange(pcsKey, e.target.value)}
                                       placeholder="0"
-                                      className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${
-                                        isMeterEmpty
+                                      className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${isMeterEmpty
                                           ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 placeholder:text-slate-400"
                                           : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-emerald-900 bg-emerald-50/50"
-                                      }`}
+                                        }`}
                                     />
                                     <span className="absolute right-2 text-[10px] font-bold text-slate-400 pointer-events-none">
                                       m
@@ -2670,8 +3347,122 @@ export default function DowntimeTracker({
                 </div>
               )}
 
+              {/* Mode Pemilihan Masalah: Sama Semua PCS vs Beda Tiap PCS (jika multi-PCS) */}
+              {dikerjakanOleh === "Operator" && selectedPcsKeList.length > 1 && (
+                <div className={cn(
+                  "p-3 rounded-2xl border transition-all space-y-2.5",
+                  isDark ? "bg-slate-800/60 border-slate-700/80" : "bg-sky-50/60 border-sky-200/80"
+                )}>
+                  <div className="flex items-center justify-between">
+                    <span className={cn(
+                      "text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5",
+                      isDark ? "text-slate-200" : "text-slate-800"
+                    )}>
+                      <Layers className="w-3.5 h-3.5 text-sky-500" />
+                      Kendala Masalah Pada PCS:
+                    </span>
+                    <span className={cn(
+                      "text-[9px] font-bold px-2 py-0.5 rounded-full border",
+                      isDark ? "bg-slate-800 text-sky-300 border-slate-700" : "bg-white text-sky-700 border-sky-200"
+                    )}>
+                      {selectedPcsKeList.length} PCS Terpilih
+                    </span>
+                  </div>
+
+                  {/* Toggle Switcher */}
+                  <div className={cn(
+                    "grid grid-cols-2 p-1 rounded-xl border text-xs font-bold gap-1",
+                    isDark ? "bg-slate-900 border-slate-700" : "bg-slate-200/60 border-slate-300/60"
+                  )}>
+                    <button
+                      type="button"
+                      onClick={() => handleSetProblemInputMode("same")}
+                      className={cn(
+                        "py-1.5 px-2 rounded-lg transition-all text-center cursor-pointer font-black text-xs flex items-center justify-center gap-1.5",
+                        problemInputMode === "same"
+                          ? (isDark ? "bg-sky-600 text-white shadow-sm" : "bg-white text-sky-700 shadow-sm")
+                          : (isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-900")
+                      )}
+                    >
+                      <span>Sama di Semua PCS</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSetProblemInputMode("per_pcs")}
+                      className={cn(
+                        "py-1.5 px-2 rounded-lg transition-all text-center cursor-pointer font-black text-xs flex items-center justify-center gap-1.5",
+                        problemInputMode === "per_pcs"
+                          ? (isDark ? "bg-sky-600 text-white shadow-sm" : "bg-white text-sky-700 shadow-sm")
+                          : (isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-900")
+                      )}
+                    >
+                      <span>Beda Tiap PCS</span>
+                    </button>
+                  </div>
+
+                  {/* Tab Bar jika mode "per_pcs" */}
+                  {problemInputMode === "per_pcs" && (
+                    <div className="pt-1.5 space-y-1.5 animate-fadeIn">
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                        {selectedPcsKeList.map((pcsKey) => {
+                          const isActive = activePcsProblemTab === pcsKey;
+                          const catCount = (perPcsProblems[pcsKey]?.categories || []).length;
+                          const detCount = Object.values(perPcsProblems[pcsKey]?.details || {}).reduce((sum, d) => sum + d.length, 0);
+
+                          return (
+                            <button
+                              key={pcsKey}
+                              type="button"
+                              onClick={() => setActivePcsProblemTab(pcsKey)}
+                              className={cn(
+                                "flex-1 min-w-[120px] py-2 px-3 rounded-xl border text-xs font-black transition-all flex items-center justify-between gap-2 cursor-pointer shadow-xs",
+                                isActive
+                                  ? (isDark
+                                    ? "bg-sky-600 border-sky-500 text-white shadow-sky-900/30 ring-2 ring-sky-500/30"
+                                    : "bg-sky-500 border-sky-600 text-white shadow-sky-500/20 ring-2 ring-sky-200")
+                                  : (isDark
+                                    ? "bg-slate-900/90 border-slate-700 text-slate-300 hover:bg-slate-800"
+                                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50")
+                              )}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <Box className="w-3.5 h-3.5" />
+                                <span>PCS {pcsKey}</span>
+                              </span>
+                              <span
+                                className={cn(
+                                  "text-[10px] font-extrabold px-1.5 py-0.2 rounded-full",
+                                  isActive
+                                    ? "bg-white/20 text-white"
+                                    : (catCount > 0
+                                      ? (isDark ? "bg-emerald-950 text-emerald-300 border border-emerald-800" : "bg-emerald-100 text-emerald-800 border border-emerald-200")
+                                      : (isDark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-400"))
+                                )}
+                              >
+                                {detCount > 0 ? `${detCount} Masalah` : catCount > 0 ? `${catCount} Kategori` : "0 Masalah"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
-                <label className="text-xs font-bold text-slate-700 uppercase mb-2 block">Pilih Kategori Masalah</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className={cn("text-xs font-bold uppercase", isDark ? "text-slate-300" : "text-slate-700")}>
+                    Pilih Kategori Masalah {problemInputMode === "per_pcs" && `(Khusus PCS ${activePcsProblemTab})`}
+                  </label>
+                  {problemInputMode === "per_pcs" && (
+                    <span className="text-[10px] font-black text-sky-600 bg-sky-50 dark:bg-sky-950/70 dark:text-sky-300 px-2 py-0.5 rounded-md border border-sky-200 dark:border-sky-800">
+                      Tab PCS {activePcsProblemTab}
+                    </span>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 gap-2">
                   {PROBLEM_CATEGORIES.map((cat) => (
                     <div key={cat.id} className="flex flex-col gap-2">
@@ -2680,40 +3471,33 @@ export default function DowntimeTracker({
                           type="checkbox"
                           name="kategori"
                           value={cat.id}
-                          checked={selectedCategories.includes(cat.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedCategories((prev) => [...prev, cat.id]);
-                            } else {
-                              setSelectedCategories((prev) => prev.filter((c) => c !== cat.id));
-                              // Remove details and blok for this category
-                              setSelectedDetails((prev) => {
-                                const next = { ...prev };
-                                delete next[cat.id];
-                                return next;
-                              });
-                              setInputBloks((prev) => {
-                                const next = { ...prev };
-                                delete next[cat.id];
-                                return next;
-                              });
-                            }
-                          }}
+                          checked={currentCategories.includes(cat.id)}
+                          onChange={(e) => handleCategoryToggle(cat.id, e.target.checked)}
                           className="peer sr-only"
                         />
-                        <div className="p-3 rounded-xl border-2 border-slate-100 bg-white text-sm font-semibold text-slate-600 peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 transition-all hover:border-slate-300">
+                        <div
+                          className={cn(
+                            "p-3 rounded-xl border-2 text-sm font-semibold transition-all",
+                            isDark
+                              ? "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 peer-checked:border-sky-500 peer-checked:bg-sky-950/40 peer-checked:text-sky-300"
+                              : "border-slate-100 bg-white text-slate-600 hover:border-slate-300 peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700"
+                          )}
+                        >
                           {cat.name}
                         </div>
                       </label>
 
-                      {selectedCategories.includes(cat.id) && (dynamicProblemDetails[cat.id] || PROBLEM_DETAILS[cat.id]) && (
-                        <div className="pl-3.5 pr-2 py-3 border-l-2 border-sky-300 ml-2 space-y-3.5 bg-slate-50/50 rounded-r-xl mt-1.5 animate-in slide-in-from-top-2">
+                      {currentCategories.includes(cat.id) && (dynamicProblemDetails[cat.id] || PROBLEM_DETAILS[cat.id]) && (
+                        <div className={cn(
+                          "pl-3.5 pr-2 py-3 border-l-2 border-sky-400 ml-2 space-y-3.5 rounded-r-xl mt-1.5 animate-in slide-in-from-top-2",
+                          isDark ? "bg-slate-900/60" : "bg-slate-50/50"
+                        )}>
                           <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
-                              Pilih Detail Masalah
+                            <label className={cn("text-[10px] font-extrabold uppercase tracking-wider block", isDark ? "text-slate-400" : "text-slate-500")}>
+                              Pilih Detail Masalah {problemInputMode === "per_pcs" && `(PCS ${activePcsProblemTab})`}
                             </label>
-                            <span className="text-[10px] text-sky-600 font-bold">
-                              {(selectedDetails[cat.id] || []).length} dipilih
+                            <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">
+                              {(currentDetails[cat.id] || []).length} dipilih
                             </span>
                           </div>
 
@@ -2724,21 +3508,26 @@ export default function DowntimeTracker({
                             const allKnownItems = new Set(activeGroups.flatMap((g) => g.items));
 
                             // User-typed custom details (not part of known items)
-                            const customInputDetails = (selectedDetails[cat.id] || []).filter((d) => !allKnownItems.has(d));
+                            const customInputDetails = (currentDetails[cat.id] || []).filter((d) => !allKnownItems.has(d));
 
                             return (
                               <div className="space-y-3">
                                 {activeGroups.map((group, gIdx) => {
-                                  const selectedInThisGroup = group.items.filter((item) => selectedDetails[cat.id]?.includes(item));
+                                  const selectedInThisGroup = group.items.filter((item) => currentDetails[cat.id]?.includes(item));
                                   const hasSelectedInThisGroup = selectedInThisGroup.length > 0;
 
                                   return (
                                     <div key={gIdx} className="space-y-1.5">
                                       <div className="flex items-center gap-2 pt-1 first:pt-0">
-                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded border border-sky-200/70 shadow-2xs">
+                                        <span className={cn(
+                                          "text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs",
+                                          isDark
+                                            ? "text-sky-300 bg-sky-950/80 border-sky-800/70"
+                                            : "text-sky-800 bg-sky-100/90 border-sky-200/70"
+                                        )}>
                                           {group.groupName}
                                         </span>
-                                        <div className="flex-1 h-px bg-slate-200/80" />
+                                        <div className={cn("flex-1 h-px", isDark ? "bg-slate-800" : "bg-slate-200/80")} />
                                       </div>
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         {group.items.map((detail) => (
@@ -2747,24 +3536,16 @@ export default function DowntimeTracker({
                                               type="checkbox"
                                               name={`detail-${cat.id}`}
                                               value={detail}
-                                              checked={selectedDetails[cat.id]?.includes(detail) || false}
-                                              onChange={(e) => {
-                                                const current = selectedDetails[cat.id] || [];
-                                                if (e.target.checked) {
-                                                  setSelectedDetails((prev) => ({
-                                                    ...prev,
-                                                    [cat.id]: [...current, detail],
-                                                  }));
-                                                } else {
-                                                  setSelectedDetails((prev) => ({
-                                                    ...prev,
-                                                    [cat.id]: current.filter((d) => d !== detail),
-                                                  }));
-                                                }
-                                              }}
+                                              checked={currentDetails[cat.id]?.includes(detail) || false}
+                                              onChange={(e) => handleDetailToggle(cat.id, detail, e.target.checked)}
                                               className="peer sr-only"
                                             />
-                                            <div className="p-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white transition-all hover:bg-slate-50 text-center shadow-2xs">
+                                            <div className={cn(
+                                              "p-2.5 rounded-lg border text-xs font-semibold transition-all text-center shadow-2xs",
+                                              isDark
+                                                ? "border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 peer-checked:bg-sky-600 peer-checked:border-sky-500 peer-checked:text-white"
+                                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white"
+                                            )}>
                                               {detail}
                                             </div>
                                           </label>
@@ -2776,29 +3557,30 @@ export default function DowntimeTracker({
                                         const reqDetails = selectedInThisGroup.filter((d) => requiredBlockDefects.includes(d));
                                         const isRequired = reqDetails.length > 0;
 
-                                        const isMissing = isRequired && (!inputBloks[cat.id] || inputBloks[cat.id]?.trim() === "");
+                                        const isMissing = isRequired && (!currentBloks[cat.id] || currentBloks[cat.id]?.trim() === "");
 
-                                        const currentBlokVal = inputBloks[cat.id] || "";
+                                        const currentBlokVal = currentBloks[cat.id] || "";
                                         const blockList = currentBlokVal
                                           ? currentBlokVal.split(",").map((s) => s.trim())
                                           : [""];
 
                                         const updateBlockList = (newList: string[]) => {
-                                          setBlockValidationError(null);
                                           const joined = newList
                                             .map((s) => s.replace(/[^0-9\-,\s]/g, ""))
                                             .join(", ");
-                                          setInputBloks((prev) => ({ ...prev, [cat.id]: joined }));
+                                          handleBlockListChange(cat.id, joined);
                                         };
 
                                         return (
-                                          <div className={`mt-2 p-3 rounded-xl border transition-all animate-fadeIn ${isMissing
-                                            ? "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
-                                            : "bg-sky-50 border-sky-100"
-                                            }`}>
+                                          <div className={cn(
+                                            "mt-2 p-3 rounded-xl border transition-all animate-fadeIn",
+                                            isMissing
+                                              ? (isDark ? "bg-rose-950/50 border-rose-700 ring-2 ring-rose-900" : "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200")
+                                              : (isDark ? "bg-slate-800/80 border-slate-700" : "bg-sky-50 border-sky-100")
+                                          )}>
                                             <label className="text-[10px] font-extrabold uppercase mb-1.5 flex items-center justify-between">
-                                              <span className="flex items-center gap-1.5 text-slate-800">
-                                                <Box className="w-3.5 h-3.5 text-[#0070bc]" />
+                                              <span className={cn("flex items-center gap-1.5", isDark ? "text-slate-200" : "text-slate-800")}>
+                                                <Box className="w-3.5 h-3.5 text-[#0070bc] dark:text-sky-400" />
                                                 Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
                                               </span>
                                               {isRequired ? (
@@ -2806,7 +3588,7 @@ export default function DowntimeTracker({
                                                   Wajib Diisi
                                                 </span>
                                               ) : (
-                                                <span className="text-slate-400 font-bold text-[9px]">Opsional</span>
+                                                <span className={cn("font-bold text-[9px]", isDark ? "text-slate-400" : "text-slate-400")}>Opsional</span>
                                               )}
                                             </label>
 
@@ -2825,10 +3607,15 @@ export default function DowntimeTracker({
                                                       updateBlockList(nextList);
                                                     }}
                                                     placeholder={bIdx === 0 ? "Blok (15)" : `Blok ${bIdx + 1}`}
-                                                    className={`w-28 h-9 px-3 rounded-lg border text-center font-bold text-xs text-slate-800 placeholder:font-medium placeholder:text-slate-400 bg-white ${isMissing
-                                                      ? "border-rose-400 focus:ring-2 focus:ring-rose-500"
-                                                      : "border-sky-200 focus:ring-2 focus:ring-sky-500"
-                                                      }`}
+                                                    className={cn(
+                                                      "w-28 h-9 px-3 rounded-lg border text-center font-bold text-xs",
+                                                      isDark
+                                                        ? "bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                                                        : "bg-white text-slate-800 placeholder:text-slate-400",
+                                                      isMissing
+                                                        ? "border-rose-400 focus:ring-2 focus:ring-rose-500"
+                                                        : "border-sky-200 dark:border-slate-600 focus:ring-2 focus:ring-sky-500"
+                                                    )}
                                                   />
                                                   {blockList.length > 1 && (
                                                     <button
@@ -2837,7 +3624,7 @@ export default function DowntimeTracker({
                                                         const nextList = blockList.filter((_, i) => i !== bIdx);
                                                         updateBlockList(nextList);
                                                       }}
-                                                      className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition-colors shrink-0"
+                                                      className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/80 hover:bg-rose-100 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 flex items-center justify-center transition-colors shrink-0"
                                                       title="Hapus blok"
                                                     >
                                                       <X className="w-3.5 h-3.5" />
@@ -2851,7 +3638,12 @@ export default function DowntimeTracker({
                                                 onClick={() => {
                                                   updateBlockList([...blockList, ""]);
                                                 }}
-                                                className="w-9 h-9 rounded-lg bg-white hover:bg-sky-100/60 border border-sky-200 text-[#0070bc] flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+                                                className={cn(
+                                                  "w-9 h-9 rounded-lg border flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer shrink-0",
+                                                  isDark
+                                                    ? "bg-slate-800 hover:bg-slate-700 border-slate-600 text-sky-400"
+                                                    : "bg-white hover:bg-sky-100/60 border-sky-200 text-[#0070bc]"
+                                                )}
                                                 title="Tambah Blok"
                                               >
                                                 <Plus className="w-4 h-4" />
@@ -2859,7 +3651,7 @@ export default function DowntimeTracker({
                                             </div>
 
                                             {isMissing && (
-                                              <p className="text-[10px] font-bold text-rose-600 mt-1.5">
+                                              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-1.5">
                                                 Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
                                               </p>
                                             )}
@@ -2873,10 +3665,15 @@ export default function DowntimeTracker({
                                 {customInputDetails.length > 0 && (
                                   <div className="space-y-1.5 pt-1">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-200 shadow-2xs">
+                                      <span className={cn(
+                                        "text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs",
+                                        isDark
+                                          ? "text-amber-200 bg-amber-950/80 border-amber-800"
+                                          : "text-amber-800 bg-amber-100 border-amber-200"
+                                      )}>
                                         Input Manual
                                       </span>
-                                      <div className="flex-1 h-px bg-slate-200/80" />
+                                      <div className={cn("flex-1 h-px", isDark ? "bg-slate-800" : "bg-slate-200/80")} />
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       {customInputDetails.map((customDetail) => (
@@ -2885,12 +3682,7 @@ export default function DowntimeTracker({
                                             <span className="truncate">{customDetail}</span>
                                             <button
                                               type="button"
-                                              onClick={() => {
-                                                setSelectedDetails((prev) => ({
-                                                  ...prev,
-                                                  [cat.id]: (prev[cat.id] || []).filter((d) => d !== customDetail),
-                                                }));
-                                              }}
+                                              onClick={() => handleRemoveCustomDetail(cat.id, customDetail)}
                                               className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
                                               title="Hapus detail manual"
                                             >
@@ -2907,20 +3699,18 @@ export default function DowntimeTracker({
                           })()}
 
                           {cat.id === "G" && (
-                            <div className="mt-3 pt-3 border-t border-sky-100">
-                              <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-slate-700">
-                                  <Edit3 className="w-3 h-3 text-sky-600" />
+                            <div className={cn("mt-3 pt-3 border-t", isDark ? "border-slate-800" : "border-sky-100")}>
+                              <label className={cn("text-[10px] font-bold uppercase mb-1.5 flex items-center justify-between", isDark ? "text-slate-400" : "text-slate-600")}>
+                                <span className="flex items-center gap-1">
+                                  <Edit3 className="w-3 h-3 text-sky-600 dark:text-sky-400" />
                                   Input Masalah Manual (Jika tidak ada di pilihan)
                                 </span>
                               </label>
                               <div className="flex gap-2">
                                 <input
                                   type="text"
-                                  value={manualInputDetails[cat.id] || ""}
-                                  onChange={(e) =>
-                                    setManualInputDetails((prev) => ({ ...prev, [cat.id]: e.target.value }))
-                                  }
+                                  value={currentManualDetails[cat.id] || ""}
+                                  onChange={(e) => handleManualDetailTextChange(cat.id, e.target.value)}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") {
                                       e.preventDefault();
@@ -2928,13 +3718,18 @@ export default function DowntimeTracker({
                                     }
                                   }}
                                   placeholder="Ketik detail masalah manual di sini..."
-                                  className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-slate-800 placeholder:text-slate-400"
+                                  className={cn(
+                                    "flex-1 px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium",
+                                    isDark
+                                      ? "border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                                      : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400"
+                                  )}
                                 />
                                 <button
                                   type="button"
                                   onClick={() => handleAddManualDetail(cat.id)}
-                                  disabled={!(manualInputDetails[cat.id] || "").trim()}
-                                  className="px-3 py-2 bg-sky-500 text-white font-bold text-xs rounded-lg hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                                  disabled={!(currentManualDetails[cat.id] || "").trim()}
+                                  className="px-3 py-2 bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
                                 >
                                   <Plus className="w-3.5 h-3.5" />
                                   <span>Tambah</span>
@@ -3287,8 +4082,8 @@ export default function DowntimeTracker({
                       type="button"
                       onClick={handleToggleSelectAllPcs}
                       className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5 ${selectedPcsKeList.length === pcsCount
-                          ? "bg-emerald-600 text-white shadow-emerald-600/20"
-                          : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-100"
+                        ? "bg-emerald-600 text-white shadow-emerald-600/20"
+                        : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-100"
                         }`}
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
@@ -3310,8 +4105,8 @@ export default function DowntimeTracker({
                             type="button"
                             onClick={() => handleTogglePcs(pcsKey)}
                             className={`w-full h-10 flex items-center justify-center rounded-xl text-xs font-black transition-all border shadow-xs cursor-pointer active:scale-95 ${isSelected
-                                ? "bg-emerald-600 border-emerald-600 text-white shadow-emerald-600/20 ring-2 ring-emerald-400/30"
-                                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                              ? "bg-emerald-600 border-emerald-600 text-white shadow-emerald-600/20 ring-2 ring-emerald-400/30"
+                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
                               }`}
                           >
                             PCS {pcsKey}
@@ -3343,11 +4138,10 @@ export default function DowntimeTracker({
                               value={inputMeters[selectedPcsKeList[0]] || ""}
                               onChange={(e) => handlePcsMeterChange(selectedPcsKeList[0], e.target.value)}
                               placeholder="Contoh: 18"
-                              className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${
-                                !inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
+                              className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${!inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
                                   ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
                                   : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-emerald-50/30 text-emerald-900"
-                              }`}
+                                }`}
                             />
                             <span className="absolute right-3.5 px-2 py-0.5 bg-slate-100 rounded-md text-xs font-bold text-slate-500 pointer-events-none border border-slate-200">
                               meter
@@ -3379,11 +4173,10 @@ export default function DowntimeTracker({
                             )}
                           </div>
 
-                          <div className={`grid gap-2.5 w-full ${
-                            selectedPcsKeList.length === 2 ? "grid-cols-2" :
-                            selectedPcsKeList.length === 3 ? "grid-cols-3" :
-                            "grid-cols-2 sm:grid-cols-4"
-                          }`}>
+                          <div className={`grid gap-2.5 w-full ${selectedPcsKeList.length === 2 ? "grid-cols-2" :
+                              selectedPcsKeList.length === 3 ? "grid-cols-3" :
+                                "grid-cols-2 sm:grid-cols-4"
+                            }`}>
                             {selectedPcsKeList.map((pcsKey) => {
                               const val = inputMeters[pcsKey] || "";
                               const isMeterEmpty = !val || val.trim() === "";
@@ -3406,11 +4199,10 @@ export default function DowntimeTracker({
                                       value={val}
                                       onChange={(e) => handlePcsMeterChange(pcsKey, e.target.value)}
                                       placeholder="0"
-                                      className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${
-                                        isMeterEmpty
+                                      className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${isMeterEmpty
                                           ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-white text-slate-800 placeholder:text-slate-400"
                                           : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-emerald-900 bg-emerald-50/50"
-                                      }`}
+                                        }`}
                                     />
                                     <span className="absolute right-2 text-[10px] font-bold text-slate-400 pointer-events-none">
                                       m
@@ -3450,8 +4242,8 @@ export default function DowntimeTracker({
               {/* Jika hanya 1 PCS dan showMeterInput */}
               {pcsCount === 1 && showMeterInput && (
                 <div className={`p-4 rounded-2xl border shadow-sm transition-all animate-fadeIn ${(!inputMeters[pcsKeys[0]] || inputMeters[pcsKeys[0]].trim() === "") && (!singleMeterInput || singleMeterInput.trim() === "")
-                    ? "bg-rose-50/70 border-rose-300"
-                    : "bg-emerald-50 border-emerald-200/60"
+                  ? "bg-rose-50/70 border-rose-300"
+                  : "bg-emerald-50 border-emerald-200/60"
                   }`}>
                   <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
                     <Box className="w-4 h-4 text-emerald-600" />

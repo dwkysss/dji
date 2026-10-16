@@ -18,6 +18,8 @@ import { createClient } from "@/lib/supabase/client";
 import { getJakartaDateTimeString } from "@/lib/shift-utils";
 import { triggerPiggybackSync } from "@/lib/offline-store";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
+import { useInputTheme } from "@/lib/input-theme-context";
+import { cn } from "@/lib/utils";
 import {
   AlertCircle,
   RefreshCw,
@@ -423,6 +425,7 @@ export default function EmployeeForm({
   isEdit,
 }: EmployeeFormProps = {}) {
   const { user } = useAuth();
+  const { isDark } = useInputTheme();
   const idempotencyKeyRef = useRef<string>(
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
@@ -1466,20 +1469,41 @@ export default function EmployeeForm({
   const isMeterMachine = watchNomorMc ? machineInputTypes[watchNomorMc.toUpperCase()] === "METER" : false;
 
   return (
-    <div className="w-full max-w-5xl mx-auto bg-gradient-to-br from-blue-50/40 via-white to-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3.5 sm:p-6 lg:p-8 shadow-[0_8px_30px_rgba(0,112,188,0.06)] text-slate-800 relative overflow-hidden">
+    <div className={cn(
+      "w-full border rounded-2xl sm:rounded-[24px] p-4 sm:p-6 lg:p-8 relative overflow-hidden transition-all duration-300",
+      isDark
+        ? "bg-slate-900/95 border-slate-800 text-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+        : "bg-white border-[#e9ecef] shadow-[0_8px_30px_rgba(0,0,0,0.015)] text-slate-800"
+    )}>
       {/* Decorative background shape */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-100/30 via-blue-50/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10"></div>
+      <div className={`absolute top-0 right-0 w-96 h-96 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10 ${
+        isDark
+          ? "bg-gradient-to-br from-blue-900/20 via-blue-950/10 to-transparent"
+          : "bg-gradient-to-br from-blue-100/30 via-blue-50/20 to-transparent"
+      }`}></div>
 
       <div className="relative">
         {/* Segmented Control for Mode Switching */}
         <div
           data-tour="mode-switch"
-          className="flex w-full bg-slate-100/80 p-1.5 rounded-2xl mb-4 sm:mb-8 border border-slate-200/60 shadow-inner"
+          className={`flex w-full p-1.5 rounded-2xl mb-4 sm:mb-8 border shadow-inner transition-colors ${
+            isDark
+              ? "bg-slate-950/80 border-slate-800"
+              : "bg-slate-100/80 border-slate-200/60"
+          }`}
         >
-          <div className="flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl bg-white shadow-sm border border-slate-200 text-[#0070bc] relative overflow-hidden group cursor-default">
-            <div className="absolute inset-0 bg-blue-50/50 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+          <div className={`flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl shadow-sm border relative overflow-hidden group cursor-default transition-all ${
+            isDark
+              ? "bg-slate-800 border-slate-700 text-blue-400"
+              : "bg-white border-slate-200 text-[#0070bc]"
+          }`}>
+            <div className={`absolute inset-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ${
+              isDark ? "bg-blue-950/40" : "bg-blue-50/50"
+            }`}></div>
             <div className="relative flex items-center gap-2 sm:gap-2.5">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 ${
+                isDark ? "bg-blue-950 text-blue-400 border border-blue-800/50" : "bg-blue-100 text-blue-600"
+              }`}>
                 <Box className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
@@ -1494,10 +1518,16 @@ export default function EmployeeForm({
             onClick={() => {
               localStorage.setItem("last_input_route", "/input-meter");
             }}
-            className="flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-white/60 transition-all cursor-pointer"
+            className={`flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl transition-all cursor-pointer ${
+              isDark
+                ? "text-slate-400 hover:text-blue-400 hover:bg-slate-800/50"
+                : "text-slate-500 hover:text-emerald-600 hover:bg-white/60"
+            }`}
           >
             <div className="flex items-center gap-2 sm:gap-2.5 opacity-70 hover:opacity-100 transition-opacity">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 ${
+                isDark ? "bg-slate-800 text-slate-400 border border-slate-700" : "bg-slate-200 text-slate-600"
+              }`}>
                 <ClipboardList className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
@@ -1509,9 +1539,11 @@ export default function EmployeeForm({
           </a>
         </div>
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4 ${
+          isDark ? "border-slate-800" : "border-slate-100"
+        }`}>
           <div>
-            <h3 className="text-base font-bold text-slate-900">
+            <h3 className={`text-base font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
               Form Input Produksi
             </h3>
             <p className="text-xs text-slate-400 font-normal mt-0.5 sm:mt-1">
@@ -1523,19 +1555,27 @@ export default function EmployeeForm({
               data-tour="stop-machine"
               type="button"
               onClick={() => setIsStopModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
+              className={`px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial ${
+                isDark
+                  ? "bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border border-amber-800/80"
+                  : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300"
+              }`}
               title="Lapor jika mesin mati/rusak/standby selama shift ini tanpa ada hasil kain"
             >
-              <PowerOff className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+              <PowerOff className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-amber-600"} group-hover:scale-110 transition-transform`} />
               <span>Mesin Mati</span>
             </button>
             <button
               data-tour="potongan-history"
               type="button"
               onClick={() => setIsHistoryDrawerOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
+              className={`px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial ${
+                isDark
+                  ? "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-blue-400 border border-slate-700"
+                  : "bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300"
+              }`}
             >
-              <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors" />
+              <History className={`w-4 h-4 ${isDark ? "text-slate-400 group-hover:text-blue-400" : "text-slate-500 group-hover:text-[#0070bc]"} transition-colors`} />
               <span>Riwayat Potongan Ini</span>
             </button>
           </div>
@@ -1588,7 +1628,10 @@ export default function EmployeeForm({
       </div>
 
       <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
-        <div className="bg-white border border-slate-200 shadow-sm rounded-[20px] p-3 sm:p-4 lg:p-5">
+        <div className={cn(
+          "shadow-sm rounded-[20px] p-3 sm:p-4 lg:p-5 transition-colors",
+          isDark ? "bg-slate-900/60 border border-slate-800" : "bg-white border border-slate-200"
+        )}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 items-start">
             {/* Kolom Kiri: Info Header & Info Panel */}
             <div className="flex flex-col gap-3 sm:gap-4 lg:gap-5 self-start sm:min-h-[345px]">
@@ -1610,24 +1653,49 @@ export default function EmployeeForm({
               {/* Data Panel Umum */}
               <div
                 data-tour="panel-info"
-                className="w-full bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden relative"
+                className={cn(
+                  "w-full rounded-3xl overflow-hidden relative transition-colors duration-300",
+                  isDark
+                    ? "bg-slate-900/95 border-2 border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+                    : "bg-slate-50 border-2 border-slate-200"
+                )}
               >
                 <input type="hidden" {...register("panelNo")} />
 
                 <div className="grid grid-cols-2">
                   {/* Kiri: Label */}
-                  <div className="flex flex-col items-center justify-center gap-1.5 border-r border-slate-200 p-4">
-                    <div className="w-7 h-7 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+                  <div
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-1.5 border-r p-4 transition-colors",
+                      isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                        isDark ? "bg-slate-800 text-sky-400" : "bg-slate-200 text-slate-600"
+                      )}
+                    >
                       <Hash className="w-4 h-4" />
                     </div>
-                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest text-center">
+                    <span
+                      className={cn(
+                        "text-[10px] font-black uppercase tracking-widest text-center transition-colors",
+                        isDark ? "text-slate-400" : "text-slate-600"
+                      )}
+                    >
                       Nomor Panel:
                     </span>
                   </div>
 
                   {/* Kanan: Angka */}
                   <div className="flex items-center justify-center p-4">
-                    <span className="text-5xl sm:text-6xl font-black text-slate-800 leading-none">
+                    <span
+                      className={cn(
+                        "text-5xl sm:text-6xl font-black leading-none transition-colors",
+                        isDark ? "text-slate-100" : "text-slate-800"
+                      )}
+                    >
                       {String(watchPanelNo || "-")}
                     </span>
                   </div>
@@ -1635,11 +1703,16 @@ export default function EmployeeForm({
 
                 {maxPanelLimit && (
                   <div
-                    className={`px-4 py-2 border-t flex items-center justify-between text-xs font-bold ${
+                    className={cn(
+                      "px-4 py-2 border-t flex items-center justify-between text-xs font-bold transition-colors",
                       (parseInt((watchPanelNo || "0").replace(/\D/g, ""), 10) || 0) >= maxPanelLimit
-                        ? "bg-emerald-100 text-emerald-900 border-emerald-300 font-black"
-                        : "bg-emerald-50 text-emerald-800 border-emerald-200/80"
-                    }`}
+                        ? isDark
+                          ? "bg-emerald-950/70 text-emerald-300 border-emerald-800 font-black"
+                          : "bg-emerald-100 text-emerald-900 border-emerald-300 font-black"
+                        : isDark
+                          ? "bg-slate-950/80 text-emerald-400 border-slate-800"
+                          : "bg-emerald-50 text-emerald-800 border-emerald-200/80"
+                    )}
                   >
                     <span>Target: {maxPanelLimit} Panel</span>
                     <span>
@@ -1769,7 +1842,12 @@ export default function EmployeeForm({
               setShowAdvancedActions(true);
             }
           }}
-          className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-rose-300 border-dashed text-rose-600 font-bold text-sm hover:bg-rose-50 hover:text-rose-700 hover:border-rose-400 transition-all duration-200"
+          className={cn(
+            "w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-dashed font-bold text-sm transition-all duration-200 cursor-pointer active:scale-98",
+            isDark
+              ? "border-rose-500/70 bg-rose-950/40 text-rose-300 hover:bg-rose-900/50 hover:text-rose-200 hover:border-rose-400 shadow-xs"
+              : "border-rose-300 bg-rose-50/50 text-rose-600 hover:bg-rose-100/70 hover:text-rose-700 hover:border-rose-400"
+          )}
         >
           {showAdvancedActions ? (
             <>Tutup Opsi Lanjutan</>
@@ -1930,13 +2008,21 @@ export default function EmployeeForm({
           </div>
         )}
 
-        <div data-tour="break-mode" className="mt-4 bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-3">
+        <div data-tour="break-mode" className={`mt-4 p-4 rounded-xl flex flex-col gap-3 transition-colors ${
+          isDark
+            ? "bg-slate-950/70 border border-slate-800 text-white"
+            : "bg-slate-50 border border-slate-200"
+        }`}>
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-slate-700 uppercase">
+            <label className={`text-xs font-bold uppercase ${isDark ? "text-slate-300" : "text-slate-700"}`}>
               Jenis Laporan / Info Istirahat
             </label>
             {watch("jenisLaporan") === "Istirahat" && backupOperatorName && (
-              <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300">
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                isDark
+                  ? "text-amber-400 bg-amber-950/80 border-amber-800"
+                  : "text-amber-700 bg-amber-100/80 border-amber-300"
+              }`}>
                 Mode Istirahat Aktif
               </span>
             )}
@@ -1959,7 +2045,11 @@ export default function EmployeeForm({
               />
               <label
                 htmlFor="jenisLaporanNormal"
-                className="flex items-center justify-center p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 text-center bg-white border-slate-200 hover:border-[#0070bc]/40 hover:bg-sky-50 text-slate-600 font-black text-xs sm:text-sm uppercase peer-checked:border-[#0070bc] peer-checked:bg-sky-50 peer-checked:text-[#0070bc] shadow-sm peer-checked:shadow-md"
+                className={`flex items-center justify-center p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 text-center font-black text-xs sm:text-sm uppercase shadow-sm peer-checked:shadow-md ${
+                  isDark
+                    ? "bg-slate-900 border-slate-800 hover:border-blue-500/50 hover:bg-slate-850 text-slate-300 peer-checked:border-blue-500 peer-checked:bg-blue-950/70 peer-checked:text-blue-400"
+                    : "bg-white border-slate-200 hover:border-[#0070bc]/40 hover:bg-sky-50 text-slate-600 peer-checked:border-[#0070bc] peer-checked:bg-sky-50 peer-checked:text-[#0070bc]"
+                }`}
               >
                 Normal
               </label>
@@ -2097,7 +2187,11 @@ export default function EmployeeForm({
             data-tour="submit-panel"
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-12 rounded-xl bg-[#0070bc] hover:bg-[#004777] active:scale-[0.99] disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-md"
+            className={`w-full h-12 rounded-xl active:scale-[0.99] disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
+              isDark
+                ? "bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-900 shadow-lg shadow-blue-950/25"
+                : "bg-[#0070bc] hover:bg-[#004777] shadow-md"
+            }`}
           >
             {isSubmitting ? (
               <>
@@ -2371,59 +2465,102 @@ export default function EmployeeForm({
         );
       })()}
 
-      {/* Modal Custom Peringatan Jam Istirahat */}
+      {/* Modal Custom Peringatan Jam Istirahat (Desain Kalem & Nyaman di Mata) */}
       {breakWarningModal.isOpen && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-scaleUp">
-            {/* Banner / Header */}
-            <div className="p-6 bg-gradient-to-br from-amber-500 to-orange-500 text-white text-center relative overflow-hidden flex flex-col items-center justify-center">
-              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-3 shadow-inner">
-                <AlertTriangle className="w-7 h-7 text-white" />
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
+          <div className={cn(
+            "rounded-2xl sm:rounded-3xl w-full max-w-sm sm:max-w-md shadow-xl overflow-hidden border p-5 sm:p-6 flex flex-col animate-scaleUp transition-colors",
+            isDark
+              ? "bg-slate-900 border-slate-800 text-slate-100"
+              : "bg-white border-slate-200 text-slate-800"
+          )}>
+            {/* Icon & Title */}
+            <div className="flex flex-col items-center text-center">
+              <div className={cn(
+                "w-12 h-12 rounded-2xl flex items-center justify-center mb-3.5 border transition-colors shadow-2xs",
+                isDark
+                  ? "bg-amber-950/50 border-amber-800/70 text-amber-400"
+                  : "bg-amber-50 border-amber-200 text-amber-600"
+              )}>
+                <AlertTriangle className="w-6 h-6" />
               </div>
-              <h3 className="text-base sm:text-lg font-black tracking-tight uppercase">Peringatan Jam Istirahat</h3>
-              <p className="text-xs text-amber-100 font-medium mt-1">
-                Pencatatan istirahat terdeteksi di luar jam wajar
+              <h3 className={cn(
+                "text-base sm:text-lg font-black tracking-tight",
+                isDark ? "text-slate-100" : "text-slate-900"
+              )}>
+                Peringatan Jam Istirahat
+              </h3>
+              <p className={cn(
+                "text-xs font-medium mt-1 max-w-xs",
+                isDark ? "text-slate-400" : "text-slate-500"
+              )}>
+                Pencatatan istirahat terdeteksi di luar rentang jam wajar
               </p>
             </div>
 
-            {/* Body */}
-            <div className="p-5 sm:p-6 space-y-4">
-              <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl space-y-2.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-500 uppercase tracking-wider">Jam Saat Ini:</span>
-                  <span className="font-black font-mono text-amber-700 text-sm bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-200">
-                    {breakWarningModal.timeStr} WIB
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-500 uppercase tracking-wider">Jam Istirahat Wajar {breakWarningModal.shiftName}:</span>
-                  <span className="font-black text-slate-700 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">
-                    {breakWarningModal.allowedRange}
-                  </span>
-                </div>
+            {/* Info Box */}
+            <div className={cn(
+              "my-4 p-3.5 rounded-xl border space-y-2 transition-colors",
+              isDark
+                ? "bg-slate-950/60 border-slate-800"
+                : "bg-slate-50 border-slate-200/90"
+            )}>
+              <div className="flex items-center justify-between text-xs">
+                <span className={cn("font-medium", isDark ? "text-slate-400" : "text-slate-500")}>
+                  Jam Saat Ini:
+                </span>
+                <span className={cn(
+                  "font-black font-mono text-xs px-2 py-0.5 rounded-md border",
+                  isDark
+                    ? "bg-amber-950/70 border-amber-800 text-amber-300"
+                    : "bg-amber-100/80 border-amber-300/80 text-amber-900"
+                )}>
+                  {breakWarningModal.timeStr} WIB
+                </span>
               </div>
-
-              <p className="text-xs text-slate-600 font-semibold leading-relaxed text-center">
-                Apakah Anda yakin tetap ingin memilih jenis laporan <strong>Istirahat</strong>?
-              </p>
-
-              {/* Buttons */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleCancelBreakWarning}
-                  className="w-full py-3 px-4 rounded-xl border-2 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wide transition-all active:scale-95 cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmBreakWarning}
-                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs uppercase tracking-wide shadow-md shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
-                >
-                  Ya, Lanjutkan
-                </button>
+              <div className="flex items-center justify-between text-xs">
+                <span className={cn("font-medium", isDark ? "text-slate-400" : "text-slate-500")}>
+                  Jam Wajar {breakWarningModal.shiftName}:
+                </span>
+                <span className={cn(
+                  "font-bold text-xs px-2 py-0.5 rounded-md border",
+                  isDark
+                    ? "bg-slate-800 border-slate-700 text-slate-200"
+                    : "bg-white border-slate-200 text-slate-700"
+                )}>
+                  {breakWarningModal.allowedRange}
+                </span>
               </div>
+            </div>
+
+            <p className={cn(
+              "text-xs text-center leading-relaxed mb-5",
+              isDark ? "text-slate-300" : "text-slate-600"
+            )}>
+              Apakah Anda yakin tetap ingin memilih jenis laporan <strong className={isDark ? "text-white" : "text-slate-900"}>Istirahat</strong>?
+            </p>
+
+            {/* Buttons */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={handleCancelBreakWarning}
+                className={cn(
+                  "w-full py-2.5 px-3 rounded-xl border font-bold text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer text-center",
+                  isDark
+                    ? "border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300"
+                    : "border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700"
+                )}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBreakWarning}
+                className="w-full py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer text-center"
+              >
+                Ya, Lanjutkan
+              </button>
             </div>
           </div>
         </div>

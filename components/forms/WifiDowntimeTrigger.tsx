@@ -18,8 +18,12 @@ import {
   ChevronUp,
   Settings,
   Info,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useWifiContext, getEsp32ConfigForMachine, MachineChannel } from "@/lib/wifi-context";
+import { useScreenWakeLock } from "@/lib/wake-lock-context";
+import { useInputTheme } from "@/lib/input-theme-context";
 import WifiController from "@/components/WifiController";
 import PinAuthModal from "@/components/PinAuthModal";
 
@@ -36,8 +40,8 @@ interface WifiDowntimeTriggerProps {
   machineId?: MachineChannel;
   initialMachineId?: MachineChannel;
   selectedMachineCode?: string;
-  onStartTimer?: (source?: string) => void;
-  onStopTimer?: (source?: string) => void;
+  onStartTimer?: (source?: string | { source: string; duration?: number }) => void;
+  onStopTimer?: (source?: string | { source: string; duration?: number }) => void;
   isTimerRunning?: boolean;
 }
 
@@ -77,6 +81,14 @@ export default function WifiDowntimeTrigger({
     isSimulationMode,
     toggleSimulationMode,
   } = useWifiContext();
+
+  const {
+    isActive: isWakeLockActive,
+    toggleWakeLock,
+    isSupported: isWakeLockSupported,
+  } = useScreenWakeLock();
+
+  const { isDark } = useInputTheme();
 
   // Ambil konfigurasi untuk nomor mesin yang sedang dibuka di form
   const currentConfig = React.useMemo(() => {
@@ -129,12 +141,12 @@ export default function WifiDowntimeTrigger({
 
   // Listen to Wi-Fi signals for the currently selected machine
   useEffect(() => {
-    const unregister = registerSignalListener((machine, signal, source) => {
+    const unregister = registerSignalListener((machine, signal, source, duration) => {
       if (machine === selectedMachine) {
         if (signal === "START" && onStartTimer) {
-          onStartTimer(source);
+          onStartTimer({ source, duration });
         } else if (signal === "STOP" && onStopTimer) {
-          onStopTimer(source);
+          onStopTimer({ source, duration });
         }
       }
     });
@@ -148,33 +160,44 @@ export default function WifiDowntimeTrigger({
   // Jika ESP32 sudah mendeteksi status "NYALA" (Mesin Berhenti / Downtime Aktif) tapi timer form belum running, nyalakan otomatis!
   useEffect(() => {
     if (connectionStatus === "terhubung" && currentStatus === "NYALA" && !isTimerRunning && onStartTimer) {
-      onStartTimer("ESP32 Sensor Otomatis");
+      onStartTimer({ source: "ESP32 Sensor Otomatis", duration: currentElapsed });
     }
-  }, [connectionStatus, currentStatus, isTimerRunning, onStartTimer]);
+  }, [connectionStatus, currentStatus, isTimerRunning, onStartTimer, currentElapsed]);
 
   return (
-    <div className="w-full bg-white border border-slate-200 rounded-2xl p-2.5 shadow-xs flex flex-col gap-2 overflow-hidden">
+    <div className={`w-full rounded-2xl p-2.5 flex flex-col gap-2 overflow-hidden transition-all duration-300 ${
+      isDark
+        ? "bg-slate-900 border border-slate-800 text-white shadow-xl"
+        : "bg-white border border-slate-200 text-slate-800 shadow-xs"
+    }`}>
       {/* Baris 1: Connection Status & Tombol Pengaturan */}
       <div className="flex items-center justify-between gap-1.5 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
           <div
-            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${connectionStatus === "terhubung"
-                ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+              connectionStatus === "terhubung"
+                ? isDark
+                  ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800/80"
+                  : "bg-emerald-50 text-emerald-600 border border-emerald-200"
                 : connectionStatus === "menghubungkan"
-                  ? "bg-amber-50 text-amber-600 border border-amber-200 animate-pulse"
-                  : "bg-slate-100 text-slate-500 border border-slate-200"
-              }`}
+                ? isDark
+                  ? "bg-amber-950/80 text-amber-400 border border-amber-800/80 animate-pulse"
+                  : "bg-amber-50 text-amber-600 border border-amber-200 animate-pulse"
+                : isDark
+                ? "bg-slate-800 text-slate-400 border border-slate-700"
+                : "bg-slate-100 text-slate-500 border border-slate-200"
+            }`}
           >
             {connectionStatus === "terhubung" ? (
-              <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+              <Wifi className={`w-3.5 h-3.5 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} />
             ) : connectionStatus === "menghubungkan" ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
+              <RefreshCw className={`w-3.5 h-3.5 animate-spin ${isDark ? "text-amber-400" : "text-amber-600"}`} />
             ) : (
               <WifiOff className="w-3.5 h-3.5 text-slate-400" />
             )}
           </div>
 
-          <span className="text-[11px] font-black text-slate-800 shrink-0">ESP32</span>
+          <span className={`text-[11px] font-black shrink-0 ${isDark ? "text-white" : "text-slate-800"}`}>ESP32</span>
 
           <button
             type="button"
@@ -184,12 +207,19 @@ export default function WifiDowntimeTrigger({
               }
             }}
             disabled={connectionStatus !== "terputus"}
-            className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold truncate max-w-[85px] sm:max-w-[120px] transition-all ${connectionStatus === "terhubung"
-                ? "bg-emerald-100 text-emerald-800 cursor-default"
+            className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold truncate max-w-[85px] sm:max-w-[120px] transition-all ${
+              connectionStatus === "terhubung"
+                ? isDark
+                  ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 cursor-default"
+                  : "bg-emerald-100 text-emerald-800 cursor-default"
                 : connectionStatus === "menghubungkan"
-                  ? "bg-amber-100 text-amber-800 animate-pulse cursor-default"
-                  : "bg-rose-100 hover:bg-rose-200 text-rose-800 cursor-pointer active:scale-95"
-              }`}
+                ? isDark
+                  ? "bg-amber-950/80 text-amber-300 border border-amber-800/80 animate-pulse cursor-default"
+                  : "bg-amber-100 text-amber-800 animate-pulse cursor-default"
+                : isDark
+                ? "bg-rose-950/80 hover:bg-rose-900/80 text-rose-300 border border-rose-800/80 cursor-pointer active:scale-95"
+                : "bg-rose-100 hover:bg-rose-200 text-rose-800 cursor-pointer active:scale-95"
+            }`}
             title={connectionStatus === "terputus" ? "Klik untuk Menghubungkan ke ESP32 Wi-Fi" : "Status ESP32"}
           >
             {connectionStatus === "terhubung"
@@ -200,7 +230,30 @@ export default function WifiDowntimeTrigger({
           </button>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          {/* Badge Screen Wake Lock (Layar Selalu Menyala / Siaga 24 Jam) */}
+          <button
+            type="button"
+            onClick={() => toggleWakeLock()}
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9.5px] font-bold transition-all border shrink-0 cursor-pointer active:scale-95 ${
+              isWakeLockActive
+                ? isDark
+                  ? "bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border-amber-800/80 shadow-2xs"
+                  : "bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300 shadow-2xs"
+                : isDark
+                ? "bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200"
+            }`}
+            title={
+              isWakeLockActive
+                ? "Screen Wake Lock Aktif: Layar tablet TIDAK AKAN MATI (klik untuk menonaktifkan)"
+                : "Screen Wake Lock Nonaktif: Layar tablet akan mati mengikuti batas waktu Samsung (klik untuk mengaktifkan)"
+            }
+          >
+            <Sun className={`w-3 h-3 ${isWakeLockActive ? (isDark ? "text-amber-400" : "text-amber-600") + " animate-pulse" : isDark ? "text-slate-500" : "text-slate-400"}`} />
+            <span>{isWakeLockActive ? "Layar ON" : "Layar Standby"}</span>
+          </button>
+
           {/* Sembunyikan Tombol Simulasi (Ubah false ke true jika ingin mengaktifkan kembali) */}
           {false && (
             <button
@@ -219,25 +272,41 @@ export default function WifiDowntimeTrigger({
           <button
             type="button"
             onClick={() => setShowControllerModal(true)}
-            className="w-7 h-7 p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors border border-slate-200 flex items-center justify-center shrink-0 cursor-pointer"
+            className={`w-7 h-7 p-1 rounded-lg font-bold text-xs transition-colors border flex items-center justify-center shrink-0 cursor-pointer ${
+              isDark
+                ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+            }`}
             title="Pengaturan Wi-Fi & Terminal Log"
           >
-            <Settings className="w-3.5 h-3.5 text-slate-600" />
+            <Settings className={`w-3.5 h-3.5 ${isDark ? "text-slate-300" : "text-slate-600"}`} />
           </button>
         </div>
       </div>
 
       {/* Baris 2: Badge Indikator Mesin Terkunci Sesuai Nomor Mesin di Header */}
-      <div className="bg-slate-100/90 p-1.5 px-2.5 rounded-xl flex items-center justify-between gap-2 border border-slate-200/80 select-none">
+      <div className={`p-1.5 px-2.5 rounded-xl flex items-center justify-between gap-2 border select-none transition-colors ${
+        isDark
+          ? "bg-slate-950/80 border-slate-800"
+          : "bg-slate-100/90 border-slate-200/80"
+      }`}>
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200">
+          <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${
+            isDark
+              ? "bg-slate-800 text-blue-400 border-slate-700"
+              : "bg-sky-100 text-sky-700 border border-sky-200"
+          }`}>
             <Cpu className="w-3.5 h-3.5" />
           </div>
           <div className="flex items-center gap-1.5 min-w-0 truncate">
-            <span className="text-xs font-black text-slate-800 tracking-tight">
+            <span className={`text-xs font-black tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>
               Mesin {selectedMachineCode ? selectedMachineCode.toUpperCase() : "-"}
             </span>
-            <span className="px-1.5 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-600 shadow-2xs">
+            <span className={`px-1.5 py-0.5 rounded-md border text-[10px] font-bold shadow-2xs ${
+              isDark
+                ? "bg-slate-800 border-slate-700 text-blue-400"
+                : "bg-white border-slate-200 text-slate-600"
+            }`}>
               {currentConfig.channel}
             </span>
           </div>
@@ -251,9 +320,15 @@ export default function WifiDowntimeTrigger({
           <span
             className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
               currentStatus === "NYALA"
-                ? "bg-rose-100 text-rose-700 border border-rose-200"
+                ? isDark
+                  ? "bg-rose-950/80 text-rose-300 border border-rose-800/80"
+                  : "bg-rose-100 text-rose-700 border border-rose-200"
                 : currentStatus === "MATI"
-                ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                ? isDark
+                  ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800/80"
+                  : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                : isDark
+                ? "bg-slate-800 text-slate-300 border border-slate-700"
                 : "bg-slate-200 text-slate-600 border border-slate-300"
             }`}
           >

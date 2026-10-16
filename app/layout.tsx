@@ -3,6 +3,7 @@ import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { WifiProvider } from "@/lib/wifi-context";
+import { WakeLockProvider } from "@/lib/wake-lock-context";
 import GlobalWidgets from "@/components/GlobalWidgets";
 import NavigationProgressBar from "@/components/layout/NavigationProgressBar";
 
@@ -72,12 +73,14 @@ export default function RootLayout({
       <body className="min-h-full bg-[var(--background)] text-[#1f2d3d] flex flex-col font-sans">
         <NavigationProgressBar />
         <AuthProvider>
-          <WifiProvider>
-            <GlobalWidgets />
-            <div className="min-h-full flex flex-col flex-1">
-              {children}
-            </div>
-          </WifiProvider>
+          <WakeLockProvider>
+            <WifiProvider>
+              <GlobalWidgets />
+              <div className="min-h-full flex flex-col flex-1">
+                {children}
+              </div>
+            </WifiProvider>
+          </WakeLockProvider>
         </AuthProvider>
       </body>
     </html>

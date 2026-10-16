@@ -788,16 +788,27 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
         matchedEvents.forEach((e: any) => {
           if (e.problems && Array.isArray(e.problems)) {
             e.problems.forEach((p: any) => {
+              // Jika problem ini ditugaskan ke PCS tertentu (misal PCS 1 atau PCS 2)
+              if (p.pcsKe && p.pcsKe !== "Semua") {
+                const targetPcs = p.pcsKe.split(",").map((x: string) => x.trim());
+                if (!targetPcs.includes(actualPcsKey)) {
+                  return; // Lewati karena masalah ini milik PCS lain!
+                }
+              }
+
               if (p.kategori) allCats.add(p.kategori);
               if (p.blok) allBloks.add(`Blok ${p.blok}`);
               
               let meterForThisPcs = "";
               if (p.meter) {
-                if (pcsDataToProcess.length === 1) {
+                if (p.pcsKe === actualPcsKey) {
+                  meterForThisPcs = p.meter;
+                } else if (pcsDataToProcess.length === 1) {
                   meterForThisPcs = p.meter;
                 } else {
                   const match = p.meter.match(new RegExp(`PCS ${actualPcsKey}:\\s*([^,]+)`));
                   if (match) meterForThisPcs = match[1].trim();
+                  else if (!p.meter.includes("PCS")) meterForThisPcs = p.meter;
                 }
                 if (meterForThisPcs) {
                   meterForThisPcs = meterForThisPcs.replace(/\b0+(\d+)\b/g, "$1");
@@ -1272,16 +1283,27 @@ export async function updateContinuousReport(
           matchedEvents.forEach((e: any) => {
             if (e.problems && Array.isArray(e.problems)) {
               e.problems.forEach((p: any) => {
+                // Jika problem ini ditugaskan ke PCS tertentu (misal PCS 1 atau PCS 2)
+                if (p.pcsKe && p.pcsKe !== "Semua") {
+                  const targetPcs = p.pcsKe.split(",").map((x: string) => x.trim());
+                  if (!targetPcs.includes(actualPcsKey)) {
+                    return; // Lewati karena masalah ini milik PCS lain!
+                  }
+                }
+
                 if (p.kategori) allCats.add(p.kategori);
                 if (p.blok) allBloks.add(`Blok ${p.blok}`);
                 
                 let meterForThisPcs = "";
                 if (p.meter) {
-                  if (data.pcsData.length === 1) {
+                  if (p.pcsKe === actualPcsKey) {
+                    meterForThisPcs = p.meter;
+                  } else if (data.pcsData.length === 1) {
                     meterForThisPcs = p.meter;
                   } else {
                     const match = p.meter.match(new RegExp(`PCS ${actualPcsKey}:\\s*([^,]+)`));
                     if (match) meterForThisPcs = match[1].trim();
+                    else if (!p.meter.includes("PCS")) meterForThisPcs = p.meter;
                   }
                   if (meterForThisPcs) {
                     meterForThisPcs = meterForThisPcs.replace(/\b0+(\d+)\b/g, "$1");

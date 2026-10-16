@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #eaecf0;
   --foreground: #1f2d3d;
@@ -68,6 +70,24 @@ body {
 
 .animate-progressShimmer {
   animation: shimmerProgress 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* ── Mode Gelap / Malam Khusus Halaman Input (Dark Graphite & Electric Blue) ── */
+.dji-dark-input {
+  color-scheme: dark;
+}
+
+.dji-dark-input input:not([type="checkbox"]):not([type="radio"]),
+.dji-dark-input select,
+.dji-dark-input textarea {
+  color-scheme: dark;
+}
+
+.dji-dark-input ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+.dji-dark-input ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }
 
 /* ── Global Print Styles ── */

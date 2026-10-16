@@ -58,6 +58,12 @@ bool m1_active = false;
 bool m2_active = false;
 bool m3_active = false;
 
+// Waktu mulai downtime (milidetik) untuk pencatatan detik di hardware
+unsigned long m1_downtimeStartTime = 0;
+unsigned long m2_downtimeStartTime = 0;
+unsigned long m3_downtimeStartTime = 0;
+
+
 bool wifiWasConnected = false;
 unsigned long lastWiFiRetry = 0;
 const unsigned long wifiRetryInterval = 5000; // Coba reconnect setiap 5 detik jika mati
@@ -87,10 +93,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       IPAddress ip = webSocket.remoteIP(num);
       Serial.printf("[WebSocket] Client [%u] Terhubung dari %d.%d.%d.%d\n", num, ip[0], ip[1], ip[2], ip[3]);
 
-      // Kirimkan status fisik terkini M1, M2, M3 ke client yang baru terkoneksi
-      String payloadM1 = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\"}";
-      String payloadM2 = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\"}";
-      String payloadM3 = String("{\"machine\":\"M3\",\"status\":\"") + (m3_active ? "START" : "STOP") + "\"}";
+      unsigned long d1 = m1_active ? ((millis() - m1_downtimeStartTime) / 1000) : 0;
+      unsigned long d2 = m2_active ? ((millis() - m2_downtimeStartTime) / 1000) : 0;
+      unsigned long d3 = m3_active ? ((millis() - m3_downtimeStartTime) / 1000) : 0;
+
+      // Kirimkan status fisik terkini M1, M2, M3 beserta durasi detik ke client yang baru terkoneksi
+      String payloadM1 = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\",\"duration\":" + String(d1) + "}";
+      String payloadM2 = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\",\"duration\":" + String(d2) + "}";
+      String payloadM3 = String("{\"machine\":\"M3\",\"status\":\"") + (m3_active ? "START" : "STOP") + "\",\"duration\":" + String(d3) + "}";
 
       webSocket.sendTXT(num, payloadM1);
       webSocket.sendTXT(num, payloadM2);
@@ -103,9 +113,13 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       if (strcmp((char*)payload, "PING") == 0) {
         webSocket.sendTXT(num, "PONG");
       } else if (strcmp((char*)payload, "GET_STATUS") == 0) {
-        String payloadM1 = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\"}";
-        String payloadM2 = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\"}";
-        String payloadM3 = String("{\"machine\":\"M3\",\"status\":\"") + (m3_active ? "START" : "STOP") + "\"}";
+        unsigned long d1 = m1_active ? ((millis() - m1_downtimeStartTime) / 1000) : 0;
+        unsigned long d2 = m2_active ? ((millis() - m2_downtimeStartTime) / 1000) : 0;
+        unsigned long d3 = m3_active ? ((millis() - m3_downtimeStartTime) / 1000) : 0;
+
+        String payloadM1 = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\",\"duration\":" + String(d1) + "}";
+        String payloadM2 = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\",\"duration\":" + String(d2) + "}";
+        String payloadM3 = String("{\"machine\":\"M3\",\"status\":\"") + (m3_active ? "START" : "STOP") + "\",\"duration\":" + String(d3) + "}";
         webSocket.sendTXT(num, payloadM1);
         webSocket.sendTXT(num, payloadM2);
         webSocket.sendTXT(num, payloadM3);
@@ -119,11 +133,16 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
 // --- HANDLER HTTP API REST STATUS (PORT 80) ---
 void handleApiStatus() {
-  String json = "{\"status\":\"OK\",\"m1\":\"" + String(m1_active ? "START" : "STOP") + 
-                "\", \"m2\":\"" + String(m2_active ? "START" : "STOP") + 
-                "\", \"m3\":\"" + String(m3_active ? "START" : "STOP") + 
-                "\", \"ip\":\"" + WiFi.localIP().toString() + 
-                "\", \"mdns\":\"http://esp32-timer.local\"}";
+  unsigned long d1 = m1_active ? ((millis() - m1_downtimeStartTime) / 1000) : 0;
+  unsigned long d2 = m2_active ? ((millis() - m2_downtimeStartTime) / 1000) : 0;
+  unsigned long d3 = m3_active ? ((millis() - m3_downtimeStartTime) / 1000) : 0;
+
+  String json = "{\"status\":\"OK\","
+                "\"m1\":\"" + String(m1_active ? "START" : "STOP") + "\",\"m1_dur\":" + String(d1) + ","
+                "\"m2\":\"" + String(m2_active ? "START" : "STOP") + "\",\"m2_dur\":" + String(d2) + ","
+                "\"m3\":\"" + String(m3_active ? "START" : "STOP") + "\",\"m3_dur\":" + String(d3) + ","
+                "\"ip\":\"" + WiFi.localIP().toString() + "\","
+                "\"mdns\":\"http://esp32-timer.local\"}";
   
   httpServer.sendHeader("Access-Control-Allow-Origin", "*");
   httpServer.send(200, "application/json", json);
@@ -149,12 +168,15 @@ void setup() {
   // Inisialisasi state awal dari fisik pin
   m1_lastRawState = digitalRead(MESIN_1_PIN);
   m1_active       = (m1_lastRawState == LOW);
+  if (m1_active) m1_downtimeStartTime = millis();
 
   m2_lastRawState = digitalRead(MESIN_2_PIN);
   m2_active       = (m2_lastRawState == LOW);
+  if (m2_active) m2_downtimeStartTime = millis();
 
   m3_lastRawState = digitalRead(MESIN_3_PIN);
   m3_active       = (m3_lastRawState == LOW);
+  if (m3_active) m3_downtimeStartTime = millis();
 
   Serial.println("\n=============================================");
   Serial.println("  ESP32 3-MACHINE WI-FI TIMER STARTING...    ");
@@ -258,8 +280,15 @@ void loop() {
       m1_active = currentM1Active;
       digitalWrite(LED_M1_PIN, m1_active ? HIGH : LOW);
 
-      String payload = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\"}";
-      Serial.printf("[SENSOR M1] Status Baru: %s => Broadcast WS: %s\n", m1_active ? "AKTIF" : "OFF", payload.c_str());
+      unsigned long durasi = 0;
+      if (m1_active) {
+        m1_downtimeStartTime = currentMillis;
+      } else {
+        durasi = (currentMillis - m1_downtimeStartTime) / 1000;
+      }
+
+      String payload = String("{\"machine\":\"M1\",\"status\":\"") + (m1_active ? "START" : "STOP") + "\",\"duration\":" + String(durasi) + "}";
+      Serial.printf("[SENSOR M1] Status Baru: %s (Durasi: %lu dtk) => Broadcast WS: %s\n", m1_active ? "DOWNTIME AKTIF" : "NORMAL/OFF", durasi, payload.c_str());
       
       webSocket.broadcastTXT(payload);
     }
@@ -279,8 +308,15 @@ void loop() {
     if (currentM2Active != m2_active) {
       m2_active = currentM2Active;
 
-      String payload = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\"}";
-      Serial.printf("[SENSOR M2] Status Baru: %s => Broadcast WS: %s\n", m2_active ? "AKTIF" : "OFF", payload.c_str());
+      unsigned long durasi = 0;
+      if (m2_active) {
+        m2_downtimeStartTime = currentMillis;
+      } else {
+        durasi = (currentMillis - m2_downtimeStartTime) / 1000;
+      }
+
+      String payload = String("{\"machine\":\"M2\",\"status\":\"") + (m2_active ? "START" : "STOP") + "\",\"duration\":" + String(durasi) + "}";
+      Serial.printf("[SENSOR M2] Status Baru: %s (Durasi: %lu dtk) => Broadcast WS: %s\n", m2_active ? "DOWNTIME AKTIF" : "NORMAL/OFF", durasi, payload.c_str());
       
       webSocket.broadcastTXT(payload);
     }
@@ -300,12 +336,20 @@ void loop() {
     if (currentM3Active != m3_active) {
       m3_active = currentM3Active;
 
-      String payload = String("{\"machine\":\"M3\",\"status\":\"") + (m3_active ? "START" : "STOP") + "\"}";
-      Serial.printf("[SENSOR M3] Status Baru: %s => Broadcast WS: %s\n", m3_active ? "AKTIF" : "OFF", payload.c_str());
+      unsigned long durasi = 0;
+      if (m3_active) {
+        m3_downtimeStartTime = currentMillis;
+      } else {
+        durasi = (currentMillis - m3_downtimeStartTime) / 1000;
+      }
+
+      String payload = String("{\"machine\":\"M3\",\"status\":\"") + (m3_active ? "START" : "STOP") + "\",\"duration\":" + String(durasi) + "}";
+      Serial.printf("[SENSOR M3] Status Baru: %s (Durasi: %lu dtk) => Broadcast WS: %s\n", m3_active ? "DOWNTIME AKTIF" : "NORMAL/OFF", durasi, payload.c_str());
       
       webSocket.broadcastTXT(payload);
     }
   }
+
 
   delay(10);
 }

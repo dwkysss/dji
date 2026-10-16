@@ -21,6 +21,8 @@ import { createClient } from "@/lib/supabase/client";
 import { getJakartaDateTimeString } from "@/lib/shift-utils";
 import { triggerPiggybackSync } from "@/lib/offline-store";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
+import { useInputTheme } from "@/lib/input-theme-context";
+import { cn } from "@/lib/utils";
 
 import {
   AlertCircle,
@@ -422,6 +424,7 @@ export default function ContinuousForm({
   defaultPcsIndex,
 }: ContinuousFormProps = {}) {
   const { user } = useAuth();
+  const { isDark } = useInputTheme();
   const idempotencyKeyRef = useRef<string>(
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
@@ -1971,25 +1974,54 @@ export default function ContinuousForm({
     designs.find((d) => d.id.toString() === id)?.name || id;
 
   return (
-    <div className="w-full bg-gradient-to-br from-emerald-50/40 via-white to-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3.5 sm:p-6 lg:p-8 shadow-[0_8px_30px_rgba(16,185,129,0.06)] text-slate-800 relative overflow-hidden">
+    <div
+      className={cn(
+        "w-full border rounded-2xl sm:rounded-[24px] p-4 sm:p-6 lg:p-8 relative overflow-hidden transition-colors duration-300",
+        isDark
+          ? "bg-slate-900/95 border-slate-800 text-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+          : "bg-white border-[#e9ecef] text-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.015)]"
+      )}
+    >
       {/* Decorative background shape */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-100/30 via-emerald-50/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10"></div>
+      <div
+        className={cn(
+          "absolute top-0 right-0 w-96 h-96 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10 transition-colors",
+          isDark
+            ? "bg-gradient-to-br from-emerald-500/10 via-slate-800/10 to-transparent"
+            : "bg-gradient-to-br from-emerald-100/30 via-emerald-50/20 to-transparent"
+        )}
+      ></div>
 
       <div className="relative">
         {/* Segmented Control for Mode Switching */}
         <div
           data-tour="meter-mode-switch"
-          className="flex w-full bg-slate-100/80 p-1.5 rounded-2xl mb-4 sm:mb-8 border border-slate-200/60 shadow-inner"
+          className={cn(
+            "flex w-full p-1.5 rounded-2xl mb-4 sm:mb-8 border shadow-inner transition-colors",
+            isDark
+              ? "bg-slate-950/80 border-slate-800"
+              : "bg-slate-100/80 border-slate-200/60"
+          )}
         >
           <a
             href="/input?mode=panel"
             onClick={() => {
               localStorage.setItem("last_input_route", "/input");
             }}
-            className="flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-white/60 transition-all cursor-pointer"
+            className={cn(
+              "flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl transition-all cursor-pointer",
+              isDark
+                ? "text-slate-400 hover:text-blue-400 hover:bg-slate-900/60"
+                : "text-slate-500 hover:text-blue-600 hover:bg-white/60"
+            )}
           >
             <div className="flex items-center gap-2 sm:gap-2.5 opacity-70 hover:opacity-100 transition-opacity">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+              <div
+                className={cn(
+                  "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0",
+                  isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-600"
+                )}
+              >
                 <Box className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
@@ -1999,10 +2031,27 @@ export default function ContinuousForm({
               </div>
             </div>
           </a>
-          <div className="flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl bg-white shadow-sm border border-slate-200 text-emerald-600 relative overflow-hidden group cursor-default">
-            <div className="absolute inset-0 bg-emerald-50/50 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+          <div
+            className={cn(
+              "flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl shadow-sm border relative overflow-hidden group cursor-default transition-colors",
+              isDark
+                ? "bg-slate-900 border-slate-700 text-emerald-400"
+                : "bg-white border-slate-200 text-emerald-600"
+            )}
+          >
+            <div
+              className={cn(
+                "absolute inset-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300",
+                isDark ? "bg-emerald-950/30" : "bg-emerald-50/50"
+              )}
+            ></div>
             <div className="relative flex items-center gap-2 sm:gap-2.5">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+              <div
+                className={cn(
+                  "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0",
+                  isDark ? "bg-emerald-950 text-emerald-400" : "bg-emerald-100 text-emerald-600"
+                )}
+              >
                 <ClipboardList className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
@@ -2014,12 +2063,27 @@ export default function ContinuousForm({
           </div>
         </div>
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4">
+        <div
+          className={cn(
+            "flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4 transition-colors",
+            isDark ? "border-slate-800" : "border-slate-100"
+          )}
+        >
           <div>
-            <h3 className="text-base font-bold text-slate-900">
+            <h3
+              className={cn(
+                "text-base font-bold",
+                isDark ? "text-slate-100" : "text-slate-900"
+              )}
+            >
               Form Input Produksi (Meteran)
             </h3>
-            <p className="text-xs text-slate-400 font-normal mt-0.5 sm:mt-1">
+            <p
+              className={cn(
+                "text-xs font-normal mt-0.5 sm:mt-1",
+                isDark ? "text-slate-400" : "text-slate-400"
+              )}
+            >
               Data Header akan otomatis tersimpan untuk roll/meteran berikutnya.
             </p>
           </div>
@@ -2117,7 +2181,10 @@ export default function ContinuousForm({
         onSubmit={handleSubmit(onSubmit, onInvalid)}
         className="space-y-4"
       >
-        <div className="bg-white border border-slate-200 shadow-sm rounded-[20px] p-3 sm:p-4 lg:p-5">
+        <div className={cn(
+          "shadow-sm rounded-[20px] p-3 sm:p-4 lg:p-5 transition-colors",
+          isDark ? "bg-slate-900/60 border border-slate-800" : "bg-white border border-slate-200"
+        )}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 items-start">
             {/* Kolom Kiri: Info Header & Info Laporan Meter */}
             <div className="flex flex-col gap-3 sm:gap-4 lg:gap-5 self-start sm:min-h-[345px]">
@@ -2141,16 +2208,33 @@ export default function ContinuousForm({
 
               {/* Banner Peringatan Serah Terima Shift (Jika Operator Berubah & Operator Sebelumnya Belum Finish) */}
               {handoverWarning?.needsMeterAwal && (
-                <div className="w-full p-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl flex flex-col gap-2.5 shadow-xs animate-fadeIn">
+                <div
+                  className={cn(
+                    "w-full p-4 border-2 rounded-2xl flex flex-col gap-2.5 shadow-xs animate-fadeIn transition-colors",
+                    isDark
+                      ? "bg-amber-950/40 border-amber-800/80 text-amber-200"
+                      : "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300 text-amber-950"
+                  )}
+                >
                   <div className="flex items-start gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
                       <ArrowRightLeft className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                      <h4
+                        className={cn(
+                          "text-xs font-black uppercase tracking-wider",
+                          isDark ? "text-amber-300" : "text-amber-950"
+                        )}
+                      >
                         Serah Terima Shift
                       </h4>
-                      <p className="text-[11px] font-semibold text-amber-800 leading-snug">
+                      <p
+                        className={cn(
+                          "text-[11px] font-semibold leading-snug",
+                          isDark ? "text-amber-300/80" : "text-amber-800"
+                        )}
+                      >
                         Operator sebelumnya <strong>{handoverWarning.lastOperator}</strong> (s.d. {handoverWarning.lastMeter}m) belum lapor finish.
                       </p>
                     </div>
@@ -2173,15 +2257,26 @@ export default function ContinuousForm({
               {/* Tombol Pemicu Pop-up Meteran (Sejajar dengan Card Nomor Panel pada form panel) */}
               <div
                 data-tour="meter-final-report"
-                className="w-full p-4 sm:p-5 bg-emerald-50/80 border-2 border-emerald-200 rounded-3xl relative shadow-sm flex flex-col justify-center min-h-[140px]"
+                className={cn(
+                  "w-full p-4 sm:p-5 rounded-3xl relative shadow-sm flex flex-col justify-center min-h-[140px] transition-colors",
+                  isDark
+                    ? "bg-slate-900/95 border-2 border-emerald-900/60 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+                    : "bg-emerald-50/80 border-2 border-emerald-200"
+                )}
               >
                 <button
                   type="button"
                   onClick={() => setShowReportCardInfo((prev) => !prev)}
-                  className={`absolute top-2.5 right-2.5 transition-colors z-20 cursor-pointer p-0.5 rounded-full ${showReportCardInfo
-                    ? "text-emerald-900"
-                    : "text-emerald-600/80 hover:text-emerald-800"
-                    }`}
+                  className={cn(
+                    "absolute top-2.5 right-2.5 transition-colors z-20 cursor-pointer p-0.5 rounded-full",
+                    isDark
+                      ? showReportCardInfo
+                        ? "text-emerald-400 bg-slate-800"
+                        : "text-slate-400 hover:text-emerald-400"
+                      : showReportCardInfo
+                        ? "text-emerald-900"
+                        : "text-emerald-600/80 hover:text-emerald-800"
+                  )}
                   title="Info Laporan"
                 >
                   <Info className="w-4 h-4" />
@@ -2195,7 +2290,12 @@ export default function ContinuousForm({
                   </div>
                 )}
 
-                <div className="absolute -top-3.5 lg:-top-4 left-1/2 -translate-x-1/2 bg-emerald-600 px-3 lg:px-5 py-1 lg:py-1.5 text-[9px] lg:text-[11px] font-black text-white uppercase tracking-widest border-2 border-white rounded-full shadow-md whitespace-nowrap">
+                <div
+                  className={cn(
+                    "absolute -top-3.5 lg:-top-4 left-1/2 -translate-x-1/2 bg-emerald-600 px-3 lg:px-5 py-1 lg:py-1.5 text-[9px] lg:text-[11px] font-black text-white uppercase tracking-widest border-2 rounded-full shadow-md whitespace-nowrap transition-colors",
+                    isDark ? "border-slate-900 shadow-emerald-950/40" : "border-white"
+                  )}
+                >
                   {watch("nomorMc") === "T2A"
                     ? "Laporan Meter"
                     : "Laporan Hasil"}
@@ -2203,20 +2303,46 @@ export default function ContinuousForm({
 
                 <div className="mt-1.5 flex flex-col items-center justify-center text-center gap-3">
                   <div>
-                    <h4 className="text-sm font-black text-emerald-950 tracking-tight">
+                    <h4
+                      className={cn(
+                        "text-sm font-black tracking-tight transition-colors",
+                        isDark ? "text-slate-100" : "text-emerald-950"
+                      )}
+                    >
                       {watch("nomorMc") === "T2A"
                         ? "Pelaporan Meter Produksi"
                         : "Pelaporan Akhir Meter"}
                     </h4>
                     {watch("nomorMc") !== "T2A" && (
                       <div className="flex items-center justify-center gap-1.5 flex-wrap mt-2">
-                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100/90 text-emerald-900 border border-emerald-300 shadow-2xs">
+                        <span
+                          className={cn(
+                            "px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold border shadow-2xs transition-colors",
+                            isDark
+                              ? "bg-emerald-950/70 text-emerald-300 border-emerald-800/80"
+                              : "bg-emerald-100/90 text-emerald-900 border-emerald-300"
+                          )}
+                        >
                           Oper Shift
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-100/90 text-amber-900 border border-amber-300 shadow-2xs">
+                        <span
+                          className={cn(
+                            "px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold border shadow-2xs transition-colors",
+                            isDark
+                              ? "bg-amber-950/70 text-amber-300 border-amber-800/80"
+                              : "bg-amber-100/90 text-amber-900 border-amber-300"
+                          )}
+                        >
                           Istirahat
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-teal-100/90 text-teal-900 border border-teal-300 shadow-2xs">
+                        <span
+                          className={cn(
+                            "px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold border shadow-2xs transition-colors",
+                            isDark
+                              ? "bg-teal-950/70 text-teal-300 border-teal-800/80"
+                              : "bg-teal-100/90 text-teal-900 border-teal-300"
+                          )}
+                        >
                           Masuk
                         </span>
                       </div>
@@ -2237,9 +2363,11 @@ export default function ContinuousForm({
                         setIsLoadingMeterStart(false);
                       }
                     }}
-                    className={`w-full max-w-xs px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-95 text-white text-sm font-black rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2.5 cursor-pointer ${
+                    className={cn(
+                      "w-full max-w-xs px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-95 text-white text-sm font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 cursor-pointer",
+                      isDark ? "shadow-emerald-950/50" : "shadow-emerald-600/20",
                       isLoadingMeterStart ? "opacity-75 cursor-not-allowed pointer-events-none" : ""
-                    }`}
+                    )}
                   >
                     {isLoadingMeterStart ? (
                       <>
@@ -2394,7 +2522,12 @@ export default function ContinuousForm({
               setShowAdvancedActions(true);
             }
           }}
-          className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-rose-300 border-dashed text-rose-600 font-bold text-sm hover:bg-rose-50 hover:text-rose-700 hover:border-rose-400 transition-all duration-200"
+          className={cn(
+            "w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl border-2 border-dashed font-bold text-sm transition-all duration-200 cursor-pointer active:scale-98",
+            isDark
+              ? "border-rose-500/70 bg-rose-950/40 text-rose-300 hover:bg-rose-900/50 hover:text-rose-200 hover:border-rose-400 shadow-xs"
+              : "border-rose-300 bg-rose-50/50 text-rose-600 hover:bg-rose-100/70 hover:text-rose-700 hover:border-rose-400"
+          )}
         >
           {showAdvancedActions ? (
             <>Tutup Opsi Lanjutan</>
@@ -2667,21 +2800,34 @@ export default function ContinuousForm({
           >
             <div
               data-tour="meter-modal"
-              className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl flex flex-col animate-scaleIn relative overflow-hidden max-h-[95vh] md:max-h-[90vh]"
+              className={cn(
+                "w-full max-w-md rounded-3xl p-6 shadow-2xl flex flex-col animate-scaleIn relative overflow-hidden max-h-[95vh] md:max-h-[90vh] transition-colors",
+                isDark ? "bg-slate-900 border border-slate-800 text-slate-100" : "bg-white text-slate-800"
+              )}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 opacity-10"></div>
+              <div
+                className={cn(
+                  "absolute top-0 left-0 w-full h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 pointer-events-none transition-opacity",
+                  isDark ? "opacity-20" : "opacity-10"
+                )}
+              ></div>
 
               <div className="flex justify-between items-center mb-6 relative z-10">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                  <div
+                    className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                      isDark ? "bg-emerald-950/70 text-emerald-400 border border-emerald-800/60" : "bg-emerald-100 text-emerald-600"
+                    )}
+                  >
                     <Database className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-slate-800">
+                    <h3 className={cn("text-base font-black transition-colors", isDark ? "text-slate-100" : "text-slate-800")}>
                       {isLastRoll ? "Laporan Potong Kain" : "Laporan Meteran"}
                     </h3>
-                    <p className="text-[10px] text-slate-500 font-medium">
+                    <p className={cn("text-[10px] font-medium transition-colors", isDark ? "text-slate-400" : "text-slate-500")}>
                       {isLastRoll ? "Isi meteran untuk potong kain" : "Isi di akhir shift"}
                     </p>
                   </div>
@@ -2689,7 +2835,10 @@ export default function ContinuousForm({
                 <button
                   type="button"
                   onClick={() => setIsMeterModalOpen(false)}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer",
+                    isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200" : "bg-slate-100 hover:bg-slate-200 text-slate-500"
+                  )}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2699,22 +2848,32 @@ export default function ContinuousForm({
                 {watch("nomorMc") === "T2A" ? (
                   <div className="space-y-3">
                     {isMeterAwalLocked && originalT2ATarget !== null && (
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                          <ClipboardList className="w-4 h-4 text-blue-600" />
+                      <div
+                        className={cn(
+                          "p-3 rounded-xl flex items-center gap-3 border transition-colors",
+                          isDark ? "bg-blue-950/40 border-blue-800/80 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-800"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
+                            isDark ? "bg-blue-900/60 text-blue-400" : "bg-blue-100 text-blue-600"
+                          )}
+                        >
+                          <ClipboardList className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-blue-800 uppercase">
+                          <p className={cn("text-[10px] font-bold uppercase", isDark ? "text-blue-300" : "text-blue-800")}>
                             Target Produksi Awal
                           </p>
-                          <p className="text-base font-black text-blue-700">
+                          <p className={cn("text-base font-black", isDark ? "text-blue-400" : "text-blue-700")}>
                             {originalT2ATarget} m
                           </p>
                         </div>
                       </div>
                     )}
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-bold text-slate-600 uppercase">
+                      <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-600")}>
                         {isMeterAwalLocked
                           ? "Start Meter"
                           : "Target Produksi (meter)"}
@@ -2725,21 +2884,27 @@ export default function ContinuousForm({
                         onWheel={(e) => (e.target as HTMLElement).blur()}
                         {...register("meterAwal")}
                         readOnly={isMeterAwalLocked}
-                        className={`h-12 px-4 rounded-xl border text-base font-semibold outline-none transition-all ${isMeterAwalLocked
-                          ? "bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed"
-                          : "bg-white border-slate-200 focus:border-emerald-400"
-                          }`}
+                        className={cn(
+                          "h-12 px-4 rounded-xl border text-base font-semibold outline-none transition-all",
+                          isDark
+                            ? isMeterAwalLocked
+                              ? "bg-slate-950/80 border-slate-800 text-slate-400 cursor-not-allowed"
+                              : "bg-slate-950 border-slate-800 text-slate-100 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                            : isMeterAwalLocked
+                              ? "bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed"
+                              : "bg-white border-slate-200 focus:border-emerald-400"
+                        )}
                         placeholder="Contoh: 600"
                       />
                       {isMeterAwalLocked && (
-                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                        <p className={cn("text-[10px] font-semibold mt-0.5", isDark ? "text-slate-400" : "text-slate-500")}>
                           Dilanjutkan dari sisa meter shift sebelumnya.
                         </p>
                       )}
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-bold text-slate-600 uppercase">
+                      <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-600")}>
                         Finish Meter (Counter Mesin)
                       </label>
                       <input
@@ -2753,16 +2918,31 @@ export default function ContinuousForm({
                           }
                         }}
                         {...register("meterAkhir")}
-                        className="h-12 px-4 rounded-xl bg-white border border-slate-200 text-base font-semibold focus:border-emerald-400 outline-none transition-all text-right"
+                        className={cn(
+                          "h-12 px-4 rounded-xl border text-base font-semibold outline-none transition-all text-right",
+                          isDark
+                            ? "bg-slate-950 border-slate-800 text-slate-100 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                            : "bg-white border-slate-200 text-slate-900 focus:border-emerald-400"
+                        )}
                         placeholder="Masukkan angka di mesin saat ini"
                       />
                     </div>
 
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                      <label className="text-[10px] font-bold text-emerald-800 uppercase flex justify-between items-center mb-1">
+                    <div
+                      className={cn(
+                        "p-3 border rounded-xl transition-colors",
+                        isDark ? "bg-emerald-950/30 border-emerald-800/60" : "bg-emerald-50 border-emerald-200"
+                      )}
+                    >
+                      <label
+                        className={cn(
+                          "text-[10px] font-bold uppercase flex justify-between items-center mb-1 transition-colors",
+                          isDark ? "text-emerald-300" : "text-emerald-800"
+                        )}
+                      >
                         <span>Total Produksi</span>
                       </label>
-                      <div className="text-right text-lg font-black text-emerald-700">
+                      <div className={cn("text-right text-lg font-black", isDark ? "text-emerald-400" : "text-emerald-700")}>
                         {(() => {
                           const akhirStr = watch("meterAkhir");
                           if (!akhirStr || akhirStr.trim() === "")
@@ -2779,17 +2959,24 @@ export default function ContinuousForm({
                 ) : (
                   <>
                     {handoverWarning?.needsMeterAwal && (
-                      <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl mb-3 flex items-start gap-2.5 text-amber-900 text-xs shadow-xs">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div
+                        className={cn(
+                          "p-3 border rounded-xl mb-3 flex items-start gap-2.5 text-xs shadow-xs transition-colors",
+                          isDark
+                            ? "bg-amber-950/40 border-amber-800/80 text-amber-200"
+                            : "bg-amber-50 border-amber-300 text-amber-900"
+                        )}
+                      >
+                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                         <div className="leading-relaxed">
-                          <span className="font-bold block text-amber-950 mb-0.5">Serah Terima Shift Otomatis</span>
+                          <span className={cn("font-bold block mb-0.5", isDark ? "text-amber-300" : "text-amber-950")}>Serah Terima Shift Otomatis</span>
                           Operator sebelumnya (<b>{handoverWarning.lastOperator}</b>) belum melaporkan finish shift.
                           Counter meter yang Anda masukkan di bawah akan otomatis <b>menutup shift {handoverWarning.lastOperator}</b>, dan shift Anda akan langsung dimulai dari counter tersebut.
                         </div>
                       </div>
                     )}
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-bold text-slate-600 uppercase">
+                      <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-600")}>
                         Start Meter Otomatis
                       </label>
                       <input
@@ -2798,10 +2985,15 @@ export default function ContinuousForm({
                         onWheel={(e) => (e.target as HTMLElement).blur()}
                         {...register("meterAwal")}
                         readOnly
-                        className="h-12 px-4 rounded-xl bg-slate-100 border border-slate-200 text-base font-semibold text-slate-700 outline-none cursor-not-allowed"
+                        className={cn(
+                          "h-12 px-4 rounded-xl border text-base font-semibold outline-none cursor-not-allowed transition-colors",
+                          isDark
+                            ? "bg-slate-950/80 border-slate-800 text-slate-400"
+                            : "bg-slate-100 border-slate-200 text-slate-700"
+                        )}
                         placeholder="Otomatis dari finish terakhir"
                       />
-                      <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                      <p className={cn("text-[10px] font-semibold mt-0.5 transition-colors", isDark ? "text-slate-400" : "text-slate-500")}>
                         Potongan baru mulai dari 0. Jika shift sebelumnya
                         belum potong kain, nilai ini mengikuti finish meter
                         terakhir.
@@ -2813,7 +3005,7 @@ export default function ContinuousForm({
                       )}
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-bold text-slate-600 uppercase">
+                      <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-600")}>
                         {watchJenisLaporan === "Mulai Istirahat"
                           ? "Meter Saat Istirahat"
                           : watchJenisLaporan === "Selesai Istirahat"
@@ -2831,7 +3023,12 @@ export default function ContinuousForm({
                           }
                         }}
                         {...register("meterAkhir")}
-                        className="h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-base font-semibold focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+                        className={cn(
+                          "h-12 px-4 rounded-xl border text-base font-semibold outline-none transition-all",
+                          isDark
+                            ? "bg-slate-950 border-slate-800 text-slate-100 focus:bg-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                            : "bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                        )}
                         placeholder="Contoh: 250"
                       />
                       {errors.meterAkhir && (
@@ -2841,10 +3038,25 @@ export default function ContinuousForm({
                       )}
                     </div>
 
-                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl mt-2">
-                      <label className="text-[10px] font-bold text-emerald-800 uppercase flex justify-between items-center mb-1">
+                    <div
+                      className={cn(
+                        "p-4 border rounded-xl mt-2 transition-colors",
+                        isDark ? "bg-emerald-950/30 border-emerald-800/60" : "bg-emerald-50 border-emerald-200"
+                      )}
+                    >
+                      <label
+                        className={cn(
+                          "text-[10px] font-bold uppercase flex justify-between items-center mb-1 transition-colors",
+                          isDark ? "text-emerald-300" : "text-emerald-800"
+                        )}
+                      >
                         <span>Total Hasil Produksi</span>
-                        <span className="text-[9px] text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded font-black uppercase">
+                        <span
+                          className={cn(
+                            "text-[9px] px-1.5 py-0.5 rounded font-black uppercase transition-colors",
+                            isDark ? "text-emerald-300 bg-emerald-900/60" : "text-emerald-600 bg-emerald-100"
+                          )}
+                        >
                           Auto Calculate
                         </span>
                       </label>
@@ -2855,7 +3067,12 @@ export default function ContinuousForm({
                         tabIndex={-1}
                         onWheel={(e) => (e.target as HTMLElement).blur()}
                         {...register("hasilProduksiMeter")}
-                        className="w-full h-12 px-4 rounded-xl bg-emerald-100/50 border border-emerald-300 text-lg font-black text-emerald-700 outline-none shadow-sm text-right cursor-not-allowed select-none"
+                        className={cn(
+                          "w-full h-12 px-4 rounded-xl border text-lg font-black outline-none shadow-sm text-right cursor-not-allowed select-none transition-colors",
+                          isDark
+                            ? "bg-emerald-950/60 border-emerald-800/80 text-emerald-300"
+                            : "bg-emerald-100/50 border-emerald-300 text-emerald-700"
+                        )}
                         placeholder="0"
                       />
                     </div>
@@ -2863,8 +3080,13 @@ export default function ContinuousForm({
                 )}
               </div>
 
-              <div className="mt-4 relative z-10 bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-2">
-                <label className="text-xs font-bold text-slate-700 uppercase">
+              <div
+                className={cn(
+                  "mt-4 relative z-10 border p-4 rounded-xl flex flex-col gap-2 transition-colors",
+                  isDark ? "bg-slate-950/60 border-slate-800" : "bg-slate-50 border-slate-200"
+                )}
+              >
+                <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-700")}>
                   Jenis Laporan Meter
                 </label>
                 <input type="hidden" id="jenisLaporan" {...register("jenisLaporan")} />
@@ -2873,7 +3095,12 @@ export default function ContinuousForm({
                     <button
                       type="button"
                       onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
-                      className="w-full px-3 py-3 rounded-xl border-2 border-[#0070bc] bg-sky-50 text-[#0070bc] text-xs font-bold transition-all flex items-center justify-center text-center gap-1 shadow-sm"
+                      className={cn(
+                        "w-full px-3 py-3 rounded-xl border-2 text-xs font-bold transition-all flex items-center justify-center text-center gap-1 shadow-sm cursor-pointer",
+                        isDark
+                          ? "border-sky-500 bg-sky-950/50 text-sky-300"
+                          : "border-[#0070bc] bg-sky-50 text-[#0070bc]"
+                      )}
                     >
                       <span className="block font-black uppercase">Laporan Potong Kain</span>
                     </button>
@@ -2884,10 +3111,16 @@ export default function ContinuousForm({
                       <button
                         type="button"
                         onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
-                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-[0.98] ${watchJenisLaporan === ""
-                          ? "border-[#0070bc] bg-sky-50 text-[#0070bc] scale-[1.01]"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                          }`}
+                        className={cn(
+                          "px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-[0.98] cursor-pointer",
+                          watchJenisLaporan === ""
+                            ? isDark
+                              ? "border-sky-500 bg-sky-950/50 text-sky-300 scale-[1.01]"
+                              : "border-[#0070bc] bg-sky-50 text-[#0070bc] scale-[1.01]"
+                            : isDark
+                              ? "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:bg-slate-850"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        )}
                       >
                         <span className="block font-black uppercase">Laporan Oper Shift</span>
                       </button>
@@ -2895,10 +3128,16 @@ export default function ContinuousForm({
                       <button
                         type="button"
                         onClick={() => setValue("jenisLaporan", "Mulai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-sm active:scale-[0.98] ${watchJenisLaporan === "Mulai Istirahat"
-                          ? "border-amber-500 bg-amber-50 text-amber-700 scale-[1.01]"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                          }`}
+                        className={cn(
+                          "px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-sm active:scale-[0.98] cursor-pointer",
+                          watchJenisLaporan === "Mulai Istirahat"
+                            ? isDark
+                              ? "border-amber-500 bg-amber-950/50 text-amber-300 scale-[1.01]"
+                              : "border-amber-500 bg-amber-50 text-amber-700 scale-[1.01]"
+                            : isDark
+                              ? "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:bg-slate-850"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        )}
                       >
                         <span className="block font-black uppercase">Istirahat</span>
                         <span className="block text-[9px] font-semibold opacity-75">Mau Istirahat</span>
@@ -2907,10 +3146,16 @@ export default function ContinuousForm({
                       <button
                         type="button"
                         onClick={() => setValue("jenisLaporan", "Selesai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                        className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-sm active:scale-[0.98] ${watchJenisLaporan === "Selesai Istirahat"
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.01]"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                          }`}
+                        className={cn(
+                          "px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-sm active:scale-[0.98] cursor-pointer",
+                          watchJenisLaporan === "Selesai Istirahat"
+                            ? isDark
+                              ? "border-emerald-500 bg-emerald-950/50 text-emerald-300 scale-[1.01]"
+                              : "border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.01]"
+                            : isDark
+                              ? "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:bg-slate-850"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        )}
                       >
                         <span className="block font-black uppercase">Masuk</span>
                         <span className="block text-[9px] font-semibold opacity-75">Masuk Kembali</span>
@@ -2918,8 +3163,13 @@ export default function ContinuousForm({
                     </div>
 
                     {(watchJenisLaporan === "Mulai Istirahat" || watchJenisLaporan === "Selesai Istirahat") && (
-                      <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                        <label className="text-[10px] font-black text-amber-800 uppercase block mb-1">
+                      <div
+                        className={cn(
+                          "mt-3 p-3 rounded-xl border transition-colors",
+                          isDark ? "bg-amber-950/30 border-amber-800/60" : "bg-amber-50 border-amber-200"
+                        )}
+                      >
+                        <label className={cn("text-[10px] font-black uppercase block mb-1 transition-colors", isDark ? "text-amber-300" : "text-amber-800")}>
                           Siapa yang menjaga mesin (Backup) - Shift {activeShiftName}?
                         </label>
                         <select
@@ -2938,7 +3188,12 @@ export default function ContinuousForm({
                               }
                             } catch {}
                           }}
-                          className="w-full h-10 px-3 rounded-lg border border-amber-300 text-sm font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-amber-400 outline-none"
+                          className={cn(
+                            "w-full h-10 px-3 rounded-lg border text-sm font-semibold outline-none transition-colors",
+                            isDark
+                              ? "bg-slate-900 border-amber-800/80 text-slate-200 focus:ring-2 focus:ring-amber-500"
+                              : "bg-white border-amber-300 text-slate-700 focus:ring-2 focus:ring-amber-400"
+                          )}
                         >
                           <option value="">-- Pilih Operator Backup (Shift {activeShiftName}) --</option>
                           {(() => {
@@ -3040,7 +3295,12 @@ export default function ContinuousForm({
                         }
                       }}
                       disabled={isSubmitting || isProcessingSubmit}
-                      className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={cn(
+                        "flex-1 py-3.5 active:scale-95 text-white font-bold rounded-xl transition-all flex justify-center items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed",
+                        isDark
+                          ? "bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 shadow-lg shadow-blue-900/30"
+                          : "bg-emerald-500 hover:bg-emerald-600 shadow-md shadow-emerald-500/20"
+                      )}
                     >
                       {isSubmitting || isProcessingSubmit ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
@@ -3055,7 +3315,12 @@ export default function ContinuousForm({
                     <button
                       type="button"
                       onClick={() => setIsMeterModalOpen(false)}
-                      className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors text-sm"
+                      className={cn(
+                        "flex-1 py-3.5 font-bold rounded-xl transition-colors text-sm cursor-pointer",
+                        isDark
+                          ? "bg-slate-800 hover:bg-slate-700 text-slate-300"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                      )}
                     >
                       Batal
                     </button>
@@ -3153,7 +3418,12 @@ export default function ContinuousForm({
                         }
                       }}
                       disabled={isSubmitting || isProcessingSubmit}
-                      className="flex-[2] py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex justify-center items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={cn(
+                        "flex-[2] py-3.5 active:scale-95 text-white font-bold rounded-xl transition-all flex justify-center items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed",
+                        isDark
+                          ? "bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 shadow-lg shadow-blue-900/30"
+                          : "bg-emerald-500 hover:bg-emerald-600 shadow-md shadow-emerald-500/20"
+                      )}
                     >
                       {isSubmitting || isProcessingSubmit ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
@@ -3284,18 +3554,30 @@ export default function ContinuousForm({
 
       {/* Modal Konfirmasi Perubahan Jumlah PCS */}
       {pcsConfirmModal.isOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div
+            className={cn(
+              "w-full max-w-sm rounded-3xl p-6 shadow-2xl flex flex-col items-center animate-scaleIn text-center relative overflow-hidden transition-colors border",
+              isDark
+                ? "bg-slate-900 border-slate-800 text-slate-100"
+                : "bg-white border-slate-100 text-slate-800"
+            )}
+          >
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-sky-500"></div>
-            <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-500 flex items-center justify-center mb-4">
+            <div
+              className={cn(
+                "w-14 h-14 rounded-full flex items-center justify-center mb-4 transition-colors",
+                isDark ? "bg-sky-950/70 text-sky-400 border border-sky-800/60" : "bg-sky-50 text-sky-500"
+              )}
+            >
               <AlertCircle className="w-8 h-8" />
             </div>
-            <h4 className="text-lg font-bold text-slate-800">
+            <h4 className={cn("text-lg font-bold transition-colors", isDark ? "text-slate-100" : "text-slate-800")}>
               {pcsConfirmModal.actionType === "increment"
                 ? "Tambah PCS?"
                 : "Hapus PCS?"}
             </h4>
-            <p className="text-sm text-slate-600 mt-2 mb-6 leading-relaxed">
+            <p className={cn("text-sm mt-2 mb-6 leading-relaxed transition-colors", isDark ? "text-slate-400" : "text-slate-600")}>
               {pcsConfirmModal.actionType === "increment"
                 ? `Apakah Anda yakin ingin menambah jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs?`
                 : `Apakah Anda yakin ingin mengurangi jumlah PCS menjadi ${pcsConfirmModal.targetCount} pcs? Kolom isian meter untuk PCS di atas nomor tersebut akan hilang.`}
@@ -3304,7 +3586,12 @@ export default function ContinuousForm({
               <button
                 type="button"
                 onClick={() => setPcsConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl active:scale-95 transition-all text-sm"
+                className={cn(
+                  "flex-1 py-3 font-bold rounded-xl active:scale-95 transition-all text-sm cursor-pointer",
+                  isDark
+                    ? "bg-slate-800 hover:bg-slate-700 text-slate-300"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                )}
               >
                 Batal
               </button>
@@ -3326,7 +3613,7 @@ export default function ContinuousForm({
                   }
                   setPcsConfirmModal(prev => ({ ...prev, isOpen: false }));
                 }}
-                className="flex-1 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl active:scale-95 transition-all text-sm"
+                className="flex-1 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl active:scale-95 transition-all text-sm cursor-pointer"
               >
                 Ya, Ubah
               </button>
@@ -3342,18 +3629,32 @@ export default function ContinuousForm({
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
             onClick={() => !isSubmittingHandover && setIsHandoverModalOpen(false)}
           />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-100 flex flex-col">
+          <div
+            className={cn(
+              "relative rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 border flex flex-col transition-colors",
+              isDark
+                ? "bg-slate-900 border-slate-800 text-slate-100"
+                : "bg-white border-slate-100 text-slate-900"
+            )}
+          >
             {/* Header Modal */}
-            <div className="px-6 py-5 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200/80 flex items-center justify-between">
+            <div
+              className={cn(
+                "px-6 py-5 border-b flex items-center justify-between transition-colors",
+                isDark
+                  ? "bg-slate-950/80 border-slate-800"
+                  : "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200/80"
+              )}
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
                   <ArrowRightLeft className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                  <h3 className={cn("text-base font-black tracking-tight", isDark ? "text-slate-100" : "text-slate-900")}>
                     Serah Terima Shift
                   </h3>
-                  <p className="text-xs font-semibold text-slate-500">
+                  <p className={cn("text-xs font-semibold", isDark ? "text-slate-400" : "text-slate-500")}>
                     Mesin {watchNomorMc} • Potongan #{watchPotonganKe}
                   </p>
                 </div>
@@ -3362,7 +3663,12 @@ export default function ContinuousForm({
                 type="button"
                 disabled={isSubmittingHandover}
                 onClick={() => setIsHandoverModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-full transition-colors cursor-pointer"
+                className={cn(
+                  "p-2 rounded-full transition-colors cursor-pointer",
+                  isDark
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/60"
+                )}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -3371,9 +3677,16 @@ export default function ContinuousForm({
             {/* Body Modal */}
             <div className="p-6 flex flex-col gap-4">
               {/* Card info status operator */}
-              <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-xs font-semibold text-amber-900 leading-relaxed">
+              <div
+                className={cn(
+                  "p-4 border rounded-2xl flex items-start gap-3 transition-colors",
+                  isDark
+                    ? "bg-amber-950/30 border-amber-800/60 text-amber-200"
+                    : "bg-amber-50/80 border-amber-200 text-amber-900"
+                )}
+              >
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-xs font-semibold leading-relaxed">
                   {(() => {
                     const lastOp = handoverWarning?.lastOperator || "sebelumnya";
                     const lastM = handoverWarning?.lastMeter || 0;
@@ -3406,7 +3719,7 @@ export default function ContinuousForm({
                       </>
                     );
                   })()}
-                  <div className="mt-1 text-[11px] text-amber-800 font-medium">
+                  <div className={cn("mt-1 text-[11px] font-medium", isDark ? "text-amber-300/80" : "text-amber-800")}>
                     Masukkan counter meter mesin saat serah terima agar sisa produksi operator sebelumnya tertutup otomatis dan shift Anda (<strong>{getOperatorName(watch("operatorId"))}</strong>) dimulai dari meter tersebut.
                   </div>
                 </div>
@@ -3414,9 +3727,14 @@ export default function ContinuousForm({
 
               {/* Input counter meter */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <label className={cn("text-xs font-black uppercase tracking-wider flex items-center justify-between", isDark ? "text-slate-300" : "text-slate-700")}>
                   <span>Counter Meter Saat Serah Terima</span>
-                  <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase">
+                  <span
+                    className={cn(
+                      "text-[9px] font-black px-2 py-0.5 rounded-full uppercase transition-colors",
+                      isDark ? "bg-amber-950/80 text-amber-300 border border-amber-800/60" : "bg-amber-100 text-amber-700"
+                    )}
+                  >
                     Wajib Diisi
                   </span>
                 </label>
@@ -3432,7 +3750,12 @@ export default function ContinuousForm({
                     }}
                     onWheel={(e) => (e.target as HTMLElement).blur()}
                     placeholder={`Misal: ${handoverWarning?.lastMeter ? handoverWarning.lastMeter + 10 : 100}`}
-                    className="w-full h-13 px-4 pr-16 rounded-2xl bg-slate-50 border-2 border-slate-200 focus:border-amber-500 focus:bg-white text-lg font-black text-slate-900 outline-none transition-all shadow-inner"
+                    className={cn(
+                      "w-full h-13 px-4 pr-16 rounded-2xl border-2 text-lg font-black outline-none transition-all shadow-inner",
+                      isDark
+                        ? "bg-slate-950 border-slate-800 text-white focus:border-amber-500 focus:bg-slate-900"
+                        : "bg-slate-50 border-slate-200 text-slate-900 focus:border-amber-500 focus:bg-white"
+                    )}
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 uppercase">
                     Meter
@@ -3450,7 +3773,7 @@ export default function ContinuousForm({
                 if (!isNaN(inputNum)) {
                   if (inputNum < lastMeter) {
                     return (
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-700 flex items-center gap-2">
+                      <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs font-bold text-red-500 flex items-center gap-2">
                         <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                         <span>Counter meter tidak boleh kurang dari {lastMeter}m!</span>
                       </div>
@@ -3458,12 +3781,22 @@ export default function ContinuousForm({
                   }
                   const diff = Math.max(0, inputNum - baseStart);
                   return (
-                    <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col gap-1 text-[11px] font-semibold text-slate-600">
+                    <div
+                      className={cn(
+                        "p-3 border rounded-xl flex flex-col gap-1 text-[11px] font-semibold transition-colors",
+                        isDark ? "bg-slate-950/60 border-slate-800 text-slate-400" : "bg-slate-50 border-slate-200/80 text-slate-600"
+                      )}
+                    >
                       <div className="flex justify-between">
                         <span>Sisa produksi {handoverWarning?.lastOperator}:</span>
-                        <span className="font-bold text-slate-800">+{diff} meter ({baseStart}m &rarr; {inputNum}m)</span>
+                        <span className={cn("font-bold", isDark ? "text-slate-200" : "text-slate-800")}>+{diff} meter ({baseStart}m &rarr; {inputNum}m)</span>
                       </div>
-                      <div className="flex justify-between border-t border-slate-200/60 pt-1 text-emerald-700 font-bold">
+                      <div
+                        className={cn(
+                          "flex justify-between border-t pt-1 font-bold",
+                          isDark ? "border-slate-800 text-emerald-400" : "border-slate-200/60 text-emerald-700"
+                        )}
+                      >
                         <span>Shift Anda dimulai dari:</span>
                         <span>{inputNum} meter</span>
                       </div>
@@ -3475,7 +3808,7 @@ export default function ContinuousForm({
 
               {/* Error Message */}
               {handoverModalError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-700 flex items-center gap-2">
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs font-bold text-red-500 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                   <span>{handoverModalError}</span>
                 </div>
@@ -3483,12 +3816,20 @@ export default function ContinuousForm({
             </div>
 
             {/* Footer Modal */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            <div
+              className={cn(
+                "px-6 py-4 border-t flex items-center justify-end gap-2.5 transition-colors",
+                isDark ? "bg-slate-950/80 border-slate-800" : "bg-slate-50 border-slate-100"
+              )}
+            >
               <button
                 type="button"
                 disabled={isSubmittingHandover}
                 onClick={() => setIsHandoverModalOpen(false)}
-                className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-200/70 transition-colors cursor-pointer"
+                className={cn(
+                  "px-5 py-2.5 rounded-xl font-bold text-xs transition-colors cursor-pointer",
+                  isDark ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800" : "text-slate-600 hover:bg-slate-200/70"
+                )}
               >
                 Nanti Saja
               </button>

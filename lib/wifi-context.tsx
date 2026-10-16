@@ -20,7 +20,12 @@ export interface WifiLogEntry {
 
 export type MachineChannel = "M1" | "M2" | "M3" | "M4";
 
-export type WifiSignalListener = (machine: MachineChannel, signal: "START" | "STOP", source: string) => void;
+export type WifiSignalListener = (
+  machine: MachineChannel,
+  signal: "START" | "STOP",
+  source: string,
+  duration?: number
+) => void;
 
 export type ConnectionStatus = "terputus" | "menghubungkan" | "terhubung";
 
@@ -104,12 +109,12 @@ interface WifiContextType {
   // Web Simulator & Manual Triggers
   isSimulationMode: boolean;
   toggleSimulationMode: (enable?: boolean) => void;
-  triggerM1Start: (source?: string) => void;
-  triggerM1Stop: (source?: string) => void;
-  triggerM2Start: (source?: string) => void;
-  triggerM2Stop: (source?: string) => void;
-  triggerM3Start: (source?: string) => void;
-  triggerM3Stop: (source?: string) => void;
+  triggerM1Start: (source?: string, duration?: number) => void;
+  triggerM1Stop: (source?: string, duration?: number) => void;
+  triggerM2Start: (source?: string, duration?: number) => void;
+  triggerM2Stop: (source?: string, duration?: number) => void;
+  triggerM3Start: (source?: string, duration?: number) => void;
+  triggerM3Stop: (source?: string, duration?: number) => void;
   resetTimerM1: () => void;
   resetTimerM2: () => void;
   resetTimerM3: () => void;
@@ -269,10 +274,10 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
   }, [addLog]);
 
   // Notify registered signal listeners
-  const notifyListeners = useCallback((machine: MachineChannel, signal: "START" | "STOP", source: string) => {
+  const notifyListeners = useCallback((machine: MachineChannel, signal: "START" | "STOP", source: string, duration?: number) => {
     signalListenersRef.current.forEach((listener) => {
       try {
-        listener(machine, signal, source);
+        listener(machine, signal, source, duration);
       } catch (err) {
         console.error("Error in Wifi signal listener:", err);
       }
@@ -320,21 +325,27 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
 
   // Handle Event Triggers for M1
   const triggerM1Start = useCallback(
-    (source: string = "Manual/Simulasi") => {
+    (source: string = "Manual/Simulasi", duration?: number) => {
       setStatusM1("NYALA");
       setIsTimerM1Running(true);
-      addLog("START", `Mesin 1 START (Downtime/Operation Aktif) - via ${source}`, "M1");
-      notifyListeners("M1", "START", source);
+      if (typeof duration === "number" && duration >= 0) {
+        setElapsedM1(duration);
+      }
+      addLog("START", `Mesin 1 START (Downtime Aktif${typeof duration === "number" ? ` - ${duration}s` : ""}) - via ${source}`, "M1");
+      notifyListeners("M1", "START", source, duration);
     },
     [addLog, notifyListeners]
   );
 
   const triggerM1Stop = useCallback(
-    (source: string = "Manual/Simulasi") => {
+    (source: string = "Manual/Simulasi", duration?: number) => {
       setStatusM1("MATI");
       setIsTimerM1Running(false);
-      addLog("STOP", `Mesin 1 STOP - via ${source}`, "M1");
-      notifyListeners("M1", "STOP", source);
+      if (typeof duration === "number" && duration >= 0) {
+        setElapsedM1(duration);
+      }
+      addLog("STOP", `Mesin 1 STOP (Total Durasi: ${typeof duration === "number" ? `${duration}s` : "terhitung"}) - via ${source}`, "M1");
+      notifyListeners("M1", "STOP", source, duration);
     },
     [addLog, notifyListeners]
   );
@@ -348,21 +359,27 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
 
   // Handle Event Triggers for M2
   const triggerM2Start = useCallback(
-    (source: string = "Manual/Simulasi") => {
+    (source: string = "Manual/Simulasi", duration?: number) => {
       setStatusM2("NYALA");
       setIsTimerM2Running(true);
-      addLog("START", `Mesin 2 START (Downtime/Operation Aktif) - via ${source}`, "M2");
-      notifyListeners("M2", "START", source);
+      if (typeof duration === "number" && duration >= 0) {
+        setElapsedM2(duration);
+      }
+      addLog("START", `Mesin 2 START (Downtime Aktif${typeof duration === "number" ? ` - ${duration}s` : ""}) - via ${source}`, "M2");
+      notifyListeners("M2", "START", source, duration);
     },
     [addLog, notifyListeners]
   );
 
   const triggerM2Stop = useCallback(
-    (source: string = "Manual/Simulasi") => {
+    (source: string = "Manual/Simulasi", duration?: number) => {
       setStatusM2("MATI");
       setIsTimerM2Running(false);
-      addLog("STOP", `Mesin 2 STOP - via ${source}`, "M2");
-      notifyListeners("M2", "STOP", source);
+      if (typeof duration === "number" && duration >= 0) {
+        setElapsedM2(duration);
+      }
+      addLog("STOP", `Mesin 2 STOP (Total Durasi: ${typeof duration === "number" ? `${duration}s` : "terhitung"}) - via ${source}`, "M2");
+      notifyListeners("M2", "STOP", source, duration);
     },
     [addLog, notifyListeners]
   );
@@ -376,21 +393,27 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
 
   // Handle Event Triggers for M3
   const triggerM3Start = useCallback(
-    (source: string = "Manual/Simulasi") => {
+    (source: string = "Manual/Simulasi", duration?: number) => {
       setStatusM3("NYALA");
       setIsTimerM3Running(true);
-      addLog("START", `Mesin 3 START (Downtime/Operation Aktif) - via ${source}`, "M3");
-      notifyListeners("M3", "START", source);
+      if (typeof duration === "number" && duration >= 0) {
+        setElapsedM3(duration);
+      }
+      addLog("START", `Mesin 3 START (Downtime Aktif${typeof duration === "number" ? ` - ${duration}s` : ""}) - via ${source}`, "M3");
+      notifyListeners("M3", "START", source, duration);
     },
     [addLog, notifyListeners]
   );
 
   const triggerM3Stop = useCallback(
-    (source: string = "Manual/Simulasi") => {
+    (source: string = "Manual/Simulasi", duration?: number) => {
       setStatusM3("MATI");
       setIsTimerM3Running(false);
-      addLog("STOP", `Mesin 3 STOP - via ${source}`, "M3");
-      notifyListeners("M3", "STOP", source);
+      if (typeof duration === "number" && duration >= 0) {
+        setElapsedM3(duration);
+      }
+      addLog("STOP", `Mesin 3 STOP (Total Durasi: ${typeof duration === "number" ? `${duration}s` : "terhitung"}) - via ${source}`, "M3");
+      notifyListeners("M3", "STOP", source, duration);
     },
     [addLog, notifyListeners]
   );
@@ -437,21 +460,21 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           setConnectionStatus("terhubung");
 
           if (data.m1 === "START") {
-            triggerM1Start("ESP32 HTTP API");
+            triggerM1Start("ESP32 HTTP API", typeof data.m1_dur === "number" ? data.m1_dur : undefined);
           } else if (data.m1 === "STOP") {
-            triggerM1Stop("ESP32 HTTP API");
+            triggerM1Stop("ESP32 HTTP API", typeof data.m1_dur === "number" ? data.m1_dur : undefined);
           }
 
           if (data.m2 === "START") {
-            triggerM2Start("ESP32 HTTP API");
+            triggerM2Start("ESP32 HTTP API", typeof data.m2_dur === "number" ? data.m2_dur : undefined);
           } else if (data.m2 === "STOP") {
-            triggerM2Stop("ESP32 HTTP API");
+            triggerM2Stop("ESP32 HTTP API", typeof data.m2_dur === "number" ? data.m2_dur : undefined);
           }
 
           if (data.m3 === "START") {
-            triggerM3Start("ESP32 HTTP API");
+            triggerM3Start("ESP32 HTTP API", typeof data.m3_dur === "number" ? data.m3_dur : undefined);
           } else if (data.m3 === "STOP") {
-            triggerM3Stop("ESP32 HTTP API");
+            triggerM3Stop("ESP32 HTTP API", typeof data.m3_dur === "number" ? data.m3_dur : undefined);
           }
 
           return true;
@@ -512,28 +535,29 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            // Payload format: {"machine":"M1","status":"START"}
+            // Payload format: {"machine":"M1","status":"START","duration":45}
             if (data.machine && data.status) {
               const machine = data.machine as MachineChannel;
               const status = data.status as "START" | "STOP";
+              const duration = typeof data.duration === "number" ? data.duration : undefined;
 
               if (machine === "M1") {
                 if (status === "START") {
-                  triggerM1Start("ESP32 GPIO 4");
+                  triggerM1Start("ESP32 GPIO 4", duration);
                 } else if (status === "STOP") {
-                  triggerM1Stop("ESP32 GPIO 4");
+                  triggerM1Stop("ESP32 GPIO 4", duration);
                 }
               } else if (machine === "M2") {
                 if (status === "START") {
-                  triggerM2Start("ESP32 GPIO 22");
+                  triggerM2Start("ESP32 GPIO 22", duration);
                 } else if (status === "STOP") {
-                  triggerM2Stop("ESP32 GPIO 22");
+                  triggerM2Stop("ESP32 GPIO 22", duration);
                 }
               } else if (machine === "M3") {
                 if (status === "START") {
-                  triggerM3Start("ESP32 GPIO 21");
+                  triggerM3Start("ESP32 GPIO 21", duration);
                 } else if (status === "STOP") {
-                  triggerM3Stop("ESP32 GPIO 21");
+                  triggerM3Stop("ESP32 GPIO 21", duration);
                 }
               }
             }
