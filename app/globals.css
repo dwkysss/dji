@@ -72,6 +72,19 @@ body {
   animation: shimmerProgress 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
+@keyframes cardShimmer {
+  0% {
+    transform: translateX(-150%) skewX(-15deg);
+  }
+  100% {
+    transform: translateX(250%) skewX(-15deg);
+  }
+}
+
+.animate-cardShimmer {
+  animation: cardShimmer 1.8s ease-in-out infinite;
+}
+
 /* ── Mode Gelap / Malam Khusus Halaman Input (Dark Graphite & Electric Blue) ── */
 .dji-dark-input {
   color-scheme: dark;

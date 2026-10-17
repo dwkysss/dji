@@ -48,6 +48,9 @@ function getHariFromTanggal(tglStr: string): string {
 
 
 
+// Global in-memory cache untuk tanggal_jam header (immutable, hemat memori & network roundtrip)
+const globalHeaderTimeCache = new Map<string, string>();
+
 export async function getRealProductionsData(options?: {
   operatorName?: string;
   startDate?: string;
@@ -72,13 +75,16 @@ export async function getRealProductionsData(options?: {
       effectiveStartDate = past.toISOString().split("T")[0];
     }
 
-    // Query 1: Get dashboard view data via chunked pagination to bypass the 1000-row limit
+    // Query 1: Get dashboard view data via chunked pagination to bypass the 1000-row limit (dibatasi max 5 halaman / 5000 baris agar aman dari OOM)
     let allData: any[] = [];
     const PAGE_SIZE = 1000;
+    const MAX_PAGES = 5;
+    let pageCount = 0;
     let from = 0;
     let hasMore = true;
 
-    while (hasMore) {
+    while (hasMore && pageCount < MAX_PAGES) {
+      pageCount++;
       let query = supabase
         .from("dashboard_production_view")
         .select("*")
@@ -115,77 +121,42 @@ export async function getRealProductionsData(options?: {
 
     const data = allData;
 
-    // Query 2: Fetch header timestamps for exact shift date attribution via fast range pagination (avoids 502 Bad Gateway)
-    const headerTimeMap = new Map<string, string>();
-    const HEADER_PAGE_SIZE = 1000;
-    let headerFrom = 0;
-    let headerHasMore = true;
-
-    while (headerHasMore) {
-      let hQuery = supabase
-        .from("production_headers")
-        .select("id, tanggal_jam")
-        .order("tgl", { ascending: false });
-
-      if (effectiveStartDate) {
-        hQuery = hQuery.gte("tgl", effectiveStartDate);
-      }
-      if (effectiveEndDate) {
-        hQuery = hQuery.lte("tgl", effectiveEndDate);
-      }
-
-      const { data: hChunk, error: hError } = await hQuery.range(
-        headerFrom,
-        headerFrom + HEADER_PAGE_SIZE - 1
-      );
-
-      if (hError) {
-        console.error("Dashboard error fetching headers chunk:", hError);
-        break;
-      }
-
-      if (hChunk && hChunk.length > 0) {
-        hChunk.forEach((h: any) => {
-          if (h.id && h.tanggal_jam) {
-            headerTimeMap.set(String(h.id), String(h.tanggal_jam));
-          }
-        });
-        if (hChunk.length < HEADER_PAGE_SIZE) {
-          headerHasMore = false;
-        } else {
-          headerFrom += HEADER_PAGE_SIZE;
-        }
-      } else {
-        headerHasMore = false;
-      }
-    }
-
-    // Safety fallback: if any specific header_ids in data are missing, fetch in small batches of 50
-    const headerIds = Array.from(
+    // Query 2: Ambil tanggal_jam hanya untuk header yang belum pernah di-cache sebelumnya (hemat memori & jaringan)
+    const headerIdsToFetch = Array.from(
       new Set(
         (data || [])
+          .filter((item: any) => !item.tanggal_jam && !item.created_at)
           .map((item: any) => item.header_id)
-          .filter(Boolean),
+          .filter((id: any) => Boolean(id) && !globalHeaderTimeCache.has(String(id))),
       ),
     );
-    const missingIds = headerIds.filter((id) => !headerTimeMap.has(String(id)));
-    if (missingIds.length > 0) {
-      const SAFE_BATCH_SIZE = 50;
-      for (let i = 0; i < missingIds.length; i += SAFE_BATCH_SIZE) {
-        const batch = missingIds.slice(i, i + SAFE_BATCH_SIZE);
-        const { data: missingHeaders, error: mError } = await supabase
-          .from("production_headers")
-          .select("id, tanggal_jam")
-          .in("id", batch);
 
-        if (!mError && missingHeaders) {
-          missingHeaders.forEach((h: any) => {
+    if (headerIdsToFetch.length > 0) {
+      const BATCH_SIZE = 100;
+      const batches: any[][] = [];
+      for (let i = 0; i < headerIdsToFetch.length; i += BATCH_SIZE) {
+        batches.push(headerIdsToFetch.slice(i, i + BATCH_SIZE));
+      }
+
+      // Jalankan seluruh batch secara paralel dengan Promise.all
+      const results = await Promise.all(
+        batches.map((batch) =>
+          supabase
+            .from("production_headers")
+            .select("id, tanggal_jam")
+            .in("id", batch)
+        )
+      );
+
+      results.forEach(({ data: hList, error: hErr }) => {
+        if (!hErr && hList) {
+          hList.forEach((h: any) => {
             if (h.id && h.tanggal_jam) {
-              headerTimeMap.set(String(h.id), String(h.tanggal_jam));
+              globalHeaderTimeCache.set(String(h.id), String(h.tanggal_jam));
             }
           });
         }
-      }
+      });
     }
 
     const mappedData: RealProductionItem[] = (data || []).map((item: any) => {
@@ -207,7 +178,7 @@ export async function getRealProductionsData(options?: {
       const isDummyDowntime = rawPanelNo.includes("Downtime") || rawPanelNo === "BERHENTI";
       const parsedPanelNo = !isNaN(parseInt(rawPanelNo)) ? parseInt(rawPanelNo) : undefined;
       
-      const headerTs = headerTimeMap.get(String(item.header_id));
+      const headerTs = globalHeaderTimeCache.get(String(item.header_id));
       const targetTs = item.tanggal_jam || item.created_at || headerTs || item.tanggal;
       const shiftTanggal = getShiftDate(targetTs);
       const shiftName = getShiftName(targetTs);

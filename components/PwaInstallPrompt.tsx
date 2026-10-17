@@ -46,6 +46,7 @@ export default function PwaInstallPrompt() {
             const currentPath = window.location.pathname + window.location.search;
             if (currentPath && currentPath !== "/" && !currentPath.includes("source=pwa")) {
               sessionStorage.setItem("dji_last_active_path", currentPath);
+              localStorage.setItem("dji_last_active_route", currentPath);
             }
           } catch (e) {}
           window.location.reload();
@@ -53,12 +54,12 @@ export default function PwaInstallPrompt() {
       });
     }
 
-    // Restore path jika reload Service Worker mereset PWA ke start_url
+    // Restore path hanya jika reload Service Worker (dari sessionStorage) mengambil alih
     try {
-      const lastActive = sessionStorage.getItem("dji_last_active_path");
-      if (lastActive && window.location.pathname === "/") {
+      const swReloadPath = sessionStorage.getItem("dji_last_active_path");
+      if (swReloadPath && swReloadPath.startsWith("/") && swReloadPath !== "/" && window.location.pathname === "/") {
         sessionStorage.removeItem("dji_last_active_path");
-        window.location.replace(lastActive);
+        window.location.replace(swReloadPath);
       }
     } catch (e) {}
 

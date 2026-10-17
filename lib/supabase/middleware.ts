@@ -108,16 +108,17 @@ export async function updateSession(request: NextRequest) {
   try {
     const { data: { user }, error } = await supabase.auth.getUser();
 
-    // Jika ada error autentikasi (token kadaluarsa / cookie rusak) dan bukan halaman publik,
-    // hapus semua cookie Supabase yang rusak dan redirect paksa ke /login.
-    // Ini mencegah tablet menampilkan layar kosong "This page couldn't load".
+    // Hanya redirect paksa ke /login jika error autentikasi yang jelas (401 / 403 atau token JWT rusak/kadaluarsa).
+    // Jangan hapus cookie jika error bersifat transient / network timeout agar user tidak mental logout.
     if (error && !isPublicPath) {
-      const hasSupabaseCookies = request.cookies.getAll().some((c) => isSupabaseCookie(c.name));
+      const isAuthError =
+        error.status === 401 ||
+        error.status === 403 ||
+        error.message?.toLowerCase().includes("jwt") ||
+        error.message?.toLowerCase().includes("token") ||
+        error.message?.toLowerCase().includes("unauthorized");
 
-      // Jika ada error autentikasi saat membuka halaman privat dan ada sisa cookie Supabase,
-      // hapus SEMUA cookie Supabase yang rusak dan redirect paksa ke /login.
-      // Ini mencegah tablet menampilkan layar kosong "This page couldn't load" akibat token korup.
-      if (hasSupabaseCookies || error.status === 401 || error.status === 403) {
+      if (isAuthError) {
         const loginUrl = request.nextUrl.clone();
         loginUrl.pathname = "/login";
         loginUrl.searchParams.set("session_expired", "1");

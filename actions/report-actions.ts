@@ -333,6 +333,9 @@ export async function getMonthlyMachineReport(
     const processedPanels = new Map<string, { countedForTeam: string | null, isFailed: boolean }>();
     const processedDefectivePanels = new Set<string>();
 
+    // Map to track production output per operator per day & group to pick the operator with the highest production
+    const operatorOutputPerDayTeam = new Map<string, Map<string, number>>();
+
     let isMeterMachine = isConfiguredMeter;
 
     data?.forEach((row: any) => {
@@ -355,6 +358,18 @@ export async function getMonthlyMachineReport(
       let operatorName = assignment.operatorName || header.operators?.nama_operator || header.pic || "";
       if (header.panel_no === "BERHENTI" && (!header.operator_id || operatorName.toUpperCase() === "ADMIN" || !operatorName)) {
         operatorName = "-";
+      }
+
+      const dayTeamKey = `${day}-${groupName}`;
+      const cleanOp = (operatorName || "").trim();
+      if (cleanOp && cleanOp !== "-") {
+        if (!operatorOutputPerDayTeam.has(dayTeamKey)) {
+          operatorOutputPerDayTeam.set(dayTeamKey, new Map<string, number>());
+        }
+        const opMap = operatorOutputPerDayTeam.get(dayTeamKey)!;
+        if (!opMap.has(cleanOp)) {
+          opMap.set(cleanOp, 0);
+        }
       }
 
       // Update shift/day metadata
@@ -578,6 +593,12 @@ export async function getMonthlyMachineReport(
           // For meter machines, add total_produksi_meter ONCE per header
           if (header.total_produksi_meter && header.total_produksi_meter > 0) {
             team.hasil_produksi += header.total_produksi_meter;
+            if (cleanOp && cleanOp !== "-") {
+              const opMap = operatorOutputPerDayTeam.get(dayTeamKey);
+              if (opMap) {
+                opMap.set(cleanOp, (opMap.get(cleanOp) || 0) + header.total_produksi_meter);
+              }
+            }
           }
         }
       }
@@ -602,9 +623,38 @@ export async function getMonthlyMachineReport(
           if (!processedPanels.has(panelKey)) {
             processedPanels.set(panelKey, { countedForTeam: groupName, isFailed: false });
             team.hasil_produksi += 1;
+            if (cleanOp && cleanOp !== "-") {
+              const opMap = operatorOutputPerDayTeam.get(dayTeamKey);
+              if (opMap) {
+                opMap.set(cleanOp, (opMap.get(cleanOp) || 0) + 1);
+              }
+            }
           }
         }
       }
+    });
+
+    // Tetapkan nama operator per tim/shift berdasarkan operator dengan hasil produksi terbanyak
+    reportMap.forEach((reportDay, dayNum) => {
+      ["A", "B", "C"].forEach((grp) => {
+        const team = reportDay.teamData[grp];
+        if (!team) return;
+        const dayTeamKey = `${dayNum}-${grp}`;
+        const opMap = operatorOutputPerDayTeam.get(dayTeamKey);
+        if (opMap && opMap.size > 0) {
+          let maxProd = -1;
+          let bestOp = "";
+          for (const [op, prod] of opMap.entries()) {
+            if (prod > maxProd) {
+              maxProd = prod;
+              bestOp = op;
+            }
+          }
+          if (bestOp) {
+            team.operator_name = bestOp;
+          }
+        }
+      });
     });
 
     // Pastikan semua momen potong kain terdata pada teamData meskipun header tidak memiliki baris detail cacat

@@ -91,11 +91,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem("dji_cached_user", JSON.stringify(authUser));
           } catch (e) {}
         } else {
-          setUser(null);
-          setIsLoggedIn(false);
-          try {
-            localStorage.removeItem("dji_cached_user");
-          } catch (e) {}
+          // Hanya bersihkan user jika pengguna memang logout manual atau tidak ada kredensial tersimpan
+          const manualLogout = localStorage.getItem("dji_manual_logout");
+          const savedNip = localStorage.getItem("dji_remembered_nip");
+          if (manualLogout === "1" || !savedNip) {
+            setUser(null);
+            setIsLoggedIn(false);
+            try {
+              localStorage.removeItem("dji_cached_user");
+            } catch (e) {}
+          }
         }
       } catch (err) {
         console.error("Failed to fetch user:", err);
@@ -231,13 +236,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 defaultRoute = "/";
               }
 
-              // Prioritaskan returnUrl dari parameter URL atau localStorage jika ada
+              // Prioritaskan returnUrl dari parameter URL, localStorage return_url, atau halaman aktif terakhir (mencegah mental ke dashboard)
               let targetRoute = defaultRoute;
               try {
                 const searchParams = new URLSearchParams(window.location.search);
                 const queryReturn = searchParams.get("returnUrl");
                 const savedReturn = localStorage.getItem("dji_return_url");
-                const candidate = queryReturn || savedReturn;
+                const lastActive = localStorage.getItem("dji_last_active_route");
+                const candidate = queryReturn || savedReturn || lastActive;
 
                 if (candidate && candidate.startsWith("/") && candidate !== "/login") {
                   localStorage.removeItem("dji_return_url");
@@ -286,25 +292,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pathname.includes("/print") ||
     pathname.startsWith("/~offline");
 
+  // Track halaman aktif secara terus menerus agar ketika refresh atau buka PWA, user langsung kembali ke halamannya
+  useEffect(() => {
+    if (typeof window !== "undefined" && pathname) {
+      const isTransient =
+        pathname === "/login" ||
+        pathname === "/change-password" ||
+        pathname.includes("/print") ||
+        pathname.startsWith("/~offline") ||
+        pathname.startsWith("/_next");
+
+      if (!isTransient) {
+        try {
+          const search = window.location.search || "";
+          const fullUrl = pathname + search;
+          // Jangan timpa jika hanya root dashboard dan searchnya source=pwa
+          if (pathname !== "/" || !search.includes("source=pwa")) {
+            localStorage.setItem("dji_last_active_route", fullUrl);
+          }
+        } catch (e) {}
+      }
+    }
+  }, [pathname]);
+
   useEffect(() => {
     if (!isLoading && !isLoggedIn && !isPublic) {
       try {
-        localStorage.removeItem("dji_cached_user");
+        const search = typeof window !== "undefined" && window.location.search ? window.location.search : "";
+        const fullPath = pathname + search;
         if (pathname && pathname !== "/" && pathname !== "/login") {
-          localStorage.setItem("dji_return_url", pathname);
+          localStorage.setItem("dji_return_url", fullPath);
+          localStorage.setItem("dji_last_active_route", fullPath);
         }
       } catch (e) {}
       if (pathname && pathname !== "/" && pathname !== "/login") {
-        router.push(`/login?returnUrl=${encodeURIComponent(pathname)}`);
+        const search = typeof window !== "undefined" && window.location.search ? window.location.search : "";
+        const fullPath = pathname + search;
+        router.push(`/login?returnUrl=${encodeURIComponent(fullPath)}`);
       } else {
         router.push("/login");
       }
     }
   }, [isLoading, isLoggedIn, isPublic, pathname, router]);
 
-  // Auto-redirect jika operator, qc, atau mending membuka halaman utama (misal dari shortcut PWA /?source=pwa)
+  // Auto-redirect jika operator, qc, mending, atau shortcut PWA membuka halaman utama (/)
   useEffect(() => {
     if (!isLoading && isLoggedIn && user && pathname === "/") {
+      const search = typeof window !== "undefined" ? window.location.search : "";
+      const isPwaLaunch = search.includes("source=pwa");
+
+      // Hanya gunakan lastActive jika aplikasi baru dibuka dari shortcut PWA (?source=pwa)
+      if (isPwaLaunch) {
+        try {
+          const lastActive = localStorage.getItem("dji_last_active_route");
+          if (lastActive && lastActive.startsWith("/") && lastActive !== "/" && lastActive !== "/login") {
+            const isWorker = user.role === "operator" || user.role === "inspeksi" || user.role === "qc" || user.role === "mending";
+            const isAdminOnly =
+              lastActive.startsWith("/users") ||
+              lastActive.startsWith("/machine-config") ||
+              lastActive.startsWith("/google-sheets-config");
+
+            if (!(isWorker && isAdminOnly)) {
+              router.replace(lastActive);
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Untuk role non-admin yang membuka root dashboard, arahkan ke halaman kerja mereka
       if (user.role === "operator") {
         router.replace("/input");
       } else if (user.role === "inspeksi" || user.role === "qc") {
