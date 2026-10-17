@@ -28,7 +28,10 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Cpu,
 } from "lucide-react";
+import { REGISTERED_MACHINES } from "@/lib/constants";
+import { getMachineConfigs } from "@/actions/machine-config-actions";
 
 interface PageProps {
   params: Promise<{ mc: string }>;
@@ -40,6 +43,21 @@ export default function MachineBlockAnalyticsPage({ params }: PageProps) {
   const router = useRouter();
   const resolvedParams = use(params);
   const nomorMc = decodeURIComponent(resolvedParams.mc || "");
+
+  const [machineOptions, setMachineOptions] = useState<string[]>(() => {
+    return Array.from(new Set([...REGISTERED_MACHINES, nomorMc].filter(Boolean)));
+  });
+
+  useEffect(() => {
+    getMachineConfigs()
+      .then((res) => {
+        if (res.success && res.data) {
+          const mcNames = res.data.map((m) => m.nomor_mc).filter(Boolean);
+          setMachineOptions(Array.from(new Set([...REGISTERED_MACHINES, ...mcNames, nomorMc].filter(Boolean))));
+        }
+      })
+      .catch(() => {});
+  }, [nomorMc]);
 
   const [daysBack, setDaysBack] = useState<number>(30);
   const [loading, setLoading] = useState<boolean>(true);
@@ -207,22 +225,49 @@ export default function MachineBlockAnalyticsPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Filter Period */}
-        <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs w-full sm:w-auto justify-between sm:justify-start">
-          <div className="flex items-center gap-1.5 px-2.5 text-xs font-bold text-slate-500">
-            <Calendar className="w-3.5 h-3.5 text-[#0070bc]" />
-            <span>Periode:</span>
+        {/* Filters Group (Mesin & Periode) */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          {/* Filter Mesin */}
+          <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs flex-1 sm:flex-initial">
+            <div className="flex items-center gap-1.5 px-2.5 text-xs font-bold text-slate-500">
+              <Cpu className="w-3.5 h-3.5 text-[#0070bc]" />
+              <span>Mesin:</span>
+            </div>
+            <select
+              value={nomorMc}
+              onChange={(e) => {
+                const target = e.target.value;
+                if (target && target !== nomorMc) {
+                  router.push(`/machines/${encodeURIComponent(target)}`);
+                }
+              }}
+              className="h-9 px-3 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg outline-none cursor-pointer transition-colors border-0 flex-1 sm:flex-initial font-mono uppercase"
+            >
+              {machineOptions.map((mc) => (
+                <option key={mc} value={mc}>
+                  Mesin {mc}
+                </option>
+              ))}
+            </select>
           </div>
-          <select
-            value={daysBack}
-            onChange={(e) => setDaysBack(Number(e.target.value))}
-            className="h-9 px-3 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg outline-none cursor-pointer transition-colors border-0 flex-1 sm:flex-initial"
-          >
-            <option value={7}>7 Hari Terakhir</option>
-            <option value={30}>30 Hari Terakhir</option>
-            <option value={90}>90 Hari Terakhir</option>
-            <option value={365}>1 Tahun Terakhir</option>
-          </select>
+
+          {/* Filter Period */}
+          <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs flex-1 sm:flex-initial">
+            <div className="flex items-center gap-1.5 px-2.5 text-xs font-bold text-slate-500">
+              <Calendar className="w-3.5 h-3.5 text-[#0070bc]" />
+              <span>Periode:</span>
+            </div>
+            <select
+              value={daysBack}
+              onChange={(e) => setDaysBack(Number(e.target.value))}
+              className="h-9 px-3 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg outline-none cursor-pointer transition-colors border-0 flex-1 sm:flex-initial"
+            >
+              <option value={7}>7 Hari Terakhir</option>
+              <option value={30}>30 Hari Terakhir</option>
+              <option value={90}>90 Hari Terakhir</option>
+              <option value={365}>1 Tahun Terakhir</option>
+            </select>
+          </div>
         </div>
       </div>
 

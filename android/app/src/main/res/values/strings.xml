@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Dentelle Jaya Infinitex</string>
+    <string name="title_activity_main">Dentelle Jaya Infinitex</string>
+    <string name="package_name">com.dentellejayainfinitex.dji</string>
+    <string name="custom_url_scheme">com.dentellejayainfinitex.dji</string>
+</resources>

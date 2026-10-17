@@ -409,7 +409,7 @@ export default function DashboardPage() {
   }, []);
 
   // Quality Mode: "QC_GRADE" (Hasil Grade QC/Mending) vs "OPERATOR_STATUS" (Input Operator Ceklis/Silang)
-  const [qualityViewMode, setQualityViewMode] = useState<"QC_GRADE" | "OPERATOR_STATUS">("QC_GRADE");
+  const [qualityViewMode, setQualityViewMode] = useState<"QC_GRADE" | "OPERATOR_STATUS">("OPERATOR_STATUS");
   const [operatorStatusFilter, setOperatorStatusFilter] = useState<"ALL" | "CEKLIS" | "SILANG">("ALL");
 
   // Grade breakdown filter for Chart
@@ -1093,7 +1093,7 @@ export default function DashboardPage() {
   const handleResetFilters = () => {
     setActiveFilter("ALL");
     setChartGradeFilter("ALL");
-    setQualityViewMode("QC_GRADE");
+    setQualityViewMode("OPERATOR_STATUS");
     setOperatorStatusFilter("ALL");
     setDateRangeMode("TODAY");
     setStartDate("");

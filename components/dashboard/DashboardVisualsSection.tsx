@@ -30,7 +30,7 @@ export const DashboardVisualsSection: React.FC<DashboardVisualsSectionProps> = (
   endDate,
   isLoading,
 }) => {
-  const [qualityViewMode, setQualityViewMode] = useState<"QC_GRADE" | "OPERATOR_STATUS">("QC_GRADE");
+  const [qualityViewMode, setQualityViewMode] = useState<"QC_GRADE" | "OPERATOR_STATUS">("OPERATOR_STATUS");
 
   // Filter criteria logic
   const filteredData = useMemo(() => {

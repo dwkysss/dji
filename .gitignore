@@ -58,3 +58,7 @@ walkthrough.md
 
 # PWA generated fallback
 public/fallback-*.js
+
+# Android binaries
+*.apk
+

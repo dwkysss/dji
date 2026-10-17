@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mode Offline - Dentelle Jaya Infinitex</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: linear-gradient(135deg, #0b132b 0%, #1c2541 100%);
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      max-width: 460px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(14px);
+      border-radius: 24px;
+      padding: 24px 20px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+    }
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 4px;
+      border-radius: 14px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-weight: 700;
+      font-size: 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .tab-btn.active {
+      background: #0070bc;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(0, 112, 188, 0.35);
+    }
+    /* Status Screen */
+    .icon-wrapper {
+      width: 60px;
+      height: 60px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 14px;
+    }
+    .icon-wrapper svg {
+      width: 30px;
+      height: 30px;
+      stroke: #f87171;
+    }
+    h1 {
+      font-size: 19px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #94a3b8;
+      line-height: 1.5;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+    .badge-queue {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      background: #fbbf24;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .btn-retry {
+      background: #0070bc;
+      color: #ffffff;
+      border: none;
+      padding: 13px 20px;
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 700;
+      width: 100%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 20px rgba(0, 112, 188, 0.3);
+    }
+    .btn-retry:active { transform: scale(0.97); }
+    .status-text {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 12px;
+      text-align: center;
+    }
+    /* Mode Selector (Panel vs Meteran) */
+    .mode-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(0, 0, 0, 0.2);
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mode-btn.active {
+      background: rgba(14, 165, 233, 0.2);
+      color: #38bdf8;
+      border-color: #38bdf8;
+    }
+    /* Form Section */
+    .form-group {
+      margin-bottom: 13px;
+      text-align: left;
+    }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #38bdf8;
+      margin-bottom: 5px;
+    }
+    .form-control {
+      width: 100%;
+      padding: 11px 13px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      color: #ffffff;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .form-control:focus {
+      border-color: #38bdf8;
+      background: rgba(0, 0, 0, 0.35);
+    }
+    .form-row {
+      display: flex;
+      gap: 10px;
+    }
+    .form-row .form-group {
+      flex: 1;
+    }
+    .btn-save-offline {
+      background: #10b981;
+      color: #ffffff;
+      border: none;
+      padding: 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 800;
+      width: 100%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s;
+      margin-top: 4px;
+    }
+    .btn-save-offline:active { transform: scale(0.97); }
+    .toast-success {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid #10b981;
+      color: #6ee7b7;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    /* Queue List */
+    .queue-list-container {
+      margin-top: 18px;
+      text-align: left;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .queue-list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .queue-list-header h3 {
+      font-size: 11px;
+      font-weight: 800;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .queue-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 9px 12px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .queue-item:last-child { margin-bottom: 0; }
+    .queue-item-title { font-weight: 700; color: #ffffff; }
+    .queue-item-meta { font-size: 11px; color: #94a3b8; }
+    .badge-type {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+    .badge-type-employee {
+      background: rgba(14, 165, 233, 0.2);
+      color: #38bdf8;
+      border: 1px solid rgba(14, 165, 233, 0.3);
+    }
+    .badge-type-continuous {
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <!-- Navigation Tabs -->
+      <div class="tab-bar">
+        <button id="tabStatusBtn" class="tab-btn active" onclick="switchTab('status')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+          Status Jaringan
+        </button>
+        <button id="tabFormBtn" class="tab-btn" onclick="switchTab('form')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          Input Darurat Offline
+        </button>
+      </div>
+
+      <!-- Tab 1: Status & Antrean -->
+      <div id="tabStatus">
+        <div class="icon-wrapper">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+            <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <line x1="12" y1="20" x2="12.01" y2="20"></line>
+          </svg>
+        </div>
+
+        <h1>Koneksi Terputus</h1>
+        <p class="subtitle">Aplikasi tidak dapat menjangkau server produksi. Anda tetap bisa input laporan menggunakan tombol <strong>Input Darurat Offline</strong> di atas.</p>
+
+        <div id="queueBox" class="badge-queue" style="display: none;">
+          <span class="badge-dot"></span>
+          <span id="queueText">0 data input tersimpan aman di HP</span>
+        </div>
+
+        <button id="btnRetry" class="btn-retry" onclick="reconnect()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          <span>Hubungkan Ulang Server</span>
+        </button>
+
+        <div id="statusText" class="status-text">Otomatis menghubungkan kembali saat sinyal aktif...</div>
+
+        <!-- Rincian Antrean Offline yang Tersimpan di Perangkat -->
+        <div id="queueDetailContainer" class="queue-list-container" style="display: none;">
+          <div class="queue-list-header">
+            <h3>Daftar Antrean Tersimpan</h3>
+            <span id="queueItemCount" style="font-size: 11px; color: #94a3b8; font-weight: 600;">0 Item</span>
+          </div>
+          <div id="queueItemsList"></div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Form Input Darurat Offline -->
+      <div id="tabForm" style="display: none;">
+        <div id="toastSuccess" class="toast-success">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span id="toastMsg">Data berhasil disimpan ke memori HP!</span>
+        </div>
+
+        <!-- Mode Selector: Panel vs Meteran -->
+        <div class="mode-selector">
+          <button type="button" id="modePanelBtn" class="mode-btn active" onclick="setFormMode('panel')">
+            Rajut Panel
+          </button>
+          <button type="button" id="modeMeterBtn" class="mode-btn" onclick="setFormMode('meter')">
+            Kain Meteran (Roll)
+          </button>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="offNomorMc">Nomor MC</label>
+            <input type="text" id="offNomorMc" class="form-control" placeholder="Contoh: 01, R11" />
+          </div>
+          <div class="form-group">
+            <label for="offShift">Shift Kerja</label>
+            <select id="offShift" class="form-control">
+              <option value="1">Shift 1 (Pagi)</option>
+              <option value="2">Shift 2 (Sore)</option>
+              <option value="3">Shift 3 (Malam)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label id="lblPotongan" for="offPotongan">Potongan Ke</label>
+            <input type="number" id="offPotongan" class="form-control" value="1" min="1" />
+          </div>
+          <div class="form-group" id="groupPanelNo">
+            <label for="offPanelNo">Panel Ke</label>
+            <input type="number" id="offPanelNo" class="form-control" value="1" min="1" />
+          </div>
+        </div>
+
+        <!-- Meter Fields (For Continuous) -->
+        <div id="groupMeterFields" class="form-row" style="display: none;">
+          <div class="form-group">
+            <label for="offMeterAwal">Meter Awal</label>
+            <input type="number" id="offMeterAwal" class="form-control" placeholder="0" />
+          </div>
+          <div class="form-group">
+            <label for="offMeterAkhir">Meter Akhir</label>
+            <input type="number" id="offMeterAkhir" class="form-control" placeholder="100" />
+          </div>
+        </div>
+
+        <div class="form-group" id="groupJenisLaporan">
+          <label for="offJenisLaporan">Jenis Laporan Panel</label>
+          <select id="offJenisLaporan" class="form-control">
+            <option value="NORMAL">Normal</option>
+            <option value="ISTIRAHAT">Istirahat (Backup)</option>
+            <option value="BS">Panel Rusak / Gagal Cacat (BS)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="offDetailMasalah">Catatan Cacat / Kendala (Opsional)</label>
+          <input type="text" id="offDetailMasalah" class="form-control" placeholder="Contoh: Bolong blok 4, jarum patah" />
+        </div>
+
+        <button type="button" class="btn-save-offline" onclick="saveOfflineForm()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          <span id="btnSaveText">Simpan Panel ke Memori HP</span>
+        </button>
+        <p id="hintText" style="font-size: 10px; color: #94a3b8; margin-top: 10px; text-align: center;">
+          Nomor panel otomatis bertambah setelah disimpan. Data otomatis dikirim saat online.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const TARGET_URL = "https://djiprod.tech";
+    let currentMode = "panel"; // "panel" or "meter"
+
+    function switchTab(tab) {
+      const tabStatus = document.getElementById("tabStatus");
+      const tabForm = document.getElementById("tabForm");
+      const btnStatus = document.getElementById("tabStatusBtn");
+      const btnForm = document.getElementById("tabFormBtn");
+
+      if (tab === "status") {
+        tabStatus.style.display = "block";
+        tabForm.style.display = "none";
+        btnStatus.classList.add("active");
+        btnForm.classList.remove("active");
+      } else {
+        tabStatus.style.display = "none";
+        tabForm.style.display = "block";
+        btnStatus.classList.remove("active");
+        btnForm.classList.add("active");
+        loadFormDefaults();
+      }
+    }
+
+    function setFormMode(mode) {
+      currentMode = mode;
+      const btnPanel = document.getElementById("modePanelBtn");
+      const btnMeter = document.getElementById("modeMeterBtn");
+      const groupPanelNo = document.getElementById("groupPanelNo");
+      const groupMeterFields = document.getElementById("groupMeterFields");
+      const groupJenisLaporan = document.getElementById("groupJenisLaporan");
+      const lblPotongan = document.getElementById("lblPotongan");
+      const btnSaveText = document.getElementById("btnSaveText");
+      const hintText = document.getElementById("hintText");
+
+      if (mode === "panel") {
+        btnPanel.classList.add("active");
+        btnMeter.classList.remove("active");
+        groupPanelNo.style.display = "block";
+        groupMeterFields.style.display = "none";
+        groupJenisLaporan.style.display = "block";
+        lblPotongan.innerText = "Potongan Ke";
+        btnSaveText.innerText = "Simpan Panel ke Memori HP";
+        hintText.innerText = "Nomor panel otomatis bertambah setelah disimpan. Data otomatis dikirim saat online.";
+      } else {
+        btnPanel.classList.remove("active");
+        btnMeter.classList.add("active");
+        groupPanelNo.style.display = "none";
+        groupMeterFields.style.display = "flex";
+        groupJenisLaporan.style.display = "none";
+        lblPotongan.innerText = "Roll Ke";
+        btnSaveText.innerText = "Simpan Meteran ke Memori HP";
+        hintText.innerText = "Meter akhir otomatis jadi meter awal berikutnya. Data otomatis dikirim saat online.";
+      }
+    }
+
+    function loadFormDefaults() {
+      try {
+        const savedHeader = localStorage.getItem("dji_form_header");
+        if (savedHeader) {
+          const h = JSON.parse(savedHeader);
+          if (h.nomorMc && !document.getElementById("offNomorMc").value) {
+            document.getElementById("offNomorMc").value = h.nomorMc;
+          }
+          if (h.potonganKe) {
+            document.getElementById("offPotongan").value = h.potonganKe;
+          }
+          if (h.nextPanelNo) {
+            document.getElementById("offPanelNo").value = h.nextPanelNo;
+          }
+        }
+      } catch (e) {}
+    }
+
+    function formatTime(isoStr) {
+      if (!isoStr) return "";
+      try {
+        const d = new Date(isoStr);
+        return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB";
+      } catch (e) {
+        return "";
+      }
+    }
+
+    function checkQueue() {
+      try {
+        const req = indexedDB.open("dji_offline_db", 1);
+        req.onsuccess = function(e) {
+          const db = e.target.result;
+          if (db.objectStoreNames.contains("pending_queue")) {
+            const tx = db.transaction("pending_queue", "readonly");
+            const store = tx.objectStore("pending_queue");
+            const getAllReq = store.getAll();
+
+            getAllReq.onsuccess = function() {
+              const items = getAllReq.result || [];
+              const count = items.length;
+
+              if (count > 0) {
+                document.getElementById("queueBox").style.display = "flex";
+                document.getElementById("queueText").innerText = count + " data input tersimpan aman di HP";
+                document.getElementById("queueDetailContainer").style.display = "block";
+                document.getElementById("queueItemCount").innerText = count + " Item";
+
+                const listContainer = document.getElementById("queueItemsList");
+                listContainer.innerHTML = "";
+
+                items.slice(-5).reverse().forEach(item => {
+                  const div = document.createElement("div");
+                  div.className = "queue-item";
+
+                  let title = "Laporan Produksi";
+                  let meta = formatTime(item.timestamp);
+                  let badgeClass = "badge-type-employee";
+                  let badgeLabel = "Panel";
+
+                  if (item.type === "employee") {
+                    badgeClass = "badge-type-employee";
+                    badgeLabel = "Panel";
+                    const mc = item.data?.nomorMc ? "MC-" + item.data.nomorMc : "Mesin Rajut";
+                    const panel = item.data?.panelNo ? "Panel #" + item.data.panelNo : "";
+                    const pot = item.data?.potonganKe ? "Pot #" + item.data.potonganKe : "";
+                    title = `${mc} &bull; ${pot} ${panel}`;
+                  } else if (item.type === "continuous") {
+                    badgeClass = "badge-type-continuous";
+                    badgeLabel = "Meter";
+                    const mc = item.data?.nomorMc ? "MC-" + item.data.nomorMc : "Meteran";
+                    const roll = item.data?.potonganKe ? "Roll #" + item.data.potonganKe : "";
+                    const meter = item.data?.meterAkhir ? `${item.data.meterAkhir}m` : "";
+                    title = `${mc} &bull; ${roll} ${meter}`;
+                  }
+
+                  div.innerHTML = `
+                    <div>
+                      <div class="queue-item-title">${title}</div>
+                      <div class="queue-item-meta">${meta} &bull; Siap Sync</div>
+                    </div>
+                    <span class="badge-type ${badgeClass}">${badgeLabel}</span>
+                  `;
+                  listContainer.appendChild(div);
+                });
+              } else {
+                document.getElementById("queueBox").style.display = "none";
+                document.getElementById("queueDetailContainer").style.display = "none";
+              }
+            };
+          }
+        };
+      } catch (e) {
+        console.warn("IndexedDB not ready:", e);
+      }
+    }
+
+    function saveOfflineForm() {
+      const nomorMc = document.getElementById("offNomorMc").value.trim();
+      const shift = document.getElementById("offShift").value;
+      const potonganKe = document.getElementById("offPotongan").value.trim();
+      const detailMasalah = document.getElementById("offDetailMasalah").value.trim();
+
+      if (!nomorMc) {
+        alert("Nomor MC harus diisi!");
+        return;
+      }
+      if (!potonganKe) {
+        alert("Nomor Potongan / Roll harus diisi!");
+        return;
+      }
+
+      // Ambil cache user jika ada
+      let user = null;
+      try {
+        const cached = localStorage.getItem("dji_cached_user");
+        if (cached) user = JSON.parse(cached);
+      } catch (e) {}
+
+      const nowIso = new Date().toISOString();
+      let payloadType = "employee";
+      let submitData = {};
+
+      if (currentMode === "panel") {
+        const panelNo = document.getElementById("offPanelNo").value.trim();
+        const jenisLaporan = document.getElementById("offJenisLaporan").value;
+        if (!panelNo) {
+          alert("Nomor Panel harus diisi!");
+          return;
+        }
+
+        const isBs = jenisLaporan === "BS";
+        submitData = {
+          operatorId: (user && user.employeeId) || (user && user.id) || "1",
+          groupId: shift,
+          nomorMc: nomorMc,
+          designId: "1",
+          statusMatching: "OK",
+          potonganKe: potonganKe,
+          panelNo: panelNo,
+          isPanelGagal: isBs,
+          jenisLaporan: jenisLaporan,
+          detailMasalah: detailMasalah || null,
+          created_by_name: (user && user.fullName) || "Operator Offline",
+          submittedAt: nowIso,
+          pcsData: [{ pcsIndex: "1", jmlHasilProduksi: "1", isBs: isBs }]
+        };
+      } else {
+        payloadType = "continuous";
+        const meterAwal = document.getElementById("offMeterAwal").value.trim() || "0";
+        const meterAkhir = document.getElementById("offMeterAkhir").value.trim();
+
+        if (!meterAkhir) {
+          alert("Meter Akhir harus diisi!");
+          return;
+        }
+
+        const diff = parseFloat(meterAkhir) - parseFloat(meterAwal);
+        submitData = {
+          operatorId: (user && user.employeeId) || (user && user.id) || "1",
+          groupId: shift,
+          nomorMc: nomorMc,
+          designId: "1",
+          statusMatching: "OK",
+          potonganKe: potonganKe,
+          meterAwal: meterAwal,
+          meterAkhir: meterAkhir,
+          hasilProduksiMeter: String(diff > 0 ? diff : 0),
+          created_by_name: (user && user.fullName) || "Operator Offline",
+          submittedAt: nowIso,
+          pcsData: [{
+            pcsIndex: "1",
+            jmlHasilProduksi: "1",
+            meterKain: meterAkhir,
+            detailMasalah: detailMasalah || null
+          }]
+        };
+      }
+
+      try {
+        const req = indexedDB.open("dji_offline_db", 1);
+        req.onupgradeneeded = function(e) {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains("pending_queue")) {
+            db.createObjectStore("pending_queue", { keyPath: "id" });
+          }
+        };
+        req.onsuccess = function(e) {
+          const db = e.target.result;
+          const tx = db.transaction("pending_queue", "readwrite");
+          const store = tx.objectStore("pending_queue");
+
+          const offlinePayload = {
+            id: Date.now().toString() + "-" + Math.floor(Math.random() * 1000),
+            type: payloadType,
+            timestamp: nowIso,
+            data: submitData,
+            retryCount: 0
+          };
+
+          const addReq = store.add(offlinePayload);
+          addReq.onsuccess = function() {
+            const toast = document.getElementById("toastSuccess");
+            const toastMsg = document.getElementById("toastMsg");
+
+            if (currentMode === "panel") {
+              const panelNo = document.getElementById("offPanelNo").value.trim();
+              const nextPanel = parseInt(panelNo, 10) + 1;
+              document.getElementById("offPanelNo").value = nextPanel;
+              toastMsg.innerText = `Panel #${panelNo} berhasil disimpan! Siap input Panel #${nextPanel}.`;
+            } else {
+              const meterAkhir = document.getElementById("offMeterAkhir").value.trim();
+              document.getElementById("offMeterAwal").value = meterAkhir;
+              document.getElementById("offMeterAkhir").value = "";
+              toastMsg.innerText = `Meteran roll berhasil disimpan (${meterAkhir}m).`;
+            }
+
+            document.getElementById("offDetailMasalah").value = "";
+
+            toast.style.display = "flex";
+            setTimeout(() => { toast.style.display = "none"; }, 3500);
+
+            // Perbarui antrean
+            checkQueue();
+          };
+        };
+      } catch (err) {
+        alert("Gagal menyimpan ke database offline: " + err);
+      }
+    }
+
+    function reconnect() {
+      const btn = document.getElementById("btnRetry");
+      const status = document.getElementById("statusText");
+      btn.innerHTML = "Menghubungkan...";
+      status.innerText = "Mencoba menyambungkan ke " + TARGET_URL + "...";
+
+      fetch(TARGET_URL + "/api/health?_t=" + Date.now(), { method: "HEAD", mode: "no-cors", cache: "no-store" })
+        .then(() => {
+          status.innerText = "Koneksi terhubung! Memuat aplikasi...";
+          window.location.href = TARGET_URL;
+        })
+        .catch(() => {
+          setTimeout(() => {
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Hubungkan Ulang Server</span>`;
+            status.innerText = "Server belum dapat dijangkau. Cek koneksi Wi-Fi/data Anda.";
+          }, 1500);
+        });
+    }
+
+    // Auto-reconnect saat event online terdeteksi
+    window.addEventListener("online", () => {
+      document.getElementById("statusText").innerText = "Sinyal terdeteksi! Mengalihkan ke aplikasi...";
+      reconnect();
+    });
+
+    // Pengecekan berkala tiap 5 detik
+    setInterval(() => {
+      if (navigator.onLine) {
+        reconnect();
+      }
+    }, 5000);
+
+    // Muat data antrean saat pertama buka
+    checkQueue();
+  </script>
+</body>
+</html>
