@@ -6,19 +6,22 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["lucide-react", "clsx", "tailwind-merge"],
   },
   async redirects() {
-    return [
-      {
-        source: "/:path*",
-        has: [
-          {
-            type: "host",
-            value: "(.*\\.vercel\\.app)",
-          },
-        ],
-        destination: "https://djiprod.tech/:path*",
-        permanent: true,
-      },
-    ];
+    if (process.env.REDIRECT_TO_CUSTOM_DOMAIN === "true") {
+      return [
+        {
+          source: "/:path*",
+          has: [
+            {
+              type: "host",
+              value: "(.*\\.vercel\\.app)",
+            },
+          ],
+          destination: "https://djiprod.tech/:path*",
+          permanent: true,
+        },
+      ];
+    }
+    return [];
   },
 };
 

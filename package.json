@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "cap:sync": "cap sync android",
-    "cap:open": "cap open android"
+    "cap:open": "cap open android",
+    "backup": "node scripts/backup-dji-database.mjs",
+    "restore": "node scripts/restore-dji-database.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
