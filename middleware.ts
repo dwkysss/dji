@@ -41,6 +41,6 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico, manifest.json, sw.js, workbox-*.js, icons/, assets/
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|manifest.webmanifest|sw.js|workbox-.*|icons/.*|assets/.*|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|js)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|manifest.webmanifest|sw.js|workbox-.*|icons/.*|assets/.*|downloads/.*|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|js|apk)$).*)",
   ],
 };

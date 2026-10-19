@@ -2,6 +2,8 @@
 
 - Do NOT execute `git commit` or `git push` automatically. Always ask for explicit user permission or wait for direct request before committing or pushing code.
 - Eksekusi `npx tsc --noEmit` untuk verifikasi TypeScript dapat dijalankan langsung secara proaktif tanpa perlu meminta izin pengguna terlebih dahulu.
+- **Wajib Selalu Berpatokan pada Best Practice**: Seluruh saran arsitektur, deployment server, konfigurasi Linux/DevOps, struktur direktori, performa, keamanan, dan penulisan kode HARUS selalu berpatokan pada standar resmi dan industri (Best Practice), bukan jalan pintas (shortcut).
+
 
 # Cara Penampilan Tabel dengan jenis inputan panel
 - di baris pertama data, kolom tanggal, group dan operator wajib terisi

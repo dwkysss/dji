@@ -15,6 +15,10 @@ export async function updateSession(request: NextRequest) {
   const isPublicPath =
     pathname === "/login" ||
     pathname === "/change-password" ||
+    pathname === "/download" ||
+    pathname.startsWith("/download") ||
+    pathname.startsWith("/downloads") ||
+    pathname.endsWith(".apk") ||
     pathname.includes("/print") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||

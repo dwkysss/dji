@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import LoginForm from "@/components/forms/LoginForm";
-import { AlertTriangle, Info, Bug } from "lucide-react";
+import { AlertTriangle, Info, Bug, Smartphone } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -267,10 +268,18 @@ export default function LoginPage() {
         <LoginForm />
       </main>
 
-      {/* Bottom Bar: Status Info */}
-      <footer className="w-full max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 text-center text-[10px] text-slate-400 font-bold uppercase tracking-wider z-10">
-        <div></div>
-        <div>© 2026 DJI Systems. Hak Cipta Dilindungi.</div>
+      {/* Bottom Bar: Status Info & APK Download Link */}
+      <footer className="w-full max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3 text-center text-xs font-semibold z-10">
+        <Link
+          href="/download"
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/90 hover:bg-[#0070bc] text-slate-700 hover:text-white border border-slate-200/80 shadow-xs transition-all text-xs font-bold group"
+        >
+          <Smartphone className="w-4 h-4 text-[#0070bc] group-hover:text-white transition-colors" />
+          <span>Unduh Aplikasi Android (.apk)</span>
+        </Link>
+        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+          © 2026 DJI Systems. Hak Cipta Dilindungi.
+        </div>
       </footer>
     </div>
   );

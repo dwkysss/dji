@@ -39,6 +39,7 @@ import {
   Package,
   TableProperties,
   Loader2,
+  DownloadCloud,
 } from "lucide-react";
 
 const MACHINE_INPUT_TYPES: Record<string, string> = {
@@ -382,6 +383,7 @@ export default function Sidebar() {
   ];
 
   const generalItems = [
+    { name: "Unduh APK", href: "/download", icon: DownloadCloud, roles: ["admin", "manager", "employee", "qc", "operator", "inspeksi", "mending", "kepala_shift"] },
     { name: "Settings", href: "#", icon: Settings, roles: ["admin"] },
     { name: "Help", href: "#", icon: HelpCircle, roles: ["admin", "operator", "kepala_shift"] },
   ];
