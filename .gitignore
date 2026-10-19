@@ -62,4 +62,5 @@ public/fallback-*.js
 
 # Android binaries
 *.apk
+!public/downloads/*.apk
 

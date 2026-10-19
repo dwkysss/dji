@@ -29,8 +29,8 @@ export default function DownloadPage() {
   const { isLoggedIn } = useAuth();
   const [activeTab, setActiveTab] = useState<"android" | "desktop">("android");
   const [copied, setCopied] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState("/downloads/dji-app.apk");
-  const [fullApkUrl, setFullApkUrl] = useState("https://djiprod.tech/downloads/dji-app.apk");
+  const [downloadUrl, setDownloadUrl] = useState("/api/download");
+  const [fullApkUrl, setFullApkUrl] = useState("https://djiprod.tech/api/download");
   const [versionInfo, setVersionInfo] = useState({
     versionName: "1.0.0",
     size: "21.6 MB",
@@ -41,7 +41,7 @@ export default function DownloadPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const origin = window.location.origin;
-      setFullApkUrl(`${origin}/downloads/dji-app.apk`);
+      setFullApkUrl(`${origin}/api/download`);
     }
 
     // Fetch version metadata if available
