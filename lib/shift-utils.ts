@@ -55,41 +55,37 @@ export function parseAsWibDate(dateInput: Date | string | number): Date {
  */
 export function getJakartaDateTimeString(dateInput?: Date | string | number): string {
   const dt = dateInput ? parseAsWibDate(dateInput) : new Date();
-  const formatter = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  return formatter.format(dt);
+  const wibMs = dt.getTime() + 7 * 60 * 60 * 1000;
+  const wibDate = new Date(wibMs);
+  const iso = wibDate.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 19)}`;
 }
 
 /**
  * Returns the operational shift date (YYYY-MM-DD) in Asia/Jakarta timezone.
  * Any timestamp occurring between 00:00:00 and 07:09:59 WIB belongs to Shift 3 of the PREVIOUS day.
+ * 
+ * Uses exact UTC+7 mathematical calculation (Asia/Jakarta has constant +07:00 with no DST)
+ * to ensure 100% deterministic and identical behavior across all environments (Windows, Linux, Docker, etc.).
  */
 export function getShiftDate(dateInput: Date | string | number): string {
   const dt = parseAsWibDate(dateInput);
 
-  // Calculate total minutes from 00:00 in WIB timezone
-  const hourStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", hour: "2-digit", hour12: false });
-  const minStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", minute: "2-digit" });
-  const hour = parseInt(hourStr);
-  const min = parseInt(minStr);
-  const totalMinutes = (isNaN(hour) ? 0 : hour) * 60 + (isNaN(min) ? 0 : min);
+  // Pure UTC+7 arithmetic
+  const wibMs = dt.getTime() + 7 * 60 * 60 * 1000;
+  const wibDate = new Date(wibMs);
+  const hour = wibDate.getUTCHours();
+  const min = wibDate.getUTCMinutes();
+  const totalMinutes = hour * 60 + min;
 
   // 07:10 AM = (7 * 60) + 10 = 430 minutes
   // If time is before 07:10 AM WIB, it belongs to previous operational day (Shift 3 yesterday)
   if (totalMinutes < 430) {
-    const prevDt = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
-    return prevDt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+    const prevWibDate = new Date(wibMs - 24 * 60 * 60 * 1000);
+    return prevWibDate.toISOString().slice(0, 10);
   }
 
-  return dt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+  return wibDate.toISOString().slice(0, 10);
 }
 
 /**
@@ -98,11 +94,11 @@ export function getShiftDate(dateInput: Date | string | number): string {
 export function getShiftName(dateInput: Date | string | number): "Shift 1" | "Shift 2" | "Shift 3" {
   const dt = parseAsWibDate(dateInput);
 
-  const hourStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", hour: "2-digit", hour12: false });
-  const minStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", minute: "2-digit" });
-  const hour = parseInt(hourStr);
-  const min = parseInt(minStr);
-  const totalMinutes = (isNaN(hour) ? 0 : hour) * 60 + (isNaN(min) ? 0 : min);
+  const wibMs = dt.getTime() + 7 * 60 * 60 * 1000;
+  const wibDate = new Date(wibMs);
+  const hour = wibDate.getUTCHours();
+  const min = wibDate.getUTCMinutes();
+  const totalMinutes = hour * 60 + min;
 
   if (totalMinutes >= 430 && totalMinutes < 910) {
     // 07:10 - 15:10
@@ -148,12 +144,8 @@ export function formatHHMM(timeInput?: string | null): string {
     try {
       const dt = parseAsWibDate(rawStr);
       if (!isNaN(dt.getTime())) {
-        return dt.toLocaleTimeString("en-GB", {
-          timeZone: "Asia/Jakarta",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        });
+        const wibMs = dt.getTime() + 7 * 60 * 60 * 1000;
+        return new Date(wibMs).toISOString().slice(11, 16);
       }
     } catch (e) {}
   }
@@ -174,12 +166,8 @@ export function formatHHMM(timeInput?: string | null): string {
   try {
     const dt = parseAsWibDate(str);
     if (!isNaN(dt.getTime())) {
-      return dt.toLocaleTimeString("en-GB", {
-        timeZone: "Asia/Jakarta",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
+      const wibMs = dt.getTime() + 7 * 60 * 60 * 1000;
+      return new Date(wibMs).toISOString().slice(11, 16);
     }
   } catch (e) {}
 
@@ -227,7 +215,7 @@ export function getShiftBoundarySegments(startTimeMs: number, endTimeMs: number)
 
   while (currentStart < endTimeMs) {
     const dt = parseAsWibDate(currentStart);
-    const dateStr = dt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" }); // YYYY-MM-DD
+    const dateStr = new Date(dt.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10); // YYYY-MM-DD
 
     // 4 possible upcoming boundaries
     const b0710 = new Date(`${dateStr}T07:10:00+07:00`).getTime();
@@ -236,7 +224,7 @@ export function getShiftBoundarySegments(startTimeMs: number, endTimeMs: number)
 
     // Tomorrow 07:10 WIB
     const tomorrowDt = new Date(dt.getTime() + 24 * 3600 * 1000);
-    const tomorrowDateStr = tomorrowDt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+    const tomorrowDateStr = new Date(tomorrowDt.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
     const bNext0710 = new Date(`${tomorrowDateStr}T07:10:00+07:00`).getTime();
 
     const boundaries = [b0710, b1510, b2310, bNext0710].filter((b) => b > currentStart);

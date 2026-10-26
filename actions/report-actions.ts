@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getShiftDate, parseAsWibDate } from "@/lib/shift-utils";
+import { getShiftDate, parseAsWibDate, getShiftName } from "@/lib/shift-utils";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 
 export interface MonthlyMachineReportData {
@@ -52,11 +52,16 @@ export async function getMonthlyMachineReport(
       Number(mcConfig?.default_pcs) > 0 ? Number(mcConfig?.default_pcs) : (isConfiguredMeter ? 3 : 1);
 
     // Construct start and end dates for the month
-    const startDate = new Date(year, month - 1, 1).toISOString().split("T")[0];
-    const endDate = new Date(year, month, 0).toISOString().split("T")[0];
-    // Fetch records slightly wider to catch Shift 3 spanning midnight
-    const prevDate = new Date(year, month - 1, 0).toISOString().split("T")[0];
-    const nextDate = new Date(year, month, 2).toISOString().split("T")[0];
+    const mStr = String(month).padStart(2, "0");
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+    const startDate = `${year}-${mStr}-01`;
+    const endDate = `${year}-${mStr}-${String(lastDayOfMonth).padStart(2, "0")}`;
+
+    // Wider bounds (5 days before and 5 days after) so Shift 3 and boundary days are never missed
+    const prevDateObj = new Date(year, month - 1, -4);
+    const prevDate = `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, "0")}-${String(prevDateObj.getDate()).padStart(2, "0")}`;
+    const nextDateObj = new Date(year, month - 1, lastDayOfMonth + 5);
+    const nextDate = `${nextDateObj.getFullYear()}-${String(nextDateObj.getMonth() + 1).padStart(2, "0")}-${String(nextDateObj.getDate()).padStart(2, "0")}`;
 
     // 1. Fetch all production_headers directly with pagination.
     // Querying production_headers by indexed fields (nomor_mc, tgl) is fast (< 1s for thousands of records)
@@ -209,14 +214,7 @@ export async function getMonthlyMachineReport(
 
     // Helper to determine shift name
     function getShiftNameFromDate(dt: Date): string {
-      const hourStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", hour: "2-digit", hour12: false });
-      const minStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", minute: "2-digit" });
-      const hour = parseInt(hourStr);
-      const min = parseInt(minStr);
-      const totalMinutes = (isNaN(hour) ? 0 : hour) * 60 + (isNaN(min) ? 0 : min);
-      if (totalMinutes >= 430 && totalMinutes < 910) return "Shift 1";
-      if (totalMinutes >= 910 && totalMinutes < 1390) return "Shift 2";
-      return "Shift 3";
+      return getShiftName(dt);
     }
 
     // Deduplicate unique headers and sort them chronologically
@@ -779,20 +777,12 @@ export async function getMonthlyMachineReport(
       if (!dateStr) return teamName;
       try {
         const dt = parseAsWibDate(dateStr);
-        const hourStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", hour: "2-digit", hour12: false });
-        const minStr = dt.toLocaleTimeString("en-US", { timeZone: "Asia/Jakarta", minute: "2-digit" });
-        const hour = parseInt(hourStr);
-        const min = parseInt(minStr);
-        const totalMinutes = (isNaN(hour) ? 0 : hour) * 60 + (isNaN(min) ? 0 : min);
-
-        if (totalMinutes >= 430 && totalMinutes < 910) {
-          // Shift 1: 07:10 - 15:10
+        const shift = getShiftName(dt);
+        if (shift === "Shift 1") {
           return teamName;
-        } else if (totalMinutes >= 910 && totalMinutes < 1390) {
-          // Shift 2: 15:10 - 23:10
+        } else if (shift === "Shift 2") {
           return getPrevTeam(teamName);
         } else {
-          // Shift 3: 23:10 - 07:10
           return getPrevTeam(getPrevTeam(teamName));
         }
       } catch (e) {
