@@ -30,7 +30,10 @@
 #include <ESPmDNS.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
-#include <WiFiManager.h> // Library WiFiManager untuk Captive Portal via HP
+
+// --- KONFIGURASI WI-FI PABRIK (HARDCODED) ---
+const char* WIFI_SSID     = "Tenda_Produksi";
+const char* WIFI_PASSWORD = "rtomh99555";
 
 // --- KONFIGURASI STATIC IP DEFAULT (IP Tetap Permanen ESP32 di Pabrik) ---
 IPAddress local_IP(192, 168, 1, 171);
@@ -51,7 +54,6 @@ const int LED_M1_PIN  = 2;   // Onboard LED ESP32 (Indikator Status Sinyal M1)
 // --- SERVER INSTANCES ---
 WebServer httpServer(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
-WiFiManager wm;
 
 // --- STATE PELACAK DOWNTIME MESIN & WI-FI ---
 bool m1_active = false;
@@ -182,27 +184,31 @@ void setup() {
   Serial.println("  ESP32 3-MACHINE WI-FI TIMER STARTING...    ");
   Serial.println("=============================================");
 
-  // 2. Setup Mode Wi-Fi & Wi-Fi Manager
+  // 2. Setup Mode Wi-Fi Langsung dengan Static IP
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(true);
   WiFi.setSleep(false); // MATIKAN SLEEP MODE AGAR ANTENA SELALU NYALA REAL-TIME
 
   // Set Static IP untuk ESP32 (4 Parameter: IP, Gateway, Subnet, DNS)
-  wm.setSTAStaticIPConfig(local_IP, gateway, subnet, primaryDNS);
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
+    Serial.println("[Wi-Fi] Gagal mengonfigurasi Static IP, beralih ke DHCP.");
+  }
 
-  // Set Timeout Portal AP (3 menit / 180 detik) agar tidak menggantung jika tidak disetting
-  wm.setConfigPortalTimeout(180);
+  Serial.printf("\n[Wi-Fi] Menghubungkan ke SSID: %s ...\n", WIFI_SSID);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  // Hubungkan ke Wi-Fi yang tersimpan. Jika belum/gagal, pancarkan Hotspot AP: "SETUP-ESP32-TIMER" Pass: "AdminPabrik123"
-  bool res = wm.autoConnect("SETUP-ESP32-TIMER", "AdminPabrik123");
+  // Tunggu koneksi hingga maksimal 20 detik (40 x 500ms)
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 40) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
 
-  if (!res) {
-    Serial.println("[Wi-Fi] Gagal terhubung ke Wi-Fi atau timeout portal tercapai. Melanjutkan dengan mode jaringan mandiri.");
-    wifiWasConnected = false;
-  } else {
+  if (WiFi.status() == WL_CONNECTED) {
     wifiWasConnected = true;
-    Serial.println("\n[Wi-Fi] Terhubung!");
+    Serial.println("\n[Wi-Fi] TERHUBUNG SUKSES!");
     Serial.print("[Wi-Fi] IP Address ESP32 (STATIC): ");
     Serial.println(WiFi.localIP());
 
@@ -213,6 +219,9 @@ void setup() {
     } else {
       Serial.println("[mDNS] Gagal memulai mDNS Server!");
     }
+  } else {
+    wifiWasConnected = false;
+    Serial.println("\n[Wi-Fi] Gagal terhubung ke Wi-Fi saat booting. Akan mencoba reconnect otomatis di loop.");
   }
 
   // 3. Jalankan HTTP REST Server

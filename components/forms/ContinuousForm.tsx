@@ -54,6 +54,8 @@ import {
   Info,
   Lock,
   PowerOff,
+  TrendingUp,
+  Calculator,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import HeaderSummaryCard from "./HeaderSummaryCard";
@@ -2069,10 +2071,10 @@ export default function ContinuousForm({
             isDark ? "border-slate-800" : "border-slate-100"
           )}
         >
-          <div>
+          <div className="min-w-0 flex-1">
             <h3
               className={cn(
-                "text-base font-bold",
+                "text-base font-bold whitespace-nowrap",
                 isDark ? "text-slate-100" : "text-slate-900"
               )}
             >
@@ -2088,24 +2090,24 @@ export default function ContinuousForm({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-row items-center gap-2 w-full sm:w-auto shrink-0 flex-nowrap overflow-x-auto sm:overflow-visible">
             <button
               data-tour="meter-stop-machine"
               type="button"
               onClick={() => setIsStopModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
+              className="px-3 sm:px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial"
               title="Lapor jika mesin mati/rusak/standby selama shift ini tanpa ada hasil kain"
             >
-              <PowerOff className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+              <PowerOff className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform shrink-0" />
               <span>Mesin Mati</span>
             </button>
             <button
               data-tour="meter-potongan-history"
               type="button"
               onClick={() => setIsHistoryDrawerOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial"
+              className="px-3 sm:px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial"
             >
-              <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors" />
+              <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors shrink-0" />
               <span>Riwayat Potongan Ini</span>
             </button>
           </div>
@@ -2801,7 +2803,7 @@ export default function ContinuousForm({
             <div
               data-tour="meter-modal"
               className={cn(
-                "w-full max-w-md rounded-3xl p-6 shadow-2xl flex flex-col animate-scaleIn relative overflow-hidden max-h-[95vh] md:max-h-[90vh] transition-colors",
+                "w-full max-w-lg sm:max-w-xl rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col animate-scaleIn relative overflow-hidden max-h-[92vh] overflow-y-auto custom-scrollbar transition-colors",
                 isDark ? "bg-slate-900 border border-slate-800 text-slate-100" : "bg-white text-slate-800"
               )}
               onClick={(e) => e.stopPropagation()}
@@ -2813,22 +2815,30 @@ export default function ContinuousForm({
                 )}
               ></div>
 
-              <div className="flex justify-between items-center mb-6 relative z-10">
+              <div className="flex justify-between items-center mb-3 relative z-10">
                 <div className="flex items-center gap-3">
                   <div
                     className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                      "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-colors shadow-xs",
                       isDark ? "bg-emerald-950/70 text-emerald-400 border border-emerald-800/60" : "bg-emerald-100 text-emerald-600"
                     )}
                   >
                     <Database className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className={cn("text-base font-black transition-colors", isDark ? "text-slate-100" : "text-slate-800")}>
-                      {isLastRoll ? "Laporan Potong Kain" : "Laporan Meteran"}
-                    </h3>
-                    <p className={cn("text-[10px] font-medium transition-colors", isDark ? "text-slate-400" : "text-slate-500")}>
-                      {isLastRoll ? "Isi meteran untuk potong kain" : "Isi di akhir shift"}
+                    <div className="flex items-center gap-2">
+                      <h3 className={cn("text-base font-black transition-colors", isDark ? "text-slate-100" : "text-slate-800")}>
+                        {isLastRoll ? "Laporan Potong Kain" : "Laporan Meteran"}
+                      </h3>
+                      <span className={cn(
+                        "text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider",
+                        isDark ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-600"
+                      )}>
+                        {watch("nomorMc") || "R11"}
+                      </span>
+                    </div>
+                    <p className={cn("text-[10px] font-semibold transition-colors mt-0.5", isDark ? "text-slate-400" : "text-slate-500")}>
+                      {isLastRoll ? "Isi meteran untuk potong kain" : "Isi di akhir shift kerja"}
                     </p>
                   </div>
                 </div>
@@ -2844,124 +2854,135 @@ export default function ContinuousForm({
                 </button>
               </div>
 
-              <div className="space-y-4 relative z-10 overflow-y-auto max-h-[48vh] sm:max-h-[58vh] pr-1 -mr-1 custom-scrollbar">
+              <div className="space-y-3 relative z-10">
                 {watch("nomorMc") === "T2A" ? (
                   <div className="space-y-3">
                     {isMeterAwalLocked && originalT2ATarget !== null && (
                       <div
                         className={cn(
-                          "p-3 rounded-xl flex items-center gap-3 border transition-colors",
+                          "p-2.5 rounded-xl flex items-center justify-between border transition-colors",
                           isDark ? "bg-blue-950/40 border-blue-800/80 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-800"
                         )}
                       >
-                        <div
-                          className={cn(
-                            "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
-                            isDark ? "bg-blue-900/60 text-blue-400" : "bg-blue-100 text-blue-600"
-                          )}
-                        >
-                          <ClipboardList className="w-4 h-4" />
+                        <div className="flex items-center gap-2">
+                          <ClipboardList className="w-4 h-4 text-blue-500" />
+                          <span className="text-[10px] font-bold uppercase">Target Produksi Awal</span>
                         </div>
-                        <div>
-                          <p className={cn("text-[10px] font-bold uppercase", isDark ? "text-blue-300" : "text-blue-800")}>
-                            Target Produksi Awal
-                          </p>
-                          <p className={cn("text-base font-black", isDark ? "text-blue-400" : "text-blue-700")}>
-                            {originalT2ATarget} m
-                          </p>
-                        </div>
+                        <span className="text-sm font-black">{originalT2ATarget} m</span>
                       </div>
                     )}
-                    <div className="flex flex-col gap-1">
-                      <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-600")}>
-                        {isMeterAwalLocked
-                          ? "Start Meter"
-                          : "Target Produksi (meter)"}
-                      </label>
-                      <input
-                        type="number"
-                        step="any"
-                        onWheel={(e) => (e.target as HTMLElement).blur()}
-                        {...register("meterAwal")}
-                        readOnly={isMeterAwalLocked}
-                        className={cn(
-                          "h-12 px-4 rounded-xl border text-base font-semibold outline-none transition-all",
-                          isDark
-                            ? isMeterAwalLocked
-                              ? "bg-slate-950/80 border-slate-800 text-slate-400 cursor-not-allowed"
-                              : "bg-slate-950 border-slate-800 text-slate-100 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                            : isMeterAwalLocked
-                              ? "bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed"
-                              : "bg-white border-slate-200 focus:border-emerald-400"
-                        )}
-                        placeholder="Contoh: 600"
-                      />
-                      {isMeterAwalLocked && (
-                        <p className={cn("text-[10px] font-semibold mt-0.5", isDark ? "text-slate-400" : "text-slate-500")}>
-                          Dilanjutkan dari sisa meter shift sebelumnya.
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className={cn(
+                        "p-3 rounded-2xl border flex flex-col justify-between transition-colors",
+                        isDark ? "bg-slate-950/80 border-slate-800" : "bg-slate-50 border-slate-200"
+                      )}>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <label className={cn("text-[10px] font-black uppercase tracking-wider", isDark ? "text-slate-400" : "text-slate-500")}>
+                            {isMeterAwalLocked ? "Start Meter" : "Target Produksi"}
+                          </label>
+                          <span className={cn(
+                            "text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-full uppercase",
+                            isDark ? "bg-slate-800 text-slate-400" : "bg-slate-200/80 text-slate-600"
+                          )}>
+                            Target
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-1 my-0.5">
+                          <input
+                            type="number"
+                            step="any"
+                            {...register("meterAwal")}
+                            readOnly={isMeterAwalLocked}
+                            className={cn(
+                              "w-full text-xl sm:text-2xl font-black font-mono bg-transparent outline-none",
+                              isDark ? "text-slate-300" : "text-slate-800"
+                            )}
+                          />
+                          <span className="text-xs font-bold text-slate-400 shrink-0">m</span>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-medium leading-tight truncate">
+                          {isMeterAwalLocked ? "Dari sisa shift sebelumnya" : "Target meter kain"}
                         </p>
-                      )}
-                    </div>
+                      </div>
 
-                    <div className="flex flex-col gap-1">
-                      <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-600")}>
-                        Finish Meter (Counter Mesin)
-                      </label>
-                      <input
-                        type="number"
-                        step="1"
-                        inputMode="numeric"
-                        onWheel={(e) => (e.target as HTMLElement).blur()}
-                        onKeyDown={(e) => {
-                          if (e.key === "," || e.key === "." || e.key === "e" || e.key === "E" || e.key === "+" || e.key === "-") {
-                            e.preventDefault();
-                          }
-                        }}
-                        {...register("meterAkhir")}
-                        className={cn(
-                          "h-12 px-4 rounded-xl border text-base font-semibold outline-none transition-all text-right",
-                          isDark
-                            ? "bg-slate-950 border-slate-800 text-slate-100 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                            : "bg-white border-slate-200 text-slate-900 focus:border-emerald-400"
-                        )}
-                        placeholder="Masukkan angka di mesin saat ini"
-                      />
+                      <div className={cn(
+                        "p-3 rounded-2xl border-2 flex flex-col justify-between transition-all",
+                        isDark
+                          ? "bg-slate-950 border-emerald-500/80 focus-within:ring-2 focus-within:ring-emerald-500/30"
+                          : "bg-white border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-200 shadow-xs"
+                      )}>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <label className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                            Finish Meter *
+                          </label>
+                          <span className="text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 uppercase">
+                            Counter
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-1 my-0.5">
+                          <input
+                            type="number"
+                            step="1"
+                            inputMode="numeric"
+                            autoFocus
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            {...register("meterAkhir")}
+                            placeholder="0"
+                            className={cn(
+                              "w-full text-xl sm:text-2xl font-black font-mono bg-transparent outline-none",
+                              isDark ? "text-slate-100 placeholder:text-slate-600" : "text-slate-900 placeholder:text-slate-300"
+                            )}
+                          />
+                          <span className="text-xs font-bold text-slate-400 shrink-0">m</span>
+                        </div>
+                        <p className="text-[9px] text-emerald-600/80 dark:text-emerald-400 font-medium leading-tight truncate">
+                          Counter mesin saat ini
+                        </p>
+                      </div>
                     </div>
 
                     <div
                       className={cn(
-                        "p-3 border rounded-xl transition-colors",
-                        isDark ? "bg-emerald-950/30 border-emerald-800/60" : "bg-emerald-50 border-emerald-200"
+                        "p-3 rounded-2xl border flex items-center justify-between transition-colors shadow-2xs",
+                        isDark ? "bg-emerald-950/40 border-emerald-800/80" : "bg-emerald-50/90 border-emerald-200"
                       )}
                     >
-                      <label
-                        className={cn(
-                          "text-[10px] font-bold uppercase flex justify-between items-center mb-1 transition-colors",
-                          isDark ? "text-emerald-300" : "text-emerald-800"
-                        )}
-                      >
-                        <span>Total Produksi</span>
-                      </label>
-                      <div className={cn("text-right text-lg font-black", isDark ? "text-emerald-400" : "text-emerald-700")}>
-                        {(() => {
-                          const akhirStr = watch("meterAkhir");
-                          if (!akhirStr || akhirStr.trim() === "")
-                            return "0 m";
-                          const t =
-                            parseFloat(watch("meterAwal") || "0") || 0;
-                          const p = parseFloat(akhirStr) || 0;
-                          const rem = Math.max(t - p, 0);
-                          return `${rem} m`;
-                        })()}
+                      <div className="flex items-center gap-2.5">
+                        <div className={cn(
+                          "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+                          isDark ? "bg-emerald-900/60 text-emerald-300" : "bg-emerald-200/70 text-emerald-800"
+                        )}>
+                          <TrendingUp className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className={cn("text-[9.5px] font-extrabold uppercase tracking-wider block", isDark ? "text-emerald-300" : "text-emerald-900")}>
+                            Total Produksi
+                          </span>
+                          <span className={cn("text-[9px] font-medium block", isDark ? "text-emerald-400/80" : "text-emerald-700/80")}>
+                            Target - Finish Meter
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={cn("text-2xl sm:text-3xl font-black font-mono", isDark ? "text-emerald-300" : "text-emerald-600")}>
+                          {(() => {
+                            const akhirStr = watch("meterAkhir");
+                            if (!akhirStr || akhirStr.trim() === "") return "0";
+                            const t = parseFloat(watch("meterAwal") || "0") || 0;
+                            const p = parseFloat(akhirStr) || 0;
+                            return String(Math.max(t - p, 0));
+                          })()}
+                        </span>
+                        <span className={cn("text-xs font-black ml-1", isDark ? "text-emerald-400" : "text-emerald-700")}>m</span>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <>
+                  <div className="space-y-3">
                     {handoverWarning?.needsMeterAwal && (
                       <div
                         className={cn(
-                          "p-3 border rounded-xl mb-3 flex items-start gap-2.5 text-xs shadow-xs transition-colors",
+                          "p-3 border rounded-xl flex items-start gap-2.5 text-xs shadow-xs transition-colors",
                           isDark
                             ? "bg-amber-950/40 border-amber-800/80 text-amber-200"
                             : "bg-amber-50 border-amber-300 text-amber-900"
@@ -2975,246 +2996,278 @@ export default function ContinuousForm({
                         </div>
                       </div>
                     )}
-                    <div className="flex flex-col gap-1">
-                      <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-600")}>
-                        Start Meter Otomatis
-                      </label>
-                      <input
-                        type="number"
-                        step="any"
-                        onWheel={(e) => (e.target as HTMLElement).blur()}
-                        {...register("meterAwal")}
-                        readOnly
-                        className={cn(
-                          "h-12 px-4 rounded-xl border text-base font-semibold outline-none cursor-not-allowed transition-colors",
-                          isDark
-                            ? "bg-slate-950/80 border-slate-800 text-slate-400"
-                            : "bg-slate-100 border-slate-200 text-slate-700"
-                        )}
-                        placeholder="Otomatis dari finish terakhir"
-                      />
-                      <p className={cn("text-[10px] font-semibold mt-0.5 transition-colors", isDark ? "text-slate-400" : "text-slate-500")}>
-                        Potongan baru mulai dari 0. Jika shift sebelumnya
-                        belum potong kain, nilai ini mengikuti finish meter
-                        terakhir.
-                      </p>
-                      {errors.meterAwal && (
-                        <span className="text-red-500 text-[10px] font-bold mt-0.5">
-                          {errors.meterAwal.message}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-600")}>
-                        {watchJenisLaporan === "Mulai Istirahat"
-                          ? "Meter Saat Istirahat"
-                          : watchJenisLaporan === "Selesai Istirahat"
-                            ? "Meter Saat Masuk Kembali"
-                            : (handoverWarning?.needsMeterAwal ? "Counter Meter Serah Terima Shift" : "Finish Meter")}
-                      </label>
-                      <input
-                        type="number"
-                        step="1"
-                        inputMode="numeric"
-                        onWheel={(e) => (e.target as HTMLElement).blur()}
-                        onKeyDown={(e) => {
-                          if (e.key === "," || e.key === "." || e.key === "e" || e.key === "E" || e.key === "+" || e.key === "-") {
-                            e.preventDefault();
-                          }
-                        }}
-                        {...register("meterAkhir")}
-                        className={cn(
-                          "h-12 px-4 rounded-xl border text-base font-semibold outline-none transition-all",
-                          isDark
-                            ? "bg-slate-950 border-slate-800 text-slate-100 focus:bg-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                            : "bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                        )}
-                        placeholder="Contoh: 250"
-                      />
-                      {errors.meterAkhir && (
-                        <span className="text-red-500 text-[10px] font-bold mt-0.5">
-                          {errors.meterAkhir.message}
-                        </span>
-                      )}
-                    </div>
 
-                    <div
-                      className={cn(
-                        "p-4 border rounded-xl mt-2 transition-colors",
-                        isDark ? "bg-emerald-950/30 border-emerald-800/60" : "bg-emerald-50 border-emerald-200"
-                      )}
-                    >
-                      <label
+                    {/* Grid Start & Finish Meter (Side-by-Side 2 Kolom) */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Box 1: Start Meter */}
+                      <div
                         className={cn(
-                          "text-[10px] font-bold uppercase flex justify-between items-center mb-1 transition-colors",
-                          isDark ? "text-emerald-300" : "text-emerald-800"
+                          "p-3 rounded-2xl border flex flex-col justify-between transition-colors",
+                          isDark
+                            ? "bg-slate-950/80 border-slate-800"
+                            : "bg-slate-50 border-slate-200"
                         )}
                       >
-                        <span>Total Hasil Produksi</span>
-                        <span
-                          className={cn(
-                            "text-[9px] px-1.5 py-0.5 rounded font-black uppercase transition-colors",
-                            isDark ? "text-emerald-300 bg-emerald-900/60" : "text-emerald-600 bg-emerald-100"
-                          )}
-                        >
-                          Auto Calculate
-                        </span>
-                      </label>
-                      <input
-                        type="number"
-                        step="any"
-                        readOnly
-                        tabIndex={-1}
-                        onWheel={(e) => (e.target as HTMLElement).blur()}
-                        {...register("hasilProduksiMeter")}
-                        className={cn(
-                          "w-full h-12 px-4 rounded-xl border text-lg font-black outline-none shadow-sm text-right cursor-not-allowed select-none transition-colors",
-                          isDark
-                            ? "bg-emerald-950/60 border-emerald-800/80 text-emerald-300"
-                            : "bg-emerald-100/50 border-emerald-300 text-emerald-700"
-                        )}
-                        placeholder="0"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <label className={cn("text-[10px] font-black uppercase tracking-wider", isDark ? "text-slate-400" : "text-slate-500")}>
+                            Start Meter
+                          </label>
+                          <span className={cn(
+                            "text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-full uppercase",
+                            isDark ? "bg-slate-800 text-slate-400" : "bg-slate-200/80 text-slate-600"
+                          )}>
+                            Otomatis
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-1 my-0.5">
+                          <input
+                            type="number"
+                            step="any"
+                            tabIndex={-1}
+                            readOnly
+                            {...register("meterAwal")}
+                            className={cn(
+                              "w-full text-xl sm:text-2xl font-black font-mono bg-transparent outline-none cursor-not-allowed select-none",
+                              isDark ? "text-slate-300" : "text-slate-800"
+                            )}
+                          />
+                          <span className="text-xs font-bold text-slate-400 shrink-0">m</span>
+                        </div>
+                        <p className={cn("text-[9px] font-medium leading-tight truncate", isDark ? "text-slate-500" : "text-slate-500")}>
+                          Dari finish shift sebelumnya
+                        </p>
+                      </div>
 
-              <div
-                className={cn(
-                  "mt-4 relative z-10 border p-4 rounded-xl flex flex-col gap-2 transition-colors",
-                  isDark ? "bg-slate-950/60 border-slate-800" : "bg-slate-50 border-slate-200"
-                )}
-              >
-                <label className={cn("text-xs font-bold uppercase transition-colors", isDark ? "text-slate-300" : "text-slate-700")}>
-                  Jenis Laporan Meter
-                </label>
-                <input type="hidden" id="jenisLaporan" {...register("jenisLaporan")} />
-                {isLastRoll ? (
-                  <div className="grid grid-cols-1 gap-2 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
+                      {/* Box 2: Finish Meter (Input Counter Mesin) */}
+                      <div
+                        className={cn(
+                          "p-3 rounded-2xl border-2 flex flex-col justify-between transition-all",
+                          isDark
+                            ? "bg-slate-950 border-emerald-500/80 focus-within:ring-2 focus-within:ring-emerald-500/30"
+                            : "bg-white border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-200 shadow-xs"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <label className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                            {watchJenisLaporan === "Mulai Istirahat"
+                              ? "Meter Istirahat"
+                              : watchJenisLaporan === "Selesai Istirahat"
+                                ? "Meter Masuk"
+                                : (handoverWarning?.needsMeterAwal ? "Meter Serah Terima" : "Finish Meter *")}
+                          </label>
+                          <span className="text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 uppercase">
+                            Counter
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-1 my-0.5">
+                          <input
+                            type="number"
+                            step="1"
+                            inputMode="numeric"
+                            autoFocus
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            onKeyDown={(e) => {
+                              if (e.key === "," || e.key === "." || e.key === "e" || e.key === "E" || e.key === "+" || e.key === "-") {
+                                e.preventDefault();
+                              }
+                            }}
+                            {...register("meterAkhir")}
+                            placeholder="Contoh: 250"
+                            className={cn(
+                              "w-full text-xl sm:text-2xl font-black font-mono bg-transparent outline-none",
+                              isDark ? "text-slate-100 placeholder:text-slate-600" : "text-slate-900 placeholder:text-slate-300"
+                            )}
+                          />
+                          <span className="text-xs font-bold text-slate-400 shrink-0">m</span>
+                        </div>
+                        <p className={cn("text-[9px] font-medium leading-tight truncate", isDark ? "text-emerald-400/80" : "text-emerald-600/90")}>
+                          Input angka mesin saat ini
+                        </p>
+                      </div>
+                    </div>
+                    {errors.meterAkhir && (
+                      <span className="text-red-500 text-[10px] font-bold block -mt-1">
+                        {errors.meterAkhir.message}
+                      </span>
+                    )}
+
+                    {/* Total Hasil Produksi Highlight Banner */}
+                    <div
                       className={cn(
-                        "w-full px-3 py-3 rounded-xl border-2 text-xs font-bold transition-all flex items-center justify-center text-center gap-1 shadow-sm cursor-pointer",
-                        isDark
-                          ? "border-sky-500 bg-sky-950/50 text-sky-300"
-                          : "border-[#0070bc] bg-sky-50 text-[#0070bc]"
+                        "p-3 rounded-2xl border flex items-center justify-between transition-colors shadow-2xs",
+                        isDark ? "bg-emerald-950/40 border-emerald-800/80" : "bg-emerald-50/90 border-emerald-200"
                       )}
                     >
-                      <span className="block font-black uppercase">Laporan Potong Kain</span>
-                    </button>
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={cn(
+                            "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                            isDark ? "bg-emerald-900/60 text-emerald-300" : "bg-emerald-200/70 text-emerald-800"
+                          )}
+                        >
+                          <TrendingUp className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className={cn("text-[9.5px] font-extrabold uppercase tracking-wider block", isDark ? "text-emerald-300" : "text-emerald-900")}>
+                            Total Hasil Produksi
+                          </span>
+                          <span className={cn("text-[9px] font-medium block", isDark ? "text-emerald-400/80" : "text-emerald-700/80")}>
+                            Finish Meter - Start Meter (Otomatis)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-baseline gap-1 text-right">
+                        <input
+                          type="hidden"
+                          {...register("hasilProduksiMeter")}
+                        />
+                        <span className={cn("text-2xl sm:text-3xl font-black font-mono", isDark ? "text-emerald-300" : "text-emerald-600")}>
+                          {watch("hasilProduksiMeter") || "0"}
+                        </span>
+                        <span className={cn("text-xs font-black", isDark ? "text-emerald-400" : "text-emerald-700")}>m</span>
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                )}
+
+                {/* Jenis Laporan Meter */}
+                <div
+                  className={cn(
+                    "border p-3 rounded-2xl flex flex-col gap-1.5 transition-colors",
+                    isDark ? "bg-slate-950/60 border-slate-800" : "bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <label className={cn("text-[10px] font-black uppercase tracking-wider transition-colors", isDark ? "text-slate-400" : "text-slate-600")}>
+                    Jenis Laporan Meter
+                  </label>
+                  <input type="hidden" id="jenisLaporan" {...register("jenisLaporan")} />
+                  {isLastRoll ? (
+                    <div className="grid grid-cols-1 gap-2">
                       <button
                         type="button"
                         onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
                         className={cn(
-                          "px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-[0.98] cursor-pointer",
-                          watchJenisLaporan === ""
-                            ? isDark
-                              ? "border-sky-500 bg-sky-950/50 text-sky-300 scale-[1.01]"
-                              : "border-[#0070bc] bg-sky-50 text-[#0070bc] scale-[1.01]"
-                            : isDark
-                              ? "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:bg-slate-850"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                          "w-full px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex items-center justify-center text-center gap-1 shadow-xs cursor-pointer",
+                          isDark
+                            ? "border-sky-500 bg-sky-950/50 text-sky-300"
+                            : "border-[#0070bc] bg-sky-50 text-[#0070bc]"
                         )}
                       >
-                        <span className="block font-black uppercase">Laporan Oper Shift</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setValue("jenisLaporan", "Mulai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                        className={cn(
-                          "px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-sm active:scale-[0.98] cursor-pointer",
-                          watchJenisLaporan === "Mulai Istirahat"
-                            ? isDark
-                              ? "border-amber-500 bg-amber-950/50 text-amber-300 scale-[1.01]"
-                              : "border-amber-500 bg-amber-50 text-amber-700 scale-[1.01]"
-                            : isDark
-                              ? "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:bg-slate-850"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                        )}
-                      >
-                        <span className="block font-black uppercase">Istirahat</span>
-                        <span className="block text-[9px] font-semibold opacity-75">Mau Istirahat</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setValue("jenisLaporan", "Selesai Istirahat", { shouldDirty: true, shouldValidate: true })}
-                        className={cn(
-                          "px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-sm active:scale-[0.98] cursor-pointer",
-                          watchJenisLaporan === "Selesai Istirahat"
-                            ? isDark
-                              ? "border-emerald-500 bg-emerald-950/50 text-emerald-300 scale-[1.01]"
-                              : "border-emerald-500 bg-emerald-50 text-emerald-700 scale-[1.01]"
-                            : isDark
-                              ? "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:bg-slate-850"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                        )}
-                      >
-                        <span className="block font-black uppercase">Masuk</span>
-                        <span className="block text-[9px] font-semibold opacity-75">Masuk Kembali</span>
+                        <span className="block font-black uppercase">Laporan Potong Kain</span>
                       </button>
                     </div>
-
-                    {(watchJenisLaporan === "Mulai Istirahat" || watchJenisLaporan === "Selesai Istirahat") && (
-                      <div
-                        className={cn(
-                          "mt-3 p-3 rounded-xl border transition-colors",
-                          isDark ? "bg-amber-950/30 border-amber-800/60" : "bg-amber-50 border-amber-200"
-                        )}
-                      >
-                        <label className={cn("text-[10px] font-black uppercase block mb-1 transition-colors", isDark ? "text-amber-300" : "text-amber-800")}>
-                          Siapa yang menjaga mesin (Backup) - Shift {activeShiftName}?
-                        </label>
-                        <select
-                          value={backupOperator}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setBackupOperator(val);
-                            const currentOperatorId = watch("operatorId");
-                            const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
-                            const shiftToUse = currentOp?.shift || activeShiftName;
-                            try {
-                              if (val) {
-                                localStorage.setItem(`dji_last_backup_operator_${shiftToUse}`, val);
-                              } else {
-                                localStorage.removeItem(`dji_last_backup_operator_${shiftToUse}`);
-                              }
-                            } catch {}
-                          }}
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setValue("jenisLaporan", "", { shouldDirty: true, shouldValidate: true })}
                           className={cn(
-                            "w-full h-10 px-3 rounded-lg border text-sm font-semibold outline-none transition-colors",
-                            isDark
-                              ? "bg-slate-900 border-amber-800/80 text-slate-200 focus:ring-2 focus:ring-amber-500"
-                              : "bg-white border-amber-300 text-slate-700 focus:ring-2 focus:ring-amber-400"
+                            "px-2 py-2 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-2xs active:scale-[0.98] cursor-pointer",
+                            watchJenisLaporan === ""
+                              ? isDark
+                                ? "border-sky-500 bg-sky-950/60 text-sky-300"
+                                : "border-[#0070bc] bg-sky-50 text-[#0070bc] shadow-xs"
+                              : isDark
+                                ? "border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-850"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                           )}
                         >
-                          <option value="">-- Pilih Operator Backup (Shift {activeShiftName}) --</option>
-                          {(() => {
-                            const currentOperatorId = watch("operatorId");
-                            const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
-                            const shiftToUse = currentOp?.shift || activeShiftName;
-                            const backupOps = operators.filter(
-                              (o) => o.shift === shiftToUse && o.id.toString() !== currentOperatorId?.toString()
-                            );
-                            if (backupOps.length === 0) {
-                              return <option value="" disabled>Tidak ada operator lain di Shift {shiftToUse}</option>;
-                            }
-                            return backupOps.map((op) => (
-                              <option key={op.id} value={op.name}>{op.name}</option>
-                            ));
-                          })()}
-                        </select>
+                          <span className="block font-black text-[11px] uppercase">Oper Shift</span>
+                          <span className="block text-[8.5px] opacity-75 font-semibold">Laporan Akhir</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setValue("jenisLaporan", "Mulai Istirahat", { shouldDirty: true, shouldValidate: true })}
+                          className={cn(
+                            "px-2 py-2 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-2xs active:scale-[0.98] cursor-pointer",
+                            watchJenisLaporan === "Mulai Istirahat"
+                              ? isDark
+                                ? "border-amber-500 bg-amber-950/60 text-amber-300"
+                                : "border-amber-500 bg-amber-50 text-amber-700 shadow-xs"
+                              : isDark
+                                ? "border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-850"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                          )}
+                        >
+                          <span className="block font-black text-[11px] uppercase">Istirahat</span>
+                          <span className="block text-[8.5px] opacity-75 font-semibold">Mau Istirahat</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setValue("jenisLaporan", "Selesai Istirahat", { shouldDirty: true, shouldValidate: true })}
+                          className={cn(
+                            "px-2 py-2 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center justify-center text-center gap-0.5 shadow-2xs active:scale-[0.98] cursor-pointer",
+                            watchJenisLaporan === "Selesai Istirahat"
+                              ? isDark
+                                ? "border-emerald-500 bg-emerald-950/60 text-emerald-300"
+                                : "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-xs"
+                              : isDark
+                                ? "border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-850"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                          )}
+                        >
+                          <span className="block font-black text-[11px] uppercase">Masuk</span>
+                          <span className="block text-[8.5px] opacity-75 font-semibold">Masuk Kembali</span>
+                        </button>
                       </div>
-                    )}
-                  </>
-                )}
+
+                      {(watchJenisLaporan === "Mulai Istirahat" || watchJenisLaporan === "Selesai Istirahat") && (
+                        <div
+                          className={cn(
+                            "mt-2 p-2.5 rounded-xl border transition-colors",
+                            isDark ? "bg-amber-950/30 border-amber-800/60" : "bg-amber-50 border-amber-200"
+                          )}
+                        >
+                          <label className={cn("text-[9.5px] font-black uppercase block mb-1 transition-colors", isDark ? "text-amber-300" : "text-amber-800")}>
+                            Siapa yang menjaga mesin (Backup) - Shift {activeShiftName}?
+                          </label>
+                          <select
+                            value={backupOperator}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setBackupOperator(val);
+                              const currentOperatorId = watch("operatorId");
+                              const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
+                              const shiftToUse = currentOp?.shift || activeShiftName;
+                              try {
+                                if (val) {
+                                  localStorage.setItem(`dji_last_backup_operator_${shiftToUse}`, val);
+                                } else {
+                                  localStorage.removeItem(`dji_last_backup_operator_${shiftToUse}`);
+                                }
+                              } catch {}
+                            }}
+                            className={cn(
+                              "w-full h-9 px-3 rounded-lg border text-xs font-semibold outline-none transition-colors",
+                              isDark
+                                ? "bg-slate-900 border-amber-800/80 text-slate-200 focus:ring-2 focus:ring-amber-500"
+                                : "bg-white border-amber-300 text-slate-700 focus:ring-2 focus:ring-amber-400"
+                            )}
+                          >
+                            <option value="">-- Pilih Operator Backup (Shift {activeShiftName}) --</option>
+                            {(() => {
+                              const currentOperatorId = watch("operatorId");
+                              const currentOp = operators.find((o) => o.id.toString() === currentOperatorId);
+                              const shiftToUse = currentOp?.shift || activeShiftName;
+                              const backupOps = operators.filter(
+                                (o) => o.shift === shiftToUse && o.id.toString() !== currentOperatorId?.toString()
+                              );
+                              if (backupOps.length === 0) {
+                                return <option value="" disabled>Tidak ada operator lain di Shift {shiftToUse}</option>;
+                              }
+                              return backupOps.map((op) => (
+                                <option key={op.id} value={op.name}>{op.name}</option>
+                              ));
+                            })()}
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-3 mt-6 relative z-10">

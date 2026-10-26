@@ -7,6 +7,7 @@ import { searchEmployeeHistory, markPotonganAsCut } from "@/actions/employee-act
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight, Printer, Scissors, CheckCircle, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { parseAsWibDate } from "@/lib/shift-utils";
 import PanelHistoryTable from "./components/PanelHistoryTable";
 import MeterHistoryTable from "./components/MeterHistoryTable";
 import PrintableProductionReport from "@/components/reports/PrintableProductionReport";
@@ -201,18 +202,7 @@ function HistoryDetailContent() {
             courseRpm={`${detailData.course || "-"} / ${detailData.rpm || "-"}`}
             noCustomer={detailData.no_customer || "-"}
             noOrder={detailData.no_order_barang || "-"}
-            tanggalPotong={(() => {
-              let latest = detailData.waktu_input_terakhir || detailData.tanggal_jam || detailData.created_at || detailData.tgl || "";
-              if (detailData.panels && Array.isArray(detailData.panels)) {
-                detailData.panels.forEach((p: any) => {
-                  const ts = p.tanggal_jam || p.created_at;
-                  if (ts && (!latest || String(ts).localeCompare(String(latest)) > 0)) {
-                    latest = ts;
-                  }
-                });
-              }
-              return latest || detailData.tanggal_potong || "-";
-            })()}
+            tanggalPotong={detailData.tanggal_potong || "-"}
             statusMatching={detailData.status_matching || "-"}
             pick={detailData.pick || "-"}
             benangDasar={detailData.jenis_benang_dasar || "-"}
@@ -491,30 +481,29 @@ function HistoryDetailContent() {
               try {
                 let str = String(dateVal).trim();
                 if (!str) return "-";
+                // Jam mentah tanpa tanggal (misal: "09:32" atau "09:32:15")
                 if (/^\d{2}:\d{2}(:\d{2})?$/.test(str)) {
                   return str.substring(0, 5);
                 }
 
-                if (str.includes(" ")) {
+                // Tanggal dan jam lokal tanpa info offset timezone (misal: "2026-10-26 09:32:00")
+                if (str.includes(" ") && !str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) {
                   const timePart = str.split(" ")[1];
                   if (timePart && timePart.includes(":")) {
                     return timePart.substring(0, 5);
                   }
                 }
 
-                if (str.includes("T")) {
-                  const timePart = str.split("T")[1];
-                  if (timePart && timePart.includes(":")) {
-                    return timePart.substring(0, 5);
-                  }
-                }
-
-                const dt = new Date(str);
+                // Timestamp ISO (dengan T, Z, atau +00:00 dari database Supabase): konversi presisi ke Asia/Jakarta (WIB)
+                const dt = parseAsWibDate(str);
                 if (isNaN(dt.getTime())) return "-";
 
-                const hours = String(dt.getHours()).padStart(2, "0");
-                const minutes = String(dt.getMinutes()).padStart(2, "0");
-                return `${hours}:${minutes}`;
+                return new Intl.DateTimeFormat("id-ID", {
+                  timeZone: "Asia/Jakarta",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                }).format(dt).replace(".", ":");
               } catch (e) {
                 return "-";
               }

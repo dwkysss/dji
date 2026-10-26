@@ -141,3 +141,46 @@ export function triggerPiggybackSync() {
     window.dispatchEvent(new CustomEvent("dji_trigger_sync"));
   }
 }
+
+/**
+ * Memperbarui snapshot lokal mesin di localStorage (dji_mobile_bootstrap)
+ * agar mode offline langsung mengetahui nomor potongan & panel terakhir.
+ */
+export function updateLocalMachineSnapshot(
+  nomorMc: string,
+  updates: {
+    potonganKe?: number;
+    nextPanelNo?: number;
+    lastMeter?: number;
+    designId?: string;
+    newPanelItem?: any;
+  }
+) {
+  if (typeof window === "undefined" || !nomorMc) return;
+  try {
+    const raw = localStorage.getItem("dji_mobile_bootstrap");
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.machines)) return;
+
+    const mcUpper = nomorMc.toUpperCase().trim();
+    const target = data.machines.find(
+      (m: any) => m.nomorMc?.toUpperCase().trim() === mcUpper
+    );
+    if (target) {
+      if (updates.potonganKe !== undefined) target.potonganKe = updates.potonganKe;
+      if (updates.nextPanelNo !== undefined) target.nextPanelNo = updates.nextPanelNo;
+      if (updates.lastMeter !== undefined) target.lastMeter = updates.lastMeter;
+      if (updates.designId !== undefined) target.designId = updates.designId;
+      if (updates.newPanelItem) {
+        if (!Array.isArray(target.recentItems)) target.recentItems = [];
+        target.recentItems.unshift(updates.newPanelItem);
+        if (target.recentItems.length > 30) target.recentItems.pop();
+      }
+      localStorage.setItem("dji_mobile_bootstrap", JSON.stringify(data));
+      window.dispatchEvent(new CustomEvent("dji_bootstrap_updated", { detail: data }));
+    }
+  } catch (e) {
+    console.warn("Failed to update local machine snapshot:", e);
+  }
+}

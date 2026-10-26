@@ -10,11 +10,20 @@
  * Safely parses any date/time string into a Date object correctly evaluated in WIB (Asia/Jakarta +07:00).
  */
 export function parseAsWibDate(dateInput: Date | string | number): Date {
-  if (dateInput instanceof Date) return dateInput;
-  if (!dateInput && dateInput !== 0) return new Date();
+  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
+  if (typeof dateInput === "number") return isNaN(dateInput) ? new Date() : new Date(dateInput);
+  if (!dateInput) return new Date();
 
   const str = String(dateInput).trim();
   if (!str) return new Date();
+
+  // Epoch timestamp in numeric string format (e.g. "1729900000000" or "1729900000")
+  if (/^\d+$/.test(str)) {
+    const num = Number(str);
+    if (!isNaN(num)) {
+      return new Date(str.length === 10 ? num * 1000 : num);
+    }
+  }
 
   // Plain date string: YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
@@ -38,7 +47,7 @@ export function parseAsWibDate(dateInput: Date | string | number): Date {
   }
 
   const fallback = new Date(str);
-  return fallback;
+  return isNaN(fallback.getTime()) ? new Date() : fallback;
 }
 
 /**
@@ -191,5 +200,66 @@ export function formatTimerSeconds(totalSec: number): string {
     return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
   }
   return `${pad(mins)}:${pad(secs)}`;
+}
+
+export interface ShiftSegment {
+  startTime: number;
+  endTime: number;
+  durationSec: number;
+  shiftName: "Shift 1" | "Shift 2" | "Shift 3";
+  shiftGroup: "A" | "B" | "C";
+  shiftDate: string; // YYYY-MM-DD
+}
+
+/**
+ * Automatically splits a continuous downtime interval across operational shift boundaries:
+ * - Shift 1 (Pagi):  07:10 - 15:10 WIB
+ * - Shift 2 (Sore):  15:10 - 23:10 WIB
+ * - Shift 3 (Malam): 23:10 - 07:10 WIB
+ */
+export function getShiftBoundarySegments(startTimeMs: number, endTimeMs: number): ShiftSegment[] {
+  if (endTimeMs <= startTimeMs) {
+    return [];
+  }
+
+  const segments: ShiftSegment[] = [];
+  let currentStart = startTimeMs;
+
+  while (currentStart < endTimeMs) {
+    const dt = parseAsWibDate(currentStart);
+    const dateStr = dt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" }); // YYYY-MM-DD
+
+    // 4 possible upcoming boundaries
+    const b0710 = new Date(`${dateStr}T07:10:00+07:00`).getTime();
+    const b1510 = new Date(`${dateStr}T15:10:00+07:00`).getTime();
+    const b2310 = new Date(`${dateStr}T23:10:00+07:00`).getTime();
+
+    // Tomorrow 07:10 WIB
+    const tomorrowDt = new Date(dt.getTime() + 24 * 3600 * 1000);
+    const tomorrowDateStr = tomorrowDt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+    const bNext0710 = new Date(`${tomorrowDateStr}T07:10:00+07:00`).getTime();
+
+    const boundaries = [b0710, b1510, b2310, bNext0710].filter((b) => b > currentStart);
+    const nextBoundary = Math.min(...boundaries);
+
+    const segmentEnd = Math.min(endTimeMs, nextBoundary);
+    const midPoint = currentStart + Math.floor((segmentEnd - currentStart) / 2);
+    const shift = getShiftName(midPoint);
+    const shiftGroup = shift === "Shift 1" ? "A" : shift === "Shift 2" ? "B" : "C";
+    const opDate = getShiftDate(midPoint);
+
+    segments.push({
+      startTime: currentStart,
+      endTime: segmentEnd,
+      durationSec: Math.max(1, Math.floor((segmentEnd - currentStart) / 1000)),
+      shiftName: shift,
+      shiftGroup,
+      shiftDate: opDate,
+    });
+
+    currentStart = segmentEnd;
+  }
+
+  return segments;
 }
 

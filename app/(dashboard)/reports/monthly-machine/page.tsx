@@ -209,9 +209,29 @@ function formatKeteranganWithPotongKain(
 export default function MonthlyMachineReportPage() {
   const router = useRouter();
   const [machines, setMachines] = useState<string[]>([]);
-  const [selectedMachine, setSelectedMachine] = useState<string>("");
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMachine, setSelectedMachine] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      return p.get("mc") || "";
+    }
+    return "";
+  });
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      const m = parseInt(p.get("month") || "");
+      if (!isNaN(m) && m >= 1 && m <= 12) return m;
+    }
+    return new Date().getMonth() + 1;
+  });
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      const y = parseInt(p.get("year") || "");
+      if (!isNaN(y) && y >= 2020) return y;
+    }
+    return new Date().getFullYear();
+  });
   
   const [reportData, setReportData] = useState<MonthlyMachineReportData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -451,6 +471,13 @@ export default function MonthlyMachineReportPage() {
   useEffect(() => {
     if (selectedMachine && selectedMonth && selectedYear) {
       loadReportData(false);
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("mc", selectedMachine);
+        url.searchParams.set("month", String(selectedMonth));
+        url.searchParams.set("year", String(selectedYear));
+        window.history.replaceState(null, "", url.toString());
+      }
     }
   }, [selectedMachine, selectedMonth, selectedYear]);
 

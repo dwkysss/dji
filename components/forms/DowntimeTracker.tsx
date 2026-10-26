@@ -4,11 +4,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { useFieldArray, Control, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info, Edit3, Link2, Lightbulb, Pin, Layers } from "lucide-react";
 import { ContinuousFormInput } from "@/lib/schemas";
-import { submitMechanicDowntime } from "@/actions/mechanic-actions";
+import { submitMechanicDowntime, cancelMechanicDowntime } from "@/actions/mechanic-actions";
 import { getProblemDetailsGrouped, createProblemDetail } from "@/actions/problem-detail-actions";
 import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import WifiDowntimeTrigger from "./WifiDowntimeTrigger";
 import { useWifiContext } from "@/lib/wifi-context";
+import { getShiftName, getShiftDate, getShiftBoundarySegments } from "@/lib/shift-utils";
 
 const PROBLEM_CATEGORIES = [
   { id: "A", name: "Kode A: Masalah dan Perbaikan Benang" },
@@ -440,10 +441,155 @@ export default function DowntimeTracker({
   const [handoffShift, setHandoffShift] = useState("A");
   const [blockLiveSeconds, setBlockLiveSeconds] = useState(0);
   const [isUnblockingBlock, setIsUnblockingBlock] = useState(false);
+  const [frozenUnblockTimestamp, setFrozenUnblockTimestamp] = useState<number | null>(null);
+  const [unblockOperatorName, setUnblockOperatorName] = useState("");
+  const [unblockShift, setUnblockShift] = useState("A");
   const [showConfirmBlockModal, setShowConfirmBlockModal] = useState(false);
   const [showConfirmCancelModal, setShowConfirmCancelModal] = useState(false);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [progressNoteText, setProgressNoteText] = useState("");
+
+  const AUTO_BLOCK_THRESHOLD_SEC = 3600; // 1 Jam (60 Menit)
+  const AUTO_BLOCK_WARNING_SEC = 1800; // 30 Menit (Early Warning)
+  const isAutoBlockingRef = useRef(false);
+  const isHeartbeatingRef = useRef(false);
+
+  const executeAutoBlock = async (startTimeMs: number) => {
+    if (isAutoBlockingRef.current) return;
+    isAutoBlockingRef.current = true;
+
+    try {
+      const now = Date.now();
+      const isoDate = new Date().toISOString().split("T")[0];
+      const initialShift = watch("groupId") || "A";
+      const targetMachine = targetMc || watch("nomorMc") || "R1";
+      const durationSec = Math.max(AUTO_BLOCK_THRESHOLD_SEC, Math.floor((now - startTimeMs) / 1000));
+
+      // 1. Matikan dan bersihkan timer downtime normal agar tidak jalan di background
+      activeTimerStartRef.current = null;
+      setIsTimerRunning(false);
+      setTimerStartRef(null);
+      setLiveTimerSeconds(0);
+      accumulatedSecRef.current = 0;
+      setTempDuration(0);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("dji_active_downtime_start");
+        localStorage.removeItem("dji_active_timer_source");
+      }
+
+      // 2. Buat state activeBlock dengan penanda isAutoBlocked
+      const newBlock: any = {
+        id: `block-${now}`,
+        nomorMc: targetMachine,
+        startTime: startTimeMs,
+        startTimeStr: new Date(startTimeMs).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+        startDateStr: new Date(startTimeMs).toLocaleDateString("id-ID"),
+        dateIso: isoDate,
+        initialReporter: currentOperatorName || "Operator",
+        isAutoBlocked: true,
+        handoffLogs: [
+          {
+            id: `log-${now}`,
+            startTime: startTimeMs,
+            operatorName: currentOperatorName || "Operator Aktif",
+            shift: initialShift,
+            timestamp: new Date(startTimeMs).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+            dateStr: new Date(startTimeMs).toLocaleDateString("id-ID"),
+            dateIso: isoDate,
+            notes: "Auto-Block: Mesin berhenti > 1 jam tanpa input operator (Dalam Perbaikan)"
+          }
+        ]
+      };
+
+      setActiveBlock(newBlock);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`dji_machine_block_${targetMachine}`, JSON.stringify(newBlock));
+      }
+
+      // 3. Simpan draft laporan otomatis ke database via submitMechanicDowntime
+      const draftEvent = {
+        id: `auto-draft-${now}`,
+        durasiDetik: durationSec,
+        pcsKe: "Semua",
+        dikerjakanOleh: `Perbaikan Khusus (${currentOperatorName || "Operator"})`,
+        kategori: "F",
+        detail: "[Auto-Block] Mesin Mati > 1 Jam (Menunggu Klasifikasi Lapangan)",
+        shift: initialShift,
+        notes: "Laporan otomatis sistem karena mesin berhenti lebih dari 1 jam.",
+        isAutoBlocked: true,
+        isDraft: true,
+      };
+
+      const res = await submitMechanicDowntime({
+        nomorMc: targetMachine,
+        operatorId: watch("operatorId") || "",
+        groupId: initialShift,
+        designId: watch("designId") || "",
+        tanggalProduksi: isoDate,
+        potonganKe: watch("potonganKe") || "",
+        downtimeEvent: draftEvent,
+        createdTime: startTimeMs,
+      });
+
+      if (res.success && res.headerId) {
+        newBlock.draftHeaderId = res.headerId;
+        newBlock.lastHeartbeatHour = 1;
+        setActiveBlock({ ...newBlock });
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`dji_machine_block_${targetMachine}`, JSON.stringify(newBlock));
+        }
+      }
+    } catch (err) {
+      console.error("Gagal melakukan auto-block mesin:", err);
+    } finally {
+      isAutoBlockingRef.current = false;
+    }
+  };
+
+  // Live Heartbeat Update (Solusi 1): Memperbarui durasi draft ID yang sama setiap bertambah 1 jam
+  const executeHeartbeatUpdate = async (hour: number, totalSeconds: number) => {
+    if (!activeBlock?.draftHeaderId || isHeartbeatingRef.current) return;
+    isHeartbeatingRef.current = true;
+
+    try {
+      const targetMachine = targetMc || watch("nomorMc") || "R1";
+      const initialShift = watch("groupId") || activeBlock.shift || "A";
+      const draftEvent = {
+        id: `auto-draft-${activeBlock.startTime}`,
+        durasiDetik: totalSeconds,
+        pcsKe: "Semua",
+        dikerjakanOleh: `Perbaikan Khusus (${activeBlock.initialReporter || "Operator"})`,
+        kategori: "F",
+        detail: `[Auto-Block] Mesin Mati > ${hour} Jam (Menunggu Klasifikasi Lapangan)`,
+        shift: initialShift,
+        notes: `Heartbeat Update Jam ke-${hour}: Mesin masih dalam perbaikan.`,
+        isAutoBlocked: true,
+        isDraft: true,
+      };
+
+      await submitMechanicDowntime({
+        headerId: activeBlock.draftHeaderId,
+        nomorMc: targetMachine,
+        operatorId: watch("operatorId") || "",
+        groupId: initialShift,
+        designId: watch("designId") || "",
+        tanggalProduksi: activeBlock.dateIso || new Date().toISOString().split("T")[0],
+        potonganKe: watch("potonganKe") || "",
+        downtimeEvent: draftEvent,
+        createdTime: activeBlock.startTime,
+      });
+
+      const updated = { ...activeBlock, lastHeartbeatHour: hour };
+      setActiveBlock(updated);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`dji_machine_block_${targetMachine}`, JSON.stringify(updated));
+      }
+    } catch (err) {
+      console.error(`Gagal mengirim heartbeat update jam ke-${hour}:`, err);
+    } finally {
+      isHeartbeatingRef.current = false;
+    }
+  };
 
   useEffect(() => {
     if (!targetMc) return;
@@ -460,9 +606,22 @@ export default function DowntimeTracker({
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (activeBlock && activeBlock.startTime) {
-      interval = setInterval(() => {
-        setBlockLiveSeconds(Math.floor((Date.now() - activeBlock.startTime) / 1000));
-      }, 1000);
+      const updateBlockTicker = () => {
+        const sec = Math.floor((Date.now() - activeBlock.startTime) / 1000);
+        setBlockLiveSeconds(sec);
+
+        // Jika sudah ada draftHeaderId, jalankan Live Heartbeat Update setiap bertambah 1 jam (jam ke-2, 3, dst)
+        if (activeBlock.draftHeaderId) {
+          const currentHour = Math.floor(sec / 3600);
+          const lastHour = activeBlock.lastHeartbeatHour || 1;
+          if (currentHour > lastHour) {
+            executeHeartbeatUpdate(currentHour, sec);
+          }
+        }
+      };
+
+      updateBlockTicker();
+      interval = setInterval(updateBlockTicker, 1000);
     } else {
       setBlockLiveSeconds(0);
     }
@@ -533,6 +692,9 @@ export default function DowntimeTracker({
   };
 
   const executeCancelBlock = () => {
+    if (activeBlock?.draftHeaderId) {
+      cancelMechanicDowntime(activeBlock.draftHeaderId).catch(console.error);
+    }
     localStorage.removeItem(`dji_machine_block_${targetMc}`);
     setActiveBlock(null);
     setBlockLiveSeconds(0);
@@ -590,10 +752,18 @@ export default function DowntimeTracker({
 
   const handleUnblockMachine = () => {
     if (!activeBlock) return;
-    const durationSec = Math.floor((Date.now() - activeBlock.startTime) / 1000);
+    const now = Date.now();
+    const durationSec = Math.max(1, Math.floor((now - activeBlock.startTime) / 1000));
     setTempDuration(durationSec);
+    setFrozenUnblockTimestamp(now);
     setDikerjakanOleh("Perbaikan Khusus");
     setIsUnblockingBlock(true);
+
+    const shiftName = getShiftName(now);
+    const shiftGroup = shiftName === "Shift 1" ? "A" : shiftName === "Shift 2" ? "B" : "C";
+    setUnblockShift(shiftGroup);
+    setUnblockOperatorName(currentOperatorName || (operators && operators[0]?.name) || "Operator");
+
     setShowModal(true);
   };
 
@@ -654,6 +824,8 @@ export default function DowntimeTracker({
         localStorage.removeItem("dji_active_downtime_start");
         localStorage.removeItem("dji_active_timer_source");
         activeTimerStartRef.current = null;
+      } else if (elapsedSec >= AUTO_BLOCK_THRESHOLD_SEC) {
+        executeAutoBlock(parsed);
       } else {
         activeTimerStartRef.current = parsed;
         setTimerStartRef(parsed);
@@ -665,7 +837,11 @@ export default function DowntimeTracker({
     let interval: NodeJS.Timeout;
     if (isTimerRunning && timerStartRef) {
       interval = setInterval(() => {
-        setLiveTimerSeconds(Math.floor((Date.now() - timerStartRef) / 1000));
+        const sec = Math.floor((Date.now() - timerStartRef) / 1000);
+        setLiveTimerSeconds(sec);
+        if (sec >= AUTO_BLOCK_THRESHOLD_SEC) {
+          executeAutoBlock(timerStartRef);
+        }
       }, 1000);
     } else if (!isTimerRunning) {
       setLiveTimerSeconds(0);
@@ -916,6 +1092,7 @@ export default function DowntimeTracker({
     setEditingIndex(null);
     setTempDuration(0);
     setIsUnblockingBlock(false);
+    setFrozenUnblockTimestamp(null);
     setBatchClassifyIds([]);
     setSelectedUnclassifiedIds([]);
     setSelectedCategories([]);
@@ -1821,77 +1998,128 @@ export default function DowntimeTracker({
       if (dikerjakanOleh !== "Operator") {
         setIsSavingMechanic(true);
         try {
-          if (activeBlock && activeBlock.handoffLogs && activeBlock.handoffLogs.length > 0) {
-            const logs = activeBlock.handoffLogs;
-            const unblockTime = Date.now();
+          if (activeBlock) {
+            const unblockTime = frozenUnblockTimestamp || (activeBlock.startTime ? activeBlock.startTime + (tempDuration * 1000) : Date.now());
+            const foundOp = operators.find((o) => o.name === unblockOperatorName);
+            const targetOpId = foundOp ? String(foundOp.id) : (watch("operatorId") || "");
 
-            for (let i = 0; i < logs.length; i++) {
-              const currentLog = logs[i];
-              const logStart = currentLog.startTime || activeBlock.startTime || (unblockTime - (tempDuration || 60) * 1000);
-              const nextTime = (i < logs.length - 1 && logs[i + 1]?.startTime) ? logs[i + 1].startTime : unblockTime;
-              const diff = Math.floor((nextTime - logStart) / 1000);
-              const segDurationSec = (isNaN(diff) || diff <= 0) ? (tempDuration || 1) : diff;
+            if (setValue && foundOp) {
+              setValue("operatorId", targetOpId);
+              setValue("groupId", unblockShift);
+            }
 
-              const splitEvent = {
-                id: `split-${Date.now()}-${i}`,
-                durasiDetik: segDurationSec,
-                pcsKe: "Semua",
-                dikerjakanOleh: `Perbaikan Khusus (${currentLog.operatorName || "Operator"})`,
-                problems: problems,
-                shift: currentLog.shift || watch("groupId") || "A",
-                notes: currentLog.notes
-              };
+            // Skenario A: Operator sebelumnya mencatat log serah terima manual (handoffLogs > 1)
+            if (activeBlock.handoffLogs && activeBlock.handoffLogs.length > 1) {
+              const logs = activeBlock.handoffLogs;
+              for (let i = 0; i < logs.length; i++) {
+                const currentLog = logs[i];
+                const logStart = currentLog.startTime || activeBlock.startTime || (unblockTime - (tempDuration || 60) * 1000);
+                const nextTime = (i < logs.length - 1 && logs[i + 1]?.startTime) ? logs[i + 1].startTime : unblockTime;
+                const diff = Math.floor((nextTime - logStart) / 1000);
+                const segDurationSec = (isNaN(diff) || diff <= 0) ? (tempDuration || 1) : diff;
 
-              const res = await submitMechanicDowntime({
-                nomorMc: watch("nomorMc") || "",
-                operatorId: watch("operatorId") || "",
-                groupId: currentLog.shift || watch("groupId") || "A",
-                designId: watch("designId") || "",
-                tanggalProduksi: currentLog.dateIso || new Date().toISOString().split("T")[0],
-                potonganKe: watch("potonganKe") || "",
-                downtimeEvent: splitEvent,
-                createdTime: logStart,
-              });
+                const splitEvent = {
+                  id: `split-${Date.now()}-${i}`,
+                  durasiDetik: segDurationSec,
+                  pcsKe: "Semua",
+                  dikerjakanOleh: `Perbaikan Khusus (${currentLog.operatorName || "Operator"})`,
+                  problems: problems,
+                  shift: currentLog.shift || watch("groupId") || "A",
+                  notes: currentLog.notes
+                };
 
-              if (!res.success) {
-                console.error("Error submitting split downtime segment:", res.error);
+                const res = await submitMechanicDowntime({
+                  nomorMc: watch("nomorMc") || "",
+                  operatorId: watch("operatorId") || "",
+                  groupId: currentLog.shift || watch("groupId") || "A",
+                  designId: watch("designId") || "",
+                  tanggalProduksi: currentLog.dateIso || new Date().toISOString().split("T")[0],
+                  potonganKe: watch("potonganKe") || "",
+                  downtimeEvent: splitEvent,
+                  createdTime: logStart,
+                  headerId: (i === 0 && activeBlock?.draftHeaderId) ? activeBlock.draftHeaderId : undefined,
+                });
+
+                if (!res.success) {
+                  console.error("Error submitting split downtime segment:", res.error);
+                }
+              }
+            } else {
+              // Skenario B: Tidak ada serah terima manual, periksa apakah melewati batas jam shift (07:10, 15:10, 23:10)
+              const segments = getShiftBoundarySegments(activeBlock.startTime, unblockTime);
+
+              if (segments.length > 1) {
+                // Auto-Split antar shift terjadwal
+                for (let i = 0; i < segments.length; i++) {
+                  const seg = segments[i];
+                  const isLast = i === segments.length - 1;
+                  const opName = isLast ? (unblockOperatorName || currentOperatorName || "Operator") : (activeBlock.initialReporter || "Operator");
+                  const opShift = seg.shiftGroup;
+                  const opDate = seg.shiftDate;
+
+                  const splitEvent = {
+                    id: `split-auto-${Date.now()}-${i}`,
+                    durasiDetik: seg.durationSec,
+                    pcsKe: "Semua",
+                    dikerjakanOleh: `Perbaikan Khusus (${opName})`,
+                    problems: problems,
+                    shift: opShift,
+                    notes: isLast
+                      ? `Selesai diperbaiki oleh ${opName} pada Shift ${opShift}`
+                      : `Porsi perbaikan pada Shift ${opShift} (Auto-Split Jadwal Shift)`
+                  };
+
+                  const res = await submitMechanicDowntime({
+                    nomorMc: watch("nomorMc") || "",
+                    operatorId: isLast ? targetOpId : (watch("operatorId") || ""),
+                    groupId: opShift,
+                    designId: watch("designId") || "",
+                    tanggalProduksi: opDate,
+                    potonganKe: watch("potonganKe") || "",
+                    downtimeEvent: splitEvent,
+                    createdTime: seg.startTime,
+                    headerId: (i === 0 && activeBlock?.draftHeaderId) ? activeBlock.draftHeaderId : undefined,
+                  });
+
+                  if (!res.success) {
+                    console.error("Error submitting auto-split downtime segment:", res.error);
+                  }
+                }
+              } else {
+                // Satu segmen (dalam 1 shift yang sama)
+                const finalEvent = {
+                  id: (fields[editingIndex!] as any)?.id || `evt-${Date.now()}`,
+                  durasiDetik: tempDuration,
+                  pcsKe: "Semua",
+                  dikerjakanOleh: `Perbaikan Khusus (${unblockOperatorName || activeBlock.initialReporter || "Operator"})`,
+                  problems: problems,
+                  shift: unblockShift || watch("groupId") || "A",
+                  notes: (fields[editingIndex!] as any)?.notes || "Perbaikan Khusus / Block Mesin Selesai",
+                  isResolved: true,
+                  handoffLogs: activeBlock?.handoffLogs || undefined,
+                };
+
+                const res = await submitMechanicDowntime({
+                  nomorMc: watch("nomorMc") || "",
+                  operatorId: targetOpId || watch("operatorId") || "",
+                  groupId: unblockShift || watch("groupId") || "",
+                  designId: watch("designId") || "",
+                  tanggalProduksi: watch("tanggalProduksi") || "",
+                  potonganKe: watch("potonganKe") || "",
+                  downtimeEvent: finalEvent,
+                  createdTime: activeBlock?.startTime || undefined,
+                  headerId: activeBlock?.draftHeaderId || undefined,
+                });
+
+                if (!res.success) {
+                  alert("Gagal mengirim downtime khusus: " + res.error);
+                }
               }
             }
 
             handleCloseModal();
             localStorage.removeItem(`dji_machine_block_${targetMc}`);
             setActiveBlock(null);
-            if (unresolvedDowntime) {
-              setUnresolvedDowntime(null);
-              localStorage.removeItem("dji_unresolved_downtime");
-            }
-            setIsTimerRunning(false);
-            setTimerStartRef(null);
-            setLiveTimerSeconds(0);
-            localStorage.removeItem("dji_active_downtime_start");
-            setIsSavingMechanic(false);
-            setIsUnblockingBlock(false);
-            setDikerjakanOleh("Operator");
-            setNamaPenanganan("");
-            return;
-          }
-
-          const res = await submitMechanicDowntime({
-            nomorMc: watch("nomorMc") || "",
-            operatorId: watch("operatorId") || "",
-            groupId: watch("groupId") || "",
-            designId: watch("designId") || "",
-            tanggalProduksi: watch("tanggalProduksi") || "",
-            potonganKe: watch("potonganKe") || "",
-            downtimeEvent: finalEvent,
-            createdTime: activeBlock?.startTime || undefined,
-          });
-          if (res.success) {
-            handleCloseModal();
-            if (activeBlock) {
-              localStorage.removeItem(`dji_machine_block_${targetMc}`);
-              setActiveBlock(null);
-            }
             if (unresolvedDowntime) {
               setUnresolvedDowntime(null);
               localStorage.removeItem("dji_unresolved_downtime");
@@ -1907,10 +2135,9 @@ export default function DowntimeTracker({
             setDikerjakanOleh("Operator");
             setNamaPenanganan("");
             return;
-          } else {
-            alert("Gagal mengirim downtime khusus: " + res.error);
           }
         } catch (err) {
+          console.error("Gagal mengirim downtime khusus:", err);
           alert("Gagal mengirim downtime khusus.");
         }
         setIsSavingMechanic(false);
@@ -2119,14 +2346,21 @@ export default function DowntimeTracker({
                       <Lock className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
-                      <h4
-                        className={cn(
-                          "text-xs font-black uppercase tracking-wide truncate transition-colors",
-                          isDark ? "text-slate-100" : "text-slate-800"
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4
+                          className={cn(
+                            "text-xs font-black uppercase tracking-wide truncate transition-colors",
+                            isDark ? "text-slate-100" : "text-slate-800"
+                          )}
+                        >
+                          Mesin Diblok (Dalam Perbaikan)
+                        </h4>
+                        {activeBlock.isAutoBlocked && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                            <AlertTriangle className="w-2.5 h-2.5" /> Auto-Block 1 Jam
+                          </span>
                         )}
-                      >
-                        Mesin Diblok (Dalam Perbaikan)
-                      </h4>
+                      </div>
                       <p
                         className={cn(
                           "text-[10px] font-semibold mt-0.5 leading-snug transition-colors",
@@ -2164,6 +2398,23 @@ export default function DowntimeTracker({
                     </span>
                   </div>
                 </div>
+
+                {/* Auto-Block Info Notice */}
+                {activeBlock.isAutoBlocked && (
+                  <div
+                    className={cn(
+                      "p-2.5 rounded-2xl border text-[10px] font-medium leading-relaxed flex items-start gap-2 animate-fadeIn",
+                      isDark
+                        ? "bg-amber-950/40 border-amber-800/80 text-amber-200"
+                        : "bg-amber-50 border-amber-200 text-amber-900"
+                    )}
+                  >
+                    <Info className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <p className="flex-1">
+                      <strong>Auto-Block Aktif:</strong> Mesin otomatis diblokir karena berhenti &gt; 1 jam. Draft laporan telah dikirim ke sistem. Silakan klik <strong>UNBLOCK MESIN</strong> setelah perbaikan selesai untuk mengonfirmasi jenis masalah aktual.
+                    </p>
+                  </div>
+                )}
 
                 {/* Handoff Logs List */}
                 {activeBlock.handoffLogs && activeBlock.handoffLogs.length > 1 && (
@@ -2501,6 +2752,28 @@ export default function DowntimeTracker({
                       {formatTimer(liveTimerSeconds)}
                     </span>
                   </div>
+
+                  {/* Early Warning Banner (>= 30 Menit) */}
+                  {liveTimerSeconds >= AUTO_BLOCK_WARNING_SEC && (
+                    <div
+                      className={cn(
+                        "p-2.5 rounded-2xl border text-[10px] leading-relaxed font-semibold flex items-start gap-2 animate-pulse",
+                        isDark
+                          ? "bg-amber-950/60 border-amber-700 text-amber-200"
+                          : "bg-amber-50 border-amber-300 text-amber-900"
+                      )}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <span className="font-extrabold block">
+                          Peringatan: Mesin Berhenti &gt; {Math.floor(liveTimerSeconds / 60)} Menit
+                        </span>
+                        <span className="block mt-0.5 font-medium">
+                          Jika perbaikan berlangsung lama, Anda dapat menggunakan tombol <strong>Block Mesin</strong> di atas. Sistem akan otomatis memblokir mesin &amp; mencatat draft pada menit ke-60.
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   {currentTimerSource === "ESP32_WiFi" || currentTimerSource?.includes("ESP32") ? (
                     <div className="flex flex-col gap-2">
                       <div
@@ -3038,7 +3311,11 @@ export default function DowntimeTracker({
                 <div>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                     <h3 className="font-black text-slate-800 text-sm sm:text-base">
-                      {batchClassifyIds.length > 0 ? `Klasifikasi Sekaligus (${batchClassifyIds.length} Event)` : "Simpan Downtime"}
+                      {isUnblockingBlock
+                        ? "Penyelesaian Perbaikan (Unblock Mesin)"
+                        : batchClassifyIds.length > 0
+                        ? `Klasifikasi Sekaligus (${batchClassifyIds.length} Event)`
+                        : "Simpan Downtime"}
                     </h3>
                     <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-orange-200/90 rounded-xl shadow-2xs hover:bg-orange-50 transition-colors" title="Ketuk untuk mengubah durasi secara manual">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -3082,6 +3359,75 @@ export default function DowntimeTracker({
             </div>
 
             <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4 sm:space-y-5">
+              {/* Notifikasi khusus Unblock jika dari Auto-Block */}
+              {isUnblockingBlock && activeBlock?.isAutoBlocked && (
+                <div className="p-3 bg-amber-50 border border-amber-200/90 rounded-2xl text-xs text-amber-950 font-medium flex items-start gap-2.5 animate-fadeIn">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-black text-amber-900 block">Klasifikasi Kerusakan Lapangan</span>
+                    <p className="text-[10px] text-amber-800 leading-snug mt-0.5">
+                      Mesin sebelumnya diblokir otomatis oleh sistem (&gt; 1 jam). Silakan pilih kategori dan detail kerusakan aktual yang telah ditangani teknisi. Laporan draft di sistem akan diperbarui secara otomatis tanpa duplikasi data.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Konfirmasi Petugas & Shift Penyelesai saat Unblock */}
+              {isUnblockingBlock && (
+                <div className="p-3 sm:p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5 animate-fadeIn shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                      Petugas Penyelesai (Unblock Mesin)
+                    </label>
+                    <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
+                      Shift {unblockShift} ({getShiftName(Date.now())})
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-1">Nama Operator Aktif:</span>
+                      <select
+                        value={unblockOperatorName}
+                        onChange={(e) => {
+                          const newName = e.target.value;
+                          setUnblockOperatorName(newName);
+                          const found = operators.find((o) => o.name === newName);
+                          if (found && setValue) {
+                            setValue("operatorId", String(found.id));
+                          }
+                        }}
+                        className="w-full h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                      >
+                        {operators.map((op) => (
+                          <option key={op.id} value={op.name}>
+                            {op.name} {op.name === currentOperatorName ? "(Sedang Aktif)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-1">Shift Kerja:</span>
+                      <select
+                        value={unblockShift}
+                        onChange={(e) => {
+                          setUnblockShift(e.target.value);
+                          if (setValue) setValue("groupId", e.target.value);
+                        }}
+                        className="w-full h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                      >
+                        <option value="A">Shift 1 (Pagi - Group A)</option>
+                        <option value="B">Shift 2 (Sore - Group B)</option>
+                        <option value="C">Shift 3 (Malam - Group C)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                    * Jika di awal shift Anda belum sempat mengganti nama di header, Anda dapat memilih nama langsung di sini.
+                  </p>
+                </div>
+              )}
+
               {/* Panel Allocation Selector (Khusus Form Input Panel & Bukan Edit) */}
               {isPanelType && !isEdit && (
                 <div className="bg-sky-50/70 p-3 sm:p-3.5 rounded-2xl border border-sky-200/80 shadow-2xs animate-fadeIn">
@@ -3952,7 +4298,7 @@ export default function DowntimeTracker({
                   Batalkan Block Mesin?
                 </h3>
                 <p className="text-xs font-medium text-slate-500 mt-2 leading-relaxed">
-                  Apakah Anda yakin ingin membatalkan status Block <strong className="text-red-600">Mesin {targetMc}</strong>? Status block akan dibersihkan tanpa disimpan ke database.
+                  Apakah Anda yakin ingin membatalkan status Block <strong className="text-red-600">Mesin {targetMc}</strong>? {activeBlock?.isAutoBlocked ? "Draft laporan auto-block yang sempat tersimpan di sistem juga akan otomatis dibatalkan/dihapus." : "Status block akan dibersihkan tanpa disimpan ke database."}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getShiftDate, parseAsWibDate, getJakartaDateTimeString } from "@/lib/shift-utils";
 
 export async function submitMechanicDowntime(data: {
   nomorMc: string;
@@ -11,12 +12,14 @@ export async function submitMechanicDowntime(data: {
   potonganKe: string;
   downtimeEvent: any;
   createdTime?: number | string;
+  headerId?: string;
 }) {
   try {
     const supabase = await createClient();
 
-    // 1. Generate unique header ID for this dummy header
-    const headerId = `mekanik-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
+    // 1. Generate unique header ID or reuse provided headerId (for updating draft)
+    const headerId = data.headerId || `mekanik-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
+    const isExisting = Boolean(data.headerId);
 
     // 2. Prepare header data
     const operatorIdNum = data.operatorId && !isNaN(parseInt(data.operatorId)) ? parseInt(data.operatorId) : null;
@@ -34,18 +37,9 @@ export async function submitMechanicDowntime(data: {
     }
     const potonganKeNum = data.potonganKe && !isNaN(parseInt(data.potonganKe)) ? parseInt(data.potonganKe) : null;
 
-    const tgl = data.tanggalProduksi || new Date().toISOString().split("T")[0];
-    const now = new Date();
-    let eventDate = now;
-    if (data.createdTime) {
-      const parsed = new Date(data.createdTime);
-      if (!isNaN(parsed.getTime())) {
-        eventDate = parsed;
-      }
-    }
-    const utcMs = eventDate.getTime() + (eventDate.getTimezoneOffset() * 60000);
-    const wibMs = utcMs + (7 * 3600 * 1000);
-    const tanggalJam = new Date(wibMs).toISOString().replace('Z', '+07:00');
+    const eventDate = data.createdTime ? parseAsWibDate(data.createdTime) : new Date();
+    const tanggalJam = getJakartaDateTimeString(eventDate);
+    const tgl = data.tanggalProduksi || getShiftDate(eventDate);
 
     const dt = data.downtimeEvent;
     const durasiSec = (dt && dt.durasiDetik && !isNaN(parseInt(dt.durasiDetik))) ? parseInt(dt.durasiDetik) : 0;
@@ -66,13 +60,33 @@ export async function submitMechanicDowntime(data: {
       downtime_events: JSON.stringify([dt])
     };
 
-    const { error: headerError } = await supabase
-      .from("production_headers")
-      .insert(headerPayload);
+    if (isExisting) {
+      const { error: updateError } = await supabase
+        .from("production_headers")
+        .update({
+          total_downtime_detik: durasiSec,
+          downtime_events: JSON.stringify([dt]),
+          group_id: groupIdNum,
+          operator_id: operatorIdNum,
+        })
+        .eq("id", headerId);
 
-    if (headerError) {
-      console.error("Error inserting mechanic dummy header:", headerError);
-      return { success: false, error: headerError.message };
+      if (updateError) {
+        console.error("Error updating mechanic dummy header:", updateError);
+        return { success: false, error: updateError.message };
+      }
+
+      // Hapus downtime_records lama sebelum mengisi yang baru
+      await supabase.from("downtime_records").delete().eq("header_id", headerId);
+    } else {
+      const { error: headerError } = await supabase
+        .from("production_headers")
+        .insert(headerPayload);
+
+      if (headerError) {
+        console.error("Error inserting mechanic dummy header:", headerError);
+        return { success: false, error: headerError.message };
+      }
     }
 
     // 3. Prepare downtime_records data
@@ -113,6 +127,19 @@ export async function submitMechanicDowntime(data: {
     return { success: true, headerId };
   } catch (error: any) {
     console.error("Exception in submitMechanicDowntime:", error);
+    return { success: false, error: error.message || "Unknown error" };
+  }
+}
+
+export async function cancelMechanicDowntime(headerId: string) {
+  try {
+    if (!headerId) return { success: false, error: "Header ID required" };
+    const supabase = await createClient();
+    await supabase.from("downtime_records").delete().eq("header_id", headerId);
+    await supabase.from("production_headers").delete().eq("id", headerId);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Exception in cancelMechanicDowntime:", error);
     return { success: false, error: error.message || "Unknown error" };
   }
 }

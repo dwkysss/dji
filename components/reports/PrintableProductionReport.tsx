@@ -3,6 +3,7 @@
 import React from "react";
 import { Printer, X } from "lucide-react";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
+import { parseAsWibDate } from "@/lib/shift-utils";
 
 interface PrintableProductionReportProps {
   detailData: any;
@@ -14,12 +15,25 @@ interface PrintableProductionReportProps {
 
 const formatWibTime = (dateVal?: string): string => {
   if (!dateVal || dateVal === "-") return "-";
-  const str = String(dateVal).trim();
-  if (/^\d{2}:\d{2}/.test(str)) return str.substring(0, 5);
-  if (str.includes(" ")) { const t = str.split(" ")[1]; if (t?.includes(":")) return t.substring(0, 5); }
-  if (str.includes("T")) { const t = str.split("T")[1]; if (t?.includes(":")) return t.substring(0, 5); }
-  try { const dt = new Date(str); if (!isNaN(dt.getTime())) return `${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`; } catch {}
-  return "-";
+  try {
+    const str = String(dateVal).trim();
+    if (!str) return "-";
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(str)) return str.substring(0, 5);
+    if (str.includes(" ") && !str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) {
+      const t = str.split(" ")[1];
+      if (t?.includes(":")) return t.substring(0, 5);
+    }
+    const dt = parseAsWibDate(str);
+    if (isNaN(dt.getTime())) return "-";
+    return new Intl.DateTimeFormat("id-ID", {
+      timeZone: "Asia/Jakarta",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(dt).replace(".", ":");
+  } catch {
+    return "-";
+  }
 };
 
 const extractDate = (ts: string) => {

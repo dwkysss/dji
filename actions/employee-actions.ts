@@ -43,6 +43,26 @@ function expandBlockNumbers(blokInput?: string | null): string[] {
   return Array.from(new Set(blocks));
 }
 
+function parseMeterNumber(val: any): number {
+  if (val === null || val === undefined) return 0;
+  const str = String(val).trim();
+  if (!str) return 0;
+  const parts = str.split(",");
+  let maxVal = 0;
+  for (const part of parts) {
+    let raw = part.includes(":") ? part.split(":").slice(1).join(":") : part;
+    raw = raw.replace(/PCS\s*\d+/gi, "");
+    if (raw.includes("-")) {
+      const rangeParts = raw.split("-");
+      raw = rangeParts[rangeParts.length - 1];
+    }
+    const clean = raw.replace(/[^0-9.]/g, "");
+    const v = parseFloat(clean);
+    if (!isNaN(v)) maxVal = Math.max(maxVal, v);
+  }
+  return maxVal;
+}
+
 export async function createProductionReport(
   inputData: ProductionFormInput,
 ): Promise<{
@@ -1182,12 +1202,12 @@ export async function searchEmployeeHistory(filters: {
       if (isMeteranRow) {
         batch.is_meter = true;
         let rowMaxMeter = 0;
-        const meterAkhir = parseFloat(String(row.meter_akhir || "").replace(/[^0-9.]/g, ""));
-        if (!isNaN(meterAkhir)) {
+        const meterAkhir = parseMeterNumber(row.meter_akhir);
+        if (meterAkhir > 0) {
           rowMaxMeter = Math.max(rowMaxMeter, meterAkhir);
         }
-        const meterAwal = parseFloat(String(row.meter_awal || "").replace(/[^0-9.]/g, ""));
-        if (!isNaN(meterAwal)) {
+        const meterAwal = parseMeterNumber(row.meter_awal);
+        if (meterAwal > 0) {
           rowMaxMeter = Math.max(rowMaxMeter, meterAwal);
         }
 
@@ -1195,8 +1215,8 @@ export async function searchEmployeeHistory(filters: {
         if (row.production_details && Array.isArray(row.production_details)) {
           row.production_details.forEach((det: any) => {
             if (det.meter_kain) {
-              const mVal = parseFloat(String(det.meter_kain).replace(/[^0-9.]/g, ""));
-              if (!isNaN(mVal)) {
+              const mVal = parseMeterNumber(det.meter_kain);
+              if (mVal > 0) {
                 rowMaxMeter = Math.max(rowMaxMeter, mVal);
               }
             }
@@ -1212,15 +1232,9 @@ export async function searchEmployeeHistory(filters: {
                 if (ev.problems && Array.isArray(ev.problems)) {
                   ev.problems.forEach((prob: any) => {
                     if (prob.meter) {
-                      const str = String(prob.meter);
-                      const parts = str.split(",");
-                      for (const part of parts) {
-                        const raw = part.includes(":") ? part.split(":")[1] : part;
-                        const clean = raw.replace(/[^0-9.]/g, "");
-                        const val = parseFloat(clean);
-                        if (!isNaN(val)) {
-                          rowMaxMeter = Math.max(rowMaxMeter, val);
-                        }
+                      const val = parseMeterNumber(prob.meter);
+                      if (val > 0) {
+                        rowMaxMeter = Math.max(rowMaxMeter, val);
                       }
                     }
                   });
@@ -1347,8 +1361,8 @@ export async function searchEmployeeHistory(filters: {
       if (b.is_meter && b.panels && b.panels.length > 0) {
         let maxOfficialMeter = 0;
         b.panels.forEach((p: any) => {
-          const mA = parseFloat(String(p.meter_akhir || "").replace(/[^0-9.]/g, ""));
-          if (!isNaN(mA) && mA > maxOfficialMeter) {
+          const mA = parseMeterNumber(p.meter_akhir);
+          if (mA > maxOfficialMeter) {
             maxOfficialMeter = mA;
           }
         });

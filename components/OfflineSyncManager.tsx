@@ -15,20 +15,48 @@ import { WifiOff, RefreshCw, CheckCircle2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 export default function OfflineSyncManager() {
-  const { isLoggedIn } = useAuth();
+  const { user, isLoggedIn } = useAuth();
   const [isOffline, setIsOffline] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
 
+  const refreshMobileBootstrapCache = async () => {
+    if (typeof window === "undefined" || !navigator.onLine) return;
+    try {
+      const res = await fetch("/api/mobile/bootstrap", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success) {
+          localStorage.setItem("dji_mobile_bootstrap", JSON.stringify(data));
+          window.dispatchEvent(new CustomEvent("dji_bootstrap_updated", { detail: data }));
+        }
+      }
+    } catch (e) {
+      console.warn("[OfflineSync] Gagal memperbarui cache bootstrap:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      try {
+        localStorage.setItem("dji_cached_user", JSON.stringify(user));
+      } catch (e) {}
+    }
+  }, [user]);
+
   useEffect(() => {
     // Initial check
     setIsOffline(!navigator.onLine);
     checkPendingQueue();
+    if (navigator.onLine) {
+      refreshMobileBootstrapCache();
+    }
 
     const handleOnline = () => {
       setIsOffline(false);
       processQueue();
+      refreshMobileBootstrapCache();
     };
 
     const handleOffline = () => {
@@ -40,6 +68,7 @@ export default function OfflineSyncManager() {
       if (!isSyncing) {
         processQueue();
       }
+      refreshMobileBootstrapCache();
     };
 
     // Update counter antrean saat ada data lokal baru ditambahkan atau dihapus
@@ -106,6 +135,9 @@ export default function OfflineSyncManager() {
             result = await submitContinuousReport(item.data);
           } else if (item.type === "qc") {
             result = await submitQCInspection(item.data);
+          } else if (item.type === "status") {
+            const { submitStatusMesin } = await import("@/actions/status-actions");
+            result = await submitStatusMesin(item.data);
           }
 
           const errStr = String(result?.error || "").toLowerCase();

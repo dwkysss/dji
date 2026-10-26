@@ -1542,40 +1542,40 @@ export default function EmployeeForm({
         <div className={`flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4 ${
           isDark ? "border-slate-800" : "border-slate-100"
         }`}>
-          <div>
-            <h3 className={`text-base font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+          <div className="min-w-0 flex-1">
+            <h3 className={`text-base font-bold whitespace-nowrap ${isDark ? "text-white" : "text-slate-900"}`}>
               Form Input Produksi
             </h3>
             <p className="text-xs text-slate-400 font-normal mt-0.5 sm:mt-1">
               Data Header akan otomatis tersimpan untuk panel berikutnya.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-row items-center gap-2 w-full sm:w-auto shrink-0 flex-nowrap overflow-x-auto sm:overflow-visible">
             <button
               data-tour="stop-machine"
               type="button"
               onClick={() => setIsStopModalOpen(true)}
-              className={`px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial ${
+              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${
                 isDark
                   ? "bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border border-amber-800/80"
                   : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300"
               }`}
               title="Lapor jika mesin mati/rusak/standby selama shift ini tanpa ada hasil kain"
             >
-              <PowerOff className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-amber-600"} group-hover:scale-110 transition-transform`} />
+              <PowerOff className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-amber-600"} group-hover:scale-110 transition-transform shrink-0`} />
               <span>Mesin Mati</span>
             </button>
             <button
               data-tour="potongan-history"
               type="button"
               onClick={() => setIsHistoryDrawerOpen(true)}
-              className={`px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0 group flex-1 sm:flex-initial ${
+              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${
                 isDark
                   ? "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-blue-400 border border-slate-700"
                   : "bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300"
               }`}
             >
-              <History className={`w-4 h-4 ${isDark ? "text-slate-400 group-hover:text-blue-400" : "text-slate-500 group-hover:text-[#0070bc]"} transition-colors`} />
+              <History className={`w-4 h-4 ${isDark ? "text-slate-400 group-hover:text-blue-400" : "text-slate-500 group-hover:text-[#0070bc]"} transition-colors shrink-0`} />
               <span>Riwayat Potongan Ini</span>
             </button>
           </div>

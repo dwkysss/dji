@@ -7,6 +7,7 @@ import { Edit, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 import QuickEditMeterModal from "@/components/forms/QuickEditMeterModal";
+import { parseAsWibDate } from "@/lib/shift-utils";
 
 const formatWibTime = (dateVal?: string): string => {
   if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
@@ -17,26 +18,22 @@ const formatWibTime = (dateVal?: string): string => {
       return str.substring(0, 5);
     }
 
-    if (str.includes(" ")) {
+    if (str.includes(" ") && !str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) {
       const timePart = str.split(" ")[1];
       if (timePart && timePart.includes(":")) {
         return timePart.substring(0, 5);
       }
     }
 
-    if (str.includes("T")) {
-      const timePart = str.split("T")[1];
-      if (timePart && timePart.includes(":")) {
-        return timePart.substring(0, 5);
-      }
-    }
-
-    const dt = new Date(str);
+    const dt = parseAsWibDate(str);
     if (isNaN(dt.getTime())) return "-";
 
-    const hours = String(dt.getHours()).padStart(2, "0");
-    const minutes = String(dt.getMinutes()).padStart(2, "0");
-    return `${hours}:${minutes}`;
+    return new Intl.DateTimeFormat("id-ID", {
+      timeZone: "Asia/Jakarta",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(dt).replace(".", ":");
   } catch (e) {
     return "-";
   }

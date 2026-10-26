@@ -37,6 +37,33 @@
 <body>
   <div class="spinner"></div>
   <h2>DENTELLE JAYA INFINITEX</h2>
-  <p>Menghubungkan ke sistem produksi...</p>
+  <p id="statusTxt">Menghubungkan ke sistem produksi...</p>
+  <div style="margin-top: 24px;">
+    <a href="offline.html" style="color: #38bdf8; text-decoration: none; font-size: 13px; font-weight: 700; border: 1px solid rgba(56, 189, 248, 0.4); padding: 8px 16px; border-radius: 9999px; background: rgba(56, 189, 248, 0.1);">
+      Buka Portal Offline Langsung &rarr;
+    </a>
+  </div>
+
+  <script>
+    // Smart router: otomatis alihkan ke offline.html jika offline, atau /input jika online
+    (function() {
+      if (!navigator.onLine) {
+        window.location.replace("offline.html");
+      } else {
+        // Cek konektivitas ke server lokal / remote
+        fetch("/api/mobile/bootstrap")
+          .then(res => {
+            if (res.ok) {
+              window.location.replace("/input");
+            } else {
+              window.location.replace("offline.html");
+            }
+          })
+          .catch(() => {
+            window.location.replace("offline.html");
+          });
+      }
+    })();
+  </script>
 </body>
 </html>

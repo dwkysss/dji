@@ -1,0 +1,660 @@
+/**
+ * Base styles, design tokens, layout, and floating sidebar
+ * Dentelle Jaya Infinitex - Offline Portal
+ */
+
+:root {
+  --primary: #0070bc;
+  --primary-hover: #004777;
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #ffffff;
+  color: var(--slate-800);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (min-width: 768px) {
+  body {
+    flex-direction: row;
+  }
+}
+
+/* ── Main Viewport (Centered Layout without Sidebar) ── */
+.viewport-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px 16px 60px;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .viewport-content {
+    padding: 24px 24px 60px;
+  }
+}
+
+.main-container {
+  max-width: 1140px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.pill-offline-indicator {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f172a;
+  color: #ffffff;
+  letter-spacing: 0.05em;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+}
+
+.dot-cyan {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+  animation: pulseDot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.main-container {
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top Header Card (input/page.tsx) ── */
+.top-header-box {
+  width: 100%;
+  border: 1px solid #e9ecef;
+  border-radius: 20px;
+  padding: 16px 20px;
+  background: #ffffff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.015);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 1024px) {
+  .top-header-box {
+    border-radius: 24px;
+    padding: 24px 32px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.title-left-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.btn-info-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: #f0f9ff;
+  color: #0284c7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.btn-info-icon:hover {
+  background: #e0f2fe;
+}
+
+.portal-title-gradient {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  background: linear-gradient(to right, #0f172a, #004777, #0070bc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 640px) {
+  .portal-title-gradient {
+    font-size: 28px;
+  }
+}
+
+.top-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.pill-theme-btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border: 1px solid var(--slate-200);
+  background: var(--slate-100);
+  color: var(--slate-700);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s;
+}
+
+.pill-theme-btn:hover {
+  background: var(--slate-200);
+}
+
+.pill-tutorial-btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border: none;
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 112, 188, 0.25);
+  transition: all 0.15s;
+}
+
+.pill-tutorial-btn:hover {
+  background: var(--primary-hover);
+}
+
+.pill-user-session {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--slate-200);
+  background: #ffffff;
+  color: var(--slate-600);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.dot-pulse-sky {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  box-shadow: 0 0 6px rgba(14, 165, 233, 0.6);
+  animation: pulseDot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.user-name-bold {
+  font-weight: 800;
+  color: #0070bc;
+}
+
+/* Animations */
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ══════════════════════════════════════════════════════
+   DARK MODE THEME SYSTEM (Ultra-Premium Slate / Obsidian)
+   ══════════════════════════════════════════════════════ */
+body.dark {
+  background-color: #0b0f19;
+  color: #f1f5f9;
+}
+
+body.dark .top-header-box {
+  background: #111827;
+  border-color: #1f2937;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+body.dark .portal-title-gradient {
+  background: linear-gradient(to right, #ffffff, #60a5fa, #38bdf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+body.dark .btn-info-icon {
+  background: #1e293b;
+  color: #38bdf8;
+}
+
+body.dark .pill-theme-btn {
+  background: #1f2937;
+  border-color: #374151;
+  color: #e2e8f0;
+}
+
+body.dark .pill-theme-btn:hover {
+  background: #374151;
+}
+
+body.dark .pill-user-session {
+  background: #111827;
+  border-color: #1f2937;
+  color: #94a3b8;
+}
+
+body.dark .big-form-card {
+  background: #111827;
+  border-color: #1f2937;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+body.dark .subtitle-bar {
+  border-bottom-color: #1f2937;
+}
+
+body.dark .form-title-h2 {
+  color: #f8fafc;
+}
+
+body.dark .form-desc-note {
+  color: #94a3b8;
+}
+
+body.dark .pill-btn-small {
+  background: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+body.dark .pill-btn-small:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+body.dark .pill-btn-small.amber {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+body.dark .header-summary-box {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+body.dark .summary-cell.blue-tint {
+  background: rgba(14, 165, 233, 0.08);
+  border-color: rgba(14, 165, 233, 0.25);
+}
+
+body.dark .summary-cell.slate-tint {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .summary-badge-title.slate {
+  color: #94a3b8;
+}
+
+body.dark .summary-val-text {
+  color: #f8fafc;
+}
+
+body.dark .summary-val-text.green {
+  color: #34d399;
+}
+
+body.dark .mode-tab-container {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+
+body.dark .mode-tab-btn {
+  color: #94a3b8;
+}
+
+body.dark .mode-tab-btn.active {
+  background: #1e293b;
+  color: #38bdf8;
+  border-color: #334155;
+}
+
+body.dark .tab-icon-circle.slate {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+body.dark .card-section-box {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+body.dark .label-caps-text {
+  color: #cbd5e1;
+}
+
+body.dark .input-clean-field,
+body.dark select.form-input-control,
+body.dark input.form-input-control,
+body.dark textarea.form-input-control {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark .input-clean-field:focus,
+body.dark select.form-input-control:focus,
+body.dark input.form-input-control:focus,
+body.dark textarea.form-input-control:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+}
+
+body.dark .stepper-arrow-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark .stepper-arrow-btn:hover {
+  background: #334155;
+}
+
+body.dark .radio-option-pill {
+  background: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+body.dark .radio-option-pill:hover {
+  background: #334155;
+}
+
+body.dark .radio-option-pill.active {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: #0ea5e9;
+  color: #38bdf8;
+}
+
+body.dark .radio-option-pill.warning-active {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+body.dark .defect-badge-chip {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark .btn-potong-kain-dashed {
+  background: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+body.dark .btn-potong-kain-dashed:hover {
+  background: #334155;
+}
+
+body.dark .btn-potong-kain-dashed.active-opts {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: #0284c7;
+  color: #38bdf8;
+}
+
+body.dark .modal-dialog-box {
+  background: #111827;
+  border-color: #1f2937;
+  color: #f8fafc;
+}
+
+body.dark .modal-header-top {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+
+body.dark .modal-title-h3 {
+  color: #f8fafc;
+}
+
+body.dark .modal-subtitle-p {
+  color: #94a3b8;
+}
+
+body.dark .modal-footer-bar {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+
+body.dark .btn-modal-cancel {
+  background: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+body.dark .btn-modal-cancel:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+body.dark .drawer-sheet {
+  background: #111827;
+  border-color: #1f2937;
+  color: #f8fafc;
+}
+
+body.dark .drawer-header {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+
+body.dark .drawer-title {
+  color: #f8fafc;
+}
+
+body.dark .drawer-subtitle {
+  color: #94a3b8;
+}
+
+body.dark .history-row-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .history-row-card.local {
+  background: rgba(14, 165, 233, 0.12);
+  border-color: #0284c7;
+}
+
+body.dark .history-row-card.server {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+
+body.dark .queue-item-card {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark .summary-card-sub {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .plan-quick-card {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark .plan-quick-card:hover {
+  background: #334155;
+}
+
+body.dark .stop-info-card {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+
+body.dark .stop-info-val {
+  color: #f8fafc;
+}
+
+body.dark .btn-stop-cat-tab {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .btn-stop-cat-tab:hover {
+  background: #334155;
+}
+
+body.dark .btn-stop-cat-tab.active {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: #0284c7;
+}
+
+body.dark .cat-code {
+  background: #334155;
+  color: #f8fafc;
+}
+
+body.dark .cat-short {
+  color: #f8fafc;
+}
+
+body.dark .btn-stop-cat-tab.active .cat-short {
+  color: #38bdf8;
+}
+
+body.dark .stop-detail-section {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+
+body.dark .stop-detail-chip {
+  background: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+body.dark .stop-detail-chip:hover {
+  background: #334155;
+}
+
+body.dark .stop-detail-chip.active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+body.dark .stop-cakupan-pill {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .stop-cakupan-pill:has(input:checked) {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: #0284c7;
+}
+
+body.dark .cakupan-title {
+  color: #f8fafc;
+}
+
+body.dark .stop-alert-box {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+body.dark .stop-alert-box p {
+  color: #fcd34d !important;
+}
+
+body.dark .tutorial-step-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .tutorial-step-card:hover {
+  border-color: #38bdf8;
+}
+
+body.dark .tutorial-step-title {
+  color: #f8fafc;
+}
+
+body.dark .tutorial-step-text {
+  color: #cbd5e1;
+}
+
+body.dark .form-input-label {
+  color: #cbd5e1;
+}
+
+body.dark .downtime-section-banner {
+  background: #1e293b;
+  border-color: #334155;
+}
+

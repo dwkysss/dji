@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Portal Inspeksi QC Offline - DJI</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Modular Stylesheets adhering to Best Practice -->
+  <link rel="stylesheet" href="offline/css/base.css">
+  <link rel="stylesheet" href="offline/css/components.css">
+  <link rel="stylesheet" href="offline/css/modals.css">
+  <link rel="stylesheet" href="offline/css/qc.css">
+</head>
+<body>
+
+  <!-- Main Viewport Content -->
+  <div class="viewport-content">
+    <main class="main-container">
+
+      <!-- Top Header Bar -->
+      <div class="top-header-box">
+        <div class="title-left-side">
+          <button type="button" class="btn-info-icon" title="Info Parameter QC">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </button>
+          <h1 class="portal-title-gradient">Portal Inspeksi QC (Offline)</h1>
+        </div>
+
+        <div class="top-header-actions">
+          <a href="offline.html" class="pill-theme-btn" style="text-decoration: none; color: #0f172a; border-color: #cbd5e1; background: #ffffff;" title="Pindah ke Form Operator">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <span>Form Operator</span>
+          </a>
+
+          <div class="pill-user-session">
+            <span class="dot-pulse-sky"></span>
+            <span class="user-name-bold">QC INSPEKTOR</span>
+          </div>
+
+          <div class="pill-offline-indicator" title="Mode Inspeksi Offline - Data disimpan lokal di perangkat">
+            <span class="dot-cyan"></span>
+            <span>QC OFFLINE</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Offline QC Queue Alert Banner -->
+      <div id="qcQueueAlertBanner" class="offline-queue-banner" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="dot-ping-amber"></span>
+          <span>Ada <strong id="txtQcQueueCount">0 data</strong> inspeksi QC menunggu sinkronisasi di HP ini.</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn-kirim-antrean" onclick="DJIQC.trySyncQcNow()">Kirim Semua Sekarang</button>
+        </div>
+      </div>
+
+      <!-- Overall Grade Banner & Summary -->
+      <div class="qc-grade-overview-card">
+        <div id="qcOverallGradeBadge" class="qc-grade-badge-huge grade-A">A</div>
+        <div class="qc-grade-meta">
+          <div class="qc-grade-title">Grade Keseluruhan (Overall Grade)</div>
+          <p id="qcGradeDescText" class="qc-grade-desc">Grade dihitung berdasarkan panel BS saja sesuai standar toleransi pabrik (Max 50 Panel: A <= 5, B <= 8, C <= 10, D > 10).</p>
+        </div>
+
+        <div class="qc-grade-stats-grid">
+          <div class="qc-stat-pill total">
+            <span id="statTotalInspek" class="qc-stat-val">52</span>
+            <span class="qc-stat-lbl">Total Panel</span>
+          </div>
+          <div class="qc-stat-pill ok">
+            <span id="statTotalOk" class="qc-stat-val">50</span>
+            <span class="qc-stat-lbl">Normal (OK)</span>
+          </div>
+          <div class="qc-stat-pill defect">
+            <span id="statTotalDefect" class="qc-stat-val">0</span>
+            <span class="qc-stat-lbl">Cacat Rajut</span>
+          </div>
+          <div class="qc-stat-pill bs">
+            <span id="statTotalBS" class="qc-stat-val">2</span>
+            <span class="qc-stat-lbl">Panel BS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Big Form Card for QC Inspection Batch -->
+      <div class="big-form-card" style="padding: 24px;">
+
+        <!-- Header Filter / Parameter Bar -->
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid var(--slate-200); margin-bottom: 20px;">
+          <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+            <div>
+              <label style="font-size: 11px; font-weight: 800; color: var(--slate-600); text-transform: uppercase;">Nomor Mesin</label>
+              <select id="selQcMc" class="input-native-modern" style="padding: 8px 12px; height: 38px; min-width: 110px;" onchange="DJIQC.qcState.nomorMc = this.value; DJIQC.renderQCView();">
+                <option value="R01" selected>R01</option>
+                <option value="R02">R02</option>
+                <option value="R03">R03</option>
+                <option value="R04">R04</option>
+                <option value="R11">R11 (Meteran)</option>
+                <option value="T01">T01 (Tricote)</option>
+                <option value="T2A">T2A (Tricote)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size: 11px; font-weight: 800; color: var(--slate-600); text-transform: uppercase;">Potongan Ke</label>
+              <input type="number" id="inpQcPotongan" class="input-native-modern" value="1" min="1" style="width: 70px; height: 38px; text-align: center; font-weight: 800;" onchange="DJIQC.qcState.potonganKe = parseInt(this.value, 10) || 1;">
+            </div>
+
+            <div>
+              <label style="font-size: 11px; font-weight: 800; color: var(--slate-600); text-transform: uppercase;">Petugas QC</label>
+              <input type="text" id="inpQcPetugas" class="input-native-modern" value="INSPEKTOR 1" style="height: 38px; width: 140px; font-weight: 700;" onchange="DJIQC.qcState.petugas1 = this.value;">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" class="qc-quick-btn green" onclick="DJIQC.markAllOk()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Set Semua Ceklis (OK)</span>
+            </button>
+            <button type="button" class="qc-quick-btn blue" onclick="DJIQC.insertQcPanel()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              <span>+ Sisip Panel Cacat (+ QC)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- QC Inspection Table -->
+        <div class="qc-table-wrapper">
+          <div class="qc-table-scroll">
+            <table class="qc-inspection-table">
+              <thead>
+                <tr>
+                  <th style="width: 70px;">Jam</th>
+                  <th style="width: 160px;">Operator (Grup)</th>
+                  <th style="width: 100px;">Panel / Roll</th>
+                  <th style="width: 140px;">Hasil Inspeksi</th>
+                  <th>Keterangan Cacat</th>
+                  <th style="width: 100px; text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="qcTableBody">
+                <!-- Dynamically populated by qc-app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Submit & Save Bar -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--slate-200); flex-wrap: wrap;">
+          <button type="button" class="pill-btn-small" onclick="DJIQC.initQCApp()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <span>Reset Form</span>
+          </button>
+
+          <div style="display: flex; gap: 10px;">
+            <button type="button" class="btn-kirim-antrean" style="padding: 12px 20px; font-size: 13px;" onclick="DJIQC.saveInspectionLocally()">
+              Simpan di Memori HP (Offline)
+            </button>
+            <button type="button" class="btn-submit-main-blue" style="width: auto; padding: 0 24px;" onclick="DJIQC.trySyncQcNow()">
+              Kirim ke Server Sekarang
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Toast Notification Box -->
+  <div id="toastBox" class="toast-box">Pemberitahuan</div>
+
+  <script>
+    function showToast(msg) {
+      const t = document.getElementById("toastBox");
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2800);
+    }
+    window.showToast = showToast;
+  </script>
+
+  <!-- Modular Scripts -->
+  <script defer src="offline/js/config.js"></script>
+  <script defer src="offline/js/qc-app.js"></script>
+</body>
+</html>
