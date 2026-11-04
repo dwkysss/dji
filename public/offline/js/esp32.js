@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ESP32 Local Wi-Fi WebSocket Client & Screen Wake Lock
  * Matches WifiDowntimeTrigger.tsx & wifi-context.tsx 1:1
  * Dentelle Jaya Infinitex - Offline Portal
@@ -10,21 +10,21 @@
   const { showToast } = window.DJIConfig;
   const { appState } = window.DJIState;
 
-  const DEFAULT_HOSTNAME = "192.168.1.171";
+  const DEFAULT_HOSTNAME = "192.168.0.171";
   const STORAGE_KEY = "wifi_esp32_target";
 
   // Standard machine mapping: Machine Code -> Channel (M1, M2, M3)
   const DEFAULT_MACHINE_ESP_MAP = {
-    "R1": { host: "192.168.1.171", channel: "M1" },
-    "R11": { host: "192.168.1.171", channel: "M2" },
-    "R12": { host: "192.168.1.171", channel: "M3" },
-    "R2": { host: "192.168.1.171", channel: "M1" },
-    "R1C": { host: "192.168.1.171", channel: "M2" },
-    "R2C": { host: "192.168.1.171", channel: "M3" },
-    "R3B": { host: "192.168.1.171", channel: "M1" },
-    "T1C": { host: "192.168.1.171", channel: "M1" },
-    "T2A": { host: "192.168.1.171", channel: "M2" },
-    "R16": { host: "192.168.1.171", channel: "M3" }
+    "R1": { host: "192.168.0.171", channel: "M1" },
+    "R11": { host: "192.168.0.171", channel: "M2" },
+    "R12": { host: "192.168.0.171", channel: "M3" },
+    "R2": { host: "192.168.0.171", channel: "M1" },
+    "R1C": { host: "192.168.0.171", channel: "M2" },
+    "R2C": { host: "192.168.0.171", channel: "M3" },
+    "R3B": { host: "192.168.0.171", channel: "M1" },
+    "T1C": { host: "192.168.0.171", channel: "M1" },
+    "T2A": { host: "192.168.0.171", channel: "M2" },
+    "R16": { host: "192.168.0.171", channel: "M3" }
   };
 
   let socket = null;
@@ -63,7 +63,7 @@
     return map.channel || "M1";
   }
 
-  /* ── Screen Wake Lock Management ── */
+  /* â”€â”€ Screen Wake Lock Management â”€â”€ */
   async function requestWakeLock() {
     if (!("wakeLock" in navigator)) {
       console.log("Screen Wake Lock API not supported in this browser.");
@@ -111,7 +111,7 @@
     }
   });
 
-  /* ── WebSocket Connection to ESP32 Local Wi-Fi ── */
+  /* â”€â”€ WebSocket Connection to ESP32 Local Wi-Fi â”€â”€ */
   function connect(customHost) {
     if (customHost) setTargetHost(customHost);
     targetHost = getTargetHost();
@@ -209,21 +209,26 @@
     const duration = typeof data.duration === "number" ? data.duration : undefined;
 
     if (status === "START") {
+      const alreadyRunning = machineStatus === "NYALA" || (window.DJIDowntime && window.DJIDowntime.isTimerRunning && window.DJIDowntime.isTimerRunning());
       machineStatus = "NYALA";
       updateCardUI();
-      if (window.DJIDowntime && window.DJIDowntime.startDowntimeTimerFromEsp32) {
+      if (!alreadyRunning && window.DJIDowntime && window.DJIDowntime.startDowntimeTimerFromEsp32) {
         window.DJIDowntime.startDowntimeTimerFromEsp32(duration);
       }
     } else if (status === "STOP") {
+      const wasRunning = machineStatus === "NYALA" || (window.DJIDowntime && window.DJIDowntime.isTimerRunning && window.DJIDowntime.isTimerRunning());
       machineStatus = "MATI";
       updateCardUI();
-      if (window.DJIDowntime && window.DJIDowntime.stopAndSaveDowntimeFromEsp32) {
+
+      // HANYA hentikan & simpan downtime jika mesin memang SEBELUMNYA sedang dalam kondisi downtime/mati!
+      // Jika saat halaman baru dibuka/refresh mesin memang sudah berjalan normal (status awal STOP dari ESP32), JANGAN panggil stop!
+      if (wasRunning && window.DJIDowntime && window.DJIDowntime.stopAndSaveDowntimeFromEsp32) {
         window.DJIDowntime.stopAndSaveDowntimeFromEsp32(duration);
       }
     }
   }
 
-  /* ── UI Rendering & Sync ── */
+  /* â”€â”€ UI Rendering & Sync â”€â”€ */
   function updateCardUI() {
     const mcCodeEl = document.getElementById("dispEsp32McCode");
     const channelEl = document.getElementById("dispEsp32Channel");
@@ -286,7 +291,7 @@
     }
   }
 
-  /* ── Settings Modal ── */
+  /* â”€â”€ Settings Modal â”€â”€ */
   function openSettingsModal() {
     const modal = document.getElementById("modalEsp32Settings");
     const inpIp = document.getElementById("inpEsp32HostIp");
@@ -314,7 +319,7 @@
     connect(newIp);
   }
 
-  /* ── Simulation Trigger (For Testing Without Physical Machine) ── */
+  /* â”€â”€ Simulation Trigger (For Testing Without Physical Machine) â”€â”€ */
   function simulateTrigger(status) {
     const currentChannel = getCurrentMachineChannel();
     handleIncomingEspMessage({

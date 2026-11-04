@@ -499,8 +499,15 @@ export async function searchMendingHistory(
       } else if (startDate) {
         query = query.eq("tanggal_mending", startDate);
       }
-      if (filters.nomor_mc) {
-        query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
+      if (filters.nomor_mc && filters.nomor_mc.trim() !== "") {
+        const cleanMc = filters.nomor_mc.trim();
+        if (/^R\d+$/i.test(cleanMc)) {
+          const num = cleanMc.replace(/[^0-9]/g, "");
+          const padded = num.padStart(2, "0");
+          query = query.or(`nomor_mc.ilike.${cleanMc},nomor_mc.eq.${num},nomor_mc.eq.R${num},nomor_mc.eq.R${padded}`);
+        } else {
+          query = query.ilike("nomor_mc", cleanMc);
+        }
       }
       if (filters.design_id) {
         query = query.ilike("design_id", `%${filters.design_id}%`);
@@ -586,7 +593,16 @@ export async function searchMendingHistory(
     } else if (startDate) {
       query = query.eq("tanggal_mending", startDate);
     }
-    if (filters.nomor_mc) query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
+      if (filters.nomor_mc && filters.nomor_mc.trim() !== "") {
+        const cleanMc = filters.nomor_mc.trim();
+        if (/^R\d+$/i.test(cleanMc)) {
+          const num = cleanMc.replace(/[^0-9]/g, "");
+          const padded = num.padStart(2, "0");
+          query = query.or(`nomor_mc.ilike.${cleanMc},nomor_mc.eq.${num},nomor_mc.eq.R${num},nomor_mc.eq.R${padded}`);
+        } else {
+          query = query.ilike("nomor_mc", cleanMc);
+        }
+      }
     if (filters.design_id) query = query.ilike("design_id", `%${filters.design_id}%`);
     if (filters.potongan_ke) query = query.eq("potongan_ke", parseInt(filters.potongan_ke));
     if (filters.no_customer) query = query.ilike("items.detail.header.no_order_barang", `%${filters.no_customer}%`);

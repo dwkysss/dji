@@ -1,6 +1,6 @@
 export interface OfflinePayload {
   id: string; // unik, misal Date.now() + random
-  type: "employee" | "continuous" | "qc";
+  type: "employee" | "continuous" | "qc" | "status";
   timestamp: string;
   data: any; // payload form yang gagal terkirim
   retryCount?: number;
@@ -35,7 +35,7 @@ export async function openOfflineDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function addPendingPayload(type: "employee" | "continuous" | "qc", data: any): Promise<void> {
+export async function addPendingPayload(type: "employee" | "continuous" | "qc" | "status", data: any): Promise<void> {
   const db = await openOfflineDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, "readwrite");
@@ -62,23 +62,77 @@ export async function addPendingPayload(type: "employee" | "continuous" | "qc", 
 }
 
 export async function getAllPendingPayloads(): Promise<OfflinePayload[]> {
+  const mergedMap = new Map<string, OfflinePayload>();
+
+  // 1. Ambil dari IndexedDB
   try {
     const db = await openOfflineDB();
-    return new Promise((resolve, reject) => {
+    const idbPayloads = await new Promise<OfflinePayload[]>((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readonly");
       const store = transaction.objectStore(STORE_NAME);
       const request = store.getAll();
 
       request.onsuccess = (event) => {
-        resolve((event.target as IDBRequest).result as OfflinePayload[]);
+        resolve(((event.target as IDBRequest).result as OfflinePayload[]) || []);
       };
 
       request.onerror = () => reject("Gagal memuat antrean offline.");
     });
+
+    if (Array.isArray(idbPayloads)) {
+      for (const p of idbPayloads) {
+        if (p && p.id) mergedMap.set(p.id, p);
+      }
+    }
   } catch (err) {
-    // Return array kosong jika SSR atau tidak support
-    return [];
+    // IDB error fallback
   }
+
+  // 2. Ambil dari localStorage antrean offline umum (dji_offline_queue)
+  if (typeof window !== "undefined") {
+    try {
+      const rawQueue = localStorage.getItem("dji_offline_queue");
+      if (rawQueue) {
+        const parsed = JSON.parse(rawQueue);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (item && item.id && !mergedMap.has(item.id)) {
+              mergedMap.set(item.id, {
+                id: item.id,
+                type: (item.type || (item.inputType === "METER" ? "continuous" : "employee")) as any,
+                timestamp: item.timestamp || new Date().toISOString(),
+                data: item.data || item,
+                retryCount: item.retryCount || 0,
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 3. Ambil dari localStorage antrean offline QC (dji_qc_offline_queue)
+    try {
+      const rawQc = localStorage.getItem("dji_qc_offline_queue");
+      if (rawQc) {
+        const parsedQc = JSON.parse(rawQc);
+        if (Array.isArray(parsedQc)) {
+          for (const item of parsedQc) {
+            if (item && item.id && !mergedMap.has(item.id)) {
+              mergedMap.set(item.id, {
+                id: item.id,
+                type: "qc",
+                timestamp: item.timestamp || new Date().toISOString(),
+                data: item.data || item,
+                retryCount: item.retryCount || 0,
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  return Array.from(mergedMap.values());
 }
 
 export async function updatePendingPayload(payload: OfflinePayload): Promise<void> {
@@ -99,37 +153,70 @@ export async function updatePendingPayload(payload: OfflinePayload): Promise<voi
 }
 
 export async function removePendingPayload(id: string): Promise<void> {
-  const db = await openOfflineDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(id);
+  // 1. Hapus dari IndexedDB
+  try {
+    const db = await openOfflineDB();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.delete(id);
 
-    request.onsuccess = () => {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("dji_offline_queue_changed"));
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject("Gagal menghapus antrean offline.");
+    });
+  } catch (e) {}
+
+  // 2. Hapus dari localStorage dji_offline_queue
+  if (typeof window !== "undefined") {
+    try {
+      const rawQueue = localStorage.getItem("dji_offline_queue");
+      if (rawQueue) {
+        const parsed = JSON.parse(rawQueue);
+        if (Array.isArray(parsed)) {
+          const remaining = parsed.filter((it: any) => it.id !== id);
+          localStorage.setItem("dji_offline_queue", JSON.stringify(remaining));
+        }
       }
-      resolve();
-    };
-    request.onerror = () => reject("Gagal menghapus antrean offline.");
-  });
+    } catch (e) {}
+
+    // 3. Hapus dari localStorage dji_qc_offline_queue
+    try {
+      const rawQc = localStorage.getItem("dji_qc_offline_queue");
+      if (rawQc) {
+        const parsedQc = JSON.parse(rawQc);
+        if (Array.isArray(parsedQc)) {
+          const remainingQc = parsedQc.filter((it: any) => it.id !== id);
+          localStorage.setItem("dji_qc_offline_queue", JSON.stringify(remainingQc));
+        }
+      }
+    } catch (e) {}
+
+    window.dispatchEvent(new CustomEvent("dji_offline_queue_changed"));
+  }
 }
 
 export async function clearAllPendingPayloads(): Promise<void> {
-  const db = await openOfflineDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.clear();
+  // 1. Kosongkan IndexedDB
+  try {
+    const db = await openOfflineDB();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.clear();
 
-    request.onsuccess = () => {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("dji_offline_queue_changed"));
-      }
-      resolve();
-    };
-    request.onerror = () => reject("Gagal mengosongkan antrean offline.");
-  });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject("Gagal mengosongkan antrean offline.");
+    });
+  } catch (e) {}
+
+  // 2. Kosongkan localStorage
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("dji_offline_queue", JSON.stringify([]));
+      localStorage.setItem("dji_qc_offline_queue", JSON.stringify([]));
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent("dji_offline_queue_changed"));
+  }
 }
 
 /**

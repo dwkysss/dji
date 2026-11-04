@@ -14,19 +14,20 @@ export interface AppVersionResponse {
 
 export async function GET() {
   const versionInfo: AppVersionResponse = {
-    latestVersionName: "1.0.0",
-    latestVersionCode: 1,
+    latestVersionName: "1.1.0",
+    latestVersionCode: 2,
     apkUrl: "/downloads/dji-app.apk",
-    apkSize: "21.6 MB",
+    apkSize: "75.2 MB",
     releaseNotes: [
-      "Fitur Form Input Darurat Offline (Panel & Meteran)",
-      "Peningkatan WebView cache saat offline",
-      "Perlindungan tombol Back (Double-tap to exit)",
-      "Dukungan kamera untuk foto cacat kain & QR scan",
-      "Pencegahan layar mati otomatis (WakeLock)"
+      "Pembaruan Tampilan Portal Offline Baru (Modular CSS/JS)",
+      "Tampilan Riwayat Potongan dibuat 1:1 identik dengan versi online (tabel panel, kolom tgl, jam, grup, operator, status KET, cacat, dan downtime)",
+      "Sinkronisasi otomatis parameter mesin, potongan, operator & nomor panel dari database",
+      "Fitur Laporan Mesin Mati Total & Timer Downtime Lokal",
+      "Pencegahan Cache Basi Browser & WebView Offline",
+      "Peningkatan sinkronisasi otomatis saat internet kembali pulih"
     ],
     mandatory: false,
-    publishedAt: "2026-10-17T15:00:00Z",
+    publishedAt: "2026-10-27T08:30:00Z",
   };
 
   return NextResponse.json(versionInfo, {

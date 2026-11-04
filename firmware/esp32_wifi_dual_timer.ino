@@ -1,4 +1,4 @@
-/*
+﻿/*
  * =================================================================================
  * PROYEK: ESP32 WI-FI LOKAL MULTI-MACHINE DOWNTIME TIMER (3 MESIN)
  *         (WIFIMANAGER + DYNAMIC CAPTIVE PORTAL + STATIC IP + HEARTBEAT WS)
@@ -36,8 +36,8 @@ const char* WIFI_SSID     = "Tenda_Produksi";
 const char* WIFI_PASSWORD = "rtomh99555";
 
 // --- KONFIGURASI STATIC IP DEFAULT (IP Tetap Permanen ESP32 di Pabrik) ---
-IPAddress local_IP(192, 168, 1, 171);
-IPAddress gateway(192, 168, 1, 1);
+IPAddress local_IP(192, 168, 0, 171); // Diubah: subnet router baru 192.168.0.x
+IPAddress gateway(192, 168, 0, 1);   // Diubah: gateway router baru
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);

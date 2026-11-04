@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
@@ -65,7 +65,7 @@ export default function WifiController() {
       machineMapping["R1"]?.host ||
       Object.values(editableMap)[0]?.host ||
       Object.values(machineMapping)[0]?.host ||
-      "192.168.1.171"
+      "192.168.0.171"
     );
   }, [editableMap, machineMapping]);
 
@@ -189,7 +189,7 @@ export default function WifiController() {
         await resetMachineMapping();
         setIsSavingMapping(false);
         setEditableMap(DEFAULT_MACHINE_ESP_MAP);
-        const defHost = DEFAULT_MACHINE_ESP_MAP["R1"]?.host || "192.168.1.171";
+        const defHost = DEFAULT_MACHINE_ESP_MAP["R1"]?.host || "192.168.0.171";
         setInputHost(defHost);
         setTargetHost(defHost);
         connect(defHost);
@@ -508,7 +508,7 @@ export default function WifiController() {
       {activeTab === "mapping" && (
         <div className="flex flex-col gap-4">
           <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-800 leading-relaxed">
-            💡 <strong>Panduan Pemetaan:</strong> Atur nomor mesin yang terhubung ke masing-masing ESP32 serta channel pin fisiknya. Tersimpan otomatis di database Supabase sehingga langsung tersinkronisasi ke seluruh HP, tablet, dan PC operator pabrik.
+            ðŸ’¡ <strong>Panduan Pemetaan:</strong> Atur nomor mesin yang terhubung ke masing-masing ESP32 serta channel pin fisiknya. Tersimpan otomatis di database Supabase sehingga langsung tersinkronisasi ke seluruh HP, tablet, dan PC operator pabrik.
           </div>
 
           {saveSuccessMsg && (

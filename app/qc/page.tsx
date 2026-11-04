@@ -242,6 +242,20 @@ export default function QCPage() {
   };
 
   useEffect(() => {
+    try {
+      sessionStorage.removeItem("dji_last_redirect_attempt_qc");
+      sessionStorage.removeItem("dji_redirect_done_qc");
+      sessionStorage.removeItem("dji_stay_offline_qc");
+      sessionStorage.removeItem("dji_redirect_count_qc");
+      sessionStorage.removeItem("dji_last_redirect_time_qc");
+      if (typeof window !== "undefined" && window.location.search.includes("online")) {
+        const u = new URL(window.location.href);
+        u.searchParams.delete("online");
+        const clean = u.pathname + (u.search ? u.search : "");
+        window.history.replaceState({}, "", clean);
+      }
+    } catch (e) {}
+
     // Parallelize metadata fetching on page load
     Promise.all([
       fetchActiveSessions(),

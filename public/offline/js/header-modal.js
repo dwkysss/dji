@@ -51,6 +51,8 @@
     let allOperators = [];
     if (appState.bootstrap && appState.bootstrap.operators && appState.bootstrap.operators.length > 0) {
       allOperators = appState.bootstrap.operators;
+    } else if (window.DJIConfig && window.DJIConfig.FALLBACK_OPERATORS) {
+      allOperators = window.DJIConfig.FALLBACK_OPERATORS;
     }
 
     const currentGrp = normGroup;
@@ -126,18 +128,24 @@
     if (!opSelect) return;
     opSelect.innerHTML = `<option value="">-- Pilih Operator --</option>`;
 
-    const allOperators = (appState.bootstrap && appState.bootstrap.operators) ? appState.bootstrap.operators : [];
+    let allOperators = (appState.bootstrap && appState.bootstrap.operators && appState.bootstrap.operators.length > 0)
+      ? appState.bootstrap.operators
+      : ((window.DJIConfig && window.DJIConfig.FALLBACK_OPERATORS) ? window.DJIConfig.FALLBACK_OPERATORS : []);
+
     const shiftOps = allOperators.filter(o => (o.shift || "").toUpperCase() === grp.toUpperCase());
     const otherOps = allOperators.filter(o => (o.shift || "").toUpperCase() !== grp.toUpperCase());
 
-    [...shiftOps, ...otherOps].forEach(op => {
+    const allOrdered = [...shiftOps, ...otherOps];
+    allOrdered.forEach(op => {
       const opt = document.createElement("option");
       opt.value = op.name;
       opt.textContent = `${op.name} (Shift ${op.shift || 'A'})`;
       opSelect.appendChild(opt);
     });
 
-    if (shiftOps.length > 0) {
+    if (appState.selectedOperator && allOrdered.some(o => o.name.toLowerCase() === appState.selectedOperator.toLowerCase())) {
+      opSelect.value = appState.selectedOperator;
+    } else if (shiftOps.length > 0) {
       opSelect.value = shiftOps[0].name;
     }
   }
@@ -163,7 +171,7 @@
       });
     }
 
-    const pcs = snap?.defaultPcs || (["R11", "R12", "R16"].includes(chosenMc.toUpperCase()) ? 3 : ["T2", "T2A"].includes(chosenMc.toUpperCase()) ? 2 : 1);
+    const pcs = snap?.defaultPcs || (["R11", "R12", "R13", "R16"].includes(chosenMc.toUpperCase()) ? 3 : ["T2", "T2A"].includes(chosenMc.toUpperCase()) ? 2 : 1);
     const pcsEl = document.getElementById("dispModalPcsCount");
     if (pcsEl) pcsEl.textContent = String(pcs);
 
@@ -185,6 +193,12 @@
       setVal("modalInpShadow", snap.shadow);
       setVal("modalInpPinggiran", snap.pinggiran);
       setVal("modalSelMatching", snap.statusMatching);
+
+      // Jangan timpa group atau operator jika pengguna sudah memiliki operator aktif
+      const selOp = document.getElementById("modalSelOperator");
+      if ((!selOp || !selOp.value || selOp.value === "-") && snap.operatorName) {
+        if (selOp) selOp.value = snap.operatorName;
+      }
     }
   }
 
@@ -250,6 +264,13 @@
     appState.pinggiran = getVal("modalInpPinggiran");
 
     saveHeaderToStorage();
+    if (window.DJIState && window.DJIState.refreshPotonganHistoryCache) {
+      window.DJIState.refreshPotonganHistoryCache(appState.selectedMc, appState.selectedPotongan);
+    }
+    if (window.DJIHistory && window.DJIHistory.fetchServerHistory) {
+      window.DJIHistory.fetchServerHistory(true).catch(() => {});
+    }
+    syncSelectedMachineSnapshot(appState.selectedMc, false);
     applyHeaderToCards();
     detectMachineMode(appState.selectedMc);
     if (window.DJIBlockMesin) window.DJIBlockMesin.checkActiveBlock();
@@ -261,15 +282,15 @@
   function resetHeaderForm() {
     localStorage.removeItem(KEYS.HEADER);
     appState.selectedOperator = "";
-    syncSelectedMachineSnapshot(appState.selectedMc);
+    syncSelectedMachineSnapshot(appState.selectedMc, true);
     populateSelectors();
     applyHeaderToCards();
     if (window.DJIBlockMesin) window.DJIBlockMesin.checkActiveBlock();
     if (window.DJIEsp32) window.DJIEsp32.updateCardUI();
-    showToast("Header berhasil direset.");
+    showToast("Header berhasil direset ke data mesin.");
   }
 
-  /* ── BS / Opsi Lanjutan Modal ── */
+  /* ── BS / Opsi Lanjutan Modal (1:1 with EmployeeForm Advanced Actions) ── */
   function updateBsButtonUI() {
     const btn = document.getElementById("btnPotongKainBs");
     const txt = document.getElementById("txtBtnPotongKainBs");
@@ -277,55 +298,168 @@
 
     const badges = [];
     if (appState.isPotongKain) {
-      badges.push(`<span class="badge-opt-pill potong">✂️ Potong Kain</span>`);
+      badges.push('<span class="badge-opt-pill potong">✂️ Potong Kain</span>');
     }
     if (appState.isPanelBs) {
-      badges.push(`<span class="badge-opt-pill bs">⚠️ Panel BS</span>`);
+      badges.push('<span class="badge-opt-pill bs">⚠️ Panel BS</span>');
     }
 
     if (badges.length > 0) {
       btn.classList.add("active-opts");
-      txt.innerHTML = `<span style="display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;">${badges.join(" ")} <span style="font-size:11px; opacity:0.8;">(Klik untuk ubah)</span></span>`;
+      txt.innerHTML = '<span style="display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;">' + badges.join(" ") + ' <span style="font-size:11px; opacity:0.8;">(Klik untuk ubah)</span></span>';
     } else {
       btn.classList.remove("active-opts");
       txt.textContent = "Potong Kain & BS";
     }
   }
 
+  function hideAdvTooltips() {
+    const t1 = document.getElementById("tooltipAdvPotong");
+    const t2 = document.getElementById("tooltipAdvPcs");
+    if (t1) t1.classList.remove("show");
+    if (t2) t2.classList.remove("show");
+  }
+
+  function toggleAdvInfo(type, event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    const tPotong = document.getElementById("tooltipAdvPotong");
+    const tPcs = document.getElementById("tooltipAdvPcs");
+    if (type === "potong" && tPotong) {
+      const isShow = tPotong.classList.contains("show");
+      hideAdvTooltips();
+      if (!isShow) tPotong.classList.add("show");
+    } else if (type === "pcs" && tPcs) {
+      const isShow = tPcs.classList.contains("show");
+      hideAdvTooltips();
+      if (!isShow) tPcs.classList.add("show");
+    }
+  }
+
+  function toggleModalPotongKain() {
+    appState.isPotongKain = !appState.isPotongKain;
+    updatePotongKainCardUI();
+  }
+
+  function updatePotongKainCardUI() {
+    const card = document.getElementById("cardOptPotongKain");
+    const badge = document.getElementById("badgePotongChecked");
+    const wrapDate = document.getElementById("wrapperTanggalPotong");
+    const txtBtn = document.getElementById("txtBtnSubmitFromAdvModal");
+    const isChecked = Boolean(appState.isPotongKain);
+
+    if (card) {
+      if (isChecked) card.classList.add("active-potong");
+      else card.classList.remove("active-potong");
+    }
+    if (badge) badge.style.display = isChecked ? "flex" : "none";
+    if (wrapDate) wrapDate.style.display = isChecked ? "flex" : "none";
+
+    if (txtBtn) {
+      txtBtn.textContent = isChecked ? "Tutup Roll & Potong Kain" : "Kirim Laporan Sekarang";
+    }
+  }
+
+  function renderPcsChips() {
+    const container = document.getElementById("modalPcsChipsContainer");
+    if (!container) return;
+
+    if (!appState.pcsBs) appState.pcsBs = {};
+    const count = appState.pcsCount || (["R11", "R12", "R13", "R16"].includes((appState.selectedMc || "").toUpperCase()) ? 3 : ["T2", "T2A"].includes((appState.selectedMc || "").toUpperCase()) ? 2 : 1);
+
+    container.innerHTML = "";
+    for (let i = 1; i <= count; i++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = 'btn-pcs-chip' + (appState.pcsBs[i] ? ' active-bs' : '');
+      btn.textContent = 'PCS ' + i;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        toggleModalPcsBs(i);
+      };
+      container.appendChild(btn);
+    }
+  }
+
+  function toggleModalPcsBs(pcsIndex) {
+    if (!appState.pcsBs) appState.pcsBs = {};
+    appState.pcsBs[pcsIndex] = !appState.pcsBs[pcsIndex];
+
+    const hasAnyBs = Object.values(appState.pcsBs).some(Boolean);
+    appState.isPanelBs = hasAnyBs;
+
+    renderPcsChips();
+  }
+
+  function onModalCutOnlyToggle() {
+    const chkCutOnly = document.getElementById("chkModalCutOnly");
+    const txtBtn = document.getElementById("txtBtnSubmitFromAdvModal");
+    if (!txtBtn) return;
+
+    if (appState.isPotongKain && chkCutOnly && chkCutOnly.checked) {
+      txtBtn.textContent = "Tutup Roll & Potong Kain";
+    } else if (appState.isPotongKain) {
+      txtBtn.textContent = "Kirim Panel & Potong Kain";
+    } else {
+      txtBtn.textContent = "Kirim Laporan Sekarang";
+    }
+  }
+
   function openBsModal() {
-    const chkPot = document.getElementById("chkModalPotongKain");
-    const chkPanelBs = document.getElementById("chkModalPanelBs");
-    if (chkPot) chkPot.checked = Boolean(appState.isPotongKain);
-    if (chkPanelBs) chkPanelBs.checked = Boolean(appState.isPanelBs);
+    const isMeter = appState.currentMode === "METER";
+    const titleEl = document.getElementById("lblModalBsTitle");
+    if (titleEl) {
+      titleEl.textContent = isMeter ? "Opsi Lanjutan Meter" : "Opsi Lanjutan Panel";
+    }
+
+    const inpDate = document.getElementById("modalInpTanggalPotong");
+    if (inpDate && !inpDate.value) {
+      inpDate.value = new Date().toISOString().split("T")[0];
+    }
+
+    hideAdvTooltips();
+
+
+
+    renderPcsChips();
+    updatePotongKainCardUI();
 
     const modal = document.getElementById("modalBs");
     if (modal) modal.classList.add("show");
   }
 
   function closeBsModal() {
+    hideAdvTooltips();
     const modal = document.getElementById("modalBs");
     if (modal) modal.classList.remove("show");
   }
 
   function saveBsModal() {
-    const chkPot = document.getElementById("chkModalPotongKain");
-    const chkPanelBs = document.getElementById("chkModalPanelBs");
-
-    if (chkPot) appState.isPotongKain = chkPot.checked;
-    if (chkPanelBs) appState.isPanelBs = chkPanelBs.checked;
-
+    // Legacy save fallback if ever called directly
     closeBsModal();
     updateBsButtonUI();
+  }
 
-    let msg = "Opsi lanjutan diperbarui.";
-    if (appState.isPotongKain && appState.isPanelBs) {
-      msg = "✂️ Potong Kain & ⚠️ Panel BS aktif.";
-    } else if (appState.isPotongKain) {
-      msg = "✂️ Potong Kain ditandai selesai (Akan lanjut ke potongan berikutnya setelah kirim).";
-    } else if (appState.isPanelBs) {
-      msg = "⚠️ Panel ditandai BS (Nomor panel akan ditahan untuk panel pengganti).";
+  function submitFromBsModal() {
+    const inpDate = document.getElementById("modalInpTanggalPotong");
+    const isCutOnly = Boolean(appState.isPotongKain); // Potong kain OTOMATIS tutup roll tanpa tambah panel baru
+    const tanggalPotong = inpDate?.value || new Date().toISOString().split("T")[0];
+
+    const options = {
+      isPotongKain: Boolean(appState.isPotongKain),
+      tanggalPotong: appState.isPotongKain ? tanggalPotong : null,
+      isCutOnly: isCutOnly,
+      pcsBs: appState.pcsBs || {},
+      isBs: Boolean(appState.isPanelBs)
+    };
+
+    closeBsModal();
+
+    if (window.submitCurrentProduction) {
+      window.submitCurrentProduction(options);
     }
-    showToast(msg);
   }
 
   window.DJIHeaderModal = {
@@ -340,6 +474,11 @@
     openBsModal,
     closeBsModal,
     saveBsModal,
+    toggleModalPotongKain,
+    toggleModalPcsBs,
+    toggleAdvInfo,
+    onModalCutOnlyToggle,
+    submitFromBsModal,
     updateBsButtonUI
   };
 })(window);

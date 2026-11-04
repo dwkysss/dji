@@ -89,12 +89,13 @@ export default function MeterHistoryTable({
           dtEvents = typeof p.downtime_events === 'string' ? JSON.parse(p.downtime_events) : (p.downtime_events || []);
         } catch (e) {}
 
-        const matchedEvents = dtEvents.filter(
-          (e: any) =>
-            !e.pcsKe ||
-            e.pcsKe === "Semua" ||
-            e.pcsKe.split(",").map((x: any) => x.trim()).includes(pcsKey)
-        );
+        const matchedEvents = dtEvents.filter((e: any) => {
+          if (!e.pcsKe || e.pcsKe === "Semua") return true;
+          if (Array.isArray(e.pcsKe)) {
+            return e.pcsKe.length === 0 || e.pcsKe.map((x: any) => String(x).trim()).includes(pcsKey);
+          }
+          return String(e.pcsKe).split(",").map((x: any) => x.trim()).includes(pcsKey);
+        });
 
         const problemsForThisPcs: any[] = [];
         matchedEvents.forEach((e: any, evIdx: number) => {

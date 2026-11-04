@@ -407,7 +407,8 @@
         }
       }));
 
-      const res = await fetch("/api/mobile/sync", {
+      const baseUrl = (window.DJIConfig && window.DJIConfig.getApiBaseUrl) ? window.DJIConfig.getApiBaseUrl() : "";
+      const res = await fetch(baseUrl + "/api/mobile/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: syncItems })
@@ -442,13 +443,183 @@
     }
   }
 
+  let onlineRestoreTimer = null;
+  let onlineCountdownInterval = null;
+
+  function dismissOnlineBanner() {
+    if (onlineRestoreTimer) clearTimeout(onlineRestoreTimer);
+    if (onlineCountdownInterval) clearInterval(onlineCountdownInterval);
+    const banner = document.getElementById("onlineRestoreBanner");
+    if (banner) banner.style.display = "none";
+  }
+
+  function stayInOfflineMode() {
+    dismissOnlineBanner();
+    try {
+      sessionStorage.setItem("dji_stay_offline_qc", "1");
+    } catch (e) {}
+    if (window.showToast) window.showToast("Tetap di halaman offline QC.");
+  }
+
+  function returnToOnlinePortal(force = false) {
+    if (force) {
+      try {
+        sessionStorage.removeItem("dji_stay_offline_qc");
+      } catch (e) {}
+    } else {
+      try {
+        if (sessionStorage.getItem("dji_stay_offline_qc") === "1" || window.location.search.includes("stay=1") || window.location.search.includes("stay=true")) {
+          return;
+        }
+      } catch (e) {}
+    }
+    dismissOnlineBanner();
+
+    try {
+      const currentCount = parseInt(sessionStorage.getItem("dji_redirect_count_qc") || "0", 10);
+      sessionStorage.setItem("dji_redirect_count_qc", String(currentCount + 1));
+      sessionStorage.setItem("dji_last_redirect_time_qc", String(Date.now()));
+    } catch (e) {}
+
+    const baseUrl = (window.DJIConfig && window.DJIConfig.getApiBaseUrl) ? window.DJIConfig.getApiBaseUrl() : "";
+    const targetUrl = baseUrl ? `${baseUrl}/qc` : "/qc";
+    if (window.showToast) window.showToast("Mengalihkan ke Portal QC Utama...");
+    const ts = Date.now();
+    const sep = targetUrl.includes("?") ? "&" : "?";
+    window.location.replace(`${targetUrl}${sep}online=${ts}`);
+  }
+
+  function notifyOnlineRestored() {
+    try {
+      if (sessionStorage.getItem("dji_stay_offline_qc") === "1" || window.location.search.includes("stay=1") || window.location.search.includes("stay=true")) return;
+    } catch (e) {}
+
+    if (onlineRestoreTimer) {
+      return;
+    }
+
+    try {
+      const redirectCount = parseInt(sessionStorage.getItem("dji_redirect_count_qc") || "0", 10);
+      const lastRedirectTime = parseInt(sessionStorage.getItem("dji_last_redirect_time_qc") || "0", 10);
+      if (Date.now() - lastRedirectTime < 5000 && redirectCount >= 3) {
+        const banner = document.getElementById("onlineRestoreBanner");
+        const msg = document.getElementById("txtOnlineRestoreMsg");
+        if (banner) banner.style.display = "flex";
+        if (msg) {
+          msg.innerHTML = "Data tersinkron. Klik <b>Kembali Sekarang</b> jika ingin beralih ke portal QC utama.";
+        }
+        return;
+      }
+    } catch (e) {}
+
+    const banner = document.getElementById("onlineRestoreBanner");
+    const msg = document.getElementById("txtOnlineRestoreMsg");
+    const lblCountdown = document.getElementById("lblOnlineCountdown");
+    if (!banner) return;
+    banner.style.display = "flex";
+    let secondsLeft = 3;
+    if (msg) {
+      msg.innerHTML = 'Data tersinkron. Mengalihkan ke Portal QC Utama dalam <b id="lblOnlineCountdown" style="color: #0f172a; font-size: 13px;">' + secondsLeft + '</b> detik...';
+    } else if (lblCountdown) {
+      lblCountdown.textContent = secondsLeft;
+    }
+
+    if (onlineCountdownInterval) clearInterval(onlineCountdownInterval);
+    onlineCountdownInterval = setInterval(() => {
+      secondsLeft -= 1;
+      const countEl = document.getElementById("lblOnlineCountdown");
+      if (countEl) countEl.textContent = Math.max(0, secondsLeft);
+      if (secondsLeft <= 0) {
+        clearInterval(onlineCountdownInterval);
+        onlineCountdownInterval = null;
+      }
+    }, 1000);
+    onlineRestoreTimer = setTimeout(() => {
+      onlineRestoreTimer = null;
+      returnToOnlinePortal();
+    }, 3200);
+  }
+
+  function updateQcNetworkUI(isOnline) {
+    const pill = document.querySelector(".pill-offline-indicator");
+    const txt = document.getElementById("txtNetworkStatus");
+    const dot = document.getElementById("dotNetworkStatus");
+    const btnReturn = document.getElementById("btnReturnToOnline");
+    if (!pill) return;
+
+    if (isOnline) {
+      pill.classList.remove("offline");
+      pill.classList.add("online");
+      pill.style.background = "";
+      pill.style.borderColor = "";
+      pill.style.color = "";
+      if (txt) txt.textContent = "QC ONLINE";
+      if (dot) {
+        dot.classList.add("online");
+        dot.style.background = "";
+        dot.style.boxShadow = "";
+      }
+      if (btnReturn) btnReturn.style.display = "inline-flex";
+    } else {
+      pill.classList.remove("online");
+      pill.classList.add("offline");
+      pill.style.background = "";
+      pill.style.borderColor = "";
+      pill.style.color = "";
+      if (txt) txt.textContent = "QC OFFLINE";
+      if (dot) {
+        dot.classList.remove("online");
+        dot.style.background = "";
+        dot.style.boxShadow = "";
+      }
+      if (btnReturn) btnReturn.style.display = "none";
+      dismissOnlineBanner();
+    }
+  }
+
+  async function checkQcConnectivity() {
+    if (!navigator.onLine) {
+      updateQcNetworkUI(false);
+      return;
+    }
+    try {
+      const baseUrl = (window.DJIConfig && window.DJIConfig.getApiBaseUrl) ? window.DJIConfig.getApiBaseUrl() : "";
+      const res = await fetch(baseUrl + "/api/mobile/bootstrap");
+      if (res.ok) {
+        updateQcNetworkUI(true);
+        let q = [];
+        try { q = JSON.parse(localStorage.getItem(QC_STORAGE_KEYS.QC_QUEUE) || "[]"); } catch(e) {}
+        if (q.length === 0) {
+          notifyOnlineRestored();
+        } else {
+          trySyncQcNow();
+        }
+      } else {
+        updateQcNetworkUI(false);
+      }
+    } catch (e) {
+      updateQcNetworkUI(false);
+    }
+  }
+
   function initQCApp() {
     initDefaultPanels();
     renderQCView();
+    updateQueueCounter();
+    checkQcConnectivity();
 
-    // Auto sync check on online
-    window.addEventListener("online", trySyncQcNow);
+    window.addEventListener("online", () => {
+      checkQcConnectivity();
+    });
+    window.addEventListener("offline", () => {
+      updateQcNetworkUI(false);
+    });
   }
+
+  // Globals for inline HTML
+  window.returnToOnlinePortal = returnToOnlinePortal;
+  window.stayInOfflineMode = stayInOfflineMode;
+  window.handleNetworkPillClick = handleNetworkPillClick;
 
   // Export to window
   window.DJIQC = {
@@ -459,8 +630,16 @@
     markAllOk,
     insertQcPanel,
     saveInspectionLocally,
-    trySyncQcNow
+    trySyncQcNow,
+    returnToOnlinePortal,
+    stayInOfflineMode,
+    handleNetworkPillClick,
+    notifyOnlineRestored
   };
 
-  window.addEventListener("DOMContentLoaded", initQCApp);
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", initQCApp);
+  } else {
+    initQCApp();
+  }
 })(window);

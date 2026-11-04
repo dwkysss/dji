@@ -1,0 +1,4707 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DJI Factory Database ERD Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #090d16;
+      --bg-panel: rgba(15, 23, 42, 0.85);
+      --bg-card: #0f172a;
+      --bg-card-header: #1e293b;
+      --bg-card-row-hover: #1e293b;
+      --border-card: #334155;
+      --border-subtle: #1e293b;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-blue: #0284c7;
+      --accent-sky: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-violet: #8b5cf6;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-cyan: #06b6d4;
+      --grid-dot: rgba(255, 255, 255, 0.08);
+      --line-default: rgba(148, 163, 184, 0.28);
+      --line-hover: #38bdf8;
+      --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+      --shadow-selected: 0 0 0 3px #38bdf8, 0 20px 35px -10px rgba(56, 189, 248, 0.35);
+      --badge-pk-bg: rgba(245, 158, 11, 0.15);
+      --badge-pk-text: #fbbf24;
+      --badge-fk-bg: rgba(56, 189, 248, 0.15);
+      --badge-fk-text: #38bdf8;
+    }
+
+    [data-theme="light"] {
+      --bg-canvas: #f8fafc;
+      --bg-panel: rgba(255, 255, 255, 0.9);
+      --bg-card: #ffffff;
+      --bg-card-header: #f1f5f9;
+      --bg-card-row-hover: #f8fafc;
+      --border-card: #cbd5e1;
+      --border-subtle: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --grid-dot: rgba(0, 0, 0, 0.06);
+      --line-default: rgba(100, 116, 139, 0.35);
+      --line-hover: #0284c7;
+      --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+      --shadow-selected: 0 0 0 3px #0284c7, 0 20px 35px -10px rgba(2, 132, 199, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: var(--bg-canvas);
+      color: var(--text-main);
+      user-select: none;
+    }
+
+    /* ── TOPBAR NAVBAR ── */
+    .topbar {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      right: 16px;
+      height: 64px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-card);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      z-index: 100;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      gap: 14px;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+    }
+
+    .brand-titles h1 {
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-sky);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .brand-titles p {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Domain Tabs */
+    .domain-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      max-width: 580px;
+      padding: 4px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .domain-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .domain-tab {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .domain-tab:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .domain-tab.active {
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+    }
+
+    .domain-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Search & Actions */
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .search-box {
+      position: relative;
+      width: 220px;
+    }
+
+    .search-input {
+      width: 100%;
+      height: 38px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border-card);
+      color: var(--text-main);
+      padding: 0 32px 0 34px;
+      font-size: 12px;
+      font-weight: 600;
+      outline: none;
+      transition: all 0.15s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent-sky);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+      width: 280px;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+
+    .search-shortcut {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 9px;
+      font-weight: 800;
+      color: var(--text-dim);
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .search-results-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 12px;
+      max-height: 320px;
+      overflow-y: auto;
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+      display: none;
+      z-index: 200;
+    }
+
+    .search-results-dropdown.show {
+      display: block;
+    }
+
+    .search-result-item {
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-subtle);
+      transition: background 0.1s ease;
+    }
+
+    .search-result-item:hover {
+      background: var(--bg-card-row-hover);
+    }
+
+    .result-name {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .result-domain {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+    }
+
+    /* Icon Buttons */
+    .btn-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-card);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .btn-icon:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--text-dim);
+    }
+
+    .btn-icon.active {
+      background: var(--accent-blue);
+      color: #ffffff;
+      border-color: var(--accent-blue);
+    }
+
+    /* ── CANVAS & SVG WRAPPER ── */
+    #viewport {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+      cursor: grab;
+      background-color: var(--bg-canvas);
+      background-image: radial-gradient(var(--grid-dot) 1.5px, transparent 1.5px);
+      background-size: 28px 28px;
+    }
+
+    #viewport.dragging {
+      cursor: grabbing;
+    }
+
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    #svg-connections {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 5000px;
+      height: 4000px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #svg-connections path {
+      fill: none;
+      stroke: var(--line-default);
+      stroke-width: 2px;
+      stroke-linecap: round;
+      transition: stroke 0.2s ease, stroke-width 0.2s ease;
+      pointer-events: stroke;
+      cursor: pointer;
+    }
+
+    #svg-connections path:hover {
+      stroke: var(--line-hover) !important;
+      stroke-width: 4px !important;
+      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.7));
+    }
+
+    #svg-connections path.active-connection {
+      stroke: #38bdf8 !important;
+      stroke-width: 3.5px !important;
+      stroke-dasharray: 8 4;
+      animation: dashFlow 1.2s linear infinite;
+      filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.8));
+    }
+
+    #svg-connections path.dimmed {
+      opacity: 0.12 !important;
+    }
+
+    @keyframes dashFlow {
+      from { stroke-dashoffset: 24; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* ── TABLE CARD STYLES ── */
+    .table-card {
+      position: absolute;
+      width: 330px;
+      background: var(--bg-card);
+      border: 1.5px solid var(--border-card);
+      border-radius: 16px;
+      box-shadow: var(--shadow-card);
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      cursor: default;
+      transition: box-shadow 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+      touch-action: none;
+    }
+
+    .table-card:hover {
+      border-color: #64748b;
+      box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.6);
+    }
+
+    .table-card.selected {
+      border-color: var(--accent-sky);
+      box-shadow: var(--shadow-selected);
+      z-index: 40 !important;
+    }
+
+    .table-card.dimmed {
+      opacity: 0.25;
+      filter: grayscale(40%);
+    }
+
+    .table-card-header {
+      padding: 12px 14px;
+      background: var(--bg-card-header);
+      border-bottom: 1px solid var(--border-card);
+      cursor: grab;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: relative;
+    }
+
+    .table-card-header:active {
+      cursor: grabbing;
+    }
+
+    .table-card-toprow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .table-domain-tag {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 7px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .table-header-tools {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-count {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-dim);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .table-title {
+      font-size: 13px;
+      font-weight: 900;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .table-subtitle {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Columns List */
+    .table-columns-list {
+      max-height: 270px;
+      overflow-y: auto;
+      background: var(--bg-card);
+    }
+
+    .table-columns-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .table-columns-list::-webkit-scrollbar-thumb {
+      background: var(--border-card);
+      border-radius: 4px;
+    }
+
+    .column-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 11px;
+      transition: background 0.1s ease;
+      cursor: pointer;
+    }
+
+    .column-row:hover {
+      background: var(--bg-card-row-hover);
+    }
+
+    .col-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+    }
+
+    .col-key-badge {
+      font-size: 8px;
+      font-weight: 900;
+      padding: 1px 4px;
+      border-radius: 4px;
+      line-height: 1.2;
+    }
+
+    .col-key-badge.pk {
+      background: var(--badge-pk-bg);
+      color: var(--badge-pk-text);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .col-key-badge.fk {
+      background: var(--badge-fk-bg);
+      color: var(--badge-fk-text);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .col-name {
+      font-weight: 700;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .col-name.is-pk {
+      color: #fbbf24;
+      font-weight: 800;
+    }
+
+    .col-name.is-fk {
+      color: #7dd3fc;
+    }
+
+    .col-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .col-type {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 600;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-dim);
+    }
+
+    .col-type.type-int { color: #34d399; }
+    .col-type.type-text { color: #38bdf8; }
+    .col-type.type-time { color: #c084fc; }
+    .col-type.type-uuid { color: #fbbf24; }
+    .col-type.type-bool { color: #f87171; }
+    .col-type.type-json { color: #f472b6; }
+
+    .col-null {
+      font-size: 8px;
+      font-weight: 800;
+      color: var(--text-dim);
+    }
+
+    .col-null.req {
+      color: #ef4444;
+    }
+
+    .table-card-footer {
+      padding: 6px 12px;
+      background: var(--bg-card-header);
+      border-top: 1px solid var(--border-card);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* ── FLOATING CONTROLS (ZOOM & FIT) ── */
+    .floating-controls {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+      z-index: 100;
+    }
+
+    .zoom-level-text {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-main);
+      padding: 0 10px;
+      min-width: 50px;
+      text-align: center;
+    }
+
+    /* ── MINIMAP (RADAR) ── */
+    .minimap-container {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      width: 220px;
+      height: 160px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      z-index: 100;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .minimap-header {
+      padding: 6px 10px;
+      background: rgba(0, 0, 0, 0.25);
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .minimap-canvas-box {
+      flex: 1;
+      position: relative;
+      background: rgba(0, 0, 0, 0.4);
+      cursor: crosshair;
+    }
+
+    #minimap-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #minimap-viewport-box {
+      position: absolute;
+      border: 1.5px solid #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      pointer-events: none;
+      border-radius: 3px;
+    }
+
+    /* ── SIDEBAR INSPECTOR DRAWER ── */
+    .inspector-drawer {
+      position: absolute;
+      top: 88px;
+      bottom: 20px;
+      right: -480px;
+      width: 460px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-card);
+      border-radius: 20px;
+      box-shadow: -15px 0 40px rgba(0, 0, 0, 0.5);
+      z-index: 150;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .inspector-drawer.open {
+      right: 16px;
+    }
+
+    .drawer-header {
+      padding: 18px 20px;
+      background: var(--bg-card-header);
+      border-bottom: 1px solid var(--border-card);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .drawer-title-group h2 {
+      font-size: 16px;
+      font-weight: 900;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .drawer-title-group p {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .btn-close-drawer {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-card);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .btn-close-drawer:hover {
+      background: #ef4444;
+      color: #ffffff;
+      border-color: #ef4444;
+    }
+
+    .drawer-nav {
+      display: flex;
+      border-bottom: 1px solid var(--border-card);
+      background: rgba(0, 0, 0, 0.2);
+      padding: 0 12px;
+    }
+
+    .drawer-nav-btn {
+      padding: 10px 14px;
+      background: none;
+      border: none;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .drawer-nav-btn:hover {
+      color: var(--text-main);
+    }
+
+    .drawer-nav-btn.active {
+      color: var(--accent-sky);
+      border-bottom-color: var(--accent-sky);
+    }
+
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .info-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .info-card-title {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .stat-box {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+
+    .stat-val {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--text-main);
+    }
+
+    .stat-lbl {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-dim);
+    }
+
+    /* SQL Code View */
+    .code-container {
+      position: relative;
+      background: #050811;
+      border: 1px solid var(--border-card);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .code-header {
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .code-title {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .btn-copy-code {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-sky);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-copy-code:hover {
+      background: var(--accent-sky);
+      color: #0f172a;
+    }
+
+    pre code {
+      display: block;
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #e2e8f0;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    /* Relationship List in Drawer */
+    .rel-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      gap: 10px;
+    }
+
+    .rel-cols {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .rel-source {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .rel-target {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent-sky);
+    }
+
+    .btn-jump-table {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      border: 1px solid var(--border-card);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-jump-table:hover {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #0284c7;
+    }
+
+    /* Tooltip */
+    #relation-tooltip {
+      position: absolute;
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #ffffff;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+    }
+
+    /* Toast Notification */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #0f172a;
+      color: #ffffff;
+      border: 1px solid #38bdf8;
+      border-radius: 12px;
+      padding: 10px 20px;
+      font-size: 12px;
+      font-weight: 800;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    @media (max-width: 900px) {
+      .domain-tabs {
+        display: none;
+      }
+      .inspector-drawer {
+        width: 100vw;
+        right: -100vw;
+        top: 0;
+        bottom: 0;
+        border-radius: 0;
+      }
+      .inspector-drawer.open {
+        right: 0;
+      }
+    }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="brand-section">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+        </svg>
+      </div>
+      <div class="brand-titles">
+        <h1>DJI FACTORY ERD <span class="brand-badge">PostgreSQL</span></h1>
+        <p>Interactive Database Visualizer • <span id="tables-count">31</span> Tabel • <span id="rel-count">39</span> Relasi</p>
+      </div>
+    </div>
+
+    <!-- DOMAIN FILTER TABS -->
+    <nav class="domain-tabs" id="domain-tabs-nav">
+      <button class="domain-tab active" data-domain="all">Semua (31)</button>
+      <button class="domain-tab" data-domain="production">
+        <span class="domain-dot" style="background:#10b981;"></span> Produksi
+      </button>
+      <button class="domain-tab" data-domain="qc">
+        <span class="domain-dot" style="background:#0284c7;"></span> QC Inspeksi
+      </button>
+      <button class="domain-tab" data-domain="mending">
+        <span class="domain-dot" style="background:#8b5cf6;"></span> Mending
+      </button>
+      <button class="domain-tab" data-domain="packing">
+        <span class="domain-dot" style="background:#f59e0b;"></span> Packing & Kirim
+      </button>
+      <button class="domain-tab" data-domain="master">
+        <span class="domain-dot" style="background:#06b6d4;"></span> Master Data
+      </button>
+      <button class="domain-tab" data-domain="system">
+        <span class="domain-dot" style="background:#f43f5e;"></span> Sistem
+      </button>
+    </nav>
+
+    <!-- SEARCH & TOOLS -->
+    <div class="topbar-actions">
+      <div class="search-box">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <input type="text" class="search-input" id="search-input" placeholder="Cari tabel atau kolom..." autocomplete="off">
+        <span class="search-shortcut">/</span>
+        <div class="search-results-dropdown" id="search-results"></div>
+      </div>
+
+      <button class="btn-icon" id="btn-auto-layout" title="Tata Ulang Otomatis (Reset Layout)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3z"></path><path d="M14 3h7v7h-7z"></path><path d="M14 14h7v7h-7z"></path><path d="M3 14h7v7H3z"></path></svg>
+      </button>
+
+      <button class="btn-icon" id="btn-toggle-relations" title="Beralih Garis Relasi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+      </button>
+
+      <button class="btn-icon" id="btn-toggle-theme" title="Beralih Mode Gelap/Terang">
+        <svg id="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
+
+      <button class="btn-icon" id="btn-export-svg" title="Unduh Diagram Vektor (SVG)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+      </button>
+
+      <button class="btn-icon" id="btn-export-json" title="Unduh Kamus Data (JSON)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CANVAS VIEWPORT -->
+  <main id="viewport">
+    <div id="canvas-container">
+      <!-- SVG Lines -->
+      <svg id="svg-connections">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+          </marker>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="glow" />
+            <feComposite in="SourceGraphic" in2="glow" operator="over" />
+          </filter>
+        </defs>
+      </svg>
+      <!-- HTML Table Cards injected here -->
+      <div id="tables-container"></div>
+    </div>
+  </main>
+
+  <!-- FLOATING ZOOM CONTROLS -->
+  <div class="floating-controls">
+    <button class="btn-icon" id="btn-zoom-in" title="Perbesar (+)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    </button>
+    <span class="zoom-level-text" id="zoom-text">100%</span>
+    <button class="btn-icon" id="btn-zoom-out" title="Perkecil (-)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    </button>
+    <button class="btn-icon" id="btn-zoom-reset" title="Ukuran Asli (1:1)">1:1</button>
+    <button class="btn-icon" id="btn-fit-screen" title="Paskan Semua ke Layar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+    </button>
+  </div>
+
+  <!-- MINIMAP RADAR -->
+  <div class="minimap-container">
+    <div class="minimap-header">
+      <span>RADAR SKEMA</span>
+      <span id="minimap-stats">31 Node</span>
+    </div>
+    <div class="minimap-canvas-box" id="minimap-box">
+      <canvas id="minimap-canvas"></canvas>
+      <div id="minimap-viewport-box"></div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR INSPECTOR DRAWER -->
+  <aside class="inspector-drawer" id="inspector-drawer">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <h2 id="drawer-table-name">production_headers</h2>
+        <p id="drawer-table-sub">Header Catatan Shift & Mesin</p>
+      </div>
+      <button class="btn-close-drawer" id="btn-close-drawer">✕</button>
+    </div>
+
+    <div class="drawer-nav">
+      <button class="drawer-nav-btn active" data-tab="tab-structure">Struktur Kolom</button>
+      <button class="drawer-nav-btn" data-tab="tab-relations">Relasi (<span id="drawer-rel-count">0</span>)</button>
+      <button class="drawer-nav-btn" data-tab="tab-sql">SQL DDL</button>
+      <button class="drawer-nav-btn" data-tab="tab-query">Contoh Query</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- TAB STRUCTURE -->
+      <div class="drawer-tab-pane" id="tab-structure">
+        <div class="info-card">
+          <div class="info-card-title">Ringkasan Tabel</div>
+          <div class="stat-grid">
+            <div class="stat-box">
+              <div class="stat-val" id="stat-col-count">0</div>
+              <div class="stat-lbl">Kolom</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-val" id="stat-pk-count">0</div>
+              <div class="stat-lbl">Primary Key</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-val" id="stat-fk-count">0</div>
+              <div class="stat-lbl">Foreign Key</div>
+            </div>
+          </div>
+          <p id="drawer-desc" style="font-size:11px; color:var(--text-muted); line-height:1.5; margin-top:4px;"></p>
+        </div>
+
+        <div class="info-card" style="padding:0; overflow:hidden;">
+          <div style="padding:10px 14px; background:var(--bg-card-header); border-bottom:1px solid var(--border-card); font-size:11px; font-weight:800; color:var(--text-main);">
+            Daftar Lengkap Kolom
+          </div>
+          <div id="drawer-columns-list"></div>
+        </div>
+      </div>
+
+      <!-- TAB RELATIONS -->
+      <div class="drawer-tab-pane" id="tab-relations" style="display:none;">
+        <div class="info-card">
+          <div class="info-card-title">Relasi Keluar (Merujuk Tabel Lain)</div>
+          <div id="drawer-outgoing-rels" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-card-title">Relasi Masuk (Dirujuk Oleh Tabel Lain)</div>
+          <div id="drawer-incoming-rels" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+      </div>
+
+      <!-- TAB SQL DDL -->
+      <div class="drawer-tab-pane" id="tab-sql" style="display:none;">
+        <div class="code-container">
+          <div class="code-header">
+            <span class="code-title">schema.sql</span>
+            <button class="btn-copy-code" id="btn-copy-ddl">Salin DDL</button>
+          </div>
+          <pre><code id="drawer-sql-code"></code></pre>
+        </div>
+      </div>
+
+      <!-- TAB QUERY -->
+      <div class="drawer-tab-pane" id="tab-query" style="display:none;">
+        <div class="code-container">
+          <div class="code-header">
+            <span class="code-title">query_template.sql</span>
+            <button class="btn-copy-code" id="btn-copy-query">Salin Query</button>
+          </div>
+          <pre><code id="drawer-query-code"></code></pre>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- TOOLTIP -->
+  <div id="relation-tooltip"></div>
+
+  <!-- TOAST -->
+  <div id="toast">Notifikasi</div>
+
+  <!-- EMBEDDED COMPLETE DATASET -->
+  <script>
+    const SCHEMA_DATA = {
+  "app_announcements": {
+    "name": "app_announcements",
+    "columns": [
+      {
+        "name": "id",
+        "type": "text",
+        "nullable": false,
+        "default": "'global'"
+      },
+      {
+        "name": "message",
+        "type": "text",
+        "nullable": false,
+        "default": "''"
+      },
+      {
+        "name": "is_active",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "target_roles",
+        "type": "text[]",
+        "nullable": true,
+        "default": "'{all}'[]"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [],
+    "domain": "system",
+    "domainLabel": "Pengguna & Sistem",
+    "domainColor": "#f43f5e",
+    "label": "Pengumuman Aplikasi",
+    "desc": "Broadcast pesan pengumuman real-time ke tablet operator & dashboard.",
+    "x": 1880,
+    "y": 640
+  },
+  "app_direct_messages": {
+    "name": "app_direct_messages",
+    "columns": [
+      {
+        "name": "id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "target_user_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "target_user_name",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "sender_name",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "message",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "is_read",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "app_direct_messages_target_user_id_logical_fkey",
+        "column": "target_user_id",
+        "targetTable": "user_profiles",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Penerima Pesan"
+      }
+    ],
+    "domain": "system",
+    "domainLabel": "Pengguna & Sistem",
+    "domainColor": "#f43f5e",
+    "label": "Pesan Langsung (Direct Message)",
+    "desc": "Komunikasi pesan instan internal antar petugas shift dan koordinator.",
+    "x": 1880,
+    "y": 350
+  },
+  "groups": {
+    "name": "groups",
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "nama_grup",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [],
+    "domain": "master",
+    "domainLabel": "Data Master",
+    "domainColor": "#06b6d4",
+    "label": "Master Group Kerja",
+    "desc": "Kelompok regu kerja shift pabrik (Group A, Group B, Group C).",
+    "x": 60,
+    "y": 310
+  },
+  "operators": {
+    "name": "operators",
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "nama_operator",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "shift",
+        "type": "text",
+        "nullable": true,
+        "default": "'A'"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [],
+    "domain": "master",
+    "domainLabel": "Data Master",
+    "domainColor": "#06b6d4",
+    "label": "Master Operator Mesin",
+    "desc": "Daftar nama operator produksi pabrik beserta shift kerja.",
+    "x": 60,
+    "y": 80
+  },
+  "production_details": {
+    "name": "production_details",
+    "columns": [
+      {
+        "name": "id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "header_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pcs_index",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "jml_hasil_produksi",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "indikator_stop",
+        "type": "boolean",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "kategori_masalah",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "detail_masalah",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "keterangan_cacat",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "meter_kain",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "roll_no",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "final_inspection_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "keterangan_qc",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_synced_to_sheet",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false"
+      },
+      {
+        "name": "status_inspeksi",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "status_mending",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "spesifik_masalah",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_deleted",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false"
+      },
+      {
+        "name": "status_final_mending",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "production_details_header_id_fkey",
+        "column": "header_id",
+        "targetTable": "production_headers",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      },
+      {
+        "name": "production_details_final_inspection_id_logical_fkey",
+        "column": "final_inspection_id",
+        "targetTable": "final_inspections",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Status Final"
+      },
+      {
+        "name": "production_details_kategori_masalah_logical_fkey",
+        "column": "kategori_masalah",
+        "targetTable": "master_problem_categories",
+        "targetColumn": "kode",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Kategori Masalah"
+      }
+    ],
+    "domain": "production",
+    "domainLabel": "Inti Produksi",
+    "domainColor": "#10b981",
+    "label": "Rincian Output Produksi",
+    "desc": "Rincian individual per panel / meter roll kain, indikator stop, defect, status inspeksi & mending.",
+    "x": 500,
+    "y": 1040
+  },
+  "production_headers": {
+    "name": "production_headers",
+    "columns": [
+      {
+        "name": "id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tgl",
+        "type": "date",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "tanggal_jam",
+        "type": "timestamp without time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "operator_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "group_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "design_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "course",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "rpm",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "potongan_ke",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "panel_no",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pcs",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "tanggal_potong",
+        "type": "date",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pick",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "no_order_barang",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "jenis_benang_dasar",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "liner",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "heavy",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "shadow",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pinggiran",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "foto_before",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "foto_after",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "no_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "nomor_mc",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "meter_awal",
+        "type": "numeric",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "meter_akhir",
+        "type": "numeric",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "total_produksi_meter",
+        "type": "numeric",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_synced_to_sheet",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false"
+      },
+      {
+        "name": "status_matching",
+        "type": "character",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "idempotency_key",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "total_downtime_detik",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_by_name",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pic",
+        "type": "character",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "target_meter",
+        "type": "numeric",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "sisa_meter",
+        "type": "numeric",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "downtime_events",
+        "type": "jsonb",
+        "nullable": true,
+        "default": "'[]'"
+      },
+      {
+        "name": "operator_backup",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "production_headers_group_id_fkey",
+        "column": "group_id",
+        "targetTable": "groups",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      },
+      {
+        "name": "production_headers_operator_id_fkey",
+        "column": "operator_id",
+        "targetTable": "operators",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      },
+      {
+        "name": "production_headers_nomor_mc_logical_fkey",
+        "column": "nomor_mc",
+        "targetTable": "machine_configs",
+        "targetColumn": "nomor_mc",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Konfigurasi Mesin"
+      },
+      {
+        "name": "production_headers_design_id_logical_fkey",
+        "column": "design_id",
+        "targetTable": "designs",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Desain Kain"
+      }
+    ],
+    "domain": "production",
+    "domainLabel": "Inti Produksi",
+    "domainColor": "#10b981",
+    "label": "Header Input Produksi",
+    "desc": "Catatan induk per potongan & shift mesin rajut/trico (tanggal, operator, group, meter/panel, downtime).",
+    "x": 500,
+    "y": 460
+  },
+  "designs": {
+    "name": "designs",
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "nama_design",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [],
+    "domain": "master",
+    "domainLabel": "Data Master",
+    "domainColor": "#06b6d4",
+    "label": "Master Desain Kain",
+    "desc": "Katalog kode dan nama pola / corak rajutan kain pabrik.",
+    "x": 60,
+    "y": 510
+  },
+  "downtime_records": {
+    "name": "downtime_records",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "header_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "kategori",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "detail",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "durasi_detik",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "blok",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "name": "dikerjakan_oleh",
+        "type": "character",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "downtime_records_header_id_fkey",
+        "column": "header_id",
+        "targetTable": "production_headers",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      },
+      {
+        "name": "downtime_records_kategori_logical_fkey",
+        "column": "kategori",
+        "targetTable": "master_problem_categories",
+        "targetColumn": "kode",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Kategori Downtime"
+      }
+    ],
+    "domain": "production",
+    "domainLabel": "Inti Produksi",
+    "domainColor": "#10b981",
+    "label": "Catatan Waktu Henti (Downtime)",
+    "desc": "Kejadian mesin stop (durasi detik, blok, kategori masalah, mekanik/operator penangan).",
+    "x": 500,
+    "y": 1850
+  },
+  "final_inspection_batches": {
+    "name": "final_inspection_batches",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "tanggal_final",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "petugas_final",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "start_final",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "finish_final",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "keterangan_final",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "total_panel",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "nomor_mc",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "design_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "potongan_ke",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pcs_index",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "final_grade_a",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "final_grade_b",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "final_grade_bs",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "pause_seconds",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "elapsed_seconds",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "berat_kain",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "petugas_final_2",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "petugas_final_3",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "final_inspection_batches_nomor_mc_logical_fkey",
+        "column": "nomor_mc",
+        "targetTable": "machine_configs",
+        "targetColumn": "nomor_mc",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Mesin"
+      },
+      {
+        "name": "final_inspection_batches_design_id_logical_fkey",
+        "column": "design_id",
+        "targetTable": "designs",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Desain"
+      }
+    ],
+    "domain": "packing",
+    "domainLabel": "Final & Ekspedisi",
+    "domainColor": "#f59e0b",
+    "label": "Batch Inspeksi Final",
+    "desc": "Pemeriksaan final sebelum proses packing & penggulungan kain (Grade A/B/BS, berat kain).",
+    "x": 1420,
+    "y": 80
+  },
+  "final_inspection_items": {
+    "name": "final_inspection_items",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "batch_id",
+        "type": "bigint",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "production_detail_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "hasil_final",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "final_inspection_items_batch_id_fkey",
+        "column": "batch_id",
+        "targetTable": "final_inspection_batches",
+        "targetColumn": "id",
+        "onDelete": "CASCADE",
+        "isExplicit": true
+      },
+      {
+        "name": "final_inspection_items_production_detail_id_fkey",
+        "column": "production_detail_id",
+        "targetTable": "production_details",
+        "targetColumn": "id",
+        "onDelete": "CASCADE",
+        "isExplicit": true
+      }
+    ],
+    "domain": "packing",
+    "domainLabel": "Final & Ekspedisi",
+    "domainColor": "#f59e0b",
+    "label": "Item Batch Final",
+    "desc": "Hasil penilaian akhir tiap panel pada batch final inspection.",
+    "x": 1420,
+    "y": 500
+  },
+  "final_inspections": {
+    "name": "final_inspections",
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "status_final",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [],
+    "domain": "qc",
+    "domainLabel": "QC & Inspeksi",
+    "domainColor": "#0284c7",
+    "label": "Status Master Penilaian",
+    "desc": "Kamus status kelayakan kain (Contoh: OK/Ceklis, BS/Silang, Grade A, Grade B, C, D).",
+    "x": 960,
+    "y": 1060
+  },
+  "google_sheet_configs": {
+    "name": "google_sheet_configs",
+    "columns": [
+      {
+        "name": "id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "report_name",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "spreadsheet_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "web_app_url",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "boolean",
+        "nullable": true,
+        "default": "true"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [],
+    "domain": "system",
+    "domainLabel": "Pengguna & Sistem",
+    "domainColor": "#f43f5e",
+    "label": "Integrasi Google Spreadsheet",
+    "desc": "Konfigurasi Webhook Web App URL dan Spreadsheet ID sinkronisasi data produksi.",
+    "x": 1880,
+    "y": 920
+  },
+  "inspection_timer_sessions": {
+    "name": "inspection_timer_sessions",
+    "columns": [
+      {
+        "name": "id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "type",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "nomor_mc",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "design_id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "potongan_ke",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "pcs_index",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "start_time",
+        "type": "timestamp with time zone",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "elapsed_seconds",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "pause_seconds",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "is_paused",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false"
+      },
+      {
+        "name": "paused_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "inspection_timer_sessions_nomor_mc_logical_fkey",
+        "column": "nomor_mc",
+        "targetTable": "machine_configs",
+        "targetColumn": "nomor_mc",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Mesin"
+      },
+      {
+        "name": "inspection_timer_sessions_design_id_logical_fkey",
+        "column": "design_id",
+        "targetTable": "designs",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Desain"
+      }
+    ],
+    "domain": "qc",
+    "domainLabel": "QC & Inspeksi",
+    "domainColor": "#0284c7",
+    "label": "Timer Stopwatch Sesi",
+    "desc": "Penyimpan state stopwatch inspeksi/mending multi-stasiun secara real-time antar browser/tablet.",
+    "x": 960,
+    "y": 730
+  },
+  "machine_configs": {
+    "name": "machine_configs",
+    "columns": [
+      {
+        "name": "nomor_mc",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "default_pcs",
+        "type": "integer",
+        "nullable": true,
+        "default": "1"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": false,
+        "default": "timezone('utc'"
+      },
+      {
+        "name": "input_type",
+        "type": "text",
+        "nullable": true,
+        "default": "'PANEL'"
+      }
+    ],
+    "primaryKey": [
+      "nomor_mc"
+    ],
+    "foreignKeys": [],
+    "domain": "production",
+    "domainLabel": "Inti Produksi",
+    "domainColor": "#10b981",
+    "label": "Konfigurasi Mesin Pabrik",
+    "desc": "Daftar mesin rajut (R1-R12, T1-T3, dll), input_type (PANEL / METER) dan jumlah pcs per potongan.",
+    "x": 60,
+    "y": 710
+  },
+  "mending_batches": {
+    "name": "mending_batches",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "tanggal_mending",
+        "type": "date",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "petugas_mending",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "start_mending",
+        "type": "time without time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "finish_mending",
+        "type": "time without time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "keterangan_mending",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "total_panel",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "nomor_mc",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "design_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "potongan_ke",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pcs_index",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "mending_grade_a",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "mending_grade_b",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "mending_grade_bs",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "pause_seconds",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "elapsed_seconds",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "mending_batches_nomor_mc_logical_fkey",
+        "column": "nomor_mc",
+        "targetTable": "machine_configs",
+        "targetColumn": "nomor_mc",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Mesin"
+      },
+      {
+        "name": "mending_batches_design_id_logical_fkey",
+        "column": "design_id",
+        "targetTable": "designs",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Desain"
+      }
+    ],
+    "domain": "mending",
+    "domainLabel": "Mending & Perbaikan",
+    "domainColor": "#8b5cf6",
+    "label": "Batch Sesi Mending",
+    "desc": "Sesi perbaikan cacat kain oleh petugas mending (jam mulai/selesai, hasil grade A, B, BS per potongan).",
+    "x": 960,
+    "y": 1680
+  },
+  "mending_items": {
+    "name": "mending_items",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "batch_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "production_detail_id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "hasil_mending",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "mending_items_batch_id_fkey",
+        "column": "batch_id",
+        "targetTable": "mending_batches",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      },
+      {
+        "name": "mending_items_production_detail_id_fkey",
+        "column": "production_detail_id",
+        "targetTable": "production_details",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      }
+    ],
+    "domain": "mending",
+    "domainLabel": "Mending & Perbaikan",
+    "domainColor": "#8b5cf6",
+    "label": "Item Hasil Mending",
+    "desc": "Detail hasil perbaikan tiap panel yang diperbaiki oleh tim mending.",
+    "x": 960,
+    "y": 2060
+  },
+  "qc_inspection_batches": {
+    "name": "qc_inspection_batches",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "tanggal_inspeksi",
+        "type": "date",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "start_inspect",
+        "type": "time without time zone",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "finish_inspect",
+        "type": "time without time zone",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "petugas_inspeksi",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "petugas_inspeksi_2",
+        "type": "character",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "nomor_mc",
+        "type": "character",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "design_id",
+        "type": "character",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "potongan_ke",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pcs_index",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "berat_kain",
+        "type": "numeric",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "inspeksi_ceklis",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "inspeksi_silang",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "petugas_mending",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "petugas_inspeksi_3",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pause_seconds",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "elapsed_seconds",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "qc_inspection_batches_nomor_mc_logical_fkey",
+        "column": "nomor_mc",
+        "targetTable": "machine_configs",
+        "targetColumn": "nomor_mc",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Mesin"
+      },
+      {
+        "name": "qc_inspection_batches_design_id_logical_fkey",
+        "column": "design_id",
+        "targetTable": "designs",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Desain"
+      }
+    ],
+    "domain": "qc",
+    "domainLabel": "QC & Inspeksi",
+    "domainColor": "#0284c7",
+    "label": "Batch Inspeksi QC",
+    "desc": "Sesi inspeksi kain oleh petugas QC (jam mulai/selesai, berat kain, total ceklis & silang, timer pause).",
+    "x": 960,
+    "y": 80
+  },
+  "qc_inspection_items": {
+    "name": "qc_inspection_items",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "batch_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "production_detail_id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "final_inspection_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "qc_inspection_items_batch_id_fkey",
+        "column": "batch_id",
+        "targetTable": "qc_inspection_batches",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      },
+      {
+        "name": "qc_inspection_items_production_detail_id_fkey",
+        "column": "production_detail_id",
+        "targetTable": "production_details",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      },
+      {
+        "name": "qc_inspection_items_final_inspection_id_logical_fkey",
+        "column": "final_inspection_id",
+        "targetTable": "final_inspections",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Status Penilaian"
+      }
+    ],
+    "domain": "qc",
+    "domainLabel": "QC & Inspeksi",
+    "domainColor": "#0284c7",
+    "label": "Item Penilaian QC",
+    "desc": "Status kelayakan setiap panel kain yang dinilai oleh petugas QC.",
+    "x": 960,
+    "y": 490
+  },
+  "master_problem_categories": {
+    "name": "master_problem_categories",
+    "columns": [
+      {
+        "name": "kode",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "color",
+        "type": "character",
+        "nullable": true,
+        "default": "'from-slate-500 to-zinc-600' varying"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      }
+    ],
+    "primaryKey": [
+      "kode"
+    ],
+    "foreignKeys": [],
+    "domain": "master",
+    "domainLabel": "Data Master",
+    "domainColor": "#06b6d4",
+    "label": "Kategori Masalah Produksi",
+    "desc": "Klasifikasi utama masalah mesin (MEK=Mekanik, ELK=Elektrik, BEN=Benang, JAT=Jarum/Jatuh, dll).",
+    "x": 60,
+    "y": 970
+  },
+  "master_problem_details": {
+    "name": "master_problem_details",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "kategori",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "nama_detail",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "boolean",
+        "nullable": true,
+        "default": "true"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "master_problem_details_kategori_logical_fkey",
+        "column": "kategori",
+        "targetTable": "master_problem_categories",
+        "targetColumn": "kode",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Kategori Induk"
+      }
+    ],
+    "domain": "master",
+    "domainLabel": "Data Master",
+    "domainColor": "#06b6d4",
+    "label": "Rincian Detail Masalah",
+    "desc": "Spesifikasi kerusakan/hambatan per kategori masalah untuk kemudahan operator memilih.",
+    "x": 60,
+    "y": 1240
+  },
+  "master_qc_defects": {
+    "name": "master_qc_defects",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "nama_cacat",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "kategori",
+        "type": "text",
+        "nullable": true,
+        "default": "'Umum'"
+      },
+      {
+        "name": "keterangan",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "boolean",
+        "nullable": true,
+        "default": "true"
+      },
+      {
+        "name": "sort_order",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [],
+    "domain": "master",
+    "domainLabel": "Data Master",
+    "domainColor": "#06b6d4",
+    "label": "Katalog Cacat QC",
+    "desc": "Kamus jenis-jenis temuan cacat kain untuk penilaian QC dan mending.",
+    "x": 60,
+    "y": 1510
+  },
+  "mending_inspections": {
+    "name": "mending_inspections",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "petugas_mending",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "tanggal_mending",
+        "type": "date",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "start_mending",
+        "type": "time without time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "finish_mending",
+        "type": "time without time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "mending_grade_a",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "mending_grade_b",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "mending_grade_bs",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "hasil_mending",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "timezone('utc'"
+      },
+      {
+        "name": "production_detail_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "mending_inspections_production_detail_id_fkey",
+        "column": "production_detail_id",
+        "targetTable": "production_details",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      }
+    ],
+    "domain": "mending",
+    "domainLabel": "Mending & Perbaikan",
+    "domainColor": "#8b5cf6",
+    "label": "Riwayat Mending Panel",
+    "desc": "Pencatatan hasil perbaikan dan grade pasca-mending per panel kain.",
+    "x": 960,
+    "y": 2280
+  },
+  "packing_batches": {
+    "name": "packing_batches",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "tanggal_packing",
+        "type": "date",
+        "nullable": false,
+        "default": "CURRENT_DATE"
+      },
+      {
+        "name": "nomor_mc",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "design_id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "potongan_ke",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "pcs_index",
+        "type": "integer",
+        "nullable": false,
+        "default": "1"
+      },
+      {
+        "name": "final_inspection_batch_id",
+        "type": "bigint",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "petugas_packing",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "petugas_packing_2",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "start_packing",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "finish_packing",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "elapsed_seconds",
+        "type": "integer",
+        "nullable": false,
+        "default": "0"
+      },
+      {
+        "name": "pause_seconds",
+        "type": "integer",
+        "nullable": false,
+        "default": "0"
+      },
+      {
+        "name": "keterangan_packing",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": false,
+        "default": "'COMPLETED'"
+      },
+      {
+        "name": "session_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "packing_batches_final_inspection_batch_id_fkey",
+        "column": "final_inspection_batch_id",
+        "targetTable": "final_inspection_batches",
+        "targetColumn": "id",
+        "onDelete": "SET NULL",
+        "isExplicit": true
+      },
+      {
+        "name": "packing_batches_nomor_mc_logical_fkey",
+        "column": "nomor_mc",
+        "targetTable": "machine_configs",
+        "targetColumn": "nomor_mc",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Mesin"
+      },
+      {
+        "name": "packing_batches_design_id_logical_fkey",
+        "column": "design_id",
+        "targetTable": "designs",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Desain"
+      }
+    ],
+    "domain": "packing",
+    "domainLabel": "Final & Ekspedisi",
+    "domainColor": "#f59e0b",
+    "label": "Batch Packing Kain",
+    "desc": "Pencatatan proses pengemasan rol/bal kain siap kirim, durasi kerja packing dan petugas.",
+    "x": 1420,
+    "y": 740
+  },
+  "problem_categories": {
+    "name": "problem_categories",
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "nama_kategori",
+        "type": "character",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [],
+    "domain": "master",
+    "domainLabel": "Data Master",
+    "domainColor": "#06b6d4",
+    "label": "Kategori Masalah (Legacy)",
+    "desc": "Kamus kategori masalah lama.",
+    "x": 60,
+    "y": 1820
+  },
+  "problems": {
+    "name": "problems",
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "category_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "kode_masalah",
+        "type": "character",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "deskripsi_masalah",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "problems_category_id_fkey",
+        "column": "category_id",
+        "targetTable": "problem_categories",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      }
+    ],
+    "domain": "master",
+    "domainLabel": "Data Master",
+    "domainColor": "#06b6d4",
+    "label": "Kamus Masalah (Legacy)",
+    "desc": "Daftar deskripsi masalah dan kode masalah terdahulu.",
+    "x": 60,
+    "y": 2020
+  },
+  "production_defects": {
+    "name": "production_defects",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "production_detail_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "kategori",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "detail",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "meter",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "blok",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "production_defects_production_detail_id_fkey",
+        "column": "production_detail_id",
+        "targetTable": "production_details",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      }
+    ],
+    "domain": "production",
+    "domainLabel": "Inti Produksi",
+    "domainColor": "#10b981",
+    "label": "Daftar Temuan Cacat",
+    "desc": "Titik cacat kain (meter awal-akhir, blok, kategori, dan detail cacat) per baris produksi.",
+    "x": 500,
+    "y": 1540
+  },
+  "production_plans": {
+    "name": "production_plans",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "nomor_mc",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "potongan_ke",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "design_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pick",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "course",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "no_order_barang",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "no_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "jenis_benang_dasar",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "liner",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "heavy",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "shadow",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "pinggiran",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "rpm",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": false,
+        "default": "timezone('utc'"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": false,
+        "default": "timezone('utc'"
+      },
+      {
+        "name": "pcs_count",
+        "type": "integer",
+        "nullable": true,
+        "default": "1"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "production_plans_nomor_mc_logical_fkey",
+        "column": "nomor_mc",
+        "targetTable": "machine_configs",
+        "targetColumn": "nomor_mc",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Mesin"
+      },
+      {
+        "name": "production_plans_design_id_logical_fkey",
+        "column": "design_id",
+        "targetTable": "designs",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Desain"
+      }
+    ],
+    "domain": "production",
+    "domainLabel": "Inti Produksi",
+    "domainColor": "#10b981",
+    "label": "Rencana Produksi & Spek",
+    "desc": "Target order, nomor customer, benang dasar, liner, heavy, shadow, pinggiran, course & speed mesin.",
+    "x": 500,
+    "y": 80
+  },
+  "qc_inspections": {
+    "name": "qc_inspections",
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "production_detail_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "petugas_inspeksi",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "tanggal_inspeksi",
+        "type": "date",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "start_inspect",
+        "type": "time without time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "finish_inspect",
+        "type": "time without time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "berat_produksi",
+        "type": "numeric",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "berat_inspecting",
+        "type": "numeric",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "hasil_matching",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "petugas_mending",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "tanggal_mending",
+        "type": "date",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "start_mending",
+        "type": "time without time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "finish_mending",
+        "type": "time without time zone",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "prod_grade_a",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "prod_grade_b",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "prod_bs",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "qc_grade_a",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "qc_grade_b",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "qc_bs",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "petugas_inspeksi_2",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "inspeksi_ceklis",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "inspeksi_silang",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "prod_ceklis",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      },
+      {
+        "name": "prod_silang",
+        "type": "integer",
+        "nullable": true,
+        "default": "0"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "qc_inspections_production_detail_id_fkey",
+        "column": "production_detail_id",
+        "targetTable": "production_details",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      }
+    ],
+    "domain": "qc",
+    "domainLabel": "QC & Inspeksi",
+    "domainColor": "#0284c7",
+    "label": "Riwayat Inspeksi QC (Legacy)",
+    "desc": "Tabel catatan detail inspeksi QC per baris panel (berat produksi, berat inspect, grade prod vs QC).",
+    "x": 960,
+    "y": 1260
+  },
+  "surat_jalan": {
+    "name": "surat_jalan",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "no_surat_jalan",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tanggal",
+        "type": "date",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tujuan",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "supir",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "no_polisi",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "keterangan",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": true,
+        "default": "'DRAFT'"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "surat_jalan_created_by_logical_fkey",
+        "column": "created_by",
+        "targetTable": "user_profiles",
+        "targetColumn": "employee_id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Pembuat Surat"
+      }
+    ],
+    "domain": "packing",
+    "domainLabel": "Final & Ekspedisi",
+    "domainColor": "#f59e0b",
+    "label": "Surat Jalan Pengiriman",
+    "desc": "Dokumen surat jalan ekspedisi keluar pabrik (tujuan, supir, plat nomor, status DRAFT/SENT).",
+    "x": 1420,
+    "y": 1200
+  },
+  "surat_jalan_details": {
+    "name": "surat_jalan_details",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()"
+      },
+      {
+        "name": "surat_jalan_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "nomor_mc",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "design_id",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "potongan_ke",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "berat_kain",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "jumlah_panel",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "grade",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "no_order",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "surat_jalan_details_surat_jalan_id_fkey",
+        "column": "surat_jalan_id",
+        "targetTable": "surat_jalan",
+        "targetColumn": "id",
+        "onDelete": "RESTRICT",
+        "isExplicit": true
+      },
+      {
+        "name": "surat_jalan_details_nomor_mc_logical_fkey",
+        "column": "nomor_mc",
+        "targetTable": "machine_configs",
+        "targetColumn": "nomor_mc",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Mesin"
+      },
+      {
+        "name": "surat_jalan_details_design_id_logical_fkey",
+        "column": "design_id",
+        "targetTable": "designs",
+        "targetColumn": "id",
+        "onDelete": "LOGICAL",
+        "isExplicit": false,
+        "label": "Desain"
+      }
+    ],
+    "domain": "packing",
+    "domainLabel": "Final & Ekspedisi",
+    "domainColor": "#f59e0b",
+    "label": "Rincian Muatan Surat Jalan",
+    "desc": "Daftar kain/roll yang dimuat dalam surat jalan (berat kain, jumlah panel, grade, no order).",
+    "x": 1420,
+    "y": 1550
+  },
+  "user_profiles": {
+    "name": "user_profiles",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "full_name",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "employee_id",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "role",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": false,
+        "default": "timezone('utc'"
+      },
+      {
+        "name": "force_password_change",
+        "type": "boolean",
+        "nullable": true,
+        "default": "true"
+      }
+    ],
+    "primaryKey": [
+      "id"
+    ],
+    "foreignKeys": [],
+    "domain": "system",
+    "domainLabel": "Pengguna & Sistem",
+    "domainColor": "#f43f5e",
+    "label": "Profil Pengguna & Hak Akses",
+    "desc": "Data akun pegawai, peran (operator, inspeksi, mending, packing, kepala_shift, admin) dan ID karyawan.",
+    "x": 1880,
+    "y": 80
+  }
+};
+  </script>
+
+  <!-- VISUALIZER LOGIC -->
+  <script>
+    // State
+    const state = {
+      zoom: 0.72,
+      panX: 40,
+      panY: 40,
+      isPanning: false,
+      startPanX: 0,
+      startPanY: 0,
+      selectedTable: null,
+      hoveredTable: null,
+      activeDomain: 'all',
+      showRelations: true,
+      draggedTable: null,
+      dragOffsetX: 0,
+      dragOffsetY: 0,
+      theme: 'dark'
+    };
+
+    const container = document.getElementById('canvas-container');
+    const viewport = document.getElementById('viewport');
+    const tablesContainer = document.getElementById('tables-container');
+    const svgConnections = document.getElementById('svg-connections');
+    const zoomText = document.getElementById('zoom-text');
+    const tooltip = document.getElementById('relation-tooltip');
+
+    // ── INITIALIZE RENDER ──
+    function init() {
+      renderTables();
+      renderConnections();
+      setupEvents();
+      setupMinimap();
+      updateTransform();
+      updateMinimap();
+    }
+
+    // ── RENDER TABLES ──
+    function renderTables() {
+      tablesContainer.innerHTML = '';
+      Object.values(SCHEMA_DATA).forEach(table => {
+        const card = document.createElement('div');
+        card.className = 'table-card';
+        card.id = 'table-' + table.name;
+        card.dataset.name = table.name;
+        card.dataset.domain = table.domain;
+        card.style.transform = `translate3d(${table.x}px, ${table.y}px, 0)`;
+
+        // Render Columns
+        let columnsHtml = '';
+        table.columns.forEach(col => {
+          const isPK = table.primaryKey.includes(col.name);
+          const fk = table.foreignKeys.find(f => f.column === col.name);
+          
+          let typeClass = 'type-text';
+          const typeLower = col.type.toLowerCase();
+          if (typeLower.includes('int') || typeLower.includes('numeric') || typeLower.includes('real')) typeClass = 'type-int';
+          else if (typeLower.includes('time') || typeLower.includes('date')) typeClass = 'type-time';
+          else if (typeLower.includes('uuid')) typeClass = 'type-uuid';
+          else if (typeLower.includes('bool')) typeClass = 'type-bool';
+          else if (typeLower.includes('json')) typeClass = 'type-json';
+
+          columnsHtml += `
+            <div class="column-row" data-col="${col.name}">
+              <div class="col-left">
+                ${isPK ? '<span class="col-key-badge pk">PK</span>' : fk ? '<span class="col-key-badge fk">FK</span>' : ''}
+                <span class="col-name ${isPK ? 'is-pk' : fk ? 'is-fk' : ''}">${col.name}</span>
+              </div>
+              <div class="col-right">
+                <span class="col-type ${typeClass}">${col.type}</span>
+                <span class="col-null ${!col.nullable ? 'req' : ''}">${col.nullable ? '' : '•'}</span>
+              </div>
+            </div>
+          `;
+        });
+
+        card.innerHTML = `
+          <div class="table-card-header" style="border-top: 3px solid ${table.domainColor};">
+            <div class="table-card-toprow">
+              <span class="table-domain-tag" style="background: ${table.domainColor}20; color: ${table.domainColor};">
+                ${table.domainLabel}
+              </span>
+              <div class="table-header-tools">
+                <span class="badge-count">${table.columns.length} kol</span>
+              </div>
+            </div>
+            <div class="table-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+              ${table.name}
+            </div>
+            <div class="table-subtitle">${table.label}</div>
+          </div>
+          <div class="table-columns-list">
+            ${columnsHtml}
+          </div>
+          <div class="table-card-footer">
+            <span>${table.primaryKey.length ? 'PK: ' + table.primaryKey.join(', ') : 'No PK'}</span>
+            <span>${table.foreignKeys.length ? table.foreignKeys.length + ' relasi' : ''}</span>
+          </div>
+        `;
+
+        // Card Click Handler
+        card.addEventListener('click', (e) => {
+          if (state.isDraggingCard) return;
+          selectTable(table.name);
+        });
+
+        // Card Hover Handler
+        card.addEventListener('mouseenter', () => {
+          highlightTableConnections(table.name, true);
+        });
+        card.addEventListener('mouseleave', () => {
+          if (!state.selectedTable) {
+            clearHighlights();
+          } else {
+            highlightTableConnections(state.selectedTable, true);
+          }
+        });
+
+        // Drag Handler on Card Header
+        const header = card.querySelector('.table-card-header');
+        header.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          state.draggedTable = table.name;
+          state.isDraggingCard = true;
+          const rect = card.getBoundingClientRect();
+          state.dragOffsetX = (e.clientX - rect.left) / state.zoom;
+          state.dragOffsetY = (e.clientY - rect.top) / state.zoom;
+          card.style.zIndex = 50;
+        });
+
+        header.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          const touch = e.touches[0];
+          state.draggedTable = table.name;
+          state.isDraggingCard = true;
+          const rect = card.getBoundingClientRect();
+          state.dragOffsetX = (touch.clientX - rect.left) / state.zoom;
+          state.dragOffsetY = (touch.clientY - rect.top) / state.zoom;
+        }, { passive: true });
+
+        tablesContainer.appendChild(card);
+      });
+    }
+
+    // ── RENDER CONNECTIONS (BEZIER SVG PATHS) ──
+    function renderConnections() {
+      // Clear existing paths except defs
+      const defs = svgConnections.querySelector('defs');
+      svgConnections.innerHTML = '';
+      svgConnections.appendChild(defs);
+
+      if (!state.showRelations) return;
+
+      Object.values(SCHEMA_DATA).forEach(sourceTable => {
+        sourceTable.foreignKeys.forEach(fk => {
+          const targetTable = SCHEMA_DATA[fk.targetTable];
+          if (!targetTable) return;
+
+          const sourceEl = document.getElementById('table-' + sourceTable.name);
+          const targetEl = document.getElementById('table-' + targetTable.name);
+          if (!sourceEl || !targetEl) return;
+
+          // Compute Ports
+          const sW = 330;
+          const tW = 330;
+          const sX = sourceTable.x;
+          const sY = sourceTable.y;
+          const tX = targetTable.x;
+          const tY = targetTable.y;
+
+          // Connect from right to left or left to right
+          let x1, y1, x2, y2;
+          if (sX + sW < tX) {
+            x1 = sX + sW;
+            y1 = sY + 60;
+            x2 = tX;
+            y2 = tY + 60;
+          } else if (tX + tW < sX) {
+            x1 = sX;
+            y1 = sY + 60;
+            x2 = tX + tW;
+            y2 = tY + 60;
+          } else {
+            x1 = sX + sW / 2;
+            y1 = sY > tY ? sY : sY + 120;
+            x2 = tX + tW / 2;
+            y2 = sY > tY ? tY + 120 : tY;
+          }
+
+          const dx = Math.abs(x2 - x1) * 0.55;
+          const pathData = `M ${x1} ${y1} C ${x1 + (x2 > x1 ? dx : -dx)} ${y1}, ${x2 + (x2 > x1 ? -dx : dx)} ${y2}, ${x2} ${y2}`;
+
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', pathData);
+          path.id = `link-${sourceTable.name}-${targetTable.name}-${fk.column}`;
+          path.dataset.source = sourceTable.name;
+          path.dataset.target = targetTable.name;
+          path.dataset.label = `${sourceTable.name}.${fk.column} → ${targetTable.name}.${fk.targetColumn}`;
+
+          // Hover on relation line
+          path.addEventListener('mouseenter', (e) => {
+            path.classList.add('active-connection');
+            showTooltip(e.clientX, e.clientY, path.dataset.label);
+          });
+          path.addEventListener('mousemove', (e) => {
+            showTooltip(e.clientX, e.clientY, path.dataset.label);
+          });
+          path.addEventListener('mouseleave', () => {
+            if (!state.selectedTable) {
+              path.classList.remove('active-connection');
+            }
+            hideTooltip();
+          });
+
+          svgConnections.appendChild(path);
+        });
+      });
+    }
+
+    // ── HIGHLIGHT CONNECTIONS ──
+    function highlightTableConnections(tableName, isActive) {
+      const cards = document.querySelectorAll('.table-card');
+      const paths = document.querySelectorAll('#svg-connections path');
+
+      if (!isActive) {
+        clearHighlights();
+        return;
+      }
+
+      // Collect related tables
+      const relatedTables = new Set([tableName]);
+      paths.forEach(path => {
+        if (path.dataset.source === tableName || path.dataset.target === tableName) {
+          path.classList.add('active-connection');
+          path.classList.remove('dimmed');
+          relatedTables.add(path.dataset.source);
+          relatedTables.add(path.dataset.target);
+        } else {
+          path.classList.remove('active-connection');
+          path.classList.add('dimmed');
+        }
+      });
+
+      cards.forEach(card => {
+        const name = card.dataset.name;
+        if (relatedTables.has(name)) {
+          card.classList.remove('dimmed');
+        } else {
+          card.classList.add('dimmed');
+        }
+      });
+    }
+
+    function clearHighlights() {
+      document.querySelectorAll('.table-card').forEach(c => c.classList.remove('dimmed'));
+      document.querySelectorAll('#svg-connections path').forEach(p => {
+        p.classList.remove('active-connection');
+        p.classList.remove('dimmed');
+      });
+    }
+
+    // ── SELECT TABLE & OPEN DRAWER ──
+    function selectTable(tableName) {
+      state.selectedTable = tableName;
+      document.querySelectorAll('.table-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.name === tableName);
+      });
+      highlightTableConnections(tableName, true);
+      openDrawer(tableName);
+    }
+
+    function openDrawer(tableName) {
+      const table = SCHEMA_DATA[tableName];
+      if (!table) return;
+
+      document.getElementById('drawer-table-name').textContent = table.name;
+      document.getElementById('drawer-table-sub').textContent = table.label;
+      document.getElementById('stat-col-count').textContent = table.columns.length;
+      document.getElementById('stat-pk-count').textContent = table.primaryKey.length;
+      document.getElementById('stat-fk-count').textContent = table.foreignKeys.length;
+      document.getElementById('drawer-desc').textContent = table.desc || 'Tabel produksi dan konfigurasi data pabrik.';
+
+      // Columns list
+      const colsContainer = document.getElementById('drawer-columns-list');
+      colsContainer.innerHTML = '';
+      table.columns.forEach(col => {
+        const isPK = table.primaryKey.includes(col.name);
+        const fk = table.foreignKeys.find(f => f.column === col.name);
+        const row = document.createElement('div');
+        row.style.padding = '8px 14px';
+        row.style.borderBottom = '1px solid var(--border-subtle)';
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        row.style.fontSize = '12px';
+        row.innerHTML = `
+          <div>
+            <span style="font-weight:800; color:${isPK ? '#fbbf24' : fk ? '#38bdf8' : 'var(--text-main)'}">${col.name}</span>
+            ${isPK ? '<span class="col-key-badge pk" style="margin-left:4px;">PK</span>' : ''}
+            ${fk ? '<span class="col-key-badge fk" style="margin-left:4px;">FK</span>' : ''}
+            ${col.default ? '<span style="font-size:10px; color:var(--text-dim); margin-left:6px;">default: ' + col.default + '</span>' : ''}
+          </div>
+          <div style="font-family:monospace; font-size:10px; color:var(--text-muted);">
+            ${col.type} ${col.nullable ? '' : '<span style="color:#ef4444; font-weight:800;">NOT NULL</span>'}
+          </div>
+        `;
+        colsContainer.appendChild(row);
+      });
+
+      // Relations
+      const outgoingBox = document.getElementById('drawer-outgoing-rels');
+      outgoingBox.innerHTML = '';
+      if (table.foreignKeys.length === 0) {
+        outgoingBox.innerHTML = '<span style="font-size:11px; color:var(--text-dim);">Tidak ada foreign key keluar.</span>';
+      } else {
+        table.foreignKeys.forEach(fk => {
+          const item = document.createElement('div');
+          item.className = 'rel-item';
+          item.innerHTML = `
+            <div class="rel-cols">
+              <span class="rel-source">kolom <b>${fk.column}</b></span>
+              <span class="rel-target">→ ${fk.targetTable}(${fk.targetColumn})</span>
+            </div>
+            <button class="btn-jump-table" data-target="${fk.targetTable}">Lihat</button>
+          `;
+          item.querySelector('.btn-jump-table').addEventListener('click', () => {
+            focusTable(fk.targetTable);
+          });
+          outgoingBox.appendChild(item);
+        });
+      }
+
+      // Incoming Relations
+      const incomingBox = document.getElementById('drawer-incoming-rels');
+      incomingBox.innerHTML = '';
+      let incomingCount = 0;
+      Object.values(SCHEMA_DATA).forEach(otherTable => {
+        otherTable.foreignKeys.forEach(fk => {
+          if (fk.targetTable === table.name) {
+            incomingCount++;
+            const item = document.createElement('div');
+            item.className = 'rel-item';
+            item.innerHTML = `
+              <div class="rel-cols">
+                <span class="rel-source">dari tabel <b>${otherTable.name}</b></span>
+                <span class="rel-target">(${fk.column} → ${fk.targetColumn})</span>
+              </div>
+              <button class="btn-jump-table" data-target="${otherTable.name}">Lihat</button>
+            `;
+            item.querySelector('.btn-jump-table').addEventListener('click', () => {
+              focusTable(otherTable.name);
+            });
+            incomingBox.appendChild(item);
+          }
+        });
+      });
+      if (incomingCount === 0) {
+        incomingBox.innerHTML = '<span style="font-size:11px; color:var(--text-dim);">Belum ada tabel lain yang merujuk ke tabel ini.</span>';
+      }
+      document.getElementById('drawer-rel-count').textContent = table.foreignKeys.length + incomingCount;
+
+      // SQL DDL
+      let ddl = `CREATE TABLE public.${table.name} (\n`;
+      table.columns.forEach((c, idx) => {
+        ddl += `  ${c.name.padEnd(24)} ${c.type}${c.nullable ? '' : ' NOT NULL'}${c.default ? ' DEFAULT ' + c.default : ''}${idx < table.columns.length - 1 ? ',' : ''}\n`;
+      });
+      ddl += `);\n\n`;
+      if (table.primaryKey.length) {
+        ddl += `ALTER TABLE public.${table.name} ADD PRIMARY KEY (${table.primaryKey.join(', ')});\n\n`;
+      }
+      table.foreignKeys.forEach(fk => {
+        ddl += `ALTER TABLE public.${table.name} ADD CONSTRAINT fk_${table.name}_${fk.column} FOREIGN KEY (${fk.column}) REFERENCES public.${fk.targetTable}(${fk.targetColumn});\n`;
+      });
+      document.getElementById('drawer-sql-code').textContent = ddl;
+
+      // Query Template
+      let query = `-- Contoh Query untuk ${table.name}\nSELECT \n`;
+      table.columns.slice(0, 8).forEach((c, i) => {
+        query += `  t.${c.name}${i < 7 ? ',' : ''}\n`;
+      });
+      query += `FROM public.${table.name} t\n`;
+      table.foreignKeys.slice(0, 2).forEach((fk, i) => {
+        query += `LEFT JOIN public.${fk.targetTable} j${i+1} ON t.${fk.column} = j${i+1}.${fk.targetColumn}\n`;
+      });
+      query += `ORDER BY t.created_at DESC NULLS LAST\nLIMIT 50;`;
+      document.getElementById('drawer-query-code').textContent = query;
+
+      document.getElementById('inspector-drawer').classList.add('open');
+    }
+
+    function closeDrawer() {
+      document.getElementById('inspector-drawer').classList.remove('open');
+      state.selectedTable = null;
+      document.querySelectorAll('.table-card').forEach(c => c.classList.remove('selected'));
+      clearHighlights();
+    }
+
+    // ── FOCUS AND PAN TO TABLE ──
+    function focusTable(tableName) {
+      const table = SCHEMA_DATA[tableName];
+      if (!table) return;
+
+      selectTable(tableName);
+
+      const targetX = -table.x * state.zoom + (window.innerWidth - 460) / 2 - 160 * state.zoom;
+      const targetY = -table.y * state.zoom + window.innerHeight / 2 - 140 * state.zoom;
+
+      animatePan(targetX, targetY);
+    }
+
+    function animatePan(toX, toY) {
+      const startX = state.panX;
+      const startY = state.panY;
+      const startTime = performance.now();
+      const duration = 400;
+
+      function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+
+        state.panX = startX + (toX - startX) * ease;
+        state.panY = startY + (toY - startY) * ease;
+        updateTransform();
+        updateMinimap();
+
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    // ── PAN & ZOOM CONTROLS ──
+    function updateTransform() {
+      container.style.transform = `translate3d(${state.panX}px, ${state.panY}px, 0) scale(${state.zoom})`;
+      zoomText.textContent = Math.round(state.zoom * 100) + '%';
+    }
+
+    function setZoom(newZoom, centerX = window.innerWidth / 2, centerY = window.innerHeight / 2) {
+      newZoom = Math.min(Math.max(newZoom, 0.2), 2.5);
+      const ratio = newZoom / state.zoom;
+      state.panX = centerX - (centerX - state.panX) * ratio;
+      state.panY = centerY - (centerY - state.panY) * ratio;
+      state.zoom = newZoom;
+      updateTransform();
+      updateMinimap();
+    }
+
+    function fitToScreen() {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      Object.values(SCHEMA_DATA).forEach(t => {
+        minX = Math.min(minX, t.x);
+        minY = Math.min(minY, t.y);
+        maxX = Math.max(maxX, t.x + 330);
+        maxY = Math.max(maxY, t.y + 350);
+      });
+
+      const pad = 80;
+      const w = maxX - minX + pad * 2;
+      const h = maxY - minY + pad * 2;
+      const scaleX = window.innerWidth / w;
+      const scaleY = window.innerHeight / h;
+      const targetZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.25), 1.0);
+
+      state.zoom = targetZoom;
+      state.panX = (window.innerWidth - w * targetZoom) / 2 - minX * targetZoom + pad * targetZoom;
+      state.panY = (window.innerHeight - h * targetZoom) / 2 - minY * targetZoom + pad * targetZoom;
+
+      updateTransform();
+      updateMinimap();
+    }
+
+    // ── MINIMAP (RADAR) ──
+    function setupMinimap() {
+      const canvas = document.getElementById('minimap-canvas');
+      const box = document.getElementById('minimap-box');
+      canvas.width = box.clientWidth;
+      canvas.height = box.clientHeight;
+
+      box.addEventListener('click', (e) => {
+        const rect = box.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        // Map minimap coords to world coords
+        const worldX = (clickX / canvas.width) * 2400;
+        const worldY = (clickY / canvas.height) * 2600;
+
+        animatePan(-worldX * state.zoom + window.innerWidth / 2, -worldY * state.zoom + window.innerHeight / 2);
+      });
+    }
+
+    function updateMinimap() {
+      const canvas = document.getElementById('minimap-canvas');
+      const ctx = canvas.getContext('2d');
+      const vpBox = document.getElementById('minimap-viewport-box');
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const worldW = 2400;
+      const worldH = 2600;
+      const scaleX = canvas.width / worldW;
+      const scaleY = canvas.height / worldH;
+
+      // Draw all nodes
+      Object.values(SCHEMA_DATA).forEach(t => {
+        ctx.fillStyle = t.domainColor || '#38bdf8';
+        ctx.fillRect(t.x * scaleX, t.y * scaleY, 330 * scaleX, 220 * scaleY);
+      });
+
+      // Update Viewport Rect
+      const vpW = (window.innerWidth / state.zoom) * scaleX;
+      const vpH = (window.innerHeight / state.zoom) * scaleY;
+      const vpX = (-state.panX / state.zoom) * scaleX;
+      const vpY = (-state.panY / state.zoom) * scaleY;
+
+      vpBox.style.width = Math.max(vpW, 10) + 'px';
+      vpBox.style.height = Math.max(vpH, 10) + 'px';
+      vpBox.style.left = vpX + 'px';
+      vpBox.style.top = vpY + 'px';
+    }
+
+    // ── TOOLTIP ──
+    function showTooltip(x, y, text) {
+      tooltip.style.left = (x + 12) + 'px';
+      tooltip.style.top = (y + 12) + 'px';
+      tooltip.textContent = text;
+      tooltip.style.display = 'block';
+    }
+
+    function hideTooltip() {
+      tooltip.style.display = 'none';
+    }
+
+    // ── TOAST ──
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    // ── EVENT LISTENERS ──
+    function setupEvents() {
+      // Pan with Mouse
+      viewport.addEventListener('mousedown', (e) => {
+        if (e.target !== viewport && e.target !== container && e.target !== svgConnections) return;
+        state.isPanning = true;
+        state.startPanX = e.clientX - state.panX;
+        state.startPanY = e.clientY - state.panY;
+        viewport.classList.add('dragging');
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (state.isPanning) {
+          state.panX = e.clientX - state.startPanX;
+          state.panY = e.clientY - state.startPanY;
+          updateTransform();
+          updateMinimap();
+        } else if (state.isDraggingCard && state.draggedTable) {
+          const table = SCHEMA_DATA[state.draggedTable];
+          const newX = (e.clientX - state.panX) / state.zoom - state.dragOffsetX;
+          const newY = (e.clientY - state.panY) / state.zoom - state.dragOffsetY;
+          table.x = Math.round(newX);
+          table.y = Math.round(newY);
+          
+          const card = document.getElementById('table-' + table.name);
+          if (card) {
+            card.style.transform = `translate3d(${table.x}px, ${table.y}px, 0)`;
+          }
+          renderConnections();
+          updateMinimap();
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        state.isPanning = false;
+        viewport.classList.remove('dragging');
+        if (state.isDraggingCard) {
+          state.isDraggingCard = false;
+          if (state.draggedTable) {
+            const card = document.getElementById('table-' + state.draggedTable);
+            if (card) card.style.zIndex = 20;
+          }
+          state.draggedTable = null;
+        }
+      });
+
+      // Zoom with Wheel
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const zoomDelta = e.deltaY < 0 ? 1.15 : 0.87;
+        setZoom(state.zoom * zoomDelta, e.clientX, e.clientY);
+      }, { passive: false });
+
+      // Zoom Buttons
+      document.getElementById('btn-zoom-in').addEventListener('click', () => setZoom(state.zoom * 1.25));
+      document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(state.zoom * 0.8));
+      document.getElementById('btn-zoom-reset').addEventListener('click', () => setZoom(1.0));
+      document.getElementById('btn-fit-screen').addEventListener('click', fitToScreen);
+
+      // Reset / Auto Layout
+      document.getElementById('btn-auto-layout').addEventListener('click', () => {
+        fitToScreen();
+        showToast('Tata letak diagram dipusatkan kembali');
+      });
+
+      // Relations Toggle
+      document.getElementById('btn-toggle-relations').addEventListener('click', function() {
+        state.showRelations = !state.showRelations;
+        this.classList.toggle('active', state.showRelations);
+        renderConnections();
+        showToast(state.showRelations ? 'Relasi ditampilkan' : 'Relasi disembunyikan');
+      });
+
+      // Theme Toggle
+      document.getElementById('btn-toggle-theme').addEventListener('click', () => {
+        state.theme = state.theme === 'dark' ? 'light' : 'dark';
+        document.body.setAttribute('data-theme', state.theme);
+        showToast('Beralih ke mode ' + (state.theme === 'dark' ? 'gelap' : 'terang'));
+      });
+
+      // Close Drawer
+      document.getElementById('btn-close-drawer').addEventListener('click', closeDrawer);
+
+      // Drawer Tabs
+      document.querySelectorAll('.drawer-nav-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('.drawer-nav-btn').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          const target = this.dataset.tab;
+          document.querySelectorAll('.drawer-tab-pane').forEach(p => p.style.display = 'none');
+          document.getElementById(target).style.display = 'block';
+        });
+      });
+
+      // Copy Code Buttons
+      document.getElementById('btn-copy-ddl').addEventListener('click', () => {
+        navigator.clipboard.writeText(document.getElementById('drawer-sql-code').textContent);
+        showToast('SQL DDL disalin ke clipboard!');
+      });
+      document.getElementById('btn-copy-query').addEventListener('click', () => {
+        navigator.clipboard.writeText(document.getElementById('drawer-query-code').textContent);
+        showToast('Query SQL disalin ke clipboard!');
+      });
+
+      // Domain Filter Tabs
+      document.querySelectorAll('.domain-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+          document.querySelectorAll('.domain-tab').forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+          const domain = this.dataset.domain;
+          state.activeDomain = domain;
+
+          document.querySelectorAll('.table-card').forEach(card => {
+            if (domain === 'all' || card.dataset.domain === domain) {
+              card.style.display = 'flex';
+            } else {
+              card.style.display = 'none';
+            }
+          });
+          renderConnections();
+          updateMinimap();
+        });
+      });
+
+      // Search
+      const searchInput = document.getElementById('search-input');
+      const searchResults = document.getElementById('search-results');
+
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (!query) {
+          searchResults.classList.remove('show');
+          return;
+        }
+
+        const matches = [];
+        Object.values(SCHEMA_DATA).forEach(table => {
+          let score = 0;
+          if (table.name.toLowerCase().includes(query)) score += 10;
+          if (table.label.toLowerCase().includes(query)) score += 5;
+          const matchingCols = table.columns.filter(c => c.name.toLowerCase().includes(query));
+          if (matchingCols.length > 0) score += matchingCols.length;
+
+          if (score > 0) {
+            matches.push({ table, matchingCols });
+          }
+        });
+
+        if (matches.length > 0) {
+          searchResults.innerHTML = '';
+          matches.slice(0, 8).forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'search-result-item';
+            item.innerHTML = `
+              <div>
+                <div class="result-name">${m.table.name}</div>
+                <div class="result-domain">${m.table.label} ${m.matchingCols.length ? '• cocok: ' + m.matchingCols.map(c => c.name).join(', ') : ''}</div>
+              </div>
+              <span class="badge-count">${m.table.columns.length} kol</span>
+            `;
+            item.addEventListener('click', () => {
+              focusTable(m.table.name);
+              searchResults.classList.remove('show');
+              searchInput.value = '';
+            });
+            searchResults.appendChild(item);
+          });
+          searchResults.classList.add('show');
+        } else {
+          searchResults.classList.remove('show');
+        }
+      });
+
+      // Keyboard Shortcut '/' for Search
+      window.addEventListener('keydown', (e) => {
+        if (e.key === '/' && document.activeElement !== searchInput) {
+          e.preventDefault();
+          searchInput.focus();
+        } else if (e.key === 'Escape') {
+          searchResults.classList.remove('show');
+          closeDrawer();
+        }
+      });
+
+      // Close search on outside click
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-box')) {
+          searchResults.classList.remove('show');
+        }
+      });
+
+      // Export SVG
+      document.getElementById('btn-export-svg').addEventListener('click', () => {
+        let svgContent = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2500 2700" width="2500" height="2700">\n';
+        svgContent += '<style>' +
+          'text { font-family: system-ui, sans-serif; }' +
+          '.card-bg { fill: #0f172a; stroke: #334155; stroke-width: 1.5; rx: 14; }' +
+          '.card-header { fill: #1e293b; }' +
+          '.title { fill: #f1f5f9; font-size: 13px; font-weight: bold; }' +
+          '.sub { fill: #94a3b8; font-size: 10px; }' +
+          '.col { fill: #e2e8f0; font-size: 10px; }' +
+          '.type { fill: #38bdf8; font-size: 9px; font-family: monospace; }' +
+          '.conn { fill: none; stroke: rgba(56, 189, 248, 0.4); stroke-width: 2; }' +
+        '</style>\n';
+        svgContent += '<rect width="100%" height="100%" fill="#090d16" />\n';
+        
+        // Connections
+        const paths = document.querySelectorAll('#svg-connections path');
+        paths.forEach(p => {
+          svgContent += '<path d="' + p.getAttribute('d') + '" class="conn" />\n';
+        });
+
+        // Cards
+        Object.values(SCHEMA_DATA).forEach(t => {
+          svgContent += '<g transform="translate(' + t.x + ', ' + t.y + ')">\n';
+          svgContent += '  <rect width="330" height="' + Math.min(t.columns.length * 20 + 80, 360) + '" class="card-bg" />\n';
+          svgContent += '  <rect width="330" height="48" class="card-header" rx="14" />\n';
+          svgContent += '  <rect width="330" height="4" fill="' + (t.domainColor || '#38bdf8') + '" />\n';
+          svgContent += '  <text x="14" y="24" class="title">' + t.name + '</text>\n';
+          svgContent += '  <text x="14" y="38" class="sub">' + t.label + '</text>\n';
+          t.columns.slice(0, 14).forEach((c, idx) => {
+            const y = 68 + idx * 20;
+            svgContent += '  <text x="14" y="' + y + '" class="col">' + c.name + '</text>\n';
+            svgContent += '  <text x="316" y="' + y + '" class="type" text-anchor="end">' + c.type + '</text>\n';
+          });
+          svgContent += '</g>\n';
+        });
+        svgContent += '</svg>';
+
+        const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'dji_factory_erd.svg';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('Diagram vektor SVG berhasil diunduh!');
+      });
+
+      // Export JSON
+      document.getElementById('btn-export-json').addEventListener('click', () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(SCHEMA_DATA, null, 2));
+        const a = document.createElement('a');
+        a.setAttribute("href", dataStr);
+        a.setAttribute("download", "dji_factory_schema.json");
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showToast('Kamus skema berhasil diunduh (JSON)!');
+      });
+    }
+
+    // Run on Load
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

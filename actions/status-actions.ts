@@ -81,6 +81,53 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
     const headersToInsert: any[] = [];
     const detailsToInsert: any[] = [];
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const hasSupabase = Boolean(supabaseUrl && supabaseAnonKey && supabaseAnonKey !== "your_supabase_anon_key_here");
+    const supabase = hasSupabase ? await createClient() : null;
+
+    let resolvedOperatorId: number | null = null;
+    if (inputData.operatorId && !isNaN(parseInt(String(inputData.operatorId)))) {
+      const parsed = parseInt(String(inputData.operatorId));
+      if (!isNaN(parsed) && parsed > 0) {
+        resolvedOperatorId = parsed;
+      }
+    }
+
+    let resolvedPic = inputData.pic ? inputData.pic.trim() : "";
+
+    if (supabase) {
+      // 1. If operator_id is missing but pic is provided, find in operators table
+      if (!resolvedOperatorId && resolvedPic && resolvedPic !== "-" && resolvedPic.toUpperCase() !== "ADMIN") {
+        try {
+          const { data: opRow } = await supabase
+            .from("operators")
+            .select("id, nama_operator")
+            .ilike("nama_operator", resolvedPic)
+            .maybeSingle();
+          if (opRow) {
+            resolvedOperatorId = opRow.id;
+            resolvedPic = opRow.nama_operator;
+          }
+        } catch (e) {
+          console.warn("Operator lookup by name failed in submitStatusMesin:", e);
+        }
+      } else if (resolvedOperatorId && (!resolvedPic || resolvedPic === "-" || resolvedPic.toUpperCase() === "ADMIN")) {
+        try {
+          const { data: opRow } = await supabase
+            .from("operators")
+            .select("nama_operator")
+            .eq("id", resolvedOperatorId)
+            .maybeSingle();
+          if (opRow?.nama_operator) {
+            resolvedPic = opRow.nama_operator;
+          }
+        } catch (e) {
+          console.warn("Operator lookup by id failed in submitStatusMesin:", e);
+        }
+      }
+    }
+
     const GROUPS_CONFIG = [
       { id: 1, name: "A", time: "08:00:00" },
       { id: 2, name: "B", time: "16:00:00" },
@@ -108,8 +155,8 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
             design_id: inputData.designId || null,
             total_downtime_detik: 0,
             idempotency_key: inputData.idempotencyKey ? `${inputData.idempotencyKey}-${d}-${grp.id}` : null,
-            pic: inputData.pic || "-",
-            operator_id: inputData.operatorId ? parseInt(inputData.operatorId) : null,
+            pic: resolvedPic || inputData.pic || "-",
+            operator_id: resolvedOperatorId,
             group_id: grp.id,
           });
 
@@ -126,7 +173,9 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
       } else {
         // Hanya untuk 1 shift tertentu
         const headerId = generateExcelStyleId();
-        const safeTime = (currentTime >= "07:10:00" && currentTime <= "23:59:59") ? currentTime : "08:00:00";
+        const targetGroupId = inputData.grupId ? parseInt(String(inputData.grupId)) : 1;
+        const shiftDefaultTime = targetGroupId === 2 ? "16:00:00" : (targetGroupId === 3 ? "23:30:00" : "08:00:00");
+        const safeTime = (currentTime >= "07:10:00" && currentTime <= "23:59:59") ? currentTime : shiftDefaultTime;
         const potonganKeNum = inputData.potonganKe ? parseInt(String(inputData.potonganKe)) : null;
         headersToInsert.push({
           id: headerId,
@@ -142,9 +191,9 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
           design_id: inputData.designId || null,
           total_downtime_detik: 0,
           idempotency_key: inputData.idempotencyKey ? `${inputData.idempotencyKey}-${d}` : null,
-          pic: inputData.pic,
-          operator_id: inputData.operatorId ? parseInt(inputData.operatorId) : null,
-          group_id: inputData.grupId ? parseInt(inputData.grupId) : 1,
+          pic: resolvedPic || inputData.pic || "-",
+          operator_id: resolvedOperatorId,
+          group_id: targetGroupId,
         });
 
         detailsToInsert.push({
@@ -159,11 +208,7 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
       }
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (supabaseUrl && supabaseAnonKey && supabaseAnonKey !== "your_supabase_anon_key_here") {
-      const supabase = await createClient();
+    if (supabase) {
 
       let createdByName = null;
       try {

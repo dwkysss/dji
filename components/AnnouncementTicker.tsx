@@ -28,12 +28,25 @@ export default function AnnouncementTicker() {
       }
     } catch (e) {}
 
-    const res = await getAnnouncement();
-    if (res?.success && res?.data && res.data.message !== undefined) {
-      setMessage(res.data.message || "");
-      setIsActive(!!res.data.is_active);
-      setTargetRoles(Array.isArray(res.data.target_roles) ? res.data.target_roles : localRoles);
-    } else {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      setMessage(localMsg);
+      setIsActive(localActive);
+      setTargetRoles(localRoles);
+      return;
+    }
+
+    try {
+      const res = await getAnnouncement();
+      if (res?.success && res?.data && res.data.message !== undefined) {
+        setMessage(res.data.message || "");
+        setIsActive(!!res.data.is_active);
+        setTargetRoles(Array.isArray(res.data.target_roles) ? res.data.target_roles : localRoles);
+      } else {
+        setMessage(localMsg);
+        setIsActive(localActive);
+        setTargetRoles(localRoles);
+      }
+    } catch (err) {
       setMessage(localMsg);
       setIsActive(localActive);
       setTargetRoles(localRoles);

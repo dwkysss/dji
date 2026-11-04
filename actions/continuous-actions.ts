@@ -554,7 +554,29 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
     const potonganKeNum = validated.potonganKe
       ? parseInt(validated.potonganKe)
       : null;
-    const finishMeterNum = parseOptionalMeter(validated.meterAkhir);
+
+    const isCutOnlySubmit =
+      !!validated.tanggalPotong &&
+      (!validated.hasilProduksiMeter || validated.hasilProduksiMeter.trim() === "") &&
+      (!validated.meterAkhir || validated.meterAkhir.trim() === "");
+
+    if (isCutOnlySubmit) {
+      if (!validated.nomorMc || !potonganKeNum) {
+        return {
+          success: false,
+          error: "Mesin dan Potongan wajib diisi untuk potong kain.",
+        };
+      }
+      const supabase = await createClient();
+      return await applyT2ACutDateUpdate(supabase, {
+        nomorMc: validated.nomorMc,
+        potonganKeNum,
+        tanggalPotong: validated.tanggalPotong!,
+      });
+    }
+    const rawFinishMeter = parseOptionalMeter(validated.meterAkhir);
+    // Jika mesin non-T2A dan meterAkhir adalah 0, ini adalah pelaporan titik cacat tanpa finish meter
+    const finishMeterNum = (validated.nomorMc !== "T2A" && rawFinishMeter === 0) ? null : rawFinishMeter;
     const startMeterInput = parseOptionalMeter(validated.meterAwal);
     const autoMeterStart =
       validated.nomorMc === "T2A"
@@ -756,7 +778,7 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
     const idxWithProblem = pcsDataToProcess.findIndex((pcsItem, idx) => {
       const pcsKey = pcsItem.pcsIndex ? pcsItem.pcsIndex.toString() : (idx + 1).toString();
       const matchedEvents = validated.downtimeEvents 
-        ? validated.downtimeEvents.filter(e => (!e.dikerjakanOleh || !e.dikerjakanOleh.startsWith("Mekanik")) && (!e.pcsKe || e.pcsKe === "Semua" || e.pcsKe.split(",").map(x => x.trim()).includes(pcsKey)))
+        ? validated.downtimeEvents.filter(e => (!e.dikerjakanOleh || !e.dikerjakanOleh.startsWith("Mekanik")) && (!e.pcsKe || e.pcsKe === "Semua" || (Array.isArray(e.pcsKe) ? e.pcsKe.map((x: string) => String(x).trim()) : String(e.pcsKe).split(",").map((x: string) => x.trim())).includes(pcsKey)))
         : [];
       return matchedEvents.length > 0 || pcsDataToProcess[idx].isBs;
     });
@@ -771,7 +793,7 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
       // Filter event khusus untuk PCS ini berdasarkan pcsIndex aktual (bukan posisi array), DAN abaikan downtime Mekanik agar tidak masuk ke cacat Panel
       const actualPcsKey = pcsItem.pcsIndex ? pcsItem.pcsIndex.toString() : (idx + 1).toString();
       const matchedEvents = validated.downtimeEvents 
-        ? validated.downtimeEvents.filter(e => (!e.dikerjakanOleh || !e.dikerjakanOleh.startsWith("Mekanik")) && (!e.pcsKe || e.pcsKe === "Semua" || e.pcsKe.split(",").map(x => x.trim()).includes(actualPcsKey)))
+        ? validated.downtimeEvents.filter(e => (!e.dikerjakanOleh || !e.dikerjakanOleh.startsWith("Mekanik")) && (!e.pcsKe || e.pcsKe === "Semua" || (Array.isArray(e.pcsKe) ? e.pcsKe.map((x: string) => String(x).trim()) : String(e.pcsKe).split(",").map((x: string) => x.trim())).includes(actualPcsKey)))
         : [];
 
       let kategoriStr = null;
@@ -790,7 +812,9 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
             e.problems.forEach((p: any) => {
               // Jika problem ini ditugaskan ke PCS tertentu (misal PCS 1 atau PCS 2)
               if (p.pcsKe && p.pcsKe !== "Semua") {
-                const targetPcs = p.pcsKe.split(",").map((x: string) => x.trim());
+                const targetPcs = Array.isArray(p.pcsKe)
+                  ? p.pcsKe.map((x: any) => String(x).trim())
+                  : String(p.pcsKe).split(",").map((x: string) => x.trim());
                 if (!targetPcs.includes(actualPcsKey)) {
                   return; // Lewati karena masalah ini milik PCS lain!
                 }
@@ -1267,7 +1291,13 @@ export async function updateContinuousReport(
         // Filter event khusus untuk PCS ini berdasarkan pcsIndex aktual (bukan posisi array)
         const actualPcsKey = pcsItem.pcsIndex ? pcsItem.pcsIndex.toString() : (idx + 1).toString();
         const matchedEvents = data.downtimeEvents 
-          ? data.downtimeEvents.filter((e: any) => !e.pcsKe || e.pcsKe === "Semua" || e.pcsKe.split(",").map((x: string) => x.trim()).includes(actualPcsKey))
+          ? data.downtimeEvents.filter((e: any) => {
+              if (!e.pcsKe || e.pcsKe === "Semua") return true;
+              if (Array.isArray(e.pcsKe)) {
+                return e.pcsKe.length === 0 || e.pcsKe.map((x: any) => String(x).trim()).includes(actualPcsKey);
+              }
+              return String(e.pcsKe).split(",").map((x: string) => x.trim()).includes(actualPcsKey);
+            })
           : [];
 
         let kategoriStr = null;
@@ -1285,7 +1315,9 @@ export async function updateContinuousReport(
               e.problems.forEach((p: any) => {
                 // Jika problem ini ditugaskan ke PCS tertentu (misal PCS 1 atau PCS 2)
                 if (p.pcsKe && p.pcsKe !== "Semua") {
-                  const targetPcs = p.pcsKe.split(",").map((x: string) => x.trim());
+                  const targetPcs = Array.isArray(p.pcsKe)
+                    ? p.pcsKe.map((x: any) => String(x).trim())
+                    : String(p.pcsKe).split(",").map((x: string) => x.trim());
                   if (!targetPcs.includes(actualPcsKey)) {
                     return; // Lewati karena masalah ini milik PCS lain!
                   }
@@ -1558,6 +1590,7 @@ export async function getRecentShiftInputHistory(
         operators (id, nama_operator),
         groups (id, nama_grup),
         downtime_events,
+        downtime_records (*),
         production_details (
           *,
           production_defects (*)
@@ -1576,13 +1609,14 @@ export async function getRecentShiftInputHistory(
       query = query.eq("potongan_ke", parseInt(potonganKe.toString()));
     }
 
-    if (nomorMc && nomorMc.trim() !== "") {
+        if (nomorMc && nomorMc.trim() !== "") {
       const cleanMc = nomorMc.trim();
-      const numOnly = cleanMc.replace(/[^0-9]/g, "");
-      if (numOnly) {
-        query = query.or(`nomor_mc.ilike.*${cleanMc}*,nomor_mc.eq.${numOnly},nomor_mc.eq.R${numOnly},nomor_mc.eq.R0${numOnly}`);
+      if (/^R\d+$/i.test(cleanMc)) {
+        const num = cleanMc.replace(/[^0-9]/g, "");
+        const padded = num.padStart(2, "0");
+        query = query.or(`nomor_mc.ilike.${cleanMc},nomor_mc.eq.${num},nomor_mc.eq.R${num},nomor_mc.eq.R${padded}`);
       } else {
-        query = query.ilike("nomor_mc", `%${cleanMc}%`);
+        query = query.ilike("nomor_mc", cleanMc);
       }
     }
 

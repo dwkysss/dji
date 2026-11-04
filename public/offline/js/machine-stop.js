@@ -177,13 +177,15 @@
     const opShift = window.DJIConfig.getOperationalShift();
     const normGroup = normalizeGroupLetter(appState.selectedGroup || opShift.shiftGroup);
     const groupId = normGroup === "B" ? "2" : normGroup === "C" ? "3" : "1";
-    const operatorId = resolveOperatorId(appState.selectedOperator, appState.bootstrap);
+    const rawOpId = resolveOperatorId(appState.selectedOperator, appState.bootstrap);
+    const operatorId = rawOpId && !isNaN(parseInt(rawOpId)) ? String(parseInt(rawOpId)) : null;
 
     const submitData = {
       nomorMc: appState.selectedMc,
       pic: appState.selectedOperator,
-      operatorId: String(operatorId),
+      operatorId: operatorId,
       grupId: String(groupId),
+      tanggalOff: opShift.operationalDate,
       status: fullStatus,
       kategoriMasalah: activeStopCategory,
       cakupan: cakupan,

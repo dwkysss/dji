@@ -11,13 +11,26 @@ const AppUpdateChecker = dynamic(() => import("@/components/AppUpdateChecker"), 
 
 export default function GlobalWidgets() {
   useEffect(() => {
-    // Bersihkan service worker PWA lama di browser klien agar tidak menyisakan cache basi
+    // Daftarkan service worker resmi untuk caching offline darurat (mencegah layar dinosaurus saat offline)
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const registration of registrations) {
-          registration.unregister();
-        }
-      });
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((reg) => {
+          if (reg) reg.update().catch(() => {});
+        })
+        .catch((err) => {
+          console.warn("[SW] Registration deferred:", err);
+        });
+
+      // Warm-up cache untuk form offline saat online
+      if ("caches" in window && navigator.onLine) {
+        caches
+          .open("dji-offline-v41")
+          .then((cache) => {
+            cache.add("/offline.html").catch(() => {});
+          })
+          .catch(() => {});
+      }
     }
   }, []);
 
@@ -31,4 +44,3 @@ export default function GlobalWidgets() {
     </>
   );
 }
-

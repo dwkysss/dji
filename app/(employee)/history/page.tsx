@@ -553,7 +553,7 @@ export default function EmployeeHistoryPage() {
                   className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
                 >
                   <option value="">-- Pilih Mesin --</option>
-                  {REGISTERED_MACHINES.map((mc) => (
+                  {Array.from(new Set([...REGISTERED_MACHINES, "R13"])).map((mc) => (
                     <option key={mc} value={mc}>
                       Mesin {mc}
                     </option>

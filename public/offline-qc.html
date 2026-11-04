@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Portal Inspeksi QC Offline - DJI</title>
+  <!-- Favicon & PWA Icons (DJI) -->
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
+
 
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,10 +18,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
   <!-- Modular Stylesheets adhering to Best Practice -->
-  <link rel="stylesheet" href="offline/css/base.css">
-  <link rel="stylesheet" href="offline/css/components.css">
-  <link rel="stylesheet" href="offline/css/modals.css">
-  <link rel="stylesheet" href="offline/css/qc.css">
+  <link rel="stylesheet" href="offline/css/base.css?v=12.0">
+  <link rel="stylesheet" href="offline/css/components.css?v=12.0">
+  <link rel="stylesheet" href="offline/css/modals.css?v=12.0">
+  <link rel="stylesheet" href="offline/css/qc.css?v=12.0">
 </head>
 <body>
 
@@ -42,10 +49,31 @@
             <span class="user-name-bold">QC INSPEKTOR</span>
           </div>
 
-          <div class="pill-offline-indicator" title="Mode Inspeksi Offline - Data disimpan lokal di perangkat">
-            <span class="dot-cyan"></span>
-            <span>QC OFFLINE</span>
+          <div class="pill-offline-indicator" id="btnSyncNetworkStatus" onclick="handleNetworkPillClick()" style="cursor: pointer;" title="Mode Inspeksi Offline - Data disimpan lokal di perangkat">
+            <span class="dot-cyan" id="dotNetworkStatus"></span>
+            <span id="txtNetworkStatus">QC OFFLINE</span>
           </div>
+
+          <!-- Tombol Kembali ke Portal QC Online saat Terhubung -->
+          <button type="button" id="btnReturnToOnline" class="pill-return-online-btn" style="display: none;" onclick="returnToOnlinePortal()" title="Kembali ke Portal QC Online">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>Kembali ke Portal QC Online</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Online Restore Auto-Redirect Banner -->
+      <div id="onlineRestoreBanner" class="online-restore-banner" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="dot-online-pulse"></span>
+          <div>
+            <strong style="color: #166534; font-size: 13px;">Koneksi Internet Kembali Online!</strong>
+            <span id="txtOnlineRestoreMsg" style="font-size: 12px; color: #15803d; margin-left: 4px;">Data tersinkron. Mengalihkan ke Portal QC Utama dalam <b id="lblOnlineCountdown" style="color: #0f172a; font-size: 13px;">3</b> detik...</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn-restore-now" onclick="returnToOnlinePortal(true)">Kembali Sekarang &rarr;</button>
+          <button type="button" class="btn-restore-stay" onclick="stayInOfflineMode()" title="Tetap di halaman offline ini">Tetap di Offline</button>
         </div>
       </div>
 
@@ -188,7 +216,18 @@
   </script>
 
   <!-- Modular Scripts -->
-  <script defer src="offline/js/config.js"></script>
-  <script defer src="offline/js/qc-app.js"></script>
+  <script defer src="offline/js/config.js?v=3.2"></script>
+  <script defer src="offline/js/qc-app.js?v=3.2"></script>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then((reg) => {
+          if (reg) reg.update();
+        }).catch(console.warn);
+      });
+    }
+  </script>
 </body>
 </html>

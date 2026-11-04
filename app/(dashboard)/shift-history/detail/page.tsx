@@ -21,7 +21,10 @@ import {
   Trash2,
   AlertTriangle,
   CheckSquare,
+  RefreshCw,
 } from "lucide-react";
+import { cancelMechanicDowntime } from "@/actions/mechanic-actions";
+import { parseAsWibDate } from "@/lib/shift-utils";
 import { useAuth } from "@/lib/auth-context";
 import PanelHistoryTable from "@/app/(employee)/history/detail/components/PanelHistoryTable";
 import MeterHistoryTable from "@/app/(employee)/history/detail/components/MeterHistoryTable";
@@ -60,6 +63,67 @@ function ShiftHistoryDetailContent() {
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
 
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [deletingHeaderId, setDeletingHeaderId] = useState<string | null>(null);
+
+  const isKepalaShiftOrAdmin = ["kepala_shift", "admin", "superadmin", "manager"].includes(
+    (user?.role || "").toLowerCase()
+  );
+
+  const cleanPenanggungJawab = (raw: string | undefined | null) => {
+    if (!raw) return "Operator";
+    const pkMatch = raw.match(/^Perbaikan Khusus\s*\((.*)\)$/i);
+    if (pkMatch && pkMatch[1]) return pkMatch[1].trim();
+    const opMatch = raw.match(/^Operator\s*\((.*)\)$/i);
+    if (opMatch && opMatch[1]) return opMatch[1].trim();
+    return raw.replace(/^Perbaikan Khusus\s*/i, "").replace(/^Operator\s*/i, "").trim() || raw;
+  };
+
+  const formatWibTime = (dateVal?: string): string => {
+    if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
+    try {
+      let str = String(dateVal).trim();
+      if (!str) return "-";
+      if (/^\d{2}:\d{2}(:\d{2})?$/.test(str)) {
+        return str.substring(0, 5);
+      }
+      if (str.includes(" ") && !str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) {
+        const timePart = str.split(" ")[1];
+        if (timePart && timePart.includes(":")) {
+          return timePart.substring(0, 5);
+        }
+      }
+      const dt = parseAsWibDate(str);
+      if (isNaN(dt.getTime())) return "-";
+      return new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(dt).replace(".", ":");
+    } catch (e) {
+      return "-";
+    }
+  };
+
+  const handleDeleteSpecialDowntime = async (headerId: string, timeStr: string, pic: string) => {
+    if (!window.confirm(`Hapus laporan downtime khusus (${timeStr} - ${pic}) ini?\nData downtime dan riwayat terkait akan dibatalkan.`)) {
+      return;
+    }
+    setDeletingHeaderId(headerId);
+    try {
+      const res = await cancelMechanicDowntime(headerId);
+      if (res && res.success) {
+        showToast("Laporan downtime khusus berhasil dihapus.", "success");
+        await fetchDetail();
+      } else {
+        showToast("Gagal menghapus downtime: " + (res?.error || "Terjadi kesalahan"), "error");
+      }
+    } catch (err: any) {
+      showToast("Terjadi kesalahan saat menghapus: " + (err?.message || err), "error");
+    } finally {
+      setDeletingHeaderId(null);
+    }
+  };
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
     setToastMessage({ text, type });
@@ -481,6 +545,14 @@ function ShiftHistoryDetailContent() {
           });
 
           finalPanels.forEach((panel: any) => {
+            if (
+              panel.panel_no === "Downtime Mekanik (Direct)" ||
+              panel.panel_no === "BERHENTI" ||
+              panel.pcs === 0 ||
+              panel.pcs === "0"
+            ) {
+              return;
+            }
             const isMeterInput = panel.panel_no === "METERAN";
             const numPcs = isMeterInput ? Math.max(maxBatchPcs, parseInt(panel.pcs || "1")) : parseInt(panel.pcs || "1");
             for (let i = 1; i <= numPcs; i++) {
@@ -714,6 +786,206 @@ function ShiftHistoryDetailContent() {
                 </div>
               </div>
             </div>
+          );
+        })()}
+
+        {/* Render Mechanic / Special Downtimes explicitly in Table format */}
+        {(() => {
+          const mechanicPanels = detailData.panels?.filter((p: any) => {
+            return p.panel_no === "Downtime Mekanik (Direct)" || p.panel_no === "BERHENTI" || p.pcs === 0 || p.pcs === "0";
+          });
+
+          const renderSection = (sourcePanels: any[], title: string, subtitle: string, variant: "blue" | "amber") => {
+            if (!sourcePanels || sourcePanels.length === 0) return null;
+            const rows: any[] = [];
+            sourcePanels.forEach((mp: any) => {
+              let dtEvents: any[] = [];
+              try {
+                dtEvents = typeof mp.downtime_events === 'string' ? JSON.parse(mp.downtime_events) : (mp.downtime_events || []);
+              } catch (e) {}
+              const panelLabel = mp.panel_no ? `Panel ${mp.panel_no}` : "";
+              if (dtEvents && dtEvents.length > 0) {
+                dtEvents.forEach((ev: any, idx: number) => {
+                  const rawTime = ev.waktu || ev.timestamp || mp.tanggal_jam || mp.created_at;
+                  const timeStr = formatWibTime(rawTime);
+                  if (ev.problems && ev.problems.length > 0) {
+                    ev.problems.forEach((p: any, pIdx: number) => {
+                      const detailText = (p.details && Array.isArray(p.details)) ? p.details.join(", ") : (p.details || ev.detail || "-");
+                      const blokText = p.blok ? ` (Blok: ${p.blok})` : (ev.blok ? ` (Blok: ${ev.blok})` : "");
+                      rows.push({
+                        id: `${mp.id}-${idx}-${pIdx}`,
+                        headerId: mp.id,
+                        panelNo: panelLabel,
+                        timeStr,
+                        penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
+                        shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
+                        durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
+                        kategori: p.kategori || ev.kategori || "-",
+                        detailMasalah: `${detailText}${blokText}`,
+                      });
+                    });
+                  } else {
+                    const detailText = ev.detail || "-";
+                    const blokText = ev.blok ? ` (Blok: ${ev.blok})` : "";
+                    rows.push({
+                      id: `${mp.id}-${idx}`,
+                      headerId: mp.id,
+                      panelNo: panelLabel,
+                      timeStr,
+                      penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
+                      shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
+                      durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
+                      kategori: ev.kategori || "-",
+                      detailMasalah: `${detailText}${blokText}`,
+                    });
+                  }
+                });
+              } else if (mp.downtime_records && mp.downtime_records.length > 0) {
+                mp.downtime_records.forEach((dr: any, dIdx: number) => {
+                  const rawTime = dr.waktu || dr.created_at || dr.tanggal_jam || mp.tanggal_jam;
+                  const timeStr = formatWibTime(rawTime);
+                  const detailText = dr.detail || "-";
+                  const blokText = dr.blok ? ` (Blok: ${dr.blok})` : "";
+                  rows.push({
+                    id: `${mp.id}-dr-${dIdx}`,
+                    headerId: mp.id,
+                    panelNo: panelLabel,
+                    timeStr,
+                    penanggungJawab: cleanPenanggungJawab(dr.dikerjakan_oleh || mp.pic || mp.operators?.nama_operator),
+                    shift: mp.grup || mp.groups?.nama_grup || "-",
+                    durasiDisplay: formatDurationNice(dr.durasi_detik || mp.total_downtime_detik || 0),
+                    kategori: dr.kategori || "-",
+                    detailMasalah: `${detailText}${blokText}`,
+                  });
+                });
+              } else if (mp.total_downtime_detik > 0) {
+                const rawTime = mp.tanggal_jam || mp.created_at;
+                const timeStr = formatWibTime(rawTime);
+                rows.push({
+                  id: `${mp.id}-fallback`,
+                  headerId: mp.id,
+                  panelNo: panelLabel,
+                  timeStr,
+                  penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
+                  shift: mp.grup || mp.groups?.nama_grup || "-",
+                  durasiDisplay: formatDurationNice(mp.total_downtime_detik || 0),
+                  kategori: mp.kategori_masalah || "-",
+                  detailMasalah: mp.detail_masalah || "-",
+                });
+              }
+            });
+
+            if (rows.length === 0) return null;
+
+            const bgHeader = variant === "blue" 
+              ? "linear-gradient(135deg, #0a1628 0%, #0b3068 60%, #0070bc 100%)"
+              : "linear-gradient(135deg, #451a03 0%, #9a3412 60%, #f59e0b 100%)";
+            const iconBg = "bg-white/15 border-white/20";
+            const titleColor = "text-white";
+            const subtitleColor = variant === "blue" ? "text-sky-200" : "text-amber-100";
+            const dotColor = variant === "blue" ? "bg-[#0070bc]" : "bg-amber-500";
+
+            return (
+              <div className="mt-8 rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                {/* Section Header */}
+                <div className="px-6 py-4 flex items-center gap-3" style={{ background: bgHeader }}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${iconBg}`}>
+                    <Wrench className="w-4.5 h-4.5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-black tracking-tight ${titleColor}`}>
+                      {title}
+                    </h3>
+                    <p className={`text-[10px] font-semibold ${subtitleColor}`}>
+                      {subtitle}
+                    </p>
+                  </div>
+                  <div className="ml-auto bg-white/20 border border-white/30 rounded-full px-3 py-1 text-[10px] font-black text-white">
+                    {rows.length} laporan
+                  </div>
+                </div>
+
+                {/* Cards */}
+                <div className="bg-slate-50/60 divide-y divide-slate-100">
+                  {rows.map((row) => (
+                    <div key={row.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-slate-50 transition-colors">
+                      {/* Time */}
+                      <div className="flex items-center gap-2 shrink-0 w-20">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
+                        <span className="text-sm font-black text-slate-800">{row.timeStr}</span>
+                      </div>
+
+                      {/* Penanggung Jawab */}
+                      <div className="flex items-center gap-2 sm:w-48 shrink-0">
+                        <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                          {row.penanggungJawab.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-slate-700 leading-tight">{row.penanggungJawab}</span>
+                          <span className="text-[10px] text-slate-400">Penanggung Jawab</span>
+                        </div>
+                      </div>
+
+                      {/* Shift & Panel */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-[#0070bc] text-white tracking-wide">
+                          {row.shift}
+                        </span>
+                        {row.panelNo && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700">
+                            {row.panelNo}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Durasi & Kategori - Pushed to Right on Desktop */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:ml-auto gap-3 sm:gap-4 mt-2 sm:mt-0">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-600 rounded-md border border-red-100 shrink-0 self-start sm:self-auto">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span className="text-xs font-black">{row.durasiDisplay}</span>
+                        </div>
+                        <div className="flex flex-col sm:items-end">
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-700 text-xs font-extrabold">
+                              {row.kategori === "-" ? "Problem" : `Kategori ${row.kategori}`}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-700 font-medium mt-1 max-w-[200px] sm:text-right truncate">
+                            {row.detailMasalah}
+                          </span>
+                        </div>
+
+                        {/* Tombol Hapus Khusus Kepala Shift / Admin */}
+                        {isKepalaShiftOrAdmin && row.headerId && (
+                          <button
+                            type="button"
+                            disabled={deletingHeaderId === row.headerId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSpecialDowntime(row.headerId, row.timeStr, row.penanggungJawab);
+                            }}
+                            className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-50 self-start sm:self-auto border border-rose-200/80 shadow-2xs"
+                            title="Hapus Laporan Downtime Khusus (Khusus Kepala Shift / Admin)"
+                          >
+                            {deletingHeaderId === row.headerId ? (
+                              <RefreshCw className="w-4 h-4 animate-spin text-rose-500" />
+                            ) : (
+                              <Trash2 className="w-4 h-4 text-rose-500 hover:scale-110 transition-transform" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <>
+              {renderSection(mechanicPanels, "Laporan Downtime Khusus", "Mesin berhenti total — tanpa produksi", "blue")}
+            </>
           );
         })()}
       </div>

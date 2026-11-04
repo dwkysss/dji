@@ -4,8 +4,9 @@ import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { searchEmployeeHistory, markPotonganAsCut } from "@/actions/employee-actions";
+import { cancelMechanicDowntime } from "@/actions/mechanic-actions";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
-import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight, Printer, Scissors, CheckCircle, X } from "lucide-react";
+import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight, Printer, Scissors, CheckCircle, X, Trash2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { parseAsWibDate } from "@/lib/shift-utils";
 import PanelHistoryTable from "./components/PanelHistoryTable";
@@ -26,6 +27,34 @@ function HistoryDetailContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [deletingHeaderId, setDeletingHeaderId] = useState<string | null>(null);
+
+  const isKepalaShiftOrAdmin = Boolean(
+    user && ["kepala_shift", "admin", "superadmin", "manager"].includes(user.role)
+  );
+
+  const handleDeleteSpecialDowntime = async (headerId: string, timeStr: string, pj: string) => {
+    if (!isKepalaShiftOrAdmin) {
+      alert("Hanya Kepala Shift atau Admin yang berhak menghapus Laporan Downtime Khusus.");
+      return;
+    }
+    const confirmMsg = `Apakah Kepala Shift yakin ingin menghapus Laporan Downtime Khusus (${timeStr} - ${pj})?\n\nData downtime ini akan dihapus permanen dan total waktu operasional mesin akan disesuaikan otomatis.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setDeletingHeaderId(headerId);
+      const res = await cancelMechanicDowntime(headerId);
+      if (res && res.success) {
+        await fetchDetail();
+      } else {
+        alert("Gagal menghapus: " + (res?.error || "Terjadi kesalahan saat menghapus data."));
+      }
+    } catch (err: any) {
+      alert("Terjadi kesalahan saat menghapus: " + (err?.message || err));
+    } finally {
+      setDeletingHeaderId(null);
+    }
+  };
 
   // Tandai Potong Kain Modal State
   const [isMarkCutModalOpen, setIsMarkCutModalOpen] = useState(false);
@@ -91,6 +120,75 @@ function HistoryDetailContent() {
     }
     return `${seconds} Dtk`;
   };
+
+  // Kalkulasi Waktu Jalan Mesin (Net Running Time):
+  // (Waktu Input Terakhir - Waktu Input Awal) - Total Downtime
+  const operationalStats = React.useMemo(() => {
+    if (!detailData?.panels || detailData.panels.length === 0) return null;
+
+    const validPanels = detailData.panels.filter(
+      (p: any) => p.tanggal_jam || p.created_at || p.tgl
+    );
+    if (validPanels.length === 0) return null;
+
+    const sorted = [...validPanels].sort((a: any, b: any) => {
+      const tA = new Date(a.tanggal_jam || a.created_at || a.tgl).getTime();
+      const tB = new Date(b.tanggal_jam || b.created_at || b.tgl).getTime();
+      return tA - tB;
+    });
+
+    const firstPanel = sorted[0];
+    const lastPanel = sorted[sorted.length - 1];
+
+    const startTime = new Date(firstPanel.tanggal_jam || firstPanel.created_at || firstPanel.tgl);
+    const endTime = new Date(lastPanel.tanggal_jam || lastPanel.created_at || lastPanel.tgl);
+    const grossSeconds = Math.max(0, Math.floor((endTime.getTime() - startTime.getTime()) / 1000));
+
+    let downtimeSeconds = Math.max(0, Number(detailData.total_downtime_detik) || 0);
+    if (downtimeSeconds === 0) {
+      const seenHeaders = new Set<string>();
+      sorted.forEach((p: any) => {
+        const hId = String(p.id || p.header_id || "");
+        if (hId && seenHeaders.has(hId)) return;
+        if (hId) seenHeaders.add(hId);
+
+        let dtEvts = [];
+        try {
+          dtEvts = typeof p.downtime_events === "string" ? JSON.parse(p.downtime_events) : (p.downtime_events || []);
+        } catch (e) {
+          dtEvts = [];
+        }
+        if (Array.isArray(dtEvts)) {
+          dtEvts.forEach((ev: any) => {
+            downtimeSeconds += (Number(ev.duration || ev.durasiDetik || ev.durasi_detik) || 0);
+          });
+        }
+      });
+    }
+
+    const runningSeconds = Math.max(0, grossSeconds - downtimeSeconds);
+
+    const formatTimeOnly = (d: Date) => {
+      try {
+        return new Intl.DateTimeFormat("id-ID", {
+          timeZone: "Asia/Jakarta",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }).format(d).replace(".", ":");
+      } catch (e) {
+        return "-";
+      }
+    };
+
+    return {
+      grossSeconds,
+      startTimeStr: formatTimeOnly(startTime),
+      downtimeSeconds,
+      runningSeconds,
+      hasMultiplePanels: sorted.length > 1 && grossSeconds > 0,
+    };
+  }, [detailData]);
 
   if (isLoading) {
     return (
@@ -228,16 +326,43 @@ function HistoryDetailContent() {
       />
 
 
-      {/* Downtime Info */}
-      {detailData.total_downtime_detik > 0 && (
-        <div className="mb-6 rounded-xl overflow-hidden border border-amber-200 shadow-sm">
-          <div className="bg-amber-500 px-5 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Timer className="w-4 h-4 text-white shrink-0" />
-              <span className="text-white text-xs font-black uppercase tracking-wide">Downtime Terdeteksi</span>
-            </div>
-            <span className="text-white font-black text-sm sm:text-base whitespace-nowrap">
-              {formatDurationNice(detailData.total_downtime_detik)}
+      {/* Ringkasan Waktu Operasional Mesin (Responsif Tablet & Mobile: Stack Atas-Bawah) */}
+      {operationalStats && (
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
+          {/* 1. Waktu Jalan Mesin */}
+          <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 flex flex-col justify-center gap-0.5 min-w-0 shadow-2xs">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 truncate">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+              <span className="truncate">Waktu Jalan Mesin</span>
+            </span>
+            <span className="text-sm sm:text-base font-black text-emerald-700 font-mono tracking-tight truncate">
+              {operationalStats.hasMultiplePanels
+                ? formatDurationNice(operationalStats.runningSeconds)
+                : "0 dtk"}
+            </span>
+          </div>
+
+          {/* 2. Total Downtime */}
+          <div className="bg-amber-50/80 border border-amber-200/90 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 flex flex-col justify-center gap-0.5 min-w-0 shadow-2xs">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5 truncate">
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+              <span className="truncate">Total Downtime</span>
+            </span>
+            <span className="text-sm sm:text-base font-black text-amber-700 font-mono tracking-tight truncate">
+              {formatDurationNice(operationalStats.downtimeSeconds)}
+            </span>
+          </div>
+
+          {/* 3. Total Rentang Waktu */}
+          <div className="bg-slate-50 border border-slate-200/90 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 flex flex-col justify-center gap-0.5 min-w-0 shadow-2xs">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5 truncate">
+              <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span className="truncate">Total Rentang Waktu</span>
+            </span>
+            <span className="text-sm sm:text-base font-black text-slate-800 font-mono tracking-tight truncate">
+              {operationalStats.hasMultiplePanels
+                ? formatDurationNice(operationalStats.grossSeconds)
+                : `0 Mnt (Mulai ${operationalStats.startTimeStr})`}
             </span>
           </div>
         </div>
@@ -526,6 +651,7 @@ function HistoryDetailContent() {
                         const blokText = p.blok ? ` (Blok: ${p.blok})` : (ev.blok ? ` (Blok: ${ev.blok})` : "");
                         rows.push({
                           id: `${mp.id}-${idx}-${pIdx}`,
+                          headerId: mp.id,
                           panelNo: panelLabel,
                           timeStr,
                           penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
@@ -540,6 +666,7 @@ function HistoryDetailContent() {
                       const blokText = ev.blok ? ` (Blok: ${ev.blok})` : "";
                       rows.push({
                         id: `${mp.id}-${idx}`,
+                        headerId: mp.id,
                         panelNo: panelLabel,
                         timeStr,
                         penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
@@ -558,6 +685,7 @@ function HistoryDetailContent() {
                     const blokText = dr.blok ? ` (Blok: ${dr.blok})` : "";
                     rows.push({
                       id: `${mp.id}-dr-${dIdx}`,
+                      headerId: mp.id,
                       panelNo: panelLabel,
                       timeStr,
                       penanggungJawab: cleanPenanggungJawab(dr.dikerjakan_oleh || mp.pic || mp.operators?.nama_operator),
@@ -572,6 +700,7 @@ function HistoryDetailContent() {
                   const timeStr = formatWibTime(rawTime);
                   rows.push({
                     id: `${mp.id}-fallback`,
+                    headerId: mp.id,
                     panelNo: panelLabel,
                     timeStr,
                     penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
@@ -647,7 +776,7 @@ function HistoryDetailContent() {
                         </div>
 
                        {/* Durasi & Kategori - Pushed to Right on Desktop */}
-                       <div className="flex flex-col sm:flex-row sm:items-center sm:ml-auto gap-3 sm:gap-6 mt-2 sm:mt-0">
+                       <div className="flex flex-col sm:flex-row sm:items-center sm:ml-auto gap-3 sm:gap-4 mt-2 sm:mt-0">
                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-600 rounded-md border border-red-100 shrink-0 self-start sm:self-auto">
                            <Clock className="w-3.5 h-3.5" />
                            <span className="text-xs font-black">{row.durasiDisplay}</span>
@@ -662,6 +791,26 @@ function HistoryDetailContent() {
                               {row.detailMasalah}
                             </span>
                           </div>
+
+                          {/* Tombol Hapus Khusus Kepala Shift / Admin */}
+                          {isKepalaShiftOrAdmin && row.headerId && (
+                            <button
+                              type="button"
+                              disabled={deletingHeaderId === row.headerId}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSpecialDowntime(row.headerId, row.timeStr, row.penanggungJawab);
+                              }}
+                              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-50 self-start sm:self-auto border border-rose-200/80 shadow-2xs"
+                              title="Hapus Laporan Downtime Khusus (Khusus Kepala Shift / Admin)"
+                            >
+                              {deletingHeaderId === row.headerId ? (
+                                <RefreshCw className="w-4 h-4 animate-spin text-rose-500" />
+                              ) : (
+                                <Trash2 className="w-4 h-4 text-rose-500 hover:scale-110 transition-transform" />
+                              )}
+                            </button>
+                          )}
                        </div>
                      </div>
                    ))}

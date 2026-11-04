@@ -102,7 +102,7 @@ export async function createProductionReport(
     // 1. Siapkan data untuk Tabel Header
     const headerId = generateExcelStyleId();
     const panelNoNum = validated.panelNo ? parseInt(validated.panelNo) : null;
-    const pcsTarget = validated.pcsData.length;
+    const pcsTarget = validated.pcsData?.length || 0;
 
     let totalDowntimeNum = validated.totalDowntime
       ? parseInt(validated.totalDowntime)
@@ -155,7 +155,7 @@ export async function createProductionReport(
     };
 
     // 2. Siapkan Data Details & Defects
-    const pcsDataToProcess = validated.pcsData;
+    const pcsDataToProcess = validated.pcsData || [];
 
     const downtimeRecordsData: any[] = [];
     if (validated.downtimeEvents && validated.downtimeEvents.length > 0) {
@@ -204,10 +204,10 @@ export async function createProductionReport(
             (!e.dikerjakanOleh || !e.dikerjakanOleh.startsWith("Mekanik")) &&
             (!e.pcsKe ||
               e.pcsKe === "Semua" ||
-              e.pcsKe
-                .split(",")
-                .map((x) => x.trim())
-                .includes(pcsIndexStr)),
+              (Array.isArray(e.pcsKe)
+                ? e.pcsKe.map((x: string) => String(x).trim())
+                : String(e.pcsKe).split(",").map((x: string) => x.trim())
+              ).includes(pcsIndexStr)),
         )
         : [];
 
@@ -373,7 +373,11 @@ export async function createProductionReport(
           console.error("Gagal mendapatkan PIC nama:", err);
         }
 
-        const isCutOnlySubmit = !!validated.tanggalPotong && !validated.panelNo;
+        const isCutOnlySubmit =
+          !!validated.tanggalPotong &&
+          (!validated.panelNo ||
+            validated.panelNo.trim() === "" ||
+            validated.panelNo.toUpperCase() === "POTONG KAIN");
 
         if (isCutOnlySubmit) {
           if (!validated.nomorMc || !potonganKeNum) {
@@ -414,6 +418,47 @@ export async function createProductionReport(
             throw new Error(
               "Gagal menyimpan tanggal potong: " + cutUpdateError.message,
             );
+          }
+
+          // Pastikan BS AKHIR juga dibuat untuk potongan ini jika belum ada
+          const hasBsAkhir = previousHeaders.some(
+            (h: any) => String(h.panel_no || "").trim().toUpperCase() === "BS AKHIR"
+          );
+
+          if (!hasBsAkhir) {
+            const lastPrev = previousHeaders[previousHeaders.length - 1];
+            const pcsCount = lastPrev.production_details?.length || lastPrev.pcs || 1;
+            const bsAkhirHeaderId = generateExcelStyleId();
+            const bsAkhirHeader = {
+              ...lastPrev,
+              id: bsAkhirHeaderId,
+              tgl: validated.tanggalPotong || lastPrev.tgl,
+              tanggal_jam: `${validated.tanggalPotong || lastPrev.tgl} 23:59:59`,
+              panel_no: "BS AKHIR",
+              pcs: pcsCount,
+              tanggal_potong: validated.tanggalPotong,
+              total_downtime_detik: 0,
+              downtime_events: null,
+              idempotency_key: null,
+            };
+            delete (bsAkhirHeader as any).production_details;
+
+            const bsAkhirDetails = Array.from({ length: pcsCount }).map((_, idx) => ({
+              id: generateExcelStyleId() + "-bs-akhir-cut-" + idx,
+              header_id: bsAkhirHeaderId,
+              pcs_index: idx + 1,
+              jml_hasil_produksi: 0,
+              indikator_stop: false,
+              kategori_masalah: "BS",
+              detail_masalah: "Sisa Akhir Potongan",
+              spesifik_masalah: null,
+              keterangan_cacat: "Sisa Akhir Potongan",
+              meter_kain: null,
+              status_inspeksi: "BS",
+            }));
+
+            await supabase.from("production_headers").insert(bsAkhirHeader);
+            await supabase.from("production_details").insert(bsAkhirDetails as any);
           }
 
           const sheetUrl =
@@ -1022,8 +1067,16 @@ export async function searchEmployeeHistory(filters: {
         query = query.or(`and(tanggal_jam.gte."${startWib}",tanggal_jam.lte."${endWib}"),and(tgl.gte."${startDate}",tgl.lte."${nextEndDateStr}")`);
       }
     }
-    if (filters.nomor_mc)
-      query = query.ilike("nomor_mc", `%${filters.nomor_mc}%`);
+    if (filters.nomor_mc && filters.nomor_mc.trim() !== "") {
+      const cleanMc = filters.nomor_mc.trim();
+      if (/^R\d+$/i.test(cleanMc)) {
+        const num = cleanMc.replace(/[^0-9]/g, "");
+        const padded = num.padStart(2, "0");
+        query = query.or(`nomor_mc.ilike.${cleanMc},nomor_mc.eq.${num},nomor_mc.eq.R${num},nomor_mc.eq.R${padded}`);
+      } else {
+        query = query.ilike("nomor_mc", cleanMc);
+      }
+    }
     if (filters.group_id)
       query = query.eq("group_id", parseInt(filters.group_id));
 
@@ -1102,6 +1155,17 @@ export async function searchEmployeeHistory(filters: {
       }
 
       const mcNorm = (row.nomor_mc || "").trim().toUpperCase();
+      if (filters.nomor_mc && filters.nomor_mc.trim() !== "") {
+        const cleanTarget = filters.nomor_mc.trim().toUpperCase();
+        if (/^R\d+$/.test(cleanTarget)) {
+          const num = cleanTarget.replace(/[^0-9]/g, "");
+          const padded = num.padStart(2, "0");
+          const validSet = new Set([cleanTarget, num, `R${num}`, `R${padded}`]);
+          if (!validSet.has(mcNorm)) return;
+        } else {
+          if (mcNorm !== cleanTarget) return;
+        }
+      }
       const potNorm = row.potongan_ke !== undefined && row.potongan_ke !== null && String(row.potongan_ke).trim() !== ""
         ? String(row.potongan_ke).trim()
         : (row.id ? String(row.id) : shiftDate);

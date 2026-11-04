@@ -13,6 +13,7 @@ export default function AutoSyncScheduler() {
 
   // 1. Fetch schedule config on mount and every 30 seconds
   const fetchConfigs = async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
     try {
       // Monthly Machine Schedule
       const resMonthly = await fetch("/api/sync/schedule-info", { cache: "no-store" });
@@ -79,6 +80,7 @@ export default function AutoSyncScheduler() {
   useEffect(() => {
     const heartbeatInterval = setInterval(async () => {
       if (isSyncingRef.current) return;
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
       const now = new Date();
       const hours = String(now.getHours()).padStart(2, "0");

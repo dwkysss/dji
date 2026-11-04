@@ -758,7 +758,13 @@ export async function deleteProductionBatch(params: {
         .in("id", detailIds);
     }
 
-    // 5. Delete headers
+    // 5. Delete downtime records associated with these headers
+    await supabase
+      .from("downtime_records")
+      .delete()
+      .in("header_id", headerIds);
+
+    // 6. Delete headers
     await supabase
       .from("production_headers")
       .delete()

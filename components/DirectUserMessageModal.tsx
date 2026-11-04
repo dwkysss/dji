@@ -44,10 +44,15 @@ export default function DirectUserMessageModal() {
       }
     } catch (e) {}
 
-    const res = await fetchUnreadDirectUserMessage(userId, userName, employeeId);
-    if (res?.success && res?.data) {
-      setActiveMessage(res.data);
-      setIsOpen(true);
+    if (typeof window !== "undefined" && !navigator.onLine) return;
+    try {
+      const res = await fetchUnreadDirectUserMessage(userId, userName, employeeId);
+      if (res?.success && res?.data) {
+        setActiveMessage(res.data);
+        setIsOpen(true);
+      }
+    } catch (e) {
+      console.warn("[DirectUserMessageModal] Offline / defer check:", e);
     }
   };
 

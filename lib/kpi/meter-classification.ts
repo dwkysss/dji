@@ -2,7 +2,7 @@ import { MeterItemCandidate } from "./kpi-types";
 
 export const isMeterMachine = (mesinId?: string): boolean => {
   const mc = String(mesinId || "").trim().toUpperCase();
-  return mc.startsWith("R11") || mc.startsWith("R12") || mc.startsWith("R16");
+  return mc.startsWith("R11") || mc.startsWith("R12") || mc.startsWith("R13") || mc.startsWith("R16");
 };
 
 export const hasMeterMeasurement = (hasilMeter?: number, posisiMeter?: any): boolean => {

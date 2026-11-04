@@ -31,7 +31,21 @@ function InputContent() {
         return;
       }
     }
+    localStorage.setItem("dji_last_input_mode", "PANEL");
     localStorage.setItem("last_input_route", "/input");
+    try {
+      sessionStorage.removeItem("dji_last_redirect_attempt");
+      sessionStorage.removeItem("dji_redirect_done");
+      sessionStorage.removeItem("dji_stay_offline");
+      sessionStorage.removeItem("dji_redirect_count");
+      sessionStorage.removeItem("dji_last_redirect_time");
+      if (typeof window !== "undefined" && window.location.search.includes("online")) {
+        const u = new URL(window.location.href);
+        u.searchParams.delete("online");
+        const clean = u.pathname + (u.search ? u.search : "");
+        window.history.replaceState({}, "", clean);
+      }
+    } catch (e) {}
   }, [searchParams, router]);
 
   return (

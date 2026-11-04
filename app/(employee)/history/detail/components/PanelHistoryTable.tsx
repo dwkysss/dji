@@ -343,8 +343,6 @@ export default function PanelHistoryTable({
         (it: any) =>
           !it.isTotalRow &&
           it.id &&
-          !String(it.displayNo).toUpperCase().includes("AWAL") &&
-          !String(it.displayNo).toUpperCase().includes("AKHIR") &&
           it.status_inspeksi !== "Dihapus" &&
           !it.is_deleted
       )
@@ -409,6 +407,10 @@ export default function PanelHistoryTable({
 
           const detail = item;
           const itemHeader = item.production_headers || header;
+          const rawPanelNo = itemHeader?.panel_no || item.displayNo || "-";
+          const isBsAwal = String(rawPanelNo).toUpperCase().includes("AWAL");
+          const isBsAkhir = String(rawPanelNo).toUpperCase().includes("AKHIR");
+          const isSisa = isBsAwal || isBsAkhir;
 
           const isIstirahatOnly = item.isIstirahatOnly;
           const hasIstirahat = item.hasIstirahat;
@@ -463,9 +465,14 @@ export default function PanelHistoryTable({
                 }
               } catch (e) { }
 
-              matchedEvents = dtEvents.filter((e: any) =>
-                !e.pcsKe || e.pcsKe === "Semua" || e.pcsKe == detail.pcs_index
-              );
+              matchedEvents = dtEvents.filter((e: any) => {
+                if (!e.pcsKe || e.pcsKe === "Semua") return true;
+                const targetPcs = String(detail.pcs_index);
+                if (Array.isArray(e.pcsKe)) {
+                  return e.pcsKe.length === 0 || e.pcsKe.map((x: any) => String(x).trim()).includes(targetPcs);
+                }
+                return String(e.pcsKe).split(",").map((x: any) => x.trim()).includes(targetPcs);
+              });
             }
 
             if (matchedEvents.length > 0) {
@@ -481,10 +488,7 @@ export default function PanelHistoryTable({
               }
             }
 
-            const rawPanelNo = itemHeader.panel_no || item.displayNo || "-";
-            const isBsAwal = String(rawPanelNo).toUpperCase().includes("AWAL");
-            const isBsAkhir = String(rawPanelNo).toUpperCase().includes("AKHIR");
-            const isSisa = isBsAwal || isBsAkhir;
+            // isBsAwal, isBsAkhir, isSisa hoisted to outer row scope
 
             let cacatLines: string[] = [];
             
@@ -751,7 +755,7 @@ export default function PanelHistoryTable({
             <tr key={item.id || idx} className={`${rowBgClass} transition-colors`}>
               {onToggleSelectDetail && (
                 <td className={`px-1 py-1 text-center border-r border-slate-100 ${stickyCellBgClass}`}>
-                  {detail.id && !String(item.displayNo).toUpperCase().includes("AWAL") && !String(item.displayNo).toUpperCase().includes("AKHIR") && !isDeleted ? (
+                  {detail.id && !isDeleted ? (
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -930,11 +934,9 @@ export default function PanelHistoryTable({
               <td className="px-1 py-1 text-center">
                 {isDeleted ? (
                   <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
-                ) : (String(item.displayNo).toUpperCase().includes("AWAL") || String(item.displayNo).toUpperCase().includes("AKHIR") || String(itemHeader?.panel_no || "").toUpperCase().includes("BS AWAL") || String(itemHeader?.panel_no || "").toUpperCase().includes("BS AKHIR")) ? (
-                  <span className="text-slate-300 font-medium">-</span>
                 ) : (
                   <div className="flex items-center justify-center gap-1">
-                    {itemHeader?.id && detail.keterangan_cacat !== "FINISH" && (
+                    {itemHeader?.id && detail.keterangan_cacat !== "FINISH" && !isBsAwal && !isBsAkhir && (
                       <Link
                         href={`/edit/${itemHeader.id}`}
                         className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
@@ -943,7 +945,7 @@ export default function PanelHistoryTable({
                         <Edit className="w-3.5 h-3.5" />
                       </Link>
                     )}
-                    {setDetailToDelete && detail.id && (
+                    {setDetailToDelete && (detail.id || itemHeader?.id) && (
                       <button
                         type="button"
                         onClick={() => {
@@ -951,9 +953,13 @@ export default function PanelHistoryTable({
                             onRequestBulkDelete();
                           } else {
                             setDetailToDelete({
-                              id: detail.id,
+                              id: detail.id || (itemHeader?.id ? `header-${itemHeader.id}` : null),
                               panelNo: item.displayNo,
-                              name: `${detail.kategori_masalah || "Panel"} - ${detail.detail_masalah || "Normal"}`,
+                              name: isBsAwal
+                                ? "BS AWAL (Sisa Awal Potongan)"
+                                : isBsAkhir
+                                ? "BS AKHIR (Sisa Akhir Potongan)"
+                                : `${detail.kategori_masalah || "Panel"} - ${detail.detail_masalah || "Normal"}`,
                             });
                           }
                         }}
@@ -965,6 +971,10 @@ export default function PanelHistoryTable({
                         title={
                           isSelected
                             ? `Hapus ${selectedDetailIds?.length} data terpilih bersamaan`
+                            : isBsAwal
+                            ? "Hapus BS AWAL"
+                            : isBsAkhir
+                            ? "Hapus BS AKHIR"
                             : "Hapus Data Baris Ini"
                         }
                       >

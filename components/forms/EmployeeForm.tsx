@@ -49,6 +49,7 @@ import {
   Hash,
   History,
   PowerOff,
+  MessageSquareWarning,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -65,6 +66,10 @@ const MachineStopModal = dynamic(() => import("./MachineStopModal"), {
 import DowntimeTracker from "./DowntimeTracker";
 const WifiDowntimeTrigger = dynamic(
   () => import("./WifiDowntimeTrigger"),
+  { ssr: false }
+);
+const IssueReportModal = dynamic(
+  () => import("@/components/modals/IssueReportModal"),
   { ssr: false }
 );
 const ContinuousHistoryDrawer = dynamic(
@@ -452,7 +457,7 @@ export default function EmployeeForm({
         const { getAllPendingPayloads } = await import("@/lib/offline-store");
         const items = await getAllPendingPayloads();
         setPendingOfflineCount(items.length);
-      } catch (e) {}
+      } catch (e) { }
     };
 
     updatePendingCount();
@@ -502,42 +507,57 @@ export default function EmployeeForm({
 
   useEffect(() => {
     async function loadAllData() {
-      // Fetch machine configs and operators in parallel at mount
-      const [cfgRes, opRes] = await Promise.all([
-        getMachineConfigs(),
-        getOperatorsList(),
-      ]);
+      let localTypes: Record<string, "PANEL" | "METER"> = {};
+      try {
+        const saved = localStorage.getItem("dji_machine_input_types");
+        if (saved) localTypes = JSON.parse(saved);
+      } catch (e) { }
+      setMachineInputTypes(localTypes);
 
-      if (cfgRes.success && cfgRes.data) {
-        machineConfigsRef.current = cfgRes.data;
-        const typeMap: Record<string, "PANEL" | "METER"> = {};
-        const pcsMap: Record<string, number> = {};
-        cfgRes.data.forEach((c) => {
-          typeMap[c.nomor_mc.toUpperCase()] = c.input_type === "METER" ? "METER" : "PANEL";
-          pcsMap[c.nomor_mc.toUpperCase()] = c.default_pcs || 1;
-        });
-        setMachineInputTypes(typeMap);
-        try {
-          localStorage.setItem("dji_machine_input_types", JSON.stringify(typeMap));
-          localStorage.setItem("dji_machine_configs", JSON.stringify(pcsMap));
-        } catch (e) { }
-      } else {
-        let localTypes: Record<string, "PANEL" | "METER"> = {};
-        try {
-          const saved = localStorage.getItem("dji_machine_input_types");
-          if (saved) localTypes = JSON.parse(saved);
-        } catch (e) { }
-        setMachineInputTypes(localTypes);
+      if (typeof window !== "undefined" && !navigator.onLine) {
+        return;
       }
 
-      if (opRes.success && opRes.data && opRes.data.length > 0) {
-        setOperators(
-          opRes.data.map((op) => ({
-            id: op.id,
-            name: op.nama_operator,
-            shift: op.shift,
-          }))
-        );
+      try {
+        // Fetch machine configs and operators in parallel at mount
+        const [cfgRes, opRes] = await Promise.all([
+          getMachineConfigs(),
+          getOperatorsList(),
+        ]);
+
+        if (cfgRes.success && cfgRes.data) {
+          machineConfigsRef.current = cfgRes.data;
+          const typeMap: Record<string, "PANEL" | "METER"> = {};
+          const pcsMap: Record<string, number> = {};
+          cfgRes.data.forEach((c) => {
+            typeMap[c.nomor_mc.toUpperCase()] = c.input_type === "METER" ? "METER" : "PANEL";
+            pcsMap[c.nomor_mc.toUpperCase()] = c.default_pcs || 1;
+          });
+          setMachineInputTypes(typeMap);
+          try {
+            localStorage.setItem("dji_machine_input_types", JSON.stringify(typeMap));
+            localStorage.setItem("dji_machine_configs", JSON.stringify(pcsMap));
+          } catch (e) { }
+        } else {
+          let localTypes: Record<string, "PANEL" | "METER"> = {};
+          try {
+            const saved = localStorage.getItem("dji_machine_input_types");
+            if (saved) localTypes = JSON.parse(saved);
+          } catch (e) { }
+          setMachineInputTypes(localTypes);
+        }
+
+        if (opRes && opRes.success && opRes.data && opRes.data.length > 0) {
+          setOperators(
+            opRes.data.map((op) => ({
+              id: op.id,
+              name: op.nama_operator,
+              shift: op.shift,
+            }))
+          );
+        }
+      } catch (err) {
+        console.warn("[EmployeeForm] Offline or error fetching configs/operators:", err);
       }
     }
     loadAllData();
@@ -608,6 +628,7 @@ export default function EmployeeForm({
 
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isStopModalOpen, setIsStopModalOpen] = useState(false);
+  const [isIssueReportOpen, setIsIssueReportOpen] = useState(false);
   const [stopModalSuccessMsg, setStopModalSuccessMsg] = useState<string | null>(null);
 
 
@@ -753,16 +774,16 @@ export default function EmployeeForm({
         pcsData:
           initialData.details && initialData.details.length > 0
             ? initialData.details.map((d: any, index: number) => {
-                const isDetailBs = isInitialBs || d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS" || d.kategori_masalah === "X" || Boolean(d.kategori_masalah && d.kategori_masalah.includes("BS"));
-                return {
-                  pcsIndex: String(d.pcs_index || index + 1),
-                  // Jangan gunakan || '1' karena nilai 0 akan ter-overwrite menjadi '1'
-                  jmlHasilProduksi: d.jml_hasil_produksi !== undefined && d.jml_hasil_produksi !== null
-                    ? String(d.jml_hasil_produksi)
-                    : (isDetailBs ? "0" : "1"),
-                  isBs: isDetailBs,
-                };
-              })
+              const isDetailBs = isInitialBs || d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS" || d.kategori_masalah === "X" || Boolean(d.kategori_masalah && d.kategori_masalah.includes("BS"));
+              return {
+                pcsIndex: String(d.pcs_index || index + 1),
+                // Jangan gunakan || '1' karena nilai 0 akan ter-overwrite menjadi '1'
+                jmlHasilProduksi: d.jml_hasil_produksi !== undefined && d.jml_hasil_produksi !== null
+                  ? String(d.jml_hasil_produksi)
+                  : (isDetailBs ? "0" : "1"),
+                isBs: isDetailBs,
+              };
+            })
             : [
               {
                 pcsIndex: "1",
@@ -839,23 +860,70 @@ export default function EmployeeForm({
     if (isEdit) return;
 
     const savedDraft = localStorage.getItem("dji_form_draft_panel");
-    if (savedDraft) {
-      try {
-        const parsed = JSON.parse(savedDraft);
-        reset(parsed);
-        setIsHeaderModalOpen(false);
-        return;
-      } catch (e) {
-        console.error("Gagal load draft dari storage", e);
+    const savedHeader = localStorage.getItem("dji_form_header");
+    let parsedHeader: any = null;
+    let parsedDraft: any = null;
+
+    try {
+      if (savedHeader) parsedHeader = JSON.parse(savedHeader);
+    } catch (e) {}
+
+    try {
+      if (savedDraft) parsedDraft = JSON.parse(savedDraft);
+    } catch (e) {}
+
+    try {
+      localStorage.setItem("dji_last_input_mode", "PANEL");
+      localStorage.setItem("last_input_route", "/input");
+    } catch (e) {}
+
+    // Jika header tersimpan dari offline portal memiliki nomor potongan berbeda/lebih tinggi
+    if (parsedHeader && parsedHeader.potonganKe) {
+      const headerPot = parseInt(String(parsedHeader.potonganKe), 10);
+      const draftPot = parsedDraft ? parseInt(String(parsedDraft.potonganKe || "0"), 10) : 0;
+      if (headerPot > draftPot || (parsedHeader.updatedAt && parsedHeader.updatedAt > (parsedDraft?.updatedAt || 0))) {
+        if (parsedDraft) {
+          parsedDraft.potonganKe = String(parsedHeader.potonganKe);
+          parsedDraft.panelNo = "1";
+          if (parsedHeader.nomorMc) parsedDraft.nomorMc = parsedHeader.nomorMc;
+          if (parsedHeader.designId) parsedDraft.designId = parsedHeader.designId;
+          try {
+            localStorage.setItem("dji_form_draft_panel", JSON.stringify(parsedDraft));
+          } catch (e) {}
+        }
       }
     }
 
-    const savedHeader = localStorage.getItem("dji_form_header");
+    if (parsedDraft) {
+      reset(parsedDraft);
+      setIsHeaderModalOpen(false);
+      return;
+    }
     if (savedHeader) {
       try {
         const parsed = JSON.parse(savedHeader);
+        let opIdToSet = parsed.operatorId ? String(parsed.operatorId) : "";
+        if (!opIdToSet && parsed.operatorName) {
+          const matched = operators.find((o) => o.name.toLowerCase() === String(parsed.operatorName).trim().toLowerCase());
+          if (matched) opIdToSet = String(matched.id);
+        }
+        if (!opIdToSet) {
+          const activeId = localStorage.getItem("dji_active_operator_id");
+          if (activeId) opIdToSet = activeId;
+          else {
+            const activeName = localStorage.getItem("dji_active_operator_name");
+            if (activeName) {
+              const matched = operators.find((o) => o.name.toLowerCase() === activeName.trim().toLowerCase());
+              if (matched) opIdToSet = String(matched.id);
+            }
+          }
+        }
+        if (opIdToSet) {
+          parsed.operatorId = opIdToSet;
+        }
+
         Object.keys(parsed).forEach((key) => {
-          if (key !== "lastRollNo" && key !== "nextPanelNo") {
+          if (key !== "lastRollNo" && key !== "nextPanelNo" && key !== "operatorName") {
             setValue(key as keyof ProductionFormInput, parsed[key], {
               shouldValidate: false,
               shouldDirty: false,
@@ -867,7 +935,94 @@ export default function EmployeeForm({
         console.error("Gagal load header dari storage", e);
       }
     }
-  }, [setValue, isEdit, reset]);
+
+    const isMeterMc = (mc: string) => {
+      const code = (mc || "").trim().toUpperCase();
+      if (!code) return false;
+      if (code.startsWith("T") || ["R11", "R12", "R13", "R16", "MC-01", "MC-02"].includes(code)) return true;
+      try {
+        const rawTypes = localStorage.getItem("dji_machine_input_types");
+        if (rawTypes) {
+          const types = JSON.parse(rawTypes);
+          if (types[code] === "METER") return true;
+        }
+      } catch (e) {}
+      return false;
+    };
+
+    const lastMc = localStorage.getItem("dji_last_selected_mc");
+    if (lastMc && lastMc.trim() && !isMeterMc(lastMc.trim())) {
+      setValue("nomorMc", lastMc.trim().toUpperCase(), {
+        shouldValidate: false,
+        shouldDirty: false,
+      });
+    } else if (!getValues("nomorMc") || isMeterMc(getValues("nomorMc"))) {
+      setValue("nomorMc", "R1", {
+        shouldValidate: false,
+        shouldDirty: false,
+      });
+    }
+
+    try {
+      localStorage.setItem("dji_last_input_mode", "PANEL");
+      localStorage.setItem("last_input_route", "/input");
+      const currentChosenMc = (lastMc && !isMeterMc(lastMc)) ? lastMc.trim().toUpperCase() : "R1";
+      localStorage.setItem("dji_last_selected_mc", currentChosenMc);
+    } catch (e) {}
+  }, [setValue, isEdit, reset, getValues]);
+
+  // Sinkronisasi dinamis ketika berpindah tab dari offline portal kembali ke online
+  useEffect(() => {
+    if (isEdit) return;
+
+    const syncHeaderFromStorage = () => {
+      try {
+        const rawHeader = localStorage.getItem("dji_form_header");
+        if (!rawHeader) return;
+        const parsed = JSON.parse(rawHeader);
+        if (!parsed || !parsed.potonganKe) return;
+
+        const currentPot = getValues("potonganKe");
+        const currentMc = getValues("nomorMc");
+
+        // Hanya perbarui jika nomor mesin sama atau belum terisi, dan potongan berubah
+        const isSameMc = !parsed.nomorMc || !currentMc || parsed.nomorMc.trim().toUpperCase() === currentMc.trim().toUpperCase();
+        if (isSameMc && String(parsed.potonganKe) !== String(currentPot)) {
+          setValue("potonganKe", String(parsed.potonganKe), { shouldValidate: true, shouldDirty: true });
+          setHighlightPotonganKe(true);
+
+          if (parsed.designId) setValue("designId", String(parsed.designId));
+          if (parsed.nomorMc) setValue("nomorMc", String(parsed.nomorMc));
+
+          // Perbarui juga draft lokal agar tidak overwrite kembali
+          const rawDraft = localStorage.getItem("dji_form_draft_panel");
+          if (rawDraft) {
+            const d = JSON.parse(rawDraft);
+            d.potonganKe = String(parsed.potonganKe);
+            if (parsed.nomorMc) d.nomorMc = parsed.nomorMc;
+            localStorage.setItem("dji_form_draft_panel", JSON.stringify(d));
+          }
+        }
+      } catch (e) {
+        console.warn("[EmployeeForm] Gagal sinkronisasi header storage:", e);
+      }
+    };
+
+    window.addEventListener("focus", syncHeaderFromStorage);
+    window.addEventListener("storage", syncHeaderFromStorage);
+    window.addEventListener("dji_header_changed", syncHeaderFromStorage);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") syncHeaderFromStorage();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", syncHeaderFromStorage);
+      window.removeEventListener("storage", syncHeaderFromStorage);
+      window.removeEventListener("dji_header_changed", syncHeaderFromStorage);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [isEdit, getValues, setValue]);
 
   // Subscribe to all form changes to save draft (debounced to avoid blocking main thread on every keystroke)
   useEffect(() => {
@@ -875,7 +1030,34 @@ export default function EmployeeForm({
     const subscription = watch((value) => {
       clearTimeout(draftSaveTimerRef.current);
       draftSaveTimerRef.current = setTimeout(() => {
-        localStorage.setItem("dji_form_draft_panel", JSON.stringify(value));
+        try {
+          localStorage.setItem("dji_form_draft_panel", JSON.stringify(value));
+          localStorage.setItem("dji_last_input_mode", "PANEL");
+          localStorage.setItem("last_input_route", "/input");
+          if (value?.nomorMc) {
+            const mc = String(value.nomorMc).trim().toUpperCase();
+            if (mc) {
+              localStorage.setItem("dji_last_selected_mc", mc);
+              const existingRaw = localStorage.getItem("dji_form_header");
+              const existing = existingRaw ? JSON.parse(existingRaw) : {};
+              existing.nomorMc = mc;
+              if (value.potonganKe) existing.potonganKe = value.potonganKe;
+              if (value.operatorId) {
+                existing.operatorId = value.operatorId;
+                const opName = getOperatorName(String(value.operatorId));
+                if (opName) {
+                  existing.operatorName = opName;
+                  localStorage.setItem("dji_active_operator_name", opName);
+                  localStorage.setItem("dji_active_operator_id", String(value.operatorId));
+                }
+              }
+              if (value.groupId) existing.groupId = value.groupId;
+              if (value.designId) existing.designId = value.designId;
+              if (value.statusMatching) existing.statusMatching = value.statusMatching;
+              localStorage.setItem("dji_form_header", JSON.stringify(existing));
+            }
+          }
+        } catch (e) { }
       }, 300);
     });
     return () => {
@@ -907,7 +1089,7 @@ export default function EmployeeForm({
     }
     try {
       localStorage.removeItem("dji_backup_operator_name");
-    } catch {}
+    } catch { }
   }, [isEdit, activeShiftName, watchOperatorId, operators]);
 
   useEffect(() => {
@@ -932,7 +1114,7 @@ export default function EmployeeForm({
       try {
         localStorage.removeItem(`dji_backup_operator_name_${currentShift}`);
         localStorage.removeItem("dji_backup_operator_name");
-      } catch {}
+      } catch { }
     }
   }, [activeShiftName, watchOperatorId, operators, backupOperatorName, setValue]);
 
@@ -944,6 +1126,15 @@ export default function EmployeeForm({
     const currentMc = watchNomorMc.trim().toUpperCase();
     if (prevNomorMcRef.current === currentMc) return;
     prevNomorMcRef.current = currentMc;
+
+    // Immediately persist active machine to localStorage for offline portal sync
+    try {
+      localStorage.setItem("dji_last_selected_mc", currentMc);
+      const existingRaw = localStorage.getItem("dji_form_header");
+      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+      existing.nomorMc = currentMc;
+      localStorage.setItem("dji_form_header", JSON.stringify(existing));
+    } catch (e) { }
 
     // Use cached configs from mount if available, else fallback to localStorage
     const configs = machineConfigsRef.current.length > 0
@@ -983,6 +1174,7 @@ export default function EmployeeForm({
       return;
     }
     const timeoutId = setTimeout(async () => {
+      if (typeof window !== "undefined" && !navigator.onLine) return;
       try {
         const res = await getLastPanelNoByPotongan(
           parseInt(watchPotonganKe),
@@ -1176,7 +1368,19 @@ export default function EmployeeForm({
         potonganKe: nextPotonganKeForSave,
         nextPanelNo: nextPanelNoForSave, // we store the next available panel no
       };
-      localStorage.setItem("dji_form_header", JSON.stringify(headerDataToSave));
+      const currentOpName = getOperatorName(String(data.operatorId));
+      const fullHeader = {
+        ...headerDataToSave,
+        operatorName: currentOpName,
+      };
+      localStorage.setItem("dji_form_header", JSON.stringify(fullHeader));
+      if (currentOpName) {
+        localStorage.setItem("dji_active_operator_name", currentOpName);
+        localStorage.setItem("dji_active_operator_id", String(data.operatorId));
+      }
+      if (data.nomorMc) {
+        localStorage.setItem("dji_last_selected_mc", String(data.nomorMc).trim().toUpperCase());
+      }
     }
 
     try {
@@ -1476,34 +1680,29 @@ export default function EmployeeForm({
         : "bg-white border-[#e9ecef] shadow-[0_8px_30px_rgba(0,0,0,0.015)] text-slate-800"
     )}>
       {/* Decorative background shape */}
-      <div className={`absolute top-0 right-0 w-96 h-96 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10 ${
-        isDark
+      <div className={`absolute top-0 right-0 w-96 h-96 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none -z-10 ${isDark
           ? "bg-gradient-to-br from-blue-900/20 via-blue-950/10 to-transparent"
           : "bg-gradient-to-br from-blue-100/30 via-blue-50/20 to-transparent"
-      }`}></div>
+        }`}></div>
 
       <div className="relative">
         {/* Segmented Control for Mode Switching */}
         <div
           data-tour="mode-switch"
-          className={`flex w-full p-1.5 rounded-2xl mb-4 sm:mb-8 border shadow-inner transition-colors ${
-            isDark
+          className={`flex w-full p-1.5 rounded-2xl mb-4 sm:mb-8 border shadow-inner transition-colors ${isDark
               ? "bg-slate-950/80 border-slate-800"
               : "bg-slate-100/80 border-slate-200/60"
-          }`}
+            }`}
         >
-          <div className={`flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl shadow-sm border relative overflow-hidden group cursor-default transition-all ${
-            isDark
+          <div className={`flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl shadow-sm border relative overflow-hidden group cursor-default transition-all ${isDark
               ? "bg-slate-800 border-slate-700 text-blue-400"
               : "bg-white border-slate-200 text-[#0070bc]"
-          }`}>
-            <div className={`absolute inset-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ${
-              isDark ? "bg-blue-950/40" : "bg-blue-50/50"
-            }`}></div>
+            }`}>
+            <div className={`absolute inset-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ${isDark ? "bg-blue-950/40" : "bg-blue-50/50"
+              }`}></div>
             <div className="relative flex items-center gap-2 sm:gap-2.5">
-              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 ${
-                isDark ? "bg-blue-950 text-blue-400 border border-blue-800/50" : "bg-blue-100 text-blue-600"
-              }`}>
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 ${isDark ? "bg-blue-950 text-blue-400 border border-blue-800/50" : "bg-blue-100 text-blue-600"
+                }`}>
                 <Box className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
@@ -1518,16 +1717,14 @@ export default function EmployeeForm({
             onClick={() => {
               localStorage.setItem("last_input_route", "/input-meter");
             }}
-            className={`flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl transition-all cursor-pointer ${
-              isDark
+            className={`flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl transition-all cursor-pointer ${isDark
                 ? "text-slate-400 hover:text-blue-400 hover:bg-slate-800/50"
                 : "text-slate-500 hover:text-emerald-600 hover:bg-white/60"
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2 sm:gap-2.5 opacity-70 hover:opacity-100 transition-opacity">
-              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 ${
-                isDark ? "bg-slate-800 text-slate-400 border border-slate-700" : "bg-slate-200 text-slate-600"
-              }`}>
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 ${isDark ? "bg-slate-800 text-slate-400 border border-slate-700" : "bg-slate-200 text-slate-600"
+                }`}>
                 <ClipboardList className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
@@ -1539,9 +1736,8 @@ export default function EmployeeForm({
           </a>
         </div>
         {/* Top Header */}
-        <div className={`flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4 ${
-          isDark ? "border-slate-800" : "border-slate-100"
-        }`}>
+        <div className={`flex flex-col lg:flex-row lg:items-center justify-between border-b pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4 ${isDark ? "border-slate-800" : "border-slate-100"
+          }`}>
           <div className="min-w-0 flex-1">
             <h3 className={`text-base font-bold whitespace-nowrap ${isDark ? "text-white" : "text-slate-900"}`}>
               Form Input Produksi
@@ -1550,16 +1746,15 @@ export default function EmployeeForm({
               Data Header akan otomatis tersimpan untuk panel berikutnya.
             </p>
           </div>
-          <div className="flex flex-row items-center gap-2 w-full sm:w-auto shrink-0 flex-nowrap overflow-x-auto sm:overflow-visible">
+          <div className="flex flex-row items-center gap-2 w-full lg:w-auto shrink-0 flex-wrap sm:flex-nowrap overflow-x-auto sm:overflow-visible">
             <button
               data-tour="stop-machine"
               type="button"
               onClick={() => setIsStopModalOpen(true)}
-              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${
-                isDark
+              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${isDark
                   ? "bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border border-amber-800/80"
                   : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300"
-              }`}
+                }`}
               title="Lapor jika mesin mati/rusak/standby selama shift ini tanpa ada hasil kain"
             >
               <PowerOff className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-amber-600"} group-hover:scale-110 transition-transform shrink-0`} />
@@ -1569,14 +1764,25 @@ export default function EmployeeForm({
               data-tour="potongan-history"
               type="button"
               onClick={() => setIsHistoryDrawerOpen(true)}
-              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${
-                isDark
+              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${isDark
                   ? "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-blue-400 border border-slate-700"
                   : "bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300"
-              }`}
+                }`}
             >
               <History className={`w-4 h-4 ${isDark ? "text-slate-400 group-hover:text-blue-400" : "text-slate-500 group-hover:text-[#0070bc]"} transition-colors shrink-0`} />
               <span>Riwayat Potongan Ini</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsIssueReportOpen(true)}
+              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${isDark
+                  ? "bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700"
+                  : "bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-600 border border-slate-200 hover:border-amber-300"
+                }`}
+              title="Lapor kendala atau kesalahan input data ke tim QC/Admin"
+            >
+              <MessageSquareWarning className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-amber-600"} group-hover:scale-110 transition-transform shrink-0`} />
+              <span>Lapor Kendala</span>
             </button>
           </div>
         </div>
@@ -1785,9 +1991,12 @@ export default function EmployeeForm({
               setHighlightPotonganKe(false);
               setHighlightOperator(false);
               try {
+                const opId = String(watch("operatorId"));
+                const opName = getOperatorName(opId);
                 const currentHeader = {
                   nomorMc: watchNomorMc,
-                  operatorId: watch("operatorId"),
+                  operatorId: opId,
+                  operatorName: opName,
                   groupId: watchGroupId,
                   potonganKe: watchPotonganKe,
                   designId: watch("designId"),
@@ -1804,7 +2013,14 @@ export default function EmployeeForm({
                   pinggiran: watch("pinggiran"),
                 };
                 localStorage.setItem("dji_form_header", JSON.stringify(currentHeader));
-              } catch (e) {}
+                if (opName) {
+                  localStorage.setItem("dji_active_operator_name", opName);
+                  localStorage.setItem("dji_active_operator_id", opId);
+                }
+                if (currentHeader.nomorMc) {
+                  localStorage.setItem("dji_last_selected_mc", String(currentHeader.nomorMc).trim().toUpperCase());
+                }
+              } catch (e) { }
             }}
             register={register}
             errors={errors}
@@ -2008,21 +2224,19 @@ export default function EmployeeForm({
           </div>
         )}
 
-        <div data-tour="break-mode" className={`mt-4 p-4 rounded-xl flex flex-col gap-3 transition-colors ${
-          isDark
+        <div data-tour="break-mode" className={`mt-4 p-4 rounded-xl flex flex-col gap-3 transition-colors ${isDark
             ? "bg-slate-950/70 border border-slate-800 text-white"
             : "bg-slate-50 border border-slate-200"
-        }`}>
+          }`}>
           <div className="flex items-center justify-between">
             <label className={`text-xs font-bold uppercase ${isDark ? "text-slate-300" : "text-slate-700"}`}>
               Jenis Laporan / Info Istirahat
             </label>
             {watch("jenisLaporan") === "Istirahat" && backupOperatorName && (
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
-                isDark
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${isDark
                   ? "text-amber-400 bg-amber-950/80 border-amber-800"
                   : "text-amber-700 bg-amber-100/80 border-amber-300"
-              }`}>
+                }`}>
                 Mode Istirahat Aktif
               </span>
             )}
@@ -2045,11 +2259,10 @@ export default function EmployeeForm({
               />
               <label
                 htmlFor="jenisLaporanNormal"
-                className={`flex items-center justify-center p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 text-center font-black text-xs sm:text-sm uppercase shadow-sm peer-checked:shadow-md ${
-                  isDark
+                className={`flex items-center justify-center p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 text-center font-black text-xs sm:text-sm uppercase shadow-sm peer-checked:shadow-md ${isDark
                     ? "bg-slate-900 border-slate-800 hover:border-blue-500/50 hover:bg-slate-850 text-slate-300 peer-checked:border-blue-500 peer-checked:bg-blue-950/70 peer-checked:text-blue-400"
                     : "bg-white border-slate-200 hover:border-[#0070bc]/40 hover:bg-sky-50 text-slate-600 peer-checked:border-[#0070bc] peer-checked:bg-sky-50 peer-checked:text-[#0070bc]"
-                }`}
+                  }`}
               >
                 Normal
               </label>
@@ -2187,11 +2400,10 @@ export default function EmployeeForm({
             data-tour="submit-panel"
             type="submit"
             disabled={isSubmitting}
-            className={`w-full h-12 rounded-xl active:scale-[0.99] disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
-              isDark
+            className={`w-full h-12 rounded-xl active:scale-[0.99] disabled:opacity-50 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${isDark
                 ? "bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-900 shadow-lg shadow-blue-950/25"
                 : "bg-[#0070bc] hover:bg-[#004777] shadow-md"
-            }`}
+              }`}
           >
             {isSubmitting ? (
               <>
@@ -2591,6 +2803,17 @@ export default function EmployeeForm({
           </div>
         </div>
       )}
+
+      <IssueReportModal
+        isOpen={isIssueReportOpen}
+        onClose={() => setIsIssueReportOpen(false)}
+        nomorMc={watchNomorMc}
+        potonganKe={watchPotonganKe}
+        groupName={selectedGroup?.name || "A"}
+        panelOrMeter={`Panel ${watch("panelNo") || "1"}`}
+        currentOperator={currentOperatorName || ""}
+        isDark={isDark}
+      />
 
       <ContinuousHistoryDrawer
         isOpen={isHistoryDrawerOpen}

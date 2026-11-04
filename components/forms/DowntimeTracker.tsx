@@ -125,11 +125,14 @@ export default function DowntimeTracker({
   const [deferredToast, setDeferredToast] = useState<string | null>(null);
 
   useEffect(() => {
-    getProblemGroupMapping().then((res) => {
-      if (res.success && res.mapping) {
-        setDynamicGroupMapping(res.mapping);
-      }
-    }).catch(() => { });
+    if (typeof window !== "undefined" && !navigator.onLine) return;
+    try {
+      getProblemGroupMapping().then((res) => {
+        if (res.success && res.mapping) {
+          setDynamicGroupMapping(res.mapping);
+        }
+      }).catch(() => { });
+    } catch (e) {}
   }, []);
 
   const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([
@@ -393,15 +396,17 @@ export default function DowntimeTracker({
   };
 
   useEffect(() => {
-    if (!showModal) return;
-    getProblemDetailsGrouped().then((res) => {
-      if (res.success && res.grouped && Object.keys(res.grouped).length > 0) {
-        setDynamicProblemDetails((prev) => ({
-          ...prev,
-          ...res.grouped,
-        }));
-      }
-    });
+    if (!showModal || (typeof window !== "undefined" && !navigator.onLine)) return;
+    try {
+      getProblemDetailsGrouped().then((res) => {
+        if (res.success && res.grouped && Object.keys(res.grouped).length > 0) {
+          setDynamicProblemDetails((prev) => ({
+            ...prev,
+            ...res.grouped,
+          }));
+        }
+      }).catch(() => { });
+    } catch (e) {}
   }, [showModal]);
 
   useEffect(() => {
@@ -416,6 +421,7 @@ export default function DowntimeTracker({
         }
       } catch (e) { }
 
+      if (typeof window !== "undefined" && !navigator.onLine) return;
       try {
         const res = await getBlockRequiredDefects();
         if (res.success && res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -1276,7 +1282,9 @@ export default function DowntimeTracker({
 
     // Khusus Gagal Cacat: default-nya adalah SEMUA PCS terpilih (karena mesin berhenti tanpa cacat pada seluruh roll)
     if (targetEvent.pcsKe && targetEvent.pcsKe !== "Semua") {
-      const existingPcs = targetEvent.pcsKe.split(",").map((s: string) => s.trim());
+      const existingPcs = Array.isArray(targetEvent.pcsKe)
+        ? targetEvent.pcsKe.map((s: any) => String(s).trim())
+        : String(targetEvent.pcsKe).split(",").map((s: string) => s.trim());
       setSelectedPcsKeList(existingPcs);
     } else if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
       setSelectedPcsKeList([defaultPcsIndex]);
@@ -1404,7 +1412,9 @@ export default function DowntimeTracker({
 
     // Default: jika targetEvent punya pcsKe spesifik (bukan "Semua"), pakai itu. Jika tidak, jangan pilih semua otomatis jika multi-PCS
     if (targetEvent.pcsKe && targetEvent.pcsKe !== "Semua") {
-      const existingPcs = targetEvent.pcsKe.split(",").map((s: string) => s.trim());
+      const existingPcs = Array.isArray(targetEvent.pcsKe)
+        ? targetEvent.pcsKe.map((s: any) => String(s).trim())
+        : String(targetEvent.pcsKe).split(",").map((s: string) => s.trim());
       setSelectedPcsKeList(existingPcs);
     } else if (defaultPcsIndex && pcsKeys.includes(defaultPcsIndex)) {
       setSelectedPcsKeList([defaultPcsIndex]);
@@ -3104,7 +3114,9 @@ export default function DowntimeTracker({
                                     }
                                     return null;
                                   }
-                                  const pcsArray = event.pcsKe.split(",").map((s: string) => s.trim());
+                                  const pcsArray = Array.isArray(event.pcsKe)
+                                    ? event.pcsKe.map((s: any) => String(s).trim())
+                                    : String(event.pcsKe || "").split(",").map((s: string) => s.trim());
                                   const meterMap: Record<string, string> = {};
                                   if (meterStr) {
                                     if (meterStr.includes("PCS")) {
@@ -4117,12 +4129,30 @@ export default function DowntimeTracker({
                 disabled={
                   isSavingEvent ||
                   isSavingMechanic ||
-                  selectedCategories.length === 0 ||
-                  selectedCategories.some(cat => {
-                    const hasDetails = (selectedDetails[cat] || []).length > 0;
-                    const hasManual = !!(manualInputDetails[cat] || "").trim();
-                    return !hasDetails && !hasManual;
-                  }) ||
+                  (problemInputMode === "per_pcs" && dikerjakanOleh === "Operator" && selectedPcsKeList.length > 1
+                    ? (
+                        selectedPcsKeList.length === 0 ||
+                        selectedPcsKeList.some((k) => {
+                          const pcsData = perPcsProblems[k];
+                          const cats = pcsData?.categories || [];
+                          if (cats.length === 0) return true;
+                          const dets = pcsData?.details || {};
+                          const manuals = pcsData?.manualDetails || {};
+                          return cats.some((cat) => {
+                            const hasDetails = (dets[cat] || []).length > 0;
+                            const hasManual = !!(manuals[cat] || "").trim();
+                            return !hasDetails && !hasManual;
+                          });
+                        })
+                      )
+                    : (
+                        selectedCategories.length === 0 ||
+                        selectedCategories.some((cat) => {
+                          const hasDetails = (selectedDetails[cat] || []).length > 0;
+                          const hasManual = !!(manualInputDetails[cat] || "").trim();
+                          return !hasDetails && !hasManual;
+                        })
+                      )) ||
                   (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) ||
                   hasMissingMeter
                 }

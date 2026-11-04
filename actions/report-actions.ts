@@ -47,7 +47,8 @@ export async function getMonthlyMachineReport(
       mcConfig?.input_type === "METER" ||
       mcConfig?.input_type === "METERAN" ||
       machineId.toUpperCase() === "R11" ||
-      machineId.toUpperCase() === "R12";
+      machineId.toUpperCase() === "R12" ||
+      machineId.toUpperCase() === "R13";
     const defaultPcsForMachine =
       Number(mcConfig?.default_pcs) > 0 ? Number(mcConfig?.default_pcs) : (isConfiguredMeter ? 3 : 1);
 
@@ -91,6 +92,7 @@ export async function getMonthlyMachineReport(
           pick,
           rpm,
           total_downtime_detik,
+          operator_id,
           pic,
           groups ( nama_grup ),
           operators ( nama_operator )
@@ -248,7 +250,7 @@ export async function getMonthlyMachineReport(
       const naturalShiftDateStr = getShiftDate(ts);
       const naturalShiftName = getShiftNameFromDate(dt);
       let opr = (h.operators?.nama_operator || h.pic || "").trim();
-      if (h.panel_no === "BERHENTI" && (!h.operator_id || opr.toUpperCase() === "ADMIN" || !opr)) {
+      if (opr.toUpperCase() === "ADMIN" || !opr) {
         opr = "-";
       }
       const grp = (h.groups?.nama_grup || "A").trim().toUpperCase();
@@ -353,8 +355,8 @@ export async function getMonthlyMachineReport(
       if (!reportDay) return;
 
       const groupName = assignment.groupName || "A"; // Default to A if null
-      let operatorName = assignment.operatorName || header.operators?.nama_operator || header.pic || "";
-      if (header.panel_no === "BERHENTI" && (!header.operator_id || operatorName.toUpperCase() === "ADMIN" || !operatorName)) {
+      let operatorName = (assignment.operatorName || header.operators?.nama_operator || header.pic || "").trim();
+      if (operatorName.toUpperCase() === "ADMIN" || !operatorName) {
         operatorName = "-";
       }
 
@@ -398,7 +400,7 @@ export async function getMonthlyMachineReport(
         }
       }
 
-      if (operatorName && (!team.operator_name || team.operator_name === "-")) {
+      if (operatorName && operatorName !== "-" && (!team.operator_name || team.operator_name === "-")) {
         team.operator_name = operatorName;
       }
       
@@ -648,7 +650,7 @@ export async function getMonthlyMachineReport(
               bestOp = op;
             }
           }
-          if (bestOp) {
+          if (bestOp && bestOp !== "-") {
             team.operator_name = bestOp;
           }
         }

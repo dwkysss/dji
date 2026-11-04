@@ -7,6 +7,19 @@ import { getShiftName, getShiftDate, getJakartaDateTimeString } from "@/lib/shif
 
 export const dynamic = "force-dynamic";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
+}
+
 const FALLBACK_DESIGNS = [
   { id: "1", name: "TCD 5826 XA" },
   { id: "2", name: "DL 5675 CO" },
@@ -50,17 +63,17 @@ export async function GET(req: NextRequest) {
     const machineSnapshots: Record<string, any> = {};
 
     await Promise.all(
-      REGISTERED_MACHINES.map(async (nomorMc) => {
+      Array.from(new Set([...REGISTERED_MACHINES, "R13", ...configs.map(c => c.nomor_mc.trim()).filter(m => !m.includes(":") && !m.includes("{") && !m.includes("["))])).map(async (nomorMc) => {
         const mcClean = nomorMc.trim();
         const mcUpper = mcClean.toUpperCase();
         const cfg = configMap.get(mcUpper);
-        const inputType = cfg?.input_type || (["R11", "R12", "R16"].includes(mcUpper) ? "METER" : "PANEL");
-        const defaultPcs = cfg?.default_pcs || 1;
+        const inputType = cfg?.input_type || (["R11", "R12", "R13", "R16"].includes(mcUpper) ? "METER" : "PANEL");
+        const defaultPcs = cfg?.default_pcs || (["R11", "R12", "R13", "R16"].includes(mcUpper) ? 3 : 1);
 
         // Ambil baris header terbaru dari mesin ini (termasuk spesifikasi dan riwayat potongan)
         const { data: latestRows } = await supabase
           .from("production_headers")
-          .select("potongan_ke, panel_no, is_bs, jenis_laporan, detail_masalah, design_id, meter_awal, meter_akhir, tanggal_jam, operator_id, group_id, status_matching, rpm, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, pcs")
+          .select("potongan_ke, panel_no, design_id, meter_awal, meter_akhir, tanggal_jam, operator_id, group_id, status_matching, rpm, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, pcs, tanggal_potong")
           .eq("nomor_mc", mcClean)
           .not("design_id", "is", null)
           .neq("design_id", "")
@@ -70,7 +83,12 @@ export async function GET(req: NextRequest) {
           .limit(15);
 
         const latestRow = latestRows && latestRows.length > 0 ? latestRows[0] : null;
-        const potonganKe = latestRow?.potongan_ke ? Number(latestRow.potongan_ke) : 1;
+        const isLatestPotonganCut = Boolean(
+          latestRow?.tanggal_potong ||
+          String(latestRow?.panel_no || "").trim().toUpperCase() === "BS AKHIR"
+        );
+        const rawPotongan = latestRow?.potongan_ke ? Number(latestRow.potongan_ke) : 1;
+        const potonganKe = isLatestPotonganCut ? rawPotongan + 1 : rawPotongan;
         const designId = latestRow?.design_id ? String(latestRow.design_id) : "1";
 
         const recentPlans: any[] = [];
@@ -106,10 +124,35 @@ export async function GET(req: NextRequest) {
         let recentItems: any[] = [];
 
         if (inputType === "PANEL") {
-          // Cari panel terakhir di potongan aktif ini
+          if (!isLatestPotonganCut) {
+          // Cari panel terakhir di potongan aktif ini (lengkap dengan detail masalah, operator, dan status cacat)
           const { data: cutPanels } = await supabase
             .from("production_headers")
-            .select("panel_no, is_bs, jenis_laporan, detail_masalah, tanggal_jam, operator_id")
+            .select(`
+              id,
+              panel_no,
+              tanggal_jam,
+              tgl,
+              potongan_ke,
+              nomor_mc,
+              group_id,
+              operator_id,
+              operator_backup,
+              pic,
+              operators (id, nama_operator),
+              groups (id, nama_grup),
+              downtime_events,
+              production_details (
+                id,
+                pcs_index,
+                jml_hasil_produksi,
+                detail_masalah,
+                kategori_masalah,
+                keterangan_cacat,
+                keterangan_qc,
+                production_defects (*)
+              )
+            `)
             .eq("nomor_mc", mcClean)
             .eq("potongan_ke", potonganKe)
             .not("panel_no", "is", null)
@@ -117,7 +160,7 @@ export async function GET(req: NextRequest) {
             .neq("panel_no", "Downtime Mekanik (Direct)")
             .neq("panel_no", "BERHENTI")
             .order("tanggal_jam", { ascending: false })
-            .limit(25);
+            .limit(100);
 
           if (cutPanels && cutPanels.length > 0) {
             let maxPanel = 0;
@@ -130,19 +173,36 @@ export async function GET(req: NextRequest) {
               }
             }
             nextPanelNo = maxPanel > 0 ? maxPanel + 1 : 1;
-            recentItems = cutPanels.map((p) => ({
+            recentItems = cutPanels.map((p: any) => ({
+              id: p.id,
               panelNo: p.panel_no,
-              isBs: Boolean(p.is_bs),
-              jenisLaporan: p.jenis_laporan || (p.is_bs ? "BS" : "NORMAL"),
-              detailMasalah: p.detail_masalah || null,
+              panel_no: p.panel_no,
+              potonganKe: p.potongan_ke,
+              potongan_ke: p.potongan_ke,
+              nomorMc: p.nomor_mc,
+              nomor_mc: p.nomor_mc,
               tanggalJam: p.tanggal_jam,
+              tanggal_jam: p.tanggal_jam,
+              tgl: p.tgl || (p.tanggal_jam ? p.tanggal_jam.split("T")[0] : "-"),
+              operatorId: p.operator_id,
+              operatorName: p.operators?.nama_operator || p.pic || "-",
+              operators: p.operators || { nama_operator: p.pic || "-" },
+              groups: p.groups || { nama_grup: p.group_id || "A" },
+              groupName: p.groups?.nama_grup || p.group_id || "A",
+              operator_backup: p.operator_backup || null,
+              production_details: p.production_details || [],
+              downtime_events: p.downtime_events || [],
+              isBs: String(p.panel_no || "").includes("BS") || (p.production_details && p.production_details.some((d: any) => d.jml_hasil_produksi === 0 || d.detail_masalah)),
+              jenisLaporan: String(p.panel_no || "").includes("BS") ? "Panel BS" : "NORMAL",
             }));
+          }
           }
         } else {
           // Meteran (Continuous)
+          if (!isLatestPotonganCut) {
           const { data: meterRows } = await supabase
             .from("production_headers")
-            .select("meter_awal, meter_akhir, detail_masalah, tanggal_jam, potongan_ke")
+            .select("meter_awal, meter_akhir, tanggal_jam, potongan_ke")
             .eq("nomor_mc", mcClean)
             .eq("potongan_ke", potonganKe)
             .not("meter_akhir", "is", null)
@@ -157,11 +217,14 @@ export async function GET(req: NextRequest) {
             recentItems = meterRows.map((m) => ({
               meterAwal: m.meter_awal,
               meterAkhir: m.meter_akhir,
-              detailMasalah: m.detail_masalah,
               tanggalJam: m.tanggal_jam,
             }));
           }
+          }
         }
+
+        const opId = latestRow?.operator_id ? String(latestRow.operator_id) : "";
+        const matchedOp = operators.find((o) => String(o.id) === opId);
 
         machineSnapshots[mcClean] = {
           nomorMc: mcClean,
@@ -169,6 +232,9 @@ export async function GET(req: NextRequest) {
           defaultPcs,
           potonganKe,
           designId,
+          operatorId: opId,
+          operatorName: matchedOp?.name || "",
+          groupId: latestRow?.group_id ? (latestRow.group_id === 2 ? "B" : latestRow.group_id === 3 ? "C" : "A") : "A",
           rpm: latestRow?.rpm ? String(latestRow.rpm) : "",
           pick: latestRow?.pick ? String(latestRow.pick) : "",
           course: latestRow?.course ? String(latestRow.course) : "",
@@ -188,41 +254,44 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    return NextResponse.json({
-      success: true,
-      timestamp: now.toISOString(),
-      serverTimeWib,
-      shiftInfo: {
-        activeDate,
-        activeShift,
-        shiftNumber,
+    return NextResponse.json(
+      {
+        success: true,
+        timestamp: now.toISOString(),
+        serverTimeWib,
+        shiftInfo: {
+          activeDate,
+          activeShift,
+          shiftNumber,
+        },
+        snapshots: machineSnapshots,
+        machines: Array.from(new Set([...REGISTERED_MACHINES, "R13", ...configs.map(c => c.nomor_mc.trim()).filter(m => !m.includes(":") && !m.includes("{") && !m.includes("["))])).map((mc) => machineSnapshots[mc] || {
+          nomorMc: mc,
+          inputType: ["R11", "R12", "R13", "R16"].includes(mc.toUpperCase()) ? "METER" : "PANEL",
+          defaultPcs: 1,
+          potonganKe: 1,
+          designId: "1",
+          nextPanelNo: 1,
+          lastMeter: 0,
+          recentItems: [],
+        }),
+        operators: operators.length > 0 ? operators : [
+          { id: "1", name: "Rohmat", shift: "A" },
+          { id: "2", name: "M.Alwi", shift: "A" },
+          { id: "12", name: "Irfan", shift: "B" },
+          { id: "23", name: "Tubagus", shift: "C" },
+        ],
+        designs: FALLBACK_DESIGNS,
+        problemCategories: PROBLEM_CATEGORIES,
+        problemDetails: DEFAULT_PROBLEM_DETAILS,
       },
-      snapshots: machineSnapshots,
-      machines: REGISTERED_MACHINES.map((mc) => machineSnapshots[mc] || {
-        nomorMc: mc,
-        inputType: ["R11", "R12", "R16"].includes(mc.toUpperCase()) ? "METER" : "PANEL",
-        defaultPcs: 1,
-        potonganKe: 1,
-        designId: "1",
-        nextPanelNo: 1,
-        lastMeter: 0,
-        recentItems: [],
-      }),
-      operators: operators.length > 0 ? operators : [
-        { id: "1", name: "Rohmat", shift: "A" },
-        { id: "2", name: "M.Alwi", shift: "A" },
-        { id: "12", name: "Irfan", shift: "B" },
-        { id: "23", name: "Tubagus", shift: "C" },
-      ],
-      designs: FALLBACK_DESIGNS,
-      problemCategories: PROBLEM_CATEGORIES,
-      problemDetails: DEFAULT_PROBLEM_DETAILS,
-    });
+      { headers: corsHeaders }
+    );
   } catch (error: any) {
     console.error("Error in /api/mobile/bootstrap:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Failed to generate bootstrap data" },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

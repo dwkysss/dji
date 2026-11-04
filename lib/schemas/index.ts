@@ -57,10 +57,11 @@ export const productionFormSchemaBase = z.object({
     .string()
     .optional()
     .nullable()
-    .refine((val) => !val || /^\d+$/.test(val), {
+    .refine((val) => !val || /^\d+$/.test(val) || val.toUpperCase() === "POTONG KAIN", {
       message: "Nomor panel harus berupa angka positif",
     }),
   isPanelGagal: z.boolean().optional(),
+  isCutOnly: z.boolean().optional(),
   course: z.string().optional().nullable(),
   pic: z.string().max(100, "Nama PIC maksimal 100 karakter").optional().nullable(),
 
@@ -75,18 +76,18 @@ export const productionFormSchemaBase = z.object({
     z.object({
       id: z.string(),
       durasiDetik: z.number(),
-      kategori: z.string().optional(),
-      detail: z.string().optional(),
-      blok: z.string().optional(),
-      pcsKe: z.string().optional(),
-      dikerjakanOleh: z.string().optional(),
+      kategori: z.string().optional().nullable(),
+      detail: z.string().optional().nullable(),
+      blok: z.string().optional().nullable(),
+      pcsKe: z.union([z.string(), z.array(z.string())]).optional().nullable(),
+      dikerjakanOleh: z.string().optional().nullable(),
       problems: z.array(
         z.object({
           kategori: z.string(),
           details: z.array(z.string()),
-          blok: z.string().optional(),
-          meter: z.string().optional(),
-          pcsKe: z.string().optional(),
+          blok: z.string().optional().nullable(),
+          meter: z.string().optional().nullable(),
+          pcsKe: z.union([z.string(), z.array(z.string())]).optional().nullable(),
         })
       ).optional(),
     })
@@ -100,18 +101,31 @@ export const productionFormSchemaBase = z.object({
       meterKain: z.string().optional().nullable(),
       isBs: z.boolean().optional(),
     })
-  ).min(1, "Minimal harus ada 1 PCS"),
+  ),
   idempotencyKey: z.string().optional(),
   submittedAt: z.string().optional().nullable(),
 });
 
 export const productionFormSchema = productionFormSchemaBase.superRefine((data, ctx) => {
-  if (!data.tanggalPotong && (!data.panelNo || data.panelNo.trim() === "")) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Nomor Panel harus diisi",
-      path: ["panelNo"],
-    });
+  const isCutOnly =
+    !!data.tanggalPotong &&
+    (!data.panelNo || data.panelNo.trim() === "" || data.panelNo.toUpperCase() === "POTONG KAIN");
+
+  if (!isCutOnly) {
+    if (!data.panelNo || data.panelNo.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Nomor Panel harus diisi",
+        path: ["panelNo"],
+      });
+    }
+    if (!data.pcsData || data.pcsData.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Minimal harus ada 1 PCS",
+        path: ["pcsData"],
+      });
+    }
   }
 });
 
@@ -146,6 +160,13 @@ export const continuousFormSchema = productionFormSchemaBase.omit({ panelNo: tru
     })
   ),
 }).superRefine((data, ctx) => {
+  const isCutOnly =
+    !!data.tanggalPotong &&
+    (!data.meterAkhir || data.meterAkhir.trim() === "") &&
+    (!data.hasilProduksiMeter || data.hasilProduksiMeter.trim() === "");
+
+  if (isCutOnly) return;
+
   const hasMeter = (data.meterAkhir && data.meterAkhir.trim() !== "") ||
     (data.hasilProduksiMeter && data.hasilProduksiMeter.trim() !== "");
   const hasMasalah = data.downtimeEvents && data.downtimeEvents.length > 0;

@@ -310,7 +310,7 @@ export default function ProductionHeaderModal({
                   className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-semibold focus:border-sky-400 focus:ring-4 focus:ring-sky-400/10 outline-none shadow-sm transition-all"
                 >
                   <option value="">-- Pilih Nomor Mesin --</option>
-                  {REGISTERED_MACHINES.map(mc => (
+                  {Array.from(new Set([...REGISTERED_MACHINES, "R13"])).map(mc => (
                     <option key={mc} value={mc}>{mc}</option>
                   ))}
                 </select>

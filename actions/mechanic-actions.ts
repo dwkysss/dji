@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getShiftDate, parseAsWibDate, getJakartaDateTimeString } from "@/lib/shift-utils";
 
 export async function submitMechanicDowntime(data: {
@@ -61,9 +61,11 @@ export async function submitMechanicDowntime(data: {
     };
 
     if (isExisting) {
+      const nowWib = getJakartaDateTimeString(new Date());
       const { error: updateError } = await supabase
         .from("production_headers")
         .update({
+          tanggal_jam: nowWib,
           total_downtime_detik: durasiSec,
           downtime_events: JSON.stringify([dt]),
           group_id: groupIdNum,
@@ -134,9 +136,14 @@ export async function submitMechanicDowntime(data: {
 export async function cancelMechanicDowntime(headerId: string) {
   try {
     if (!headerId) return { success: false, error: "Header ID required" };
-    const supabase = await createClient();
-    await supabase.from("downtime_records").delete().eq("header_id", headerId);
-    await supabase.from("production_headers").delete().eq("id", headerId);
+    let db: any;
+    try {
+      db = await createAdminClient();
+    } catch (e) {
+      db = await createClient();
+    }
+    await db.from("downtime_records").delete().eq("header_id", headerId);
+    await db.from("production_headers").delete().eq("id", headerId);
     return { success: true };
   } catch (error: any) {
     console.error("Exception in cancelMechanicDowntime:", error);

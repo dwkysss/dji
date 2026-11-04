@@ -314,7 +314,7 @@ export async function getCrossMachineReportWithWeeks(
       try {
         const { data, isMeterMachine } = await getMonthlyMachineReport(month, year, mId);
         const configuredType = machineConfigMap.get(mId.toUpperCase());
-        const isMeter = configuredType === "METER" || Boolean(isMeterMachine) || mId.toUpperCase() === "R11" || mId.toUpperCase() === "R12";
+        const isMeter = configuredType === "METER" || Boolean(isMeterMachine) || mId.toUpperCase() === "R11" || mId.toUpperCase() === "R12" || mId.toUpperCase() === "R13";
         return {
           mId,
           data: data || [],
@@ -323,7 +323,7 @@ export async function getCrossMachineReportWithWeeks(
       } catch (e) {
         console.error(`Error calculating metrics for machine ${mId}:`, e);
         const configuredType = machineConfigMap.get(mId.toUpperCase());
-        const isMeter = configuredType === "METER" || mId.toUpperCase() === "R11" || mId.toUpperCase() === "R12";
+        const isMeter = configuredType === "METER" || mId.toUpperCase() === "R11" || mId.toUpperCase() === "R12" || mId.toUpperCase() === "R13";
         return {
           mId,
           data: [] as MonthlyMachineReportData[],

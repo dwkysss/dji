@@ -196,6 +196,7 @@ export async function getRealProductionsData(options?: {
         rawPanelNo.toUpperCase().includes("METER") ||
         mesinNorm.startsWith("R11") ||
         mesinNorm.startsWith("R12") ||
+        mesinNorm.startsWith("R13") ||
         mesinNorm.startsWith("R16") ||
         (Number(item.hasil_meter) || 0) > 0 ||
         (Number(item.posisi_meter) || 0) > 0;

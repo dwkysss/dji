@@ -54,6 +54,7 @@ import {
   Info,
   Lock,
   PowerOff,
+  MessageSquareWarning,
   TrendingUp,
   Calculator,
 } from "lucide-react";
@@ -70,6 +71,10 @@ const MachineStopModal = dynamic(() => import("./MachineStopModal"), {
   ssr: false,
 });
 import DowntimeTracker from "./DowntimeTracker";
+const IssueReportModal = dynamic(
+  () => import("@/components/modals/IssueReportModal"),
+  { ssr: false }
+);
 const ContinuousHistoryDrawer = dynamic(
   () => import("./ContinuousHistoryDrawer"),
   { ssr: false }
@@ -505,34 +510,40 @@ export default function ContinuousForm({
 
   useEffect(() => {
     async function loadMachineTypes() {
-      const cfgRes = await getMachineConfigs();
-      if (cfgRes.success && cfgRes.data) {
-        const typeMap: Record<string, "PANEL" | "METER"> = {};
-        const pcsMap: Record<string, number> = {};
-        cfgRes.data.forEach((c) => {
-          typeMap[c.nomor_mc.toUpperCase()] = c.input_type === "METER" ? "METER" : "PANEL";
-          pcsMap[c.nomor_mc.toUpperCase()] = c.default_pcs || 1;
-        });
-        setMachineInputTypes(typeMap);
-        try {
-          localStorage.setItem("dji_machine_input_types", JSON.stringify(typeMap));
-          localStorage.setItem("dji_machine_configs", JSON.stringify(pcsMap));
-        } catch (e) { }
-      } else {
-        let localTypes: Record<string, "PANEL" | "METER"> = {};
-        try {
-          const saved = localStorage.getItem("dji_machine_input_types");
-          if (saved) localTypes = JSON.parse(saved);
-        } catch (e) { }
-        setMachineInputTypes(localTypes);
-      }
+      let localTypes: Record<string, "PANEL" | "METER"> = {};
+      try {
+        const saved = localStorage.getItem("dji_machine_input_types");
+        if (saved) localTypes = JSON.parse(saved);
+      } catch (e) { }
+      setMachineInputTypes(localTypes);
+
+      if (typeof window !== "undefined" && !navigator.onLine) return;
+
+      try {
+        const cfgRes = await getMachineConfigs();
+        if (cfgRes.success && cfgRes.data) {
+          const typeMap: Record<string, "PANEL" | "METER"> = {};
+          const pcsMap: Record<string, number> = {};
+          cfgRes.data.forEach((c) => {
+            typeMap[c.nomor_mc.toUpperCase()] = c.input_type === "METER" ? "METER" : "PANEL";
+            pcsMap[c.nomor_mc.toUpperCase()] = c.default_pcs || 1;
+          });
+          setMachineInputTypes(typeMap);
+          try {
+            localStorage.setItem("dji_machine_input_types", JSON.stringify(typeMap));
+            localStorage.setItem("dji_machine_configs", JSON.stringify(pcsMap));
+          } catch (e) { }
+        }
+      } catch (e) {}
     }
     loadMachineTypes();
   }, []);
 
   useEffect(() => {
     async function loadOperators() {
-      const res = await getOperatorsList();
+      if (typeof window !== "undefined" && !navigator.onLine) return;
+      try {
+        const res = await getOperatorsList();
       if (res.success && res.data && res.data.length > 0) {
         setOperators(
           res.data.map((op) => ({
@@ -542,6 +553,7 @@ export default function ContinuousForm({
           }))
         );
       }
+      } catch (e) {}
     }
     loadOperators();
   }, []);
@@ -581,6 +593,7 @@ export default function ContinuousForm({
   const prevOperatorRef = useRef<string>("");
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isStopModalOpen, setIsStopModalOpen] = useState(false);
+  const [isIssueReportOpen, setIsIssueReportOpen] = useState(false);
   const [stopModalSuccessMsg, setStopModalSuccessMsg] = useState<string | null>(null);
   const [originalT2ATarget, setOriginalT2ATarget] = useState<number | null>(
     null,
@@ -982,6 +995,13 @@ export default function ContinuousForm({
       if (match) {
         if (prevNomorMcRef.current !== currentMc) {
           prevNomorMcRef.current = currentMc;
+          try {
+            localStorage.setItem("dji_last_selected_mc", currentMc);
+            const existingRaw = localStorage.getItem("dji_form_header");
+            const existing = existingRaw ? JSON.parse(existingRaw) : {};
+            existing.nomorMc = currentMc;
+            localStorage.setItem("dji_form_header", JSON.stringify(existing));
+          } catch (e) {}
           if (match.default_pcs && typeof match.default_pcs === "number") {
             handleChangePcsCount(match.default_pcs, true);
           }
@@ -995,7 +1015,9 @@ export default function ContinuousForm({
       }
     }
 
-    syncMachineConfig();
+    if (typeof window !== "undefined" && navigator.onLine) {
+      syncMachineConfig();
+    }
     return () => {
       isMounted = false;
     };
@@ -1264,27 +1286,77 @@ export default function ContinuousForm({
     if (isEdit) return;
 
     const savedDraft = localStorage.getItem("dji_form_draft_continuous");
-    if (savedDraft) {
-      try {
-        const parsed = JSON.parse(savedDraft);
-        reset(parsed);
-        setIsHeaderModalOpen(false);
-        return;
-      } catch (e) {
-        console.error("Gagal load draft dari storage", e);
+    const savedHeader = localStorage.getItem("dji_form_header");
+    let parsedHeader: any = null;
+    let parsedDraft: any = null;
+
+    try {
+      if (savedHeader) parsedHeader = JSON.parse(savedHeader);
+    } catch (e) {}
+
+    try {
+      if (savedDraft) parsedDraft = JSON.parse(savedDraft);
+    } catch (e) {}
+
+    try {
+      localStorage.setItem("dji_last_input_mode", "METER");
+      localStorage.setItem("last_input_route", "/input-meter");
+    } catch (e) {}
+
+    // Jika header tersimpan dari offline portal memiliki nomor potongan berbeda/lebih tinggi
+    if (parsedHeader && parsedHeader.potonganKe) {
+      const headerPot = parseInt(String(parsedHeader.potonganKe), 10);
+      const draftPot = parsedDraft ? parseInt(String(parsedDraft.potonganKe || "0"), 10) : 0;
+      if (headerPot > draftPot || (parsedHeader.updatedAt && parsedHeader.updatedAt > (parsedDraft?.updatedAt || 0))) {
+        if (parsedDraft) {
+          parsedDraft.potonganKe = String(parsedHeader.potonganKe);
+          parsedDraft.meterAwal = "0";
+          parsedDraft.meterAkhir = "";
+          if (parsedHeader.nomorMc) parsedDraft.nomorMc = parsedHeader.nomorMc;
+          if (parsedHeader.designId) parsedDraft.designId = parsedHeader.designId;
+          try {
+            localStorage.setItem("dji_form_draft_continuous", JSON.stringify(parsedDraft));
+          } catch (e) {}
+        }
       }
     }
 
-    const savedHeader = localStorage.getItem("dji_form_header");
+    if (parsedDraft) {
+      reset(parsedDraft);
+      setIsHeaderModalOpen(false);
+      return;
+    }
     if (savedHeader) {
       try {
         const parsed = JSON.parse(savedHeader);
+        // Resolusi operatorId dari operatorName jika datang dari portal offline
+        let opIdToSet = parsed.operatorId ? String(parsed.operatorId) : "";
+        if (!opIdToSet && parsed.operatorName) {
+          const matched = operators.find((o) => o.name.toLowerCase() === String(parsed.operatorName).trim().toLowerCase());
+          if (matched) opIdToSet = String(matched.id);
+        }
+        if (!opIdToSet) {
+          const activeId = localStorage.getItem("dji_active_operator_id");
+          if (activeId) opIdToSet = activeId;
+          else {
+            const activeName = localStorage.getItem("dji_active_operator_name");
+            if (activeName) {
+              const matched = operators.find((o) => o.name.toLowerCase() === activeName.trim().toLowerCase());
+              if (matched) opIdToSet = String(matched.id);
+            }
+          }
+        }
+        if (opIdToSet) {
+          parsed.operatorId = opIdToSet;
+        }
+
         Object.keys(parsed).forEach((key) => {
           if (
             key !== "lastRollNo" &&
             key !== "pcsCount" &&
             key !== "tanggalPotong" &&
-            key !== "meterAwal"
+            key !== "meterAwal" &&
+            key !== "operatorName"
           ) {
             setValue(key as keyof ContinuousFormInput, parsed[key], {
               shouldValidate: false,
@@ -1298,13 +1370,127 @@ export default function ContinuousForm({
         console.error("Gagal load header dari storage", e);
       }
     }
-  }, [setValue, isEdit, reset]);
+
+    const isMeterMc = (mc: string) => {
+      const code = (mc || "").trim().toUpperCase();
+      if (!code) return false;
+      if (code.startsWith("T") || ["R11", "R12", "R13", "R16", "MC-01", "MC-02"].includes(code)) return true;
+      try {
+        const rawTypes = localStorage.getItem("dji_machine_input_types");
+        if (rawTypes) {
+          const types = JSON.parse(rawTypes);
+          if (types[code] === "METER") return true;
+        }
+      } catch (e) {}
+      return false;
+    };
+
+    const lastMc = localStorage.getItem("dji_last_selected_mc");
+    if (lastMc && lastMc.trim() && isMeterMc(lastMc.trim())) {
+      setValue("nomorMc", lastMc.trim().toUpperCase(), {
+        shouldValidate: false,
+        shouldDirty: false,
+      });
+    } else if (!getValues("nomorMc") || !isMeterMc(getValues("nomorMc"))) {
+      setValue("nomorMc", "R11", {
+        shouldValidate: false,
+        shouldDirty: false,
+      });
+    }
+
+    try {
+      localStorage.setItem("dji_last_input_mode", "METER");
+      localStorage.setItem("last_input_route", "/input-meter");
+      const currentChosenMc = (lastMc && isMeterMc(lastMc)) ? lastMc.trim().toUpperCase() : "R11";
+      localStorage.setItem("dji_last_selected_mc", currentChosenMc);
+    } catch (e) {}
+  }, [setValue, isEdit, reset, getValues]);
+
+  // Sinkronisasi dinamis ketika berpindah tab dari offline portal kembali ke online
+  useEffect(() => {
+    if (isEdit) return;
+
+    const syncHeaderFromStorage = () => {
+      try {
+        const rawHeader = localStorage.getItem("dji_form_header");
+        if (!rawHeader) return;
+        const parsed = JSON.parse(rawHeader);
+        if (!parsed || !parsed.potonganKe) return;
+
+        const currentPot = getValues("potonganKe");
+        const currentMc = getValues("nomorMc");
+
+        // Hanya perbarui jika nomor mesin sama atau belum terisi, dan potongan berubah
+        const isSameMc = !parsed.nomorMc || !currentMc || parsed.nomorMc.trim().toUpperCase() === currentMc.trim().toUpperCase();
+        if (isSameMc && String(parsed.potonganKe) !== String(currentPot)) {
+          setValue("potonganKe", String(parsed.potonganKe), { shouldValidate: true, shouldDirty: true });
+          setHighlightPotonganKe(true);
+
+          if (parsed.designId) setValue("designId", String(parsed.designId));
+          if (parsed.nomorMc) setValue("nomorMc", String(parsed.nomorMc));
+
+          // Perbarui juga draft lokal agar tidak overwrite kembali
+          const rawDraft = localStorage.getItem("dji_form_draft_continuous");
+          if (rawDraft) {
+            const d = JSON.parse(rawDraft);
+            d.potonganKe = String(parsed.potonganKe);
+            if (parsed.nomorMc) d.nomorMc = parsed.nomorMc;
+            localStorage.setItem("dji_form_draft_continuous", JSON.stringify(d));
+          }
+        }
+      } catch (e) {
+        console.warn("[ContinuousForm] Gagal sinkronisasi header storage:", e);
+      }
+    };
+
+    window.addEventListener("focus", syncHeaderFromStorage);
+    window.addEventListener("storage", syncHeaderFromStorage);
+    window.addEventListener("dji_header_changed", syncHeaderFromStorage);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") syncHeaderFromStorage();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", syncHeaderFromStorage);
+      window.removeEventListener("storage", syncHeaderFromStorage);
+      window.removeEventListener("dji_header_changed", syncHeaderFromStorage);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [isEdit, getValues, setValue]);
 
   // Subscribe to all form changes to save draft
   useEffect(() => {
     if (isEdit) return;
     const subscription = watch((value) => {
-      localStorage.setItem("dji_form_draft_continuous", JSON.stringify(value));
+      try {
+        localStorage.setItem("dji_form_draft_continuous", JSON.stringify(value));
+        localStorage.setItem("dji_last_input_mode", "METER");
+        localStorage.setItem("last_input_route", "/input-meter");
+        if (value?.nomorMc) {
+          const mc = String(value.nomorMc).trim().toUpperCase();
+          if (mc) {
+            localStorage.setItem("dji_last_selected_mc", mc);
+            const existingRaw = localStorage.getItem("dji_form_header");
+            const existing = existingRaw ? JSON.parse(existingRaw) : {};
+            existing.nomorMc = mc;
+            if (value.potonganKe) existing.potonganKe = value.potonganKe;
+            if (value.operatorId) {
+              existing.operatorId = value.operatorId;
+              const opName = getOperatorName(String(value.operatorId));
+              if (opName) {
+                existing.operatorName = opName;
+                localStorage.setItem("dji_active_operator_name", opName);
+                localStorage.setItem("dji_active_operator_id", String(value.operatorId));
+              }
+            }
+            if (value.groupId) existing.groupId = value.groupId;
+            if (value.designId) existing.designId = value.designId;
+            if (value.statusMatching) existing.statusMatching = value.statusMatching;
+            localStorage.setItem("dji_form_header", JSON.stringify(existing));
+          }
+        }
+      } catch (e) {}
     });
     return () => subscription.unsubscribe();
   }, [watch, isEdit]);
@@ -1629,7 +1815,19 @@ export default function ContinuousForm({
         localStorage.removeItem("dji_unresolved_downtime");
       }
 
-      localStorage.setItem("dji_form_header", JSON.stringify(headerDataToSave));
+      const currentOpName = getOperatorName(String(data.operatorId));
+      const fullHeader = {
+        ...headerDataToSave,
+        operatorName: currentOpName,
+      };
+      localStorage.setItem("dji_form_header", JSON.stringify(fullHeader));
+      if (currentOpName) {
+        localStorage.setItem("dji_active_operator_name", currentOpName);
+        localStorage.setItem("dji_active_operator_id", String(data.operatorId));
+      }
+      if (data.nomorMc) {
+        localStorage.setItem("dji_last_selected_mc", String(data.nomorMc).trim().toUpperCase());
+      }
     }
 
     try {
@@ -2067,7 +2265,7 @@ export default function ContinuousForm({
         {/* Top Header */}
         <div
           className={cn(
-            "flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4 transition-colors",
+            "flex flex-col lg:flex-row lg:items-center justify-between border-b pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4 transition-colors",
             isDark ? "border-slate-800" : "border-slate-100"
           )}
         >
@@ -2090,7 +2288,7 @@ export default function ContinuousForm({
             </p>
           </div>
 
-          <div className="flex flex-row items-center gap-2 w-full sm:w-auto shrink-0 flex-nowrap overflow-x-auto sm:overflow-visible">
+          <div className="flex flex-row items-center gap-2 w-full lg:w-auto shrink-0 flex-wrap sm:flex-nowrap overflow-x-auto sm:overflow-visible">
             <button
               data-tour="meter-stop-machine"
               type="button"
@@ -2109,6 +2307,15 @@ export default function ContinuousForm({
             >
               <History className="w-4 h-4 text-slate-500 group-hover:text-[#0070bc] transition-colors shrink-0" />
               <span>Riwayat Potongan Ini</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsIssueReportOpen(true)}
+              className="px-3 sm:px-3.5 py-2 rounded-xl bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-600 border border-slate-200 hover:border-amber-300 shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial"
+              title="Lapor kendala atau kesalahan input data ke tim QC/Admin"
+            >
+              <MessageSquareWarning className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform shrink-0" />
+              <span>Lapor Kendala</span>
             </button>
           </div>
         </div>
@@ -3917,9 +4124,11 @@ export default function ContinuousForm({
           setHighlightPotonganKe(false);
           setHighlightOperator(false);
           try {
+            const opName = getOperatorName(String(watch("operatorId")));
             const currentHeader = {
               nomorMc: watch("nomorMc"),
               operatorId: watch("operatorId"),
+              operatorName: opName,
               groupId: watchGroupId,
               potonganKe: watch("potonganKe"),
               designId: watch("designId"),
@@ -3936,6 +4145,13 @@ export default function ContinuousForm({
               pinggiran: watch("pinggiran"),
             };
             localStorage.setItem("dji_form_header", JSON.stringify(currentHeader));
+            if (opName) {
+              localStorage.setItem("dji_active_operator_name", opName);
+              localStorage.setItem("dji_active_operator_id", String(currentHeader.operatorId));
+            }
+            if (currentHeader.nomorMc) {
+              localStorage.setItem("dji_last_selected_mc", String(currentHeader.nomorMc).trim().toUpperCase());
+            }
           } catch (e) {}
           checkAndPromptHandover();
         }}
@@ -3974,6 +4190,17 @@ export default function ContinuousForm({
       />
 
       {/* SLIDE-OVER DRAWER RIWAYAT SHIFT */}
+      <IssueReportModal
+        isOpen={isIssueReportOpen}
+        onClose={() => setIsIssueReportOpen(false)}
+        nomorMc={watch("nomorMc")}
+        potonganKe={watch("potonganKe")}
+        groupName={selectedGroup ? selectedGroup.name : "A"}
+        panelOrMeter={`Meter ${watch("meterAwal") || "0"} - ${watch("meterAkhir") || "0"}`}
+        currentOperator={getOperatorName(watch("operatorId")) || ""}
+        isDark={isDark}
+      />
+
       <ContinuousHistoryDrawer
         isOpen={isHistoryDrawerOpen}
         onClose={() => setIsHistoryDrawerOpen(false)}

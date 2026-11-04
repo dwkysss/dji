@@ -9,6 +9,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   MessageSquare,
+  MessageSquareWarning,
   Scissors,
   LogOut,
   Menu,
@@ -40,6 +41,7 @@ import {
   TableProperties,
   Loader2,
   DownloadCloud,
+  WifiOff,
 } from "lucide-react";
 
 const MACHINE_INPUT_TYPES: Record<string, string> = {
@@ -191,6 +193,12 @@ export default function Sidebar() {
           href: "/status-mesin",
           icon: PowerOff,
           roles: ["admin", "operator", "kepala_shift"],
+        },
+        {
+          name: "Riwayat Kendala",
+          href: "/kendala",
+          icon: MessageSquareWarning,
+          roles: ["admin", "operator", "kepala_shift", "employee", "inspeksi", "mending"],
         },
       ],
     },

@@ -122,6 +122,27 @@ export function initServerScheduler() {
             `[Server Scheduler] ⏰ [${currentTime} WIB] Menjalankan Sinkronisasi Laporan Bulanan Mesin ke Google Sheets...`
           );
 
+          // Jika hari ini adalah tanggal 1 (pergantian bulan di jam cut-off 07:10 WIB),
+          // maka hari operasional yang baru saja selesai adalah hari terakhir bulan kemarin (misal tgl 31).
+          // Sinkronkan bulan kemarin terlebih dahulu agar tanggal penutup (31/30) masuk sempurna!
+          const currentDateNum = parseInt(todayDate.split("-")[2], 10);
+          if (currentDateNum === 1) {
+            const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            try {
+              console.log(
+                `[Server Scheduler] 📅 Pergantian bulan terdeteksi pada tgl 1. Menutup hari terakhir bulan sebelumnya...`
+              );
+              await syncAllMonthlyMachines({
+                month: prevMonthDate.getMonth() + 1,
+                year: prevMonthDate.getFullYear(),
+                safeMode: monthlySettings.safeMode,
+                machines: monthlySettings.machines,
+              });
+            } catch (errPrev) {
+              console.error("[Server Scheduler] Error sync bulan sebelumnya:", errPrev);
+            }
+          }
+
           const res = await syncAllMonthlyMachines({
             safeMode: monthlySettings.safeMode,
             machines: monthlySettings.machines,

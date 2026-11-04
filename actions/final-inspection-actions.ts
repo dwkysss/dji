@@ -139,7 +139,14 @@ export async function searchPendingFinalInspectionBatches(params: {
       query = query.eq("tanggal_mending", startDate);
     }
     if (params.nomor_mc && params.nomor_mc.trim() !== "") {
-      query = query.ilike("nomor_mc", `%${params.nomor_mc.trim()}%`);
+      const cleanMc = params.nomor_mc.trim();
+      if (/^R\d+$/i.test(cleanMc)) {
+        const num = cleanMc.replace(/[^0-9]/g, "");
+        const padded = num.padStart(2, "0");
+        query = query.or(`nomor_mc.ilike.${cleanMc},nomor_mc.eq.${num},nomor_mc.eq.R${num},nomor_mc.eq.R${padded}`);
+      } else {
+        query = query.ilike("nomor_mc", cleanMc);
+      }
     }
     if (params.potongan_ke && params.potongan_ke.trim() !== "") {
       const pNum = parseInt(params.potongan_ke.trim().replace(/\D/g, ""), 10);

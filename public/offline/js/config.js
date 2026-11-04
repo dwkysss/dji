@@ -11,8 +11,54 @@
     HEADER: "dji_form_header",
     QUEUE: "dji_offline_queue",
     USER: "dji_cached_user",
-    DOWNTIME: "dji_downtime_events"
+    DOWNTIME: "dji_downtime_events",
+    LAST_MC: "dji_last_selected_mc",
+    DRAFT_PANEL: "dji_form_draft_panel",
+    DRAFT_METER: "dji_form_draft_continuous",
+    ACTIVE_OPERATOR_NAME: "dji_active_operator_name",
+    ACTIVE_OPERATOR_ID: "dji_active_operator_id",
+    LAST_MODE: "dji_last_input_mode",
+    LAST_ROUTE: "last_input_route"
   };
+
+  /**
+   * Helper: Deteksi apakah mesin merupakan jenis Meteran (Continuous / Tricote)
+   */
+  function isMeterMachine(mcCode, bootstrap = null) {
+    if (!mcCode) return false;
+    const code = String(mcCode).trim().toUpperCase();
+
+    // 1. Tricote / T-prefix machines (T1, T1C, T2, T2A, T3, etc.)
+    if (code.startsWith("T")) return true;
+
+    // 2. Known continuous meter machines
+    if (["R11", "R12", "R13", "R16", "MC-01", "MC-02"].includes(code)) return true;
+
+    // 3. Saved machine input types in localStorage
+    try {
+      const rawTypes = localStorage.getItem("dji_machine_input_types");
+      if (rawTypes) {
+        const types = JSON.parse(rawTypes);
+        if (types[code] === "METER") return true;
+        if (types[code] === "PANEL") return false;
+      }
+    } catch (e) {}
+
+    // 4. Bootstrap machines / snapshots
+    const bs = bootstrap || (window.DJIState && window.DJIState.appState ? window.DJIState.appState.bootstrap : null);
+    if (bs) {
+      if (bs.machines && Array.isArray(bs.machines)) {
+        const match = bs.machines.find(m => (m.nomorMc || m.nomor_mc || "").toUpperCase() === code);
+        if (match && match.input_type) return match.input_type === "METER";
+      }
+      if (bs.snapshots && bs.snapshots[code]) {
+        const snap = bs.snapshots[code];
+        if (snap.input_type) return snap.input_type === "METER";
+      }
+    }
+
+    return false;
+  }
 
   /**
    * Aturan Perhitungan Hari Operasional Kerja (Cut-off Bukan Jam 12 Malam)
@@ -234,6 +280,17 @@
     return fb ? String(fb.id) : "1";
   }
 
+  function resolveOperatorName(id, bootstrap) {
+    if (!id) return "";
+    const idStr = String(id).trim();
+    if (bootstrap && Array.isArray(bootstrap.operators)) {
+      const found = bootstrap.operators.find(o => String(o.id) === idStr);
+      if (found) return found.name || found.nama_operator || "";
+    }
+    const fb = FALLBACK_OPERATORS.find(o => String(o.id) === idStr);
+    return fb ? fb.name : "";
+  }
+
   const IDB_CONFIG = {
     DB_NAME: "dji_offline_db",
     STORE_NAME: "pending_queue",
@@ -293,18 +350,36 @@
     }
   }
 
+  function getApiBaseUrl() {
+    if (typeof window === "undefined") return "";
+    const loc = window.location;
+    // Jika dibuka langsung di server web production (djiprod.tech)
+    if (loc.origin && loc.origin.includes("djiprod.tech")) {
+      return "";
+    }
+    // Jika sedang running dev server lokal Next.js di port 3000
+    if (loc.hostname === "localhost" && loc.port === "3000") {
+      return "";
+    }
+    // Jika dibuka via file:/// di Explorer laptop, atau di dalam APK Capacitor (https://localhost)
+    return "https://djiprod.tech";
+  }
+
   window.DJIConfig = {
     KEYS: STORAGE_KEYS,
     PROBLEM_CATEGORIES,
     GROUPED_PROBLEM_DETAILS,
     FALLBACK_OPERATORS,
+    isMeterMachine,
     resolveOperatorId,
+    resolveOperatorName,
     savePendingToIDB,
     removePendingFromIDB,
     getOperationalDate,
     getOperationalShift,
     normalizeGroupLetter,
     formatDuration,
+    getApiBaseUrl,
     showToast
   };
 })(window);
