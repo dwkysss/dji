@@ -3,7 +3,7 @@
 import { continuousFormSchema, ContinuousFormInput } from "@/lib/schemas";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getShiftDate, parseAsWibDate, getJakartaDateTimeString } from "@/lib/shift-utils";
+import { getShiftDate, getShiftName, parseAsWibDate, getJakartaDateTimeString } from "@/lib/shift-utils";
 
 async function resolveAutomaticMeterStart(input: {
   nomorMc?: string | null;
@@ -1883,6 +1883,8 @@ export async function updateQuickMeterValue(params: {
   newDetailMasalah?: string;
   newBlok?: string;
   newDurasiDetik?: number;
+  newTanggal?: string;
+  newJam?: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createAdminClient();
@@ -1900,6 +1902,38 @@ export async function updateQuickMeterValue(params: {
 
     if (hErr || !header) {
       return { success: false, error: "Header produksi tidak ditemukan: " + (hErr?.message || "") };
+    }
+
+    // Update Tanggal & Jam jika diberikan
+    if (params.newTanggal || params.newJam) {
+      const currentTs = header.tanggal_jam || header.tgl || new Date().toISOString();
+      const currentDt = parseAsWibDate(currentTs);
+      const currentIso = currentDt.toISOString();
+
+      const targetDate = params.newTanggal ? params.newTanggal.trim() : (header.tgl || currentIso.slice(0, 10));
+      let targetTime = "12:00:00";
+      if (params.newJam && params.newJam.trim()) {
+        const cleanJam = params.newJam.trim();
+        targetTime = cleanJam.length === 5 ? `${cleanJam}:00` : cleanJam;
+      } else if (currentTs.includes(" ")) {
+        targetTime = currentTs.split(" ")[1];
+      } else if (currentTs.includes("T")) {
+        targetTime = currentTs.split("T")[1].slice(0, 8);
+      }
+
+      const newTanggalJam = `${targetDate} ${targetTime}`;
+      const newTgl = getShiftDate(newTanggalJam);
+
+      const { error: timeErr } = await supabase
+        .from("production_headers")
+        .update({
+          tanggal_jam: newTanggalJam,
+          tgl: newTgl,
+          is_synced_to_sheet: false,
+        })
+        .eq("id", params.headerId);
+
+      if (timeErr) throw timeErr;
     }
 
     if (params.rowType === "START") {
@@ -2100,4 +2134,59 @@ export async function updateQuickMeterValue(params: {
     return { success: false, error: err.message || "Gagal memperbarui nilai meter." };
   }
 }
+/**
+ * Update tanggal & jam untuk sebuah baris header produksi (Panel atau Meter)
+ */
+export async function updateRecordTimestamp(params: {
+  headerId: string;
+  newTanggal: string; // YYYY-MM-DD
+  newJam: string;     // HH:mm or HH:mm:ss
+}): Promise<{ success: boolean; error?: string; shiftInfo?: string }> {
+  try {
+    const supabase = await createAdminClient();
+    const { data: header, error: hErr } = await supabase
+      .from("production_headers")
+      .select("id, tgl, tanggal_jam")
+      .eq("id", params.headerId)
+      .single();
 
+    if (hErr || !header) {
+      return { success: false, error: "Data header tidak ditemukan: " + (hErr?.message || "") };
+    }
+
+    const targetDate = params.newTanggal.trim();
+    let targetTime = params.newJam.trim();
+    if (targetTime.length === 5) targetTime += ":00";
+
+    const newTanggalJam = `${targetDate} ${targetTime}`;
+    const newTgl = getShiftDate(newTanggalJam);
+    const shiftName = getShiftName(newTanggalJam);
+
+    const { error: updErr } = await supabase
+      .from("production_headers")
+      .update({
+        tanggal_jam: newTanggalJam,
+        tgl: newTgl,
+        is_synced_to_sheet: false,
+      })
+      .eq("id", params.headerId);
+
+    if (updErr) throw updErr;
+
+    revalidatePath("/(dashboard)/shift-history/detail");
+    revalidatePath("/shift-history/detail");
+    revalidatePath("/(employee)/history/detail");
+    revalidatePath("/history/detail");
+    revalidatePath("/history");
+    revalidatePath("/reports/monthly-machine");
+    revalidatePath("/reports/daily-production");
+
+    return { 
+      success: true, 
+      shiftInfo: `${shiftName} (${newTgl})` 
+    };
+  } catch (err: any) {
+    console.error("Error updateRecordTimestamp:", err);
+    return { success: false, error: err.message || "Gagal memperbarui waktu inputan." };
+  }
+}

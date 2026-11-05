@@ -183,6 +183,8 @@ export const REGISTERED_MACHINES = [
   "R3B",
   "R11",
   "R12",
+  "R13",
+  "R14",
   "R16",
   "T1C",
   "T2A",

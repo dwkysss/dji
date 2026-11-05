@@ -27,6 +27,7 @@ import {
   Loader2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 import {
   getDailyInspectMendingReport,
   DailyInspectMendingRow,
@@ -38,19 +39,7 @@ import {
   syncAllDailyInspectMending,
 } from "@/actions/google-sheet-actions";
 
-const MACHINES = [
-  "ALL",
-  "R1",
-  "R2",
-  "R1C",
-  "R2C",
-  "R3B",
-  "R11",
-  "R12",
-  "R16",
-  "T1C",
-  "T2A",
-];
+const MACHINES = ["ALL", ...REGISTERED_MACHINES];
 
 export type DailySortField =
   | "tgl_inspect"

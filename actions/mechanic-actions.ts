@@ -143,6 +143,7 @@ export async function cancelMechanicDowntime(headerId: string) {
       db = await createClient();
     }
     await db.from("downtime_records").delete().eq("header_id", headerId);
+    await db.from("production_details").delete().eq("header_id", headerId);
     await db.from("production_headers").delete().eq("id", headerId);
     return { success: true };
   } catch (error: any) {

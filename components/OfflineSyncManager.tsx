@@ -15,6 +15,8 @@ export default function OfflineSyncManager() {
   const [isOffline, setIsOffline] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const isSyncingRef = React.useRef(false);
+  const syncStartTimeRef = React.useRef<number | null>(null);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
   const [lastSyncedCount, setLastSyncedCount] = useState(0);
 
@@ -81,8 +83,18 @@ export default function OfflineSyncManager() {
     window.addEventListener("dji_offline_queue_changed", handleQueueChanged);
 
     // Pengecekan dan sinkronisasi berkala (tiap 20 detik)
+    // Juga watchdog: force reset jika isSyncing macet > 25 detik
     const interval = setInterval(() => {
-      if (navigator.onLine && !isSyncing) {
+      if (isSyncingRef.current && syncStartTimeRef.current) {
+        const elapsed = Date.now() - syncStartTimeRef.current;
+        if (elapsed > 25000) {
+          console.warn("[OfflineSync] Watchdog: sync macet > 25s, force reset.");
+          isSyncingRef.current = false;
+          syncStartTimeRef.current = null;
+          setIsSyncing(false);
+        }
+      }
+      if (navigator.onLine && !isSyncingRef.current) {
         processQueue();
       }
     }, 20000);
@@ -94,7 +106,7 @@ export default function OfflineSyncManager() {
       window.removeEventListener("dji_offline_queue_changed", handleQueueChanged);
       clearInterval(interval);
     };
-  }, [isSyncing, isLoggedIn]);
+  }, [isLoggedIn]);
 
   const checkPendingQueue = async () => {
     try {
@@ -106,33 +118,72 @@ export default function OfflineSyncManager() {
   };
 
   const processQueue = async () => {
-    if (isSyncing) return;
+    if (isSyncingRef.current || isSyncing) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       return;
     }
 
     try {
       const payloads = await getAllPendingPayloads();
-      if (payloads.length === 0) {
+      if (!payloads || payloads.length === 0) {
         setPendingCount(0);
         return;
       }
 
+      isSyncingRef.current = true;
+      syncStartTimeRef.current = Date.now();
       setIsSyncing(true);
+      setPendingCount(payloads.length);
+
+      // Deduplikasi payload sebelum dikirim untuk mencegah duplikat akibat lag
+      const seenKeys = new Set<string>();
+      const cleanPayloads: any[] = [];
+      const redundantIds: string[] = [];
+
+      for (const p of payloads) {
+        const pData = p.data || {};
+        const isBs = Boolean(pData.isPanelGagal || pData.isPanelBs || String(pData.panelNo || "").includes("BS"));
+        const mc = String(pData.nomorMc || "").trim().toUpperCase();
+        const pot = String(pData.potonganKe || "").trim();
+        const pnl = String(pData.panelNo || "").trim();
+        const op = String(pData.operatorId || "").trim();
+
+        const queueKey = !isBs && pnl && pot && mc ? `${mc}_${pot}_${pnl}_${op}` : null;
+        if (queueKey && seenKeys.has(queueKey)) {
+          console.warn("[OfflineSync] Menghapus item duplikat dari antrean lokal:", queueKey);
+          redundantIds.push(p.id);
+          continue;
+        }
+        if (queueKey) seenKeys.add(queueKey);
+        cleanPayloads.push(p);
+      }
+
+      for (const rId of redundantIds) {
+        await removePendingPayload(rId).catch(() => {});
+      }
 
       // Format payload untuk batch sync via standard HTTP API
-      const itemsToSend = payloads.map((p) => ({
+      const itemsToSend = cleanPayloads.map((p) => ({
         id: p.id,
         type: p.type,
         timestamp: p.timestamp,
         data: p.data,
       }));
 
-      const res = await fetch("/api/mobile/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: itemsToSend }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      let res: Response;
+      try {
+        res = await fetch("/api/mobile/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: itemsToSend }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (res.ok) {
         const result = await res.json();
@@ -163,8 +214,8 @@ export default function OfflineSyncManager() {
         // Catat retry count untuk payload yang tersisa
         for (const item of remaining) {
           const currentRetries = (item.retryCount || 0) + 1;
-          if (currentRetries >= 5) {
-            console.warn(`[OfflineSync] Payload ${item.id} gagal setelah 5 percobaan. Dihapus dari antrean lokal.`);
+          if (currentRetries >= 3) {
+            console.warn(`[OfflineSync] Payload ${item.id} gagal setelah 3 percobaan. Dihapus dari antrean lokal agar tidak macet.`);
             await removePendingPayload(item.id);
           } else {
             await updatePendingPayload({
@@ -173,11 +224,23 @@ export default function OfflineSyncManager() {
             });
           }
         }
+      } else {
+        console.error("[OfflineSync] Server sync mengembalikan HTTP error:", res.status);
+        for (const p of payloads) {
+          const retries = (p.retryCount || 0) + 1;
+          if (retries >= 3) {
+            await removePendingPayload(p.id);
+          } else {
+            await updatePendingPayload({ ...p, retryCount: retries });
+          }
+        }
       }
     } catch (err) {
       // Jaringan terputus / server unreachable - tunda secara senyap
       console.log("[OfflineSync] Sinkronisasi tertunda (server tidak terjangkau):", err);
     } finally {
+      isSyncingRef.current = false;
+      syncStartTimeRef.current = null;
       setIsSyncing(false);
     }
   };
@@ -188,6 +251,7 @@ export default function OfflineSyncManager() {
       try {
         await clearAllPendingPayloads();
         setPendingCount(0);
+        isSyncingRef.current = false;
         setIsSyncing(false);
       } catch (e) {
         console.error(e);
@@ -219,9 +283,19 @@ export default function OfflineSyncManager() {
 
       {/* 1. Banner Proses Sinkronisasi Sedang Berlangsung */}
       {!isOffline && isSyncing && (
-        <div className="flex items-center gap-2.5 bg-sky-950/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-sky-600/60 text-xs font-semibold animate-in fade-in">
-          <RefreshCw className="w-4 h-4 text-sky-400 animate-spin shrink-0" />
-          <span>Menyinkronkan data offline ke database...</span>
+        <div className="flex items-center justify-between gap-2.5 bg-sky-950/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-sky-600/60 text-xs font-semibold animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-sky-400 animate-spin shrink-0" />
+            <span>Menyinkronkan data offline ke database...</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleClearQueue}
+            className="p-1 hover:bg-sky-900 text-sky-300 hover:text-rose-400 rounded-md transition-colors cursor-pointer"
+            title="Bersihkan antrean lokal yang macet"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 

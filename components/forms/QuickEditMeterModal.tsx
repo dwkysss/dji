@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Save, Loader2, AlertCircle, ArrowUpRight, Gauge, Layers, Wrench, Clock } from "lucide-react";
+import { X, Save, Loader2, AlertCircle, ArrowUpRight, Gauge, Calendar, Clock } from "lucide-react";
 import { updateQuickMeterValue } from "@/actions/continuous-actions";
+import { parseAsWibDate, getShiftDate, getShiftName } from "@/lib/shift-utils";
 
 export interface QuickEditMeterModalProps {
   isOpen: boolean;
@@ -11,6 +12,8 @@ export interface QuickEditMeterModalProps {
     displayNo?: string;
     tglStr?: string;
     jamStr?: string;
+    rawTanggalJam?: string;
+    rawTgl?: string;
     grpStr?: string;
     oprStr?: string;
     meterDisplay?: string;
@@ -46,6 +49,8 @@ export default function QuickEditMeterModal({
   onSuccess,
 }: QuickEditMeterModalProps) {
   const [meterVal, setMeterVal] = useState<string>("");
+  const [tanggalVal, setTanggalVal] = useState<string>("");
+  const [jamVal, setJamVal] = useState<string>("");
   const [kategori, setKategori] = useState<string>("A");
   const [detailMasalah, setDetailMasalah] = useState<string>("");
   const [blok, setBlok] = useState<string>("");
@@ -64,7 +69,9 @@ export default function QuickEditMeterModal({
     kategori: string;
     detail: string;
     blok: string;
-  }>({ kategori: "A", detail: "", blok: "" });
+    tanggal: string;
+    jam: string;
+  }>({ kategori: "A", detail: "", blok: "", tanggal: "", jam: "" });
 
   useEffect(() => {
     if (!rowItem) return;
@@ -73,6 +80,39 @@ export default function QuickEditMeterModal({
     // Parse meter awal
     const rawMeter = rowItem.meterDisplay && rowItem.meterDisplay !== "-" ? rowItem.meterDisplay : "";
     setMeterVal(rawMeter.replace(/[^0-9.]/g, ""));
+
+    // Parse tanggal awal
+    let initTgl = rowItem.rawTgl || "";
+    if (!initTgl && rowItem.tglStr && /^\d{4}-\d{2}-\d{2}$/.test(rowItem.tglStr)) {
+      initTgl = rowItem.tglStr;
+    }
+    if (!initTgl && rowItem.rawTanggalJam) {
+      const dt = parseAsWibDate(rowItem.rawTanggalJam);
+      if (!isNaN(dt.getTime())) {
+        const wibIso = new Date(dt.getTime() + 7 * 3600 * 1000).toISOString();
+        initTgl = wibIso.slice(0, 10);
+      }
+    }
+    if (!initTgl) {
+      initTgl = new Date().toISOString().slice(0, 10);
+    }
+    setTanggalVal(initTgl);
+
+    // Parse jam awal (format HH:mm)
+    let initJam = "";
+    if (rowItem.jamStr && /^\d{2}:\d{2}/.test(rowItem.jamStr)) {
+      initJam = rowItem.jamStr.slice(0, 5);
+    } else if (rowItem.rawTanggalJam) {
+      const dt = parseAsWibDate(rowItem.rawTanggalJam);
+      if (!isNaN(dt.getTime())) {
+        const wibIso = new Date(dt.getTime() + 7 * 3600 * 1000).toISOString();
+        initJam = wibIso.slice(11, 16);
+      }
+    }
+    if (!initJam) {
+      initJam = "12:00";
+    }
+    setJamVal(initJam);
 
     // Parse kategori & detail
     const kat = rowItem.kategori_masalah || (rowItem.cacatDisplay && rowItem.cacatDisplay.length === 1 ? rowItem.cacatDisplay : "A");
@@ -92,8 +132,22 @@ export default function QuickEditMeterModal({
       kategori: kat,
       detail: cleanDetail,
       blok: parsedBlok,
+      tanggal: initTgl,
+      jam: initJam,
     });
   }, [rowItem, isOpen]);
+
+  const shiftPreview = React.useMemo(() => {
+    if (!tanggalVal || !jamVal) return null;
+    try {
+      const ts = `${tanggalVal} ${jamVal.length === 5 ? `${jamVal}:00` : jamVal}`;
+      const shift = getShiftName(ts);
+      const opDate = getShiftDate(ts);
+      return { shift, opDate };
+    } catch {
+      return null;
+    }
+  }, [tanggalVal, jamVal]);
 
   if (!isOpen || !rowItem) return null;
 
@@ -115,6 +169,16 @@ export default function QuickEditMeterModal({
       return;
     }
 
+    if (!tanggalVal) {
+      setErrorMsg("Tanggal input tidak boleh kosong.");
+      return;
+    }
+
+    if (!jamVal) {
+      setErrorMsg("Jam input tidak boleh kosong.");
+      return;
+    }
+
     setIsSaving(true);
     setErrorMsg(null);
 
@@ -131,6 +195,8 @@ export default function QuickEditMeterModal({
         newMeter: num,
         rowType,
         pcsIndex: rowItem.pcs_index,
+        newTanggal: tanggalVal,
+        newJam: jamVal,
         // Jangan kirim field cacat jika user hanya mengedit meter agar daftar cacat bertingkat tidak tertimpa/hilang
         newKategori: rowType === "DEFECT" && isDefectChanged ? kategori : undefined,
         newDetailMasalah: rowType === "DEFECT" && isDefectChanged ? detailMasalah : undefined,
@@ -156,11 +222,11 @@ export default function QuickEditMeterModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-scaleIn"
+        className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-scaleIn max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/70">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-xs ${
               isStart ? "bg-indigo-600" : isFinish ? "bg-emerald-600" : "bg-sky-600"
@@ -169,13 +235,13 @@ export default function QuickEditMeterModal({
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                <span>Edit Data Meter</span>
+                <span>Edit Data Meter & Waktu</span>
                 <span className="text-xs px-2 py-0.5 rounded-md bg-sky-100/80 text-sky-800 font-extrabold">
                   Baris #{rowItem.displayNo || "-"}
                 </span>
               </h3>
               <p className="text-[11px] text-slate-500 font-medium">
-                {rowItem.oprStr || "Operator"} {rowItem.grpStr ? `(${rowItem.grpStr})` : ""} • Jam {rowItem.jamStr || "-"}
+                {rowItem.oprStr || "Operator"} {rowItem.grpStr ? `(${rowItem.grpStr})` : ""}
               </p>
             </div>
           </div>
@@ -189,7 +255,7 @@ export default function QuickEditMeterModal({
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSave} className="p-5 flex flex-col gap-4">
+        <form onSubmit={handleSave} className="p-5 flex flex-col gap-4 overflow-y-auto">
           {errorMsg && (
             <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2 text-xs font-semibold animate-fadeIn">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
@@ -215,6 +281,58 @@ export default function QuickEditMeterModal({
               <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-bold">
                 PCS {rowItem.pcs_index}
               </span>
+            )}
+          </div>
+
+          {/* Kolom Tanggal & Jam Inputan */}
+          <div className="flex flex-col gap-2 p-3 bg-gradient-to-br from-sky-50/60 to-slate-50 rounded-xl border border-sky-200/70">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase text-sky-900 tracking-wider flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-sky-600" />
+                Waktu Input Sesi / Baris
+              </span>
+              <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md">
+                Cut-off 07:10 WIB
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-sky-600" />
+                  Tanggal
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={tanggalVal}
+                  onChange={(e) => setTanggalVal(e.target.value)}
+                  className="w-full text-xs font-bold px-2.5 py-2 rounded-xl border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 shadow-2xs outline-hidden"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-sky-600" />
+                  Jam
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={jamVal}
+                  onChange={(e) => setJamVal(e.target.value)}
+                  className="w-full text-xs font-bold px-2.5 py-2 rounded-xl border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 shadow-2xs outline-hidden"
+                />
+              </div>
+            </div>
+
+            {/* Info Preview Shift */}
+            {shiftPreview && (
+              <div className="mt-1 flex items-center justify-between text-[11px] bg-white/90 border border-sky-100 rounded-lg px-2.5 py-1.5 text-slate-700">
+                <span className="text-slate-500">Masuk Laporan:</span>
+                <span className="font-bold text-sky-900">
+                  {shiftPreview.shift} • Tgl {shiftPreview.opDate}
+                </span>
+              </div>
             )}
           </div>
 

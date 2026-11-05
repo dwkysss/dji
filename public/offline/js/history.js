@@ -269,7 +269,46 @@
       });
     }
 
-    const rawAll = [...localQueueItems, ...(serverData || [])];
+    // Filter out local queue items that already exist in serverData (prevent duplicate ghost rows after sync)
+    const serverPanelKeys = new Set();
+    const serverIdemKeys = new Set();
+
+    (serverData || []).forEach(s => {
+      const sMc = String(s.nomor_mc || s.nomorMc || "").trim().toUpperCase();
+      const sPot = String(s.potongan_ke || s.potonganKe || "").trim();
+      const sPnl = String(s.panel_no || s.panelNo || "").trim().toUpperCase();
+      const sIdem = String(s.idempotency_key || s.idempotencyKey || "").trim();
+      const sId = String(s.id || "").trim();
+
+      if (sId) serverIdemKeys.add(sId);
+      if (sIdem) serverIdemKeys.add(sIdem);
+      if (sMc && sPot && sPnl) {
+        serverPanelKeys.add(`${sMc}_${sPot}_${sPnl}`);
+      }
+    });
+
+    const cleanLocalQueue = localQueueItems.filter(l => {
+      const lId = String(l.id || "").trim();
+      const lIdem = String(l.data?.idempotencyKey || l.idempotencyKey || l.id || "").trim();
+      const lMc = String(l.nomor_mc || l.nomorMc || curMc).trim().toUpperCase();
+      const lPot = String(l.potongan_ke || l.potonganKe || curPot).trim();
+      const lPnl = String(l.panel_no || l.panelNo || "").trim().toUpperCase();
+
+      // 1. Cek kecocokan ID / idempotency
+      if (lId && serverIdemKeys.has(lId)) return false;
+      if (lIdem && serverIdemKeys.has(lIdem)) return false;
+
+      // 2. Untuk panel biasa (non-METERAN): jika server sudah punya panel ini, jangan gandakan!
+      if (lPnl !== "METERAN") {
+        if (serverPanelKeys.has(`${lMc}_${lPot}_${lPnl}`)) return false;
+        if (lPnl.includes("AWAL") && serverPanelKeys.has(`${lMc}_${lPot}_BS AWAL`)) return false;
+        if (lPnl.includes("AKHIR") && serverPanelKeys.has(`${lMc}_${lPot}_BS AKHIR`)) return false;
+      }
+
+      return true;
+    });
+
+    const rawAll = [...cleanLocalQueue, ...(serverData || [])];
 
     // Saring Laporan Downtime Khusus (Mesin Berhenti Total / Downtime Mekanik Direct)
     let specialDowntimePanels = rawAll.filter(item => {
@@ -491,7 +530,21 @@
         const key = panel.panel_no;
         const existing = seenPanelNo.get(key);
         if (existing) {
-          existing.production_details.push(...(panel.production_details || []));
+          // Jika salah satu dari antrean lokal dan satu lagi data server, utamakan versi server
+          if (existing.isLocalQueue && !panel.isLocalQueue) {
+            seenPanelNo.set(key, panel);
+            return;
+          }
+          if (!existing.isLocalQueue && panel.isLocalQueue) {
+            return;
+          }
+
+          // Hanya merge jika ada detail masalah yang benar-benar berbeda
+          const existingDetKeys = new Set((existing.production_details || []).map(d => `${d.pcs_index}_${d.kategori_masalah}_${d.detail_masalah}_${d.meter_kain}`));
+          const newDetails = (panel.production_details || []).filter(d => !existingDetKeys.has(`${d.pcs_index}_${d.kategori_masalah}_${d.detail_masalah}_${d.meter_kain}`));
+          if (newDetails.length > 0) {
+            existing.production_details.push(...newDetails);
+          }
           let existingDt = [];
           try {
             const parsed = typeof existing.downtime_events === 'string' ? JSON.parse(existing.downtime_events) : existing.downtime_events;

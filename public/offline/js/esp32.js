@@ -10,21 +10,21 @@
   const { showToast } = window.DJIConfig;
   const { appState } = window.DJIState;
 
-  const DEFAULT_HOSTNAME = "192.168.0.171";
+  const DEFAULT_HOSTNAME = "192.168.1.171";
   const STORAGE_KEY = "wifi_esp32_target";
 
   // Standard machine mapping: Machine Code -> Channel (M1, M2, M3)
   const DEFAULT_MACHINE_ESP_MAP = {
-    "R1": { host: "192.168.0.171", channel: "M1" },
-    "R11": { host: "192.168.0.171", channel: "M2" },
-    "R12": { host: "192.168.0.171", channel: "M3" },
-    "R2": { host: "192.168.0.171", channel: "M1" },
-    "R1C": { host: "192.168.0.171", channel: "M2" },
-    "R2C": { host: "192.168.0.171", channel: "M3" },
-    "R3B": { host: "192.168.0.171", channel: "M1" },
-    "T1C": { host: "192.168.0.171", channel: "M1" },
-    "T2A": { host: "192.168.0.171", channel: "M2" },
-    "R16": { host: "192.168.0.171", channel: "M3" }
+    "R1": { host: "192.168.1.171", channel: "M1" },
+    "R11": { host: "192.168.1.171", channel: "M2" },
+    "R12": { host: "192.168.1.171", channel: "M3" },
+    "R2": { host: "192.168.1.171", channel: "M1" },
+    "R1C": { host: "192.168.1.171", channel: "M2" },
+    "R2C": { host: "192.168.1.171", channel: "M3" },
+    "R3B": { host: "192.168.1.171", channel: "M1" },
+    "T1C": { host: "192.168.1.171", channel: "M1" },
+    "T2A": { host: "192.168.1.171", channel: "M2" },
+    "R16": { host: "192.168.1.171", channel: "M3" }
   };
 
   let socket = null;

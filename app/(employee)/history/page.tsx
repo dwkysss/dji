@@ -553,7 +553,7 @@ export default function EmployeeHistoryPage() {
                   className="h-11 px-3.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none transition-all text-sm font-semibold text-slate-700 shadow-xs w-full cursor-pointer appearance-none"
                 >
                   <option value="">-- Pilih Mesin --</option>
-                  {Array.from(new Set([...REGISTERED_MACHINES, "R13"])).map((mc) => (
+                  {REGISTERED_MACHINES.map((mc) => (
                     <option key={mc} value={mc}>
                       Mesin {mc}
                     </option>
@@ -757,9 +757,15 @@ export default function EmployeeHistoryPage() {
                           </td>
                           <td className="px-2 py-2 text-center whitespace-nowrap">
                             {batch.total_panels === 0 && batch.total_meter === 0 ? (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700">
-                                Laporan Downtime Khusus
-                              </span>
+                              batch.has_machine_stop ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                                  Mesin Mati{batch.machine_stop_reason ? `: ${batch.machine_stop_reason}` : ""}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700">
+                                  Laporan Downtime Khusus
+                                </span>
+                              )
                             ) : (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">
                                 {batch.is_meter ? `${batch.total_meter || 0} Meter` : `${batch.total_panels} Panel`}

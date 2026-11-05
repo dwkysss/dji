@@ -24,7 +24,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cancelMechanicDowntime } from "@/actions/mechanic-actions";
-import { parseAsWibDate } from "@/lib/shift-utils";
+import { parseAsWibDate, getShiftName } from "@/lib/shift-utils";
 import { useAuth } from "@/lib/auth-context";
 import PanelHistoryTable from "@/app/(employee)/history/detail/components/PanelHistoryTable";
 import MeterHistoryTable from "@/app/(employee)/history/detail/components/MeterHistoryTable";
@@ -76,6 +76,23 @@ function ShiftHistoryDetailContent() {
     const opMatch = raw.match(/^Operator\s*\((.*)\)$/i);
     if (opMatch && opMatch[1]) return opMatch[1].trim();
     return raw.replace(/^Perbaikan Khusus\s*/i, "").replace(/^Operator\s*/i, "").trim() || raw;
+  };
+
+  const formatWibDate = (dateVal?: string): string => {
+    if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
+    try {
+      const dt = parseAsWibDate(dateVal);
+      if (isNaN(dt.getTime())) return "-";
+      return new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        weekday: "long",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(dt);
+    } catch {
+      return "-";
+    }
   };
 
   const formatWibTime = (dateVal?: string): string => {
@@ -799,6 +816,8 @@ function ShiftHistoryDetailContent() {
             if (!sourcePanels || sourcePanels.length === 0) return null;
             const rows: any[] = [];
             sourcePanels.forEach((mp: any) => {
+              const rawDate = mp.tgl || mp.tanggal_jam || mp.created_at;
+              const dateStr = formatWibDate(rawDate);
               let dtEvents: any[] = [];
               try {
                 dtEvents = typeof mp.downtime_events === 'string' ? JSON.parse(mp.downtime_events) : (mp.downtime_events || []);
@@ -817,6 +836,7 @@ function ShiftHistoryDetailContent() {
                         headerId: mp.id,
                         panelNo: panelLabel,
                         timeStr,
+                        dateStr,
                         penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
                         shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
                         durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
@@ -832,6 +852,7 @@ function ShiftHistoryDetailContent() {
                       headerId: mp.id,
                       panelNo: panelLabel,
                       timeStr,
+                      dateStr,
                       penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
                       shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
                       durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
@@ -851,6 +872,7 @@ function ShiftHistoryDetailContent() {
                     headerId: mp.id,
                     panelNo: panelLabel,
                     timeStr,
+                    dateStr,
                     penanggungJawab: cleanPenanggungJawab(dr.dikerjakan_oleh || mp.pic || mp.operators?.nama_operator),
                     shift: mp.grup || mp.groups?.nama_grup || "-",
                     durasiDisplay: formatDurationNice(dr.durasi_detik || mp.total_downtime_detik || 0),
@@ -866,11 +888,39 @@ function ShiftHistoryDetailContent() {
                   headerId: mp.id,
                   panelNo: panelLabel,
                   timeStr,
+                  dateStr,
                   penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
-                  shift: mp.grup || mp.groups?.nama_grup || "-",
+                  shift: mp.grup || mp.groups?.nama_grup || (mp.group_id === 1 ? "A" : mp.group_id === 2 ? "B" : mp.group_id === 3 ? "C" : "-"),
                   durasiDisplay: formatDurationNice(mp.total_downtime_detik || 0),
+                  isMachineStop: false,
                   kategori: mp.kategori_masalah || "-",
                   detailMasalah: mp.detail_masalah || "-",
+                });
+              } else if (mp.panel_no === "BERHENTI" || (mp.production_details && mp.production_details.some((d: any) => d.indikator_stop))) {
+                const rawTime = mp.tanggal_jam || mp.created_at;
+                const timeStr = formatWibTime(rawTime);
+                const derivedShift = rawTime ? (getShiftName(rawTime) === "Shift 1" ? "A" : (getShiftName(rawTime) === "Shift 2" ? "B" : "C")) : "-";
+                const shiftStr = mp.grup || mp.groups?.nama_grup || (mp.group_id === 1 ? "A" : mp.group_id === 2 ? "B" : mp.group_id === 3 ? "C" : derivedShift);
+                const details = (mp.production_details && mp.production_details.length > 0)
+                  ? mp.production_details
+                  : [{ kategori_masalah: mp.kategori_masalah, detail_masalah: mp.detail_masalah }];
+
+                details.forEach((d: any, dIdx: number) => {
+                  const kat = d.kategori_masalah || mp.kategori_masalah || "G";
+                  const detailTxt = d.detail_masalah || mp.detail_masalah || "Mesin Berhenti / Tidak Beroperasi";
+                  rows.push({
+                    id: `${mp.id}-stop-${dIdx}`,
+                    headerId: mp.id,
+                    panelNo: panelLabel || "Mesin Mati",
+                    timeStr,
+                    dateStr,
+                    penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
+                    shift: shiftStr,
+                    durasiDisplay: "Mesin Berhenti",
+                    isMachineStop: true,
+                    kategori: kat,
+                    detailMasalah: detailTxt,
+                  });
                 });
               }
             });
@@ -909,10 +959,19 @@ function ShiftHistoryDetailContent() {
                 <div className="bg-slate-50/60 divide-y divide-slate-100">
                   {rows.map((row) => (
                     <div key={row.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-slate-50 transition-colors">
-                      {/* Time */}
-                      <div className="flex items-center gap-2 shrink-0 w-20">
+                      {/* Time & Date */}
+                      <div className="flex items-center gap-2 shrink-0">
                         <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
-                        <span className="text-sm font-black text-slate-800">{row.timeStr}</span>
+                        <div className="flex flex-col">
+                          {row.dateStr && row.dateStr !== "-" && (
+                            <span className="text-[10px] font-bold text-slate-500 leading-tight">
+                              {row.dateStr}
+                            </span>
+                          )}
+                          <span className="text-xs font-black text-slate-800 font-mono leading-tight">
+                            {row.timeStr} WIB
+                          </span>
+                        </div>
                       </div>
 
                       {/* Penanggung Jawab */}
@@ -940,14 +999,14 @@ function ShiftHistoryDetailContent() {
 
                       {/* Durasi & Kategori - Pushed to Right on Desktop */}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:ml-auto gap-3 sm:gap-4 mt-2 sm:mt-0">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-600 rounded-md border border-red-100 shrink-0 self-start sm:self-auto">
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border shrink-0 self-start sm:self-auto ${row.isMachineStop ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-red-50 text-red-600 border-red-100"}`}>
                           <Clock className="w-3.5 h-3.5" />
                           <span className="text-xs font-black">{row.durasiDisplay}</span>
                         </div>
                         <div className="flex flex-col sm:items-end">
                           <div className="flex items-center gap-1.5">
-                            <span className="px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-700 text-xs font-extrabold">
-                              {row.kategori === "-" ? "Problem" : `Kategori ${row.kategori}`}
+                            <span className={`px-2 py-0.5 rounded-md border text-xs font-extrabold ${row.isMachineStop ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-sky-50 border-sky-200 text-sky-700"}`}>
+                              {row.kategori === "-" ? "Problem" : (row.kategori.startsWith("Kategori") ? row.kategori : `Kategori ${row.kategori}`)}
                             </span>
                           </div>
                           <span className="text-[11px] text-slate-700 font-medium mt-1 max-w-[200px] sm:text-right truncate">

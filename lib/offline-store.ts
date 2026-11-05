@@ -136,20 +136,47 @@ export async function getAllPendingPayloads(): Promise<OfflinePayload[]> {
 }
 
 export async function updatePendingPayload(payload: OfflinePayload): Promise<void> {
-  const db = await openOfflineDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(payload);
+  // 1. Update di IndexedDB
+  try {
+    const db = await openOfflineDB();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.put(payload);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject("Gagal mengupdate antrean offline.");
+    });
+  } catch (e) {}
 
-    request.onsuccess = () => {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("dji_offline_queue_changed"));
+  // 2. Update retryCount di localStorage dji_offline_queue
+  if (typeof window !== "undefined") {
+    try {
+      const rawQueue = localStorage.getItem("dji_offline_queue");
+      if (rawQueue) {
+        const parsed = JSON.parse(rawQueue);
+        if (Array.isArray(parsed)) {
+          const updated = parsed.map((it: any) =>
+            it.id === payload.id ? { ...it, retryCount: payload.retryCount } : it
+          );
+          localStorage.setItem("dji_offline_queue", JSON.stringify(updated));
+        }
       }
-      resolve();
-    };
-    request.onerror = () => reject("Gagal mengupdate antrean offline.");
-  });
+    } catch (e) {}
+
+    // 3. Update retryCount di localStorage dji_qc_offline_queue
+    try {
+      const rawQc = localStorage.getItem("dji_qc_offline_queue");
+      if (rawQc) {
+        const parsedQc = JSON.parse(rawQc);
+        if (Array.isArray(parsedQc)) {
+          const updatedQc = parsedQc.map((it: any) =>
+            it.id === payload.id ? { ...it, retryCount: payload.retryCount } : it
+          );
+          localStorage.setItem("dji_qc_offline_queue", JSON.stringify(updatedQc));
+        }
+      }
+    } catch (e) {}
+  }
 }
 
 export async function removePendingPayload(id: string): Promise<void> {

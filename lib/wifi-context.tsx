@@ -36,16 +36,16 @@ export interface MachineEspMapping {
 
 // Pemetaan Standar Mesin ke Target Host ESP32 & Channel Pin
 export const DEFAULT_MACHINE_ESP_MAP: Record<string, MachineEspMapping> = {
-  "R1": { host: "192.168.0.171", channel: "M1" },
-  "R11": { host: "192.168.0.171", channel: "M2" },
-  "R12": { host: "192.168.0.171", channel: "M3" },
-  "R2": { host: "192.168.0.171", channel: "M1" },
-  "R1C": { host: "192.168.0.171", channel: "M2" },
-  "R2C": { host: "192.168.0.171", channel: "M3" },
-  "R3B": { host: "192.168.0.171", channel: "M1" },
-  "T1C": { host: "192.168.0.171", channel: "M1" },
-  "T2A": { host: "192.168.0.171", channel: "M2" },
-  "R16": { host: "192.168.0.171", channel: "M3" },
+  "R1": { host: "192.168.1.171", channel: "M1" },
+  "R11": { host: "192.168.1.171", channel: "M2" },
+  "R12": { host: "192.168.1.171", channel: "M3" },
+  "R2": { host: "192.168.1.171", channel: "M1" },
+  "R1C": { host: "192.168.1.171", channel: "M2" },
+  "R2C": { host: "192.168.1.171", channel: "M3" },
+  "R3B": { host: "192.168.1.171", channel: "M1" },
+  "T1C": { host: "192.168.1.171", channel: "M1" },
+  "T2A": { host: "192.168.1.171", channel: "M2" },
+  "R16": { host: "192.168.1.171", channel: "M3" },
 };
 
 export const MACHINE_ESP32_MAP = DEFAULT_MACHINE_ESP_MAP;
@@ -125,7 +125,7 @@ interface WifiContextType {
 
 const WifiContext = createContext<WifiContextType | undefined>(undefined);
 
-const DEFAULT_HOSTNAME = "192.168.0.171";
+const DEFAULT_HOSTNAME = "192.168.1.171";
 const STORAGE_KEY = "wifi_esp32_target";
 const MAP_STORAGE_KEY = "wifi_machine_esp32_map";
 
@@ -613,7 +613,7 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
   // Polling HTTP Fallback HANYA di lingkungan HTTP (bukan HTTPS produksi yang memblokir mixed-content)
   // dan HANYA di halaman mesin saat WebSocket terputus
   useEffect(() => {
-    // 1. Browser di HTTPS akan memblokir http://192.168.0.171 (Mixed Content Violation)
+    // 1. Browser di HTTPS akan memblokir http://192.168.1.171 (Mixed Content Violation)
     if (typeof window !== "undefined" && window.location.protocol === "https:") {
       return;
     }
@@ -646,7 +646,9 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        setTargetHostState(stored);
+        const cleanStored = stored === "192.168.0.171" ? "192.168.1.171" : stored;
+        if (cleanStored !== stored) localStorage.setItem(STORAGE_KEY, cleanStored);
+        setTargetHostState(cleanStored);
       }
       const storedMap = localStorage.getItem(MAP_STORAGE_KEY);
       if (storedMap) {
@@ -654,8 +656,8 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           const parsed = JSON.parse(storedMap);
           let mapChanged = false;
           Object.keys(parsed).forEach((key) => {
-            if (parsed[key]?.host === "192.168.0.172" || parsed[key]?.host === "192.168.0.173") {
-              parsed[key].host = "192.168.0.171";
+            if (parsed[key]?.host === "192.168.0.171" || parsed[key]?.host === "192.168.0.172" || parsed[key]?.host === "192.168.0.173") {
+              parsed[key].host = "192.168.1.171";
               mapChanged = true;
             }
           });
@@ -680,8 +682,8 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
           const dbData = { ...res.data };
           let dbChanged = false;
           Object.keys(dbData).forEach((key) => {
-            if (dbData[key]?.host === "192.168.0.172" || dbData[key]?.host === "192.168.0.173") {
-              dbData[key].host = "192.168.0.171";
+            if (dbData[key]?.host === "192.168.0.171" || dbData[key]?.host === "192.168.0.172" || dbData[key]?.host === "192.168.0.173") {
+              dbData[key].host = "192.168.1.171";
               dbChanged = true;
             }
           });

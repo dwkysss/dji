@@ -354,9 +354,16 @@
     }
   }
 
+  let isSyncingQueue = false;
+
   async function trySyncQueueNow() {
     if (!navigator.onLine) {
       showToast("Tidak ada koneksi internet. Data tetap aman di memori perangkat.");
+      return;
+    }
+
+    if (isSyncingQueue) {
+      console.log("[Sync] Sinkronisasi antrean sedang berjalan, mencegah eksekusi ganda paralel.");
       return;
     }
 
@@ -369,6 +376,40 @@
     if (queue.length === 0) {
       showToast("Semua data telah tersinkronisasi.");
       return;
+    }
+
+    isSyncingQueue = true;
+
+    // Deduplikasi antrean lokal sebelum dikirim agar tidak ada data ganda akibat lag
+    const seenQueueKeys = new Set();
+    const cleanQueue = [];
+    const redundantIdsToRemove = [];
+
+    for (const item of queue) {
+      const pData = item.data || item;
+      const isBs = Boolean(pData.isPanelGagal || pData.isPanelBs || String(pData.panelNo || '').includes('BS'));
+      const mc = String(pData.nomorMc || item.nomorMc || '').trim().toUpperCase();
+      const pot = String(pData.potonganKe || item.potonganKe || '').trim();
+      const pnl = String(pData.panelNo || item.panelNo || '').trim();
+      const op = String(pData.operatorId || item.operatorId || '').trim();
+
+      const queueKey = !isBs && pnl && pot && mc ? `${mc}_${pot}_${pnl}_${op}` : null;
+      if (queueKey && seenQueueKeys.has(queueKey)) {
+        console.warn("[Sync] Menghapus data duplikat dari antrean lokal sebelum kirim:", queueKey);
+        redundantIdsToRemove.push(item.id);
+        continue;
+      }
+      if (queueKey) seenQueueKeys.add(queueKey);
+      cleanQueue.push(item);
+    }
+
+    for (const rId of redundantIdsToRemove) {
+      if (removePendingFromIDB) await removePendingFromIDB(rId).catch(() => {});
+    }
+    if (redundantIdsToRemove.length > 0) {
+      queue = cleanQueue;
+      localStorage.setItem(KEYS.QUEUE, JSON.stringify(queue));
+      refreshQueueBadge();
     }
 
     // Format items to match backend /api/mobile/sync expectation
@@ -407,6 +448,10 @@
           const countSuccess = succeededIds.size;
           if (countSuccess > 0) {
             showToast(`Berhasil sinkronisasi ${countSuccess} data ke database!`);
+            // Trigger refresh drawer riwayat seketika agar tidak ada data lokal ghost
+            if (window.DJIHistory && typeof window.DJIHistory.refreshHistory === "function") {
+              window.DJIHistory.refreshHistory().catch(() => {});
+            }
           }
 
           if (remainingQueue.length === 0) {
@@ -421,6 +466,8 @@
       }
     } catch (err) {
       console.log("Background sync deferred - server unreachable:", err);
+    } finally {
+      isSyncingQueue = false;
     }
   }
 

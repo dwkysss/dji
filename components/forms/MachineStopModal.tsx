@@ -214,6 +214,7 @@ export default function MachineStopModal({
         status: fullStatus,
         kategoriMasalah: selectedCategory,
         cakupan: cakupan,
+        submittedAt: new Date().toISOString(),
         potonganKe: potonganKe ? String(potonganKe) : undefined,
         designId: designId || undefined,
         rpm: rpm || undefined,

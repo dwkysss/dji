@@ -402,8 +402,10 @@
     initDarkMode();
 
     // 6. Background listeners
-    window.addEventListener("online", () => {
-      trySyncQueueNow();
+    window.addEventListener("online", async () => {
+      try {
+        await trySyncQueueNow();
+      } catch (e) {}
       fetchLiveBootstrap();
       if (window.DJIHistory && window.DJIHistory.fetchServerHistory) {
         window.DJIHistory.fetchServerHistory(true).catch(() => {});

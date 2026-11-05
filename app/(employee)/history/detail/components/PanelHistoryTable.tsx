@@ -2,13 +2,14 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Edit, CheckCircle2, XCircle, Trash2 } from "lucide-react";
+import { Edit, CheckCircle2, XCircle, Trash2, Clock } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 import QuickDefectModal, { QuickDefectData } from "@/components/forms/QuickDefectModal";
 import PinAuthModal from "@/components/PinAuthModal";
 import { updateInstantPanelDefectStatus } from "@/actions/continuous-actions";
 import { parseAsWibDate } from "@/lib/shift-utils";
+import EditTimestampModal from "@/components/forms/EditTimestampModal";
 
 const formatWibTime = (dateVal?: string): string => {
   if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
@@ -85,6 +86,13 @@ export default function PanelHistoryTable({
   } | null>(null);
 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [editingTimestamp, setEditingTimestamp] = useState<{
+    headerId: string;
+    panelNo?: string;
+    tgl?: string;
+    jam?: string;
+    opr?: string;
+  } | null>(null);
 
   const handleSaveQuickDefect = async (defectData: QuickDefectData) => {
     if (!quickDefectModal) return;
@@ -158,7 +166,7 @@ export default function PanelHistoryTable({
         details.forEach((d: any) => {
           list.push({
             ...d,
-            production_headers: p,
+            production_headers: d.production_headers || p,
             final_inspection_id: d.final_inspection_id ?? p.final_inspection_id ?? 1,
           });
         });
@@ -191,12 +199,20 @@ export default function PanelHistoryTable({
       if (!isQcA && isQcB) return -1;
       if (isQcA && !isQcB) return 1;
 
-      const diffJml = (b.jml_hasil_produksi || 0) - (a.jml_hasil_produksi || 0);
-      if (diffJml !== 0) return diffJml;
+      // Jika nomor panel sama, urutkan berdasarkan waktu input kronologis (tanggal_jam)
+      const rawTimeA = a.production_headers?.tanggal_jam || a.tanggal_jam || a.created_at || a.production_headers?.created_at || "";
+      const rawTimeB = b.production_headers?.tanggal_jam || b.tanggal_jam || b.created_at || b.production_headers?.created_at || "";
+      const timeA = rawTimeA ? new Date(rawTimeA).getTime() : 0;
+      const timeB = rawTimeB ? new Date(rawTimeB).getTime() : 0;
+      if (timeA !== timeB && !isNaN(timeA) && !isNaN(timeB) && timeA > 0 && timeB > 0) {
+        return timeA - timeB;
+      }
 
-      const timeA = new Date(a.created_at || a.created_date || 0).getTime();
-      const timeB = new Date(b.created_at || b.created_date || 0).getTime();
-      if (timeA !== timeB && !isNaN(timeA) && !isNaN(timeB)) return timeA - timeB;
+      // Jika waktu sama/tidak ada, dahulukan panel BS (terjadi di awal) sebelum panel Normal
+      const isBsA = a.jml_hasil_produksi === 0 || a.status_inspeksi === "BS" || String(a.production_headers?.panel_no || "").includes("(BS)") || String(a.kategori_masalah || "").includes("BS");
+      const isBsB = b.jml_hasil_produksi === 0 || b.status_inspeksi === "BS" || String(b.production_headers?.panel_no || "").includes("(BS)") || String(b.kategori_masalah || "").includes("BS");
+      if (isBsA && !isBsB) return -1;
+      if (!isBsA && isBsB) return 1;
 
       return String(a.id || "").localeCompare(String(b.id || ""));
     });
@@ -936,14 +952,21 @@ export default function PanelHistoryTable({
                   <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
                 ) : (
                   <div className="flex items-center justify-center gap-1">
-                    {itemHeader?.id && detail.keterangan_cacat !== "FINISH" && !isBsAwal && !isBsAkhir && (
-                      <Link
-                        href={`/edit/${itemHeader.id}`}
-                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors"
-                        title="Edit Data"
+                    {itemHeader?.id && !isBsAwal && !isBsAkhir && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingTimestamp({
+                          headerId: itemHeader.id,
+                          panelNo: cleanPanelNo,
+                          tgl: item.tglStr || item.tgl || itemHeader.tgl || "",
+                          jam: item.jamStr || "",
+                          opr: item.oprStr || itemHeader.operators?.nama_operator || "",
+                        })}
+                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors cursor-pointer"
+                        title="Koreksi Tanggal & Jam"
                       >
-                        <Edit className="w-3.5 h-3.5" />
-                      </Link>
+                        <Clock className="w-3.5 h-3.5" />
+                      </button>
                     )}
                     {setDetailToDelete && (detail.id || itemHeader?.id) && (
                       <button
@@ -1013,6 +1036,22 @@ export default function PanelHistoryTable({
     )}
 
     {/* Confirmation Dialog Ubah ❌ -> ✔ */}
+    {editingTimestamp && (
+      <EditTimestampModal
+        isOpen={Boolean(editingTimestamp)}
+        onClose={() => setEditingTimestamp(null)}
+        headerId={editingTimestamp.headerId}
+        title={`Koreksi Waktu Panel ${editingTimestamp.panelNo || ""}`}
+        subtitle={`${editingTimestamp.opr || "Operator"} • Waktu Sebelumnya: ${editingTimestamp.jam || "-"}`}
+        initialTanggal={editingTimestamp.tgl}
+        initialJam={editingTimestamp.jam}
+        onSuccess={() => {
+          setEditingTimestamp(null);
+          if (onRefresh) onRefresh();
+        }}
+      />
+    )}
+
     {confirmNormalModal && (
       <div
         className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn"

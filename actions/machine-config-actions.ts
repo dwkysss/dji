@@ -12,7 +12,7 @@ export interface MachineConfig {
 const STANDARD_MACHINES = REGISTERED_MACHINES;
 
 const DEFAULT_MACHINES: Record<string, number> = {
-  R1: 1, R2: 1, R1C: 1, R2C: 1, R3B: 1, R11: 1, R12: 1, R13: 3, R16: 1, T1C: 1, T2A: 1,
+  R1: 1, R2: 1, R1C: 1, R2C: 1, R3B: 1, R11: 1, R12: 1, R13: 3, R14: 1, R16: 1, T1C: 1, T2A: 1,
 };
 
 const DEFAULT_INPUT_TYPES: Record<string, "PANEL" | "METER"> = {

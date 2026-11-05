@@ -1,4 +1,4 @@
-﻿/*
+/*
  * =================================================================================
  * PROYEK: ESP32 WI-FI LOKAL MULTI-MACHINE DOWNTIME TIMER (3 MESIN)
  *         (WIFIMANAGER + DYNAMIC CAPTIVE PORTAL + STATIC IP + HEARTBEAT WS)
@@ -32,12 +32,12 @@
 #include <WebSocketsServer.h>
 
 // --- KONFIGURASI WI-FI PABRIK (HARDCODED) ---
-const char* WIFI_SSID     = "Tenda_Produksi";
-const char* WIFI_PASSWORD = "rtomh99555";
+const char* WIFI_SSID     = "Dentelle";
+const char* WIFI_PASSWORD = "inovasikreasi88";
 
 // --- KONFIGURASI STATIC IP DEFAULT (IP Tetap Permanen ESP32 di Pabrik) ---
-IPAddress local_IP(192, 168, 0, 171); // Diubah: subnet router baru 192.168.0.x
-IPAddress gateway(192, 168, 0, 1);   // Diubah: gateway router baru
+IPAddress local_IP(192, 168, 1, 171);
+IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);
@@ -88,7 +88,15 @@ const unsigned long debounceDelay = 500; // Stabilisasi sinyal 500ms
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
-      Serial.printf("[WebSocket] Client [%u] Terputus!\n", num);
+      Serial.printf("[WebSocket] Client [%u] Terputus! (Koneksi aktif tersisa: auto-cleanup)\n", num);
+      break;
+
+    case WStype_PING:
+      // Library otomatis balas dengan PONG - tidak perlu handle manual
+      break;
+
+    case WStype_PONG:
+      // Menerima PONG dari client - client masih aktif, slot tetap terbuka
       break;
 
     case WStype_CONNECTED: {
@@ -139,10 +147,12 @@ void handleApiStatus() {
   unsigned long d2 = m2_active ? ((millis() - m2_downtimeStartTime) / 1000) : 0;
   unsigned long d3 = m3_active ? ((millis() - m3_downtimeStartTime) / 1000) : 0;
 
+  uint8_t wsClientCount = webSocket.connectedClients();
   String json = "{\"status\":\"OK\","
                 "\"m1\":\"" + String(m1_active ? "START" : "STOP") + "\",\"m1_dur\":" + String(d1) + ","
                 "\"m2\":\"" + String(m2_active ? "START" : "STOP") + "\",\"m2_dur\":" + String(d2) + ","
                 "\"m3\":\"" + String(m3_active ? "START" : "STOP") + "\",\"m3_dur\":" + String(d3) + ","
+                "\"ws_clients\":" + String(wsClientCount) + ","
                 "\"ip\":\"" + WiFi.localIP().toString() + "\","
                 "\"mdns\":\"http://esp32-timer.local\"}";
   
@@ -230,11 +240,16 @@ void setup() {
   httpServer.begin();
   Serial.println("[HTTP] Server berjalan di Port 80 (/api/status)");
 
-  // 4. Jalankan WebSocket Server (Heartbeat dimatikan agar koneksi tablet stabil dan tidak diputus paksa saat sinyal Wi-Fi goyang/delay)
+  // 4. Jalankan WebSocket Server
+  // Heartbeat: PING tiap 60 detik, tunggu PONG 10 detik, toleransi 3x gagal (~90 detik total sebelum kick).
+  // - Layar tablet mati < 90 detik  : koneksi tetap hidup, timer lanjut saat layar nyala
+  // - Layar tablet mati > 90 detik  : koneksi diputus (zombie), tapi saat reconnect ESP32
+  //   mengirimkan durasi yang sudah berjalan sehingga timer LANJUT dari angka terakhir, bukan dari 0
+  // - Tab benar-benar tutup          : slot dibebaskan setelah ~90 detik (bukan selamanya)
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-  // webSocket.enableHeartbeat(15000, 3000, 2); // Dinonaktifkan: Menghindari pemutusan sepihak akibat jitter sinyal atau sleep mode tablet
-  Serial.println("[WebSocket] Server berjalan di Port 81 (Ultra-Stable Standby Mode)");
+  webSocket.enableHeartbeat(60000, 10000, 3);
+  Serial.println("[WebSocket] Server berjalan di Port 81 (Heartbeat: 60s ping, 10s timeout, 3 retries)");
 }
 
 void loop() {

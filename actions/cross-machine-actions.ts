@@ -107,11 +107,13 @@ const ORDERED_MACHINE_LIST = [
   "R1",
   "R2",
   "R3B",
+  "R14",
   "R16",
   "R1C",
   "R2C",
   "R11",
   "R12",
+  "R13",
   "T1C",
   "T2A",
 ];

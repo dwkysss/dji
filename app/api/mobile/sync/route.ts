@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
 
     const succeeded: string[] = [];
     const failed: { id: string; error: string }[] = [];
+    const seenBatchKeys = new Set<string>();
 
     for (const item of items) {
       const itemId = item.id || String(Date.now());
@@ -92,6 +93,17 @@ export async function POST(req: NextRequest) {
           } else if (!payloadData.panelNo && !payloadData.tanggalPotong) {
             payloadData.panelNo = "1";
           }
+        }
+
+        // Deduplikasi item redundan di dalam batch sync yang sama untuk mencegah duplikasi panel
+        if (detectedType === "employee" && !payloadData.isPanelGagal && !payloadData.tanggalPotong && payloadData.panelNo && payloadData.nomorMc && payloadData.potonganKe) {
+          const batchKey = `${String(payloadData.nomorMc).toUpperCase()}_${payloadData.potonganKe}_${payloadData.panelNo}_${payloadData.operatorId || "all"}`;
+          if (seenBatchKeys.has(batchKey)) {
+            console.log(`[SYNC BATCH DEDUP] Skipping redundant item ${itemId} for panel ${batchKey}`);
+            succeeded.push(itemId);
+            continue;
+          }
+          seenBatchKeys.add(batchKey);
         }
 
         // 5. Normalisasi pcsKe jika dikirim sebagai array oleh antrean lokal

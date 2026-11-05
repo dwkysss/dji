@@ -186,6 +186,7 @@
       operatorId: operatorId,
       grupId: String(groupId),
       tanggalOff: opShift.operationalDate,
+      submittedAt: nowIso,
       status: fullStatus,
       kategoriMasalah: activeStopCategory,
       cakupan: cakupan,

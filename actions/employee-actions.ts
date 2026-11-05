@@ -63,6 +63,9 @@ function parseMeterNumber(val: any): number {
   return maxVal;
 }
 
+// Concurrency lock in-flight inserts
+const inFlightPanelInserts = new Map<string, Promise<{ success: boolean; productionId?: string; error?: string }>>();
+
 export async function createProductionReport(
   inputData: ProductionFormInput,
 ): Promise<{
@@ -70,7 +73,20 @@ export async function createProductionReport(
   productionId?: string;
   error?: string;
 }> {
-  try {
+  // Concurrency guard: jika ada request sync paralel untuk panel yang sama saat sinyal lag, tunggu request pertama
+  const rawPot = inputData.potonganKe ? parseInt(String(inputData.potonganKe)) : null;
+  const isBsCheck = inputData.isPanelGagal || (Array.isArray(inputData.pcsData) && inputData.pcsData.some((p: any) => p.isBs));
+  const panelLockKey = (!isBsCheck && !inputData.tanggalPotong && inputData.panelNo && inputData.nomorMc && rawPot)
+    ? `${String(inputData.nomorMc).toUpperCase()}_${rawPot}_${inputData.panelNo}_${inputData.operatorId || "all"}`
+    : null;
+
+  if (panelLockKey && inFlightPanelInserts.has(panelLockKey)) {
+    console.log(`[RACE PREVENTION] Concurrent in-flight insert detected for ${panelLockKey}, awaiting existing promise...`);
+    return await inFlightPanelInserts.get(panelLockKey)!;
+  }
+
+  const runReportCreation = async () => {
+    try {
     // 1. Validasi data input secara server-side menggunakan Zod
     const validated = productionFormSchema.parse(inputData);
 
@@ -551,9 +567,19 @@ export async function createProductionReport(
               });
 
               if (hasNormalDuplicate) {
+                const matchedEp = existingPanels.find((ep: any) => {
+                  const allDeleted = ep.production_details && ep.production_details.length > 0 &&
+                    ep.production_details.every((d: any) => d.is_deleted || d.status_inspeksi === "Dihapus");
+                  if (allDeleted) return false;
+
+                  const isEpBs = String(ep.panel_no || "").toUpperCase().includes("(BS)") ||
+                    ep.production_details?.some((d: any) => d.jml_hasil_produksi === 0 || d.status_inspeksi === "BS" || String(d.kategori_masalah || "").toUpperCase().includes("BS"));
+                  return !isEpBs;
+                });
+
                 return {
-                  success: false,
-                  error: `Potongan ke-${potonganKeNum} dengan Panel ${validated.panelNo} sudah ada untuk operator ini!`,
+                  success: true,
+                  productionId: matchedEp?.id,
                 };
               }
             }
@@ -884,10 +910,23 @@ export async function createProductionReport(
     return { success: true, productionId: headerId };
   } catch (err: any) {
     console.error("Server action error:", err);
-    return {
-      success: false,
-      error: err.message || "Terjadi kesalahan sistem saat memproses laporan.",
-    };
+      return {
+        success: false,
+        error: err.message || "Terjadi kesalahan sistem saat memproses laporan.",
+      };
+    }
+  };
+
+  if (panelLockKey) {
+    const promise = runReportCreation();
+    inFlightPanelInserts.set(panelLockKey, promise);
+    try {
+      return await promise;
+    } finally {
+      inFlightPanelInserts.delete(panelLockKey);
+    }
+  } else {
+    return await runReportCreation();
   }
 }
 
@@ -1028,7 +1067,7 @@ export async function searchEmployeeHistory(filters: {
     const supabase = await createClient();
     const selectFields = filters.includeDetails
       ? "id, tgl, tanggal_jam, pic, potongan_ke, pcs, no_order_barang, no_customer, panel_no, nomor_mc, total_downtime_detik, operator_backup, operators(nama_operator), groups(nama_grup), design_id, production_details(id, pcs_index, kategori_masalah, detail_masalah, keterangan_cacat, jml_hasil_produksi, meter_kain, production_defects(*)), created_by_name, tanggal_potong, pick, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, downtime_records(*)"
-      : "id, tgl, tanggal_jam, pic, potongan_ke, pcs, no_order_barang, no_customer, panel_no, nomor_mc, total_downtime_detik, operator_backup, operators(nama_operator), groups(nama_grup), design_id, created_by_name, tanggal_potong, pick, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, meter_awal, meter_akhir, downtime_events, production_details(id, meter_kain)";
+      : "id, tgl, tanggal_jam, pic, potongan_ke, pcs, no_order_barang, no_customer, panel_no, nomor_mc, total_downtime_detik, operator_backup, operators(nama_operator), groups(nama_grup), design_id, created_by_name, tanggal_potong, pick, course, rpm, status_matching, jenis_benang_dasar, liner, heavy, shadow, pinggiran, meter_awal, meter_akhir, downtime_events, production_details(id, meter_kain, kategori_masalah, detail_masalah, indikator_stop)";
 
     // Prepare base query with exact count
     let query: any = (supabase.from("production_headers") as any).select(
@@ -1198,11 +1237,27 @@ export async function searchEmployeeHistory(filters: {
           waktu_input_terakhir: row.tanggal_jam,
           operators: new Set(),
           panels: [], // to store individual panel info if needed
-          is_meter: false
+          is_meter: false,
+          has_machine_stop: false,
+          machine_stop_reason: null,
+          machine_stop_category: null,
         });
       }
 
       const batch = batchesMap.get(key);
+      
+      if (row.panel_no === "BERHENTI" || (row.production_details && row.production_details.some((d: any) => d.indikator_stop))) {
+        batch.has_machine_stop = true;
+        const stopDetail = (row.production_details && Array.isArray(row.production_details))
+          ? row.production_details.find((d: any) => d.detail_masalah || d.kategori_masalah) || row.production_details[0]
+          : null;
+        if (stopDetail?.detail_masalah && !batch.machine_stop_reason) {
+          batch.machine_stop_reason = stopDetail.detail_masalah;
+        }
+        if (stopDetail?.kategori_masalah && !batch.machine_stop_category) {
+          batch.machine_stop_category = stopDetail.kategori_masalah;
+        }
+      }
       
       const updateIfMissing = (field: string) => {
         if (row[field] && (!batch[field] || batch[field] === "-")) {

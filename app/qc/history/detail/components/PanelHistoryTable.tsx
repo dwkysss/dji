@@ -37,12 +37,20 @@ export default function PanelHistoryTable({
       if (!isQcA && isQcB) return -1;
       if (isQcA && !isQcB) return 1;
 
-      const diffJml = (b.jml_hasil_produksi || 0) - (a.jml_hasil_produksi || 0);
-      if (diffJml !== 0) return diffJml;
+      // Jika nomor panel sama, urutkan berdasarkan waktu input kronologis (tanggal_jam)
+      const rawTimeA = a.production_headers?.tanggal_jam || a.tanggal_jam || a.created_at || a.production_headers?.created_at || "";
+      const rawTimeB = b.production_headers?.tanggal_jam || b.tanggal_jam || b.created_at || b.production_headers?.created_at || "";
+      const timeA = rawTimeA ? new Date(rawTimeA).getTime() : 0;
+      const timeB = rawTimeB ? new Date(rawTimeB).getTime() : 0;
+      if (timeA !== timeB && !isNaN(timeA) && !isNaN(timeB) && timeA > 0 && timeB > 0) {
+        return timeA - timeB;
+      }
 
-      const timeA = new Date(a.created_at || a.created_date || 0).getTime();
-      const timeB = new Date(b.created_at || b.created_date || 0).getTime();
-      if (timeA !== timeB && !isNaN(timeA) && !isNaN(timeB)) return timeA - timeB;
+      // Jika waktu sama/tidak ada, dahulukan panel BS (terjadi di awal) sebelum panel Normal
+      const isBsA = a.jml_hasil_produksi === 0 || a.status_inspeksi === "BS" || String(a.production_headers?.panel_no || "").includes("(BS)") || String(a.kategori_masalah || "").includes("BS");
+      const isBsB = b.jml_hasil_produksi === 0 || b.status_inspeksi === "BS" || String(b.production_headers?.panel_no || "").includes("(BS)") || String(b.kategori_masalah || "").includes("BS");
+      if (isBsA && !isBsB) return -1;
+      if (!isBsA && isBsB) return 1;
 
       return String(a.id || "").localeCompare(String(b.id || ""));
     });

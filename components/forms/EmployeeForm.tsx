@@ -1402,9 +1402,9 @@ export default function EmployeeForm({
       }
 
       let result: any;
-      // Batas toleransi sinyal lag: 7 detik (sesuai instruksi). Jika lewat 7s, langsung selamatkan data ke penyimpanan lokal
+      // Batas toleransi sinyal lag: 12 detik (sesuai instruksi). Jika lewat 7s, langsung selamatkan data ke penyimpanan lokal
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Network timeout: koneksi database lambat")), 7000)
+        setTimeout(() => reject(new Error("Network timeout: koneksi database lambat")), 12000)
       );
 
       if (isEdit && initialData?.id) {

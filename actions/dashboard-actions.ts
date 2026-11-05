@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getShiftDate, getShiftName } from "@/lib/shift-utils";
 import { isPanelGagalCacat, isPanelGagalCacatAja, hasRealDefect } from "@/lib/mending-grade-utils";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 
 export interface RealProductionItem {
   id: string;
@@ -280,7 +281,7 @@ export async function getMachineStatuses(): Promise<{ success: boolean; data?: M
       }
     });
 
-    const ALL_MACHINES = ["R1", "R2", "R1C", "R2C", "R3B", "R11", "R12", "R16", "T1C", "T2A"];
+    const ALL_MACHINES = REGISTERED_MACHINES;
     
     const results: MachineStatus[] = ALL_MACHINES.map((mesin_id) => {
       const row = latestPerMachine.get(mesin_id);

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cancelMechanicDowntime } from "@/actions/mechanic-actions";
-import { parseAsWibDate } from "@/lib/shift-utils";
+import { parseAsWibDate, getShiftName } from "@/lib/shift-utils";
 
 interface ContinuousHistoryDrawerProps {
   isOpen: boolean;
@@ -58,6 +58,23 @@ export default function ContinuousHistoryDrawer({
     if (m > 0 && s > 0) return `${m} Mnt ${s} Dtk`;
     if (m > 0) return `${m} Mnt`;
     return `${s} Dtk`;
+  };
+
+  const formatWibDate = (dateVal?: string): string => {
+    if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
+    try {
+      const dt = parseAsWibDate(dateVal);
+      if (isNaN(dt.getTime())) return "-";
+      return new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        weekday: "long",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(dt);
+    } catch {
+      return "-";
+    }
   };
 
   const formatWibTime = (dateVal?: string): string => {
@@ -306,7 +323,11 @@ export default function ContinuousHistoryDrawer({
               const uniqueById = new Map();
               historyItems.forEach((panel: any) => {
                 if (!uniqueById.has(panel.id)) {
-                  uniqueById.set(panel.id, { ...panel, production_details: [...(panel.production_details || [])] });
+                  const details = (panel.production_details || []).map((d: any) => ({
+                    ...d,
+                    production_headers: panel,
+                  }));
+                  uniqueById.set(panel.id, { ...panel, production_details: details });
                 }
               });
 
@@ -374,7 +395,7 @@ export default function ContinuousHistoryDrawer({
               });
 
               finalPanels.forEach((panel: any) => {
-                if (panel.panel_no === "Downtime Mekanik (Direct)" || panel.pcs === 0 || panel.pcs === "0") {
+                if (panel.panel_no === "Downtime Mekanik (Direct)" || panel.panel_no === "BERHENTI" || panel.pcs === 0 || panel.pcs === "0") {
                   return;
                 }
                 const isMeterInput = panel.panel_no === "METERAN";
@@ -542,6 +563,8 @@ export default function ContinuousHistoryDrawer({
 
                   const specialRows: any[] = [];
                   specialPanels.forEach((mp: any) => {
+                    const rawDate = mp.tgl || mp.tanggal_jam || mp.created_at;
+                    const dateStr = formatWibDate(rawDate);
                     let dtEvents: any[] = [];
                     try {
                       dtEvents = typeof mp.downtime_events === 'string' ? JSON.parse(mp.downtime_events) : (mp.downtime_events || []);
@@ -559,6 +582,7 @@ export default function ContinuousHistoryDrawer({
                               id: `${mp.id}-${idx}-${pIdx}`,
                               headerId: mp.id,
                               timeStr,
+                              dateStr,
                               penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
                               shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
                               durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
@@ -573,6 +597,7 @@ export default function ContinuousHistoryDrawer({
                             id: `${mp.id}-${idx}`,
                             headerId: mp.id,
                             timeStr,
+                            dateStr,
                             penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
                             shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
                             durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
@@ -591,6 +616,7 @@ export default function ContinuousHistoryDrawer({
                           id: `${mp.id}-dr-${dIdx}`,
                           headerId: mp.id,
                           timeStr,
+                          dateStr,
                           penanggungJawab: cleanPenanggungJawab(dr.dikerjakan_oleh || mp.pic || mp.operators?.nama_operator),
                           shift: mp.grup || mp.groups?.nama_grup || "-",
                           durasiDisplay: formatDurationNice(dr.durasi_detik || mp.total_downtime_detik || 0),
@@ -605,11 +631,38 @@ export default function ContinuousHistoryDrawer({
                         id: `${mp.id}-fallback`,
                         headerId: mp.id,
                         timeStr,
+                        dateStr,
                         penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
-                        shift: mp.grup || mp.groups?.nama_grup || "-",
+                        shift: mp.grup || mp.groups?.nama_grup || (mp.group_id === 1 ? "A" : mp.group_id === 2 ? "B" : mp.group_id === 3 ? "C" : "-"),
                         durasiDisplay: formatDurationNice(mp.total_downtime_detik || 0),
+                        isMachineStop: false,
                         kategori: mp.kategori_masalah || "-",
                         detailMasalah: mp.detail_masalah || "-",
+                      });
+                    } else if (mp.panel_no === "BERHENTI" || (mp.production_details && mp.production_details.some((d: any) => d.indikator_stop))) {
+                      const rawTime = mp.tanggal_jam || mp.created_at;
+                      const timeStr = formatWibTime(rawTime);
+                      const derivedShift = rawTime ? (getShiftName(rawTime) === "Shift 1" ? "A" : (getShiftName(rawTime) === "Shift 2" ? "B" : "C")) : "-";
+                      const shiftStr = mp.grup || mp.groups?.nama_grup || (mp.group_id === 1 ? "A" : mp.group_id === 2 ? "B" : mp.group_id === 3 ? "C" : derivedShift);
+                      const details = (mp.production_details && mp.production_details.length > 0)
+                        ? mp.production_details
+                        : [{ kategori_masalah: mp.kategori_masalah, detail_masalah: mp.detail_masalah }];
+
+                      details.forEach((d: any, dIdx: number) => {
+                        const kat = d.kategori_masalah || mp.kategori_masalah || "G";
+                        const detailTxt = d.detail_masalah || mp.detail_masalah || "Mesin Berhenti / Tidak Beroperasi";
+                        specialRows.push({
+                          id: `${mp.id}-stop-${dIdx}`,
+                          headerId: mp.id,
+                          timeStr,
+                          dateStr,
+                          penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
+                          shift: shiftStr,
+                          durasiDisplay: "Mesin Berhenti",
+                          isMachineStop: true,
+                          kategori: kat,
+                          detailMasalah: detailTxt,
+                        });
                       });
                     }
                   });
@@ -624,8 +677,8 @@ export default function ContinuousHistoryDrawer({
                             <Wrench className="w-3.5 h-3.5 text-sky-300" />
                           </div>
                           <div>
-                            <h4 className="text-xs font-black tracking-tight text-white">Laporan Downtime Khusus</h4>
-                            <p className="text-[10px] text-sky-200">Downtime mekanik & perbaikan mesin langsung</p>
+                            <h4 className="text-xs font-black tracking-tight text-white">Laporan Downtime & Status Mesin</h4>
+                            <p className="text-[10px] text-sky-200">Downtime mekanik & status lapor mesin mati</p>
                           </div>
                         </div>
                         <span className="bg-white/20 border border-white/30 rounded-full px-2.5 py-0.5 text-[10px] font-black text-white">
@@ -637,9 +690,18 @@ export default function ContinuousHistoryDrawer({
                         {specialRows.map((row) => (
                           <div key={row.id} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-slate-50 transition-colors">
                             <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1.5 shrink-0 w-16">
-                                <div className="w-2 h-2 rounded-full shrink-0 bg-[#0070bc]" />
-                                <span className="text-xs font-black text-slate-800 font-mono">{row.timeStr}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className={`w-2 h-2 rounded-full shrink-0 ${row.isMachineStop ? "bg-rose-500" : "bg-[#0070bc]"}`} />
+                                <div className="flex flex-col">
+                                  {row.dateStr && row.dateStr !== "-" && (
+                                    <span className="text-[10px] font-bold text-slate-500 leading-tight">
+                                      {row.dateStr}
+                                    </span>
+                                  )}
+                                  <span className="text-xs font-black text-slate-800 font-mono leading-tight">
+                                    {row.timeStr} WIB
+                                  </span>
+                                </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
@@ -653,12 +715,12 @@ export default function ContinuousHistoryDrawer({
                             </div>
 
                             <div className="flex items-center gap-2 sm:ml-auto">
-                              <div className="flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-600 rounded border border-red-100 shrink-0">
+                              <div className={`flex items-center gap-1 px-2 py-0.5 rounded border shrink-0 ${row.isMachineStop ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-red-50 text-red-600 border-red-100"}`}>
                                 <Clock className="w-3 h-3" />
                                 <span className="text-[11px] font-black">{row.durasiDisplay}</span>
                               </div>
-                              <span className="px-2 py-0.5 rounded bg-sky-50 border border-sky-200 text-sky-700 text-[10px] font-extrabold shrink-0">
-                                {row.kategori === "-" ? "Problem" : `Kategori ${row.kategori}`}
+                              <span className={`px-2 py-0.5 rounded border text-[10px] font-extrabold shrink-0 ${row.isMachineStop ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-sky-50 border-sky-200 text-sky-700"}`}>
+                                {row.kategori === "-" ? "Problem" : (row.kategori.startsWith("Kategori") ? row.kategori : `Kategori ${row.kategori}`)}
                               </span>
                               <span className="text-[11px] text-slate-600 max-w-[140px] truncate" title={row.detailMasalah}>
                                 {row.detailMasalah}

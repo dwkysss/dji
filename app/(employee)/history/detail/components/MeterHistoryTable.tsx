@@ -370,7 +370,7 @@ export default function MeterHistoryTable({
     let lastOprString = "";
 
     sortedProcessed.forEach((p: any, idx: number) => {
-      const { item, isIstirahat, isGradable, opr, grp, tgl, jamStr, operatorStr, hasIstirahat, backupOp } = p;
+      const { item, isIstirahat, isGradable, opr, grp, tgl, jamStr, rawJam, operatorStr, hasIstirahat, backupOp } = p;
       const h = item.production_headers || {};
 
       let cacatLines: string[] = [];
@@ -679,6 +679,8 @@ export default function MeterHistoryTable({
           oprStr: opr,
           meterDisplay: startMeter,
           cacatDisplay: "START",
+          rawTanggalJam: rawJam || h.tanggal_jam || h.created_at,
+          rawTgl: h.tgl,
           isGradable: false,
           showTgl: true,
           showGrp: true,
@@ -889,6 +891,8 @@ export default function MeterHistoryTable({
           isIstirahatFinish,
           isLastItemOfTable,
           downtimeDisplay,
+          rawTanggalJam: rawJam || h.tanggal_jam || h.created_at,
+          rawTgl: h.tgl,
           db_id: item.id || (h.id ? `header-${h.id}` : undefined),
           header_id: h.id,
           pcs_index: item.pcs_index
@@ -920,6 +924,8 @@ export default function MeterHistoryTable({
               isIstirahat: false,
               hasIstirahat: false,
               downtimeDisplay: "-",
+              rawTanggalJam: rawJam || h.tanggal_jam || h.created_at,
+              rawTgl: h.tgl,
               db_id: `finish-${h.id}`,
               header_id: h.id,
               pcs_index: item.pcs_index
@@ -952,6 +958,8 @@ export default function MeterHistoryTable({
           oprStr: lastOprOnly,
           meterDisplay: cleanMeterVal(lastOpHeader.meter_akhir),
           cacatDisplay: "FINISH",
+          rawTanggalJam: lastItem?.rawJam || lastOpHeader?.tanggal_jam || lastOpHeader?.created_at,
+          rawTgl: lastItem?.tgl || lastOpHeader?.tgl,
           backupOpName: "",
           isGradable: false,
           showTgl: false,

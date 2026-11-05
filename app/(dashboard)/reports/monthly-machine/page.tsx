@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { getMonthlyMachineReport, MonthlyMachineReportData } from "@/actions/report-actions";
+import { REGISTERED_MACHINES } from "@/lib/constants";
 import { getMachineStatuses } from "@/actions/dashboard-actions";
 import { getGoogleSheetEndpoint, sendPayloadToGoogleSheet, syncAllMonthlyMachines, getAutoSyncScheduleSettings, updateAutoSyncScheduleSettings } from "@/actions/google-sheet-actions";
 import { FileSpreadsheet, Loader2, Calendar, Monitor, AlertCircle, ArrowLeft, CloudUpload, X, Info, CheckCircle2, RotateCw, Zap, Check, Clock, Settings, ShieldCheck, BarChart3 } from "lucide-react";
@@ -361,7 +362,7 @@ export default function MonthlyMachineReportPage() {
     // 3. Fetch from server
     const fetchMachines = async () => {
       const res = await getMachineStatuses();
-      const fallback = ["R1", "R2", "R1C", "R2C", "R3B", "R11", "R12", "R16", "T1C", "T2A"];
+      const fallback = REGISTERED_MACHINES;
       if (res.success && res.data) {
         const orderMap = new Map(fallback.map((m, idx) => [m, idx]));
         const mcList = res.data.map((m: any) => m.mesin_id).sort((a: string, b: string) => {

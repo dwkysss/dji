@@ -2,7 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getShiftDate } from "@/lib/shift-utils";
+import { getShiftDate, getShiftName, getJakartaDateTimeString, parseAsWibDate } from "@/lib/shift-utils";
 
 // Helper untuk menghasilkan ID acak 8 karakter seperti di Excel
 function generateExcelStyleId(): string {
@@ -30,22 +30,13 @@ export interface StatusMesinInput {
   sampaiTanggalOff?: string;
   cakupan?: "FULL_DAY" | "SHIFT";
   idempotencyKey?: string;
+  submittedAt?: string;
 }
 
 export async function submitStatusMesin(inputData: StatusMesinInput) {
   try {
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat("sv-SE", {
-      timeZone: "Asia/Jakarta",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-    const currentWibDateTime = formatter.format(now);
+    const now = inputData.submittedAt ? parseAsWibDate(inputData.submittedAt) : new Date();
+    const currentWibDateTime = getJakartaDateTimeString(now);
     const currentDate = currentWibDateTime.split(" ")[0];
     const currentTime = currentWibDateTime.split(" ")[1] || "08:00:00";
 
@@ -173,14 +164,24 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
       } else {
         // Hanya untuk 1 shift tertentu
         const headerId = generateExcelStyleId();
-        const targetGroupId = inputData.grupId ? parseInt(String(inputData.grupId)) : 1;
+        const isRealTime = !inputData.tanggalOff || inputData.tanggalOff === operationalDate;
+
+        // Dapatkan shift aktif saat ini secara otomatis jika tidak dispesifikasikan
+        const currentShiftName = getShiftName(now);
+        const autoGroupId = currentShiftName === "Shift 2" ? 2 : (currentShiftName === "Shift 3" ? 3 : 1);
+        const targetGroupId = inputData.grupId ? parseInt(String(inputData.grupId)) : autoGroupId;
+
+        // Jika pelaporan langsung oleh operator di form mesin mati, gunakan waktu kejadian aktual (WIB)
+        // Jangan fallback ke jam 08:00 pagi jika ini bukan rencana downtime masa depan
+        const isFuturePlan = Boolean(inputData.sampaiTanggalOff) || (inputData.tanggalOff && inputData.tanggalOff > operationalDate);
         const shiftDefaultTime = targetGroupId === 2 ? "16:00:00" : (targetGroupId === 3 ? "23:30:00" : "08:00:00");
-        const safeTime = (currentTime >= "07:10:00" && currentTime <= "23:59:59") ? currentTime : shiftDefaultTime;
+        const finalTanggalJam = isFuturePlan ? `${d} ${shiftDefaultTime}` : currentWibDateTime;
+
         const potonganKeNum = inputData.potonganKe ? parseInt(String(inputData.potonganKe)) : null;
         headersToInsert.push({
           id: headerId,
           tgl: d,
-          tanggal_jam: `${d} ${safeTime}`,
+          tanggal_jam: finalTanggalJam,
           nomor_mc: inputData.nomorMc,
           potongan_ke: potonganKeNum,
           panel_no: "BERHENTI",

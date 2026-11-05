@@ -11,7 +11,8 @@
     "cap:open": "cap open android",
     "backup": "node scripts/backup-dji-database.mjs",
     "restore": "node scripts/restore-dji-database.mjs",
-    "clean:test": "node scripts/clean-test-machine.mjs R13"
+    "clean:test": "node scripts/clean-test-machine.mjs R13",
+    "clean:test:panel": "node scripts/clean-test-machine.mjs R14"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
