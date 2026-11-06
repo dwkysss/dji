@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { DownloadCloud, Sparkles, X, CheckCircle2, ArrowRight } from "lucide-react";
+import { DownloadCloud, X, ArrowRight } from "lucide-react";
 import { AppVersionResponse } from "@/app/api/app-version/route";
 
 declare global {
@@ -168,9 +168,6 @@ export default function AppUpdateChecker() {
         {/* Icon Header */}
         <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0070bc] to-sky-400 text-white flex items-center justify-center shadow-lg shadow-sky-500/30 mb-4">
           <DownloadCloud className="w-8 h-8 text-white animate-bounce" />
-          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
-            <Sparkles className="w-3.5 h-3.5" />
-          </div>
         </div>
 
         {/* Badge Versi */}
@@ -192,20 +189,10 @@ export default function AppUpdateChecker() {
           </span>
         </div>
 
-        {/* Rincian Pembaruan */}
-        <div className="w-full mt-4 mb-5 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 text-left">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-400 block mb-2">
-            Catatan Pembaruan:
-          </span>
-          <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
-            {updateInfo.releaseNotes.map((note, idx) => (
-              <li key={idx} className="flex items-start gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-sky-500 shrink-0 mt-0.5" />
-                <span>{note}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/* Keterangan Notifikasi Simpel (Rincian teknis disembunyikan agar user-friendly) */}
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 mb-6 leading-relaxed max-w-xs">
+          Pembaruan sistem tersedia untuk memastikan kelancaran dan kestabilan aplikasi saat bekerja.
+        </p>
 
         {/* Action Buttons */}
         <div className="w-full flex flex-col gap-2.5">
