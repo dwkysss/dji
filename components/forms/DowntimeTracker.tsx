@@ -1677,9 +1677,9 @@ export default function DowntimeTracker({
         isSensorGlitch: true,
       };
 
-      // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda
+      // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda (hanya untuk operator biasa, bukan blokir/unblock/mekanik)
       const currentPanelNo = String(watch("panelNo") || "1").trim();
-      const isDeferredToOtherPanel = isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
+      const isDeferredToOtherPanel = !isUnblockingBlock && dikerjakanOleh === "Operator" && isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
 
       if (isDeferredToOtherPanel) {
         const curMc = String(watch("nomorMc") || "").trim().toUpperCase();
@@ -1952,9 +1952,9 @@ export default function DowntimeTracker({
         isResolved: true,
       };
 
-      // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda
+      // Khusus Form Panel: Jika dialokasikan untuk nomor panel berbeda (hanya untuk operator biasa, bukan blokir/unblock/mekanik)
       const currentPanelNo = String(watch("panelNo") || "1").trim();
-      const isDeferredToOtherPanel = isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
+      const isDeferredToOtherPanel = !isUnblockingBlock && dikerjakanOleh === "Operator" && isPanelType && !isEdit && targetPanelNo && targetPanelNo.trim() !== currentPanelNo;
 
       if (isDeferredToOtherPanel) {
         const curMc = String(watch("nomorMc") || "").trim().toUpperCase();
@@ -3440,8 +3440,8 @@ export default function DowntimeTracker({
                 </div>
               )}
 
-              {/* Panel Allocation Selector (Khusus Form Input Panel & Bukan Edit) */}
-              {isPanelType && !isEdit && (
+              {/* Panel Allocation Selector (Khusus Form Input Panel & Bukan Edit, dan bukan saat Blokir/Unblock Mesin / Perbaikan Khusus) */}
+              {isPanelType && !isEdit && !isUnblockingBlock && dikerjakanOleh === "Operator" && (
                 <div className="bg-sky-50/70 p-3 sm:p-3.5 rounded-2xl border border-sky-200/80 shadow-2xs animate-fadeIn">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <label className="text-[10px] font-black text-sky-950 uppercase tracking-wider flex items-center gap-1.5">
