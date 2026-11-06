@@ -66,7 +66,8 @@ export default function OfflineSyncManager() {
 
     // Piggyback sync: terpanggil ketika ada inputan berikutnya yang berhasil terkirim langsung (sinyal lancar)
     const handleTriggerSync = () => {
-      if (!isSyncing && navigator.onLine) {
+      // FIX: Gunakan isSyncingRef.current agar tidak stale closure
+      if (!isSyncingRef.current && navigator.onLine) {
         processQueue();
       }
       refreshMobileBootstrapCache();
@@ -74,7 +75,7 @@ export default function OfflineSyncManager() {
 
     const handleQueueChanged = () => {
       checkPendingQueue();
-      if (typeof navigator !== "undefined" && navigator.onLine && !isSyncing) {
+      if (typeof navigator !== "undefined" && navigator.onLine && !isSyncingRef.current) {
         processQueue();
       }
     };

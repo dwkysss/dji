@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
@@ -289,6 +289,8 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     let interval: NodeJS.Timeout | null = null;
     if (isTimerM1Running) {
       interval = setInterval(() => {
+        // FIX: Jangan tick saat tab hidden (layar mati) — cegah React re-render queue menumpuk
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
         setElapsedM1((prev) => prev + 1);
       }, 1000);
     }
@@ -302,6 +304,8 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     let interval: NodeJS.Timeout | null = null;
     if (isTimerM2Running) {
       interval = setInterval(() => {
+        // FIX: Jangan tick saat tab hidden (layar mati)
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
         setElapsedM2((prev) => prev + 1);
       }, 1000);
     }
@@ -315,6 +319,8 @@ export function WifiProvider({ children }: { children: React.ReactNode }) {
     let interval: NodeJS.Timeout | null = null;
     if (isTimerM3Running) {
       interval = setInterval(() => {
+        // FIX: Jangan tick saat tab hidden (layar mati)
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
         setElapsedM3((prev) => prev + 1);
       }, 1000);
     }

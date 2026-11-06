@@ -405,10 +405,13 @@ export async function getMonthlyMachineReport(
       }
       
       // Update team-specific courses, rpm, efficiency, and design
-      if (header.panel_no === "METERAN") {
+      const isRecordMeter = isConfiguredMeter || isMeterMachine || header.panel_no === "METERAN";
+      if (isRecordMeter) {
         if (header.pick && !team.courses) team.courses = header.pick;
+        else if (header.course && !team.courses) team.courses = header.course;
       } else {
         if (header.course && !team.courses) team.courses = header.course;
+        else if (header.pick && !team.courses) team.courses = header.pick;
       }
       
       if (header.rpm && !team.rpm) team.rpm = header.rpm;
@@ -417,7 +420,7 @@ export async function getMonthlyMachineReport(
       if (team.rpm > 0 && team.courses) {
         const courseNum = parseFloat(team.courses);
         if (!isNaN(courseNum) && courseNum > 0) {
-          if (header.panel_no === "METERAN") {
+          if (isRecordMeter) {
             team.eff_100 = Math.round((team.rpm * 8 * 60) / (courseNum * 100));
           } else {
             team.eff_100 = Math.round((team.rpm * 8 * 60) / courseNum);

@@ -199,8 +199,12 @@ self.addEventListener('fetch', (event) => {
         // Jika online atau membawa flag online: UTAMAKAN LANGSUNG FETCH NETWORK
         if (isOnline) {
           try {
+            // FIX: Tambahkan timeout 10 detik agar WebView tidak hang jika server lambat / WiFi lemah
+            const navController = new AbortController();
+            const navTimeoutId = setTimeout(() => navController.abort(), 10000);
             // Gunakan url.href langsung (bukan objek req mode: navigate) agar tidak memicu TypeError di browser
-            const netRes = await fetch(url.href, { cache: 'no-cache', credentials: req.credentials });
+            const netRes = await fetch(url.href, { cache: 'no-cache', credentials: req.credentials, signal: navController.signal });
+            clearTimeout(navTimeoutId);
             if (netRes && (netRes.ok || netRes.type === 'opaqueredirect' || netRes.status < 400)) {
               return netRes;
             }

@@ -32,9 +32,9 @@ export default function DownloadPage() {
   const [downloadUrl, setDownloadUrl] = useState("/api/download");
   const [fullApkUrl, setFullApkUrl] = useState("https://djiprod.tech/api/download");
   const [versionInfo, setVersionInfo] = useState({
-    versionName: "1.0.0",
-    size: "21.6 MB",
-    updated: "Oktober 2026",
+    versionName: "1.1.1",
+    size: "10.2 MB",
+    updated: "November 2026",
     minAndroid: "Android 8.0+",
   });
 
@@ -64,6 +64,25 @@ export default function DownloadPage() {
       navigator.clipboard.writeText(fullApkUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  const handleDownloadClick = (e: React.MouseEvent) => {
+    // Jika tombol ditekan di dalam aplikasi Android Native (Capacitor / WebView)
+    const win = typeof window !== "undefined" ? (window as any) : null;
+    if (win && (win.AndroidAppInfo || win.Capacitor?.isNativePlatform?.())) {
+      e.preventDefault();
+      const targetUrl = downloadUrl.startsWith("http") ? downloadUrl : `${window.location.origin}${downloadUrl}`;
+
+      if (typeof win.AndroidAppInfo?.downloadApk === "function") {
+        win.AndroidAppInfo.downloadApk(targetUrl);
+        return;
+      }
+      if (typeof win.AndroidAppInfo?.openInBrowser === "function") {
+        win.AndroidAppInfo.openInBrowser(targetUrl);
+        return;
+      }
+      window.open(targetUrl, "_system");
     }
   };
 
@@ -204,6 +223,7 @@ export default function DownloadPage() {
                     <a
                       href={downloadUrl}
                       download="dji-app.apk"
+                      onClick={handleDownloadClick}
                       className="inline-flex items-center justify-center gap-2.5 px-6 py-4 rounded-2xl bg-gradient-to-r from-[#0070bc] to-sky-600 hover:from-[#005a96] hover:to-sky-700 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-[#0070bc]/30 hover:shadow-xl hover:shadow-[#0070bc]/40 transition-all cursor-pointer transform active:scale-[0.98]"
                     >
                       <DownloadCloud className="w-5 h-5 animate-bounce" />

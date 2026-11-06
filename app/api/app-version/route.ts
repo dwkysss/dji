@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 
 export const dynamic = "force-dynamic";
 
@@ -13,21 +15,33 @@ export interface AppVersionResponse {
 }
 
 export async function GET() {
+  // Hitung ukuran file APK secara dinamis dari disk agar selalu sinkron 100% dengan file unduhan aktual
+  let apkSizeStr = "10.2 MB";
+  try {
+    const apkFilePath = path.join(process.cwd(), "public", "downloads", "dji-app.apk");
+    if (fs.existsSync(apkFilePath)) {
+      const stat = fs.statSync(apkFilePath);
+      const mb = (stat.size / (1024 * 1024)).toFixed(1);
+      apkSizeStr = `${mb} MB`;
+    }
+  } catch (err) {
+    console.warn("[app-version] Gagal membaca ukuran file APK dari disk:", err);
+  }
+
   const versionInfo: AppVersionResponse = {
-    latestVersionName: "1.1.0",
-    latestVersionCode: 2,
+    latestVersionName: "1.1.1",
+    latestVersionCode: 3,
     apkUrl: "/downloads/dji-app.apk",
-    apkSize: "75.2 MB",
+    apkSize: apkSizeStr,
     releaseNotes: [
-      "Pembaruan Tampilan Portal Offline Baru (Modular CSS/JS)",
-      "Tampilan Riwayat Potongan dibuat 1:1 identik dengan versi online (tabel panel, kolom tgl, jam, grup, operator, status KET, cacat, dan downtime)",
-      "Sinkronisasi otomatis parameter mesin, potongan, operator & nomor panel dari database",
-      "Fitur Laporan Mesin Mati Total & Timer Downtime Lokal",
-      "Pencegahan Cache Basi Browser & WebView Offline",
-      "Peningkatan sinkronisasi otomatis saat internet kembali pulih"
+      "Optimasi drastis ukuran APK dari 75 MB menjadi 10.2 MB (hemat memori dan penyimpanan tablet)",
+      "Pencegahan freeze dan crash WebView Android ('This page couldn't load')",
+      "Pembaruan manajemen heartbeat WebSocket ESP32 multi-tab",
+      "Penyempurnaan sinkronisasi otomatis offline tanpa data dobel",
+      "Perbaikan akurasi laporan bulanan mesin rajut meteran"
     ],
     mandatory: false,
-    publishedAt: "2026-10-27T08:30:00Z",
+    publishedAt: new Date().toISOString(),
   };
 
   return NextResponse.json(versionInfo, {

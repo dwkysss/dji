@@ -10,6 +10,8 @@ declare global {
       getVersionCode: () => number;
       getVersionName: () => string;
       isAndroidApp: () => boolean;
+      openInBrowser?: (url: string) => void;
+      downloadApk?: (url: string) => void;
     };
     Capacitor?: any;
   }
@@ -105,11 +107,25 @@ export default function AppUpdateChecker() {
     setIsDownloading(true);
 
     try {
-      // Buka URL download APK di browser download manager native Android
       const downloadUrl = updateInfo.apkUrl.startsWith("http")
         ? updateInfo.apkUrl
         : window.location.origin + updateInfo.apkUrl;
 
+      // 1. Jika berjalan di dalam aplikasi Android Native (Capacitor/WebView)
+      if (typeof window !== "undefined" && window.AndroidAppInfo) {
+        if (typeof window.AndroidAppInfo.downloadApk === "function") {
+          window.AndroidAppInfo.downloadApk(downloadUrl);
+          setTimeout(() => setIsDownloading(false), 2500);
+          return;
+        }
+        if (typeof window.AndroidAppInfo.openInBrowser === "function") {
+          window.AndroidAppInfo.openInBrowser(downloadUrl);
+          setTimeout(() => setIsDownloading(false), 2500);
+          return;
+        }
+      }
+
+      // 2. Jika di browser web desktop/mobile biasa
       const link = document.createElement("a");
       link.href = downloadUrl;
       link.setAttribute("download", "dji-app.apk");

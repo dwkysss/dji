@@ -12,6 +12,9 @@ export default function PullToRefresh() {
   const startYRef = useRef<number | null>(null);
   const startXRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
+  // FIX: Gunakan ref untuk state reaktif agar effect tidak re-run & pasang ulang listeners setiap render
+  const pullDistanceRef = useRef(0);
+  const isRefreshingRef = useRef(false);
 
   useEffect(() => {
     // Hanya aktif di environment browser
@@ -19,7 +22,7 @@ export default function PullToRefresh() {
 
     const handleTouchStart = (e: TouchEvent) => {
       // Hanya aktif jika layar benar-benar di posisi paling atas
-      if (window.scrollY > 5 || isRefreshing) return;
+      if (window.scrollY > 5 || isRefreshingRef.current) return;
 
       // Jangan aktif jika pengguna sedang fokus mengetik di input/textarea
       const activeEl = document.activeElement?.tagName;
@@ -33,12 +36,13 @@ export default function PullToRefresh() {
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (startYRef.current === null || startXRef.current === null || isRefreshing) return;
+      if (startYRef.current === null || startXRef.current === null || isRefreshingRef.current) return;
 
       // Jika pengguna sudah scroll ke bawah saat drag, batalkan
       if (window.scrollY > 0) {
         startYRef.current = null;
         startXRef.current = null;
+        pullDistanceRef.current = 0;
         setPullDistance(0);
         return;
       }
@@ -56,6 +60,7 @@ export default function PullToRefresh() {
       if (diffY > 0) {
         // Redam tarikan menggunakan efek kurva karet (rubber-band)
         const damped = Math.min(Math.pow(diffY, 0.85) * 1.5, MAX_PULL);
+        pullDistanceRef.current = damped;
         setPullDistance(damped);
         isDraggingRef.current = true;
 
@@ -69,9 +74,11 @@ export default function PullToRefresh() {
     const handleTouchEnd = () => {
       if (startYRef.current === null) return;
 
-      if (pullDistance >= PULL_THRESHOLD && !isRefreshing) {
+      if (pullDistanceRef.current >= PULL_THRESHOLD && !isRefreshingRef.current) {
         // Kunci posisi spinner saat proses reload
+        isRefreshingRef.current = true;
         setIsRefreshing(true);
+        pullDistanceRef.current = 55;
         setPullDistance(55);
 
         // Beri getaran haptic halus di HP jika didukung
@@ -87,6 +94,7 @@ export default function PullToRefresh() {
         }, 350);
       } else {
         // Kembalikan ke posisi tersembunyi dengan animasi
+        pullDistanceRef.current = 0;
         setPullDistance(0);
       }
 
@@ -95,6 +103,7 @@ export default function PullToRefresh() {
       isDraggingRef.current = false;
     };
 
+    // FIX: dependency array [] — listeners hanya dipasang SEKALI, tidak re-run setiap render
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
     window.addEventListener("touchmove", handleTouchMove, { passive: false });
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
@@ -106,7 +115,11 @@ export default function PullToRefresh() {
       window.removeEventListener("touchend", handleTouchEnd);
       window.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [pullDistance, isRefreshing]);
+  }, []); // ← FIX KRITIS: Hanya mount sekali, tidak re-run
+
+  // Sync state ke ref agar closure di dalam effect selalu pakai nilai terbaru
+  useEffect(() => { pullDistanceRef.current = pullDistance; }, [pullDistance]);
+  useEffect(() => { isRefreshingRef.current = isRefreshing; }, [isRefreshing]);
 
   if (pullDistance === 0 && !isRefreshing) return null;
 
