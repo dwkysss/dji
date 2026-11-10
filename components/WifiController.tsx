@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
@@ -359,13 +359,21 @@ export default function WifiController() {
             </div>
           </div>
 
-          {/* Alamat Target Info Banner */}
+          {/* Alamat Target Info Banner & Tombol Buka Web Portal */}
           {wsUrl && (
-            <div className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-600 flex items-center justify-between">
-              <span className="truncate">
-                Alamat Target: <strong className="font-mono text-slate-800">{targetHost}</strong>
-              </span>
-              <span className="text-[11px] text-slate-400 font-mono">Port: 81 (WS)</span>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600 truncate">
+                <span>Alamat Target: <strong className="font-mono text-slate-800">{targetHost}</strong></span>
+                <span className="text-[10px] bg-slate-200/80 px-1.5 py-0.5 rounded text-slate-600 font-mono">Port 80/81</span>
+              </div>
+              <a
+                href={`http://${targetHost}/setting`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-bold text-sky-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+              >
+                <span>⚙️ Kelola Perangkat & Wi-Fi ESP32 &rarr;</span>
+              </a>
             </div>
           )}
 

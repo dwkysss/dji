@@ -201,3 +201,127 @@ export const PROBLEM_CATEGORIES = [
   { id: "F", name: "Kode F: Perawatan Mesin,Perbaikan Mekanik (maintenance)", short: "Maintenance" },
   { id: "G", name: "Kode G: Faktor Eksternal dan Non-Teknis", short: "Eksternal & Non-Teknis" },
 ];
+
+export const DEFAULT_MODULAR_DEFINITIONS: Record<string, { objects: string[]; actions: string[] }> = {
+  A: {
+    objects: [
+      "L1",
+      "L2/L3",
+      "Benang Timbul",
+      "Benang",
+      "Corak",
+      "Pinggiran",
+      "Jalur Benang",
+    ],
+    actions: [
+      "Putus",
+      "Keluar Jarum",
+      "Narik/Kendor",
+      "Lolos",
+      "Bolong",
+      "Nyilang",
+      "Kejepit/Jebol/Kusut",
+      "Floating",
+      "Meped",
+    ],
+  },
+  B: {
+    objects: [
+      "Jarum Pattern",
+      "Jarum Compound",
+      "Jacquard",
+      "String Bar",
+      "PBO",
+      "As Beam",
+      "Tensioner",
+      "Rajutan / Stopline",
+    ],
+    actions: [
+      "Patah / Bengkok",
+      "Ganti Baru",
+      "Keluar Jarum",
+      "Ngampul",
+      "Ngegaris / Stopline",
+      "Kendor",
+      "Tensi",
+    ],
+  },
+  C: {
+    objects: [
+      "Design",
+      "Corak",
+      "Pattern Disk",
+      "Pick",
+      "PCB / Proofing",
+    ],
+    actions: [
+      "Ganti / Loading",
+      "Revisi / Perbaikan",
+      "Salah Pasang",
+      "Error",
+    ],
+  },
+  D: {
+    objects: [
+      "Benang Dasar (L1/L2)",
+      "Pattern Linner",
+      "Pattern Heavy",
+      "Pattern Shadow",
+      "Pattern (L,H,S)",
+      "Persiapan Benang",
+    ],
+    actions: [
+      "Ganti Benang",
+      "Salah Ganti",
+      "Tunggu Kiriman",
+      "Ngelancarin",
+      "Over Cone / Rewind",
+    ],
+  },
+  E: {
+    objects: [
+      "Servo Drive / Motor",
+      "Sensor Laser / Stop",
+      "Kabel / Listrik",
+      "Panel Kontrol",
+    ],
+    actions: [
+      "Error / Konslet",
+      "Mati Total",
+      "Perbaikan",
+      "Ganti Baru",
+    ],
+  },
+  F: {
+    objects: [
+      "Cylinder Angin",
+      "Vanbelt",
+      "Rantai / Gear",
+      "Take Up Roll",
+      "Oli / Pelumas",
+      "Overhaul",
+    ],
+    actions: [
+      "Perbaikan",
+      "Ganti Baru",
+      "Kendor / Lepas",
+      "Servis Berkala",
+    ],
+  },
+  G: {
+    objects: [
+      "Listrik PLN",
+      "Order / Kain",
+      "Informasi Kantor",
+      "Sparepart",
+      "Buka Puasa / Istirahat",
+    ],
+    actions: [
+      "Mati Listrik",
+      "Tidak Ada Order",
+      "Tunggu Info",
+      "Tunggu Sparepart",
+      "Libur",
+    ],
+  },
+};

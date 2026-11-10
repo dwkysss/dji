@@ -15,6 +15,7 @@ function EditProductionContent() {
   const defaultMeter = searchParams.get("meter") || undefined;
   const rawPcs = searchParams.get("pcs");
   const defaultPcsIndex = (rawPcs && rawPcs !== "undefined" && rawPcs !== "null") ? rawPcs : undefined;
+  const returnUrl = searchParams.get("returnUrl") || undefined;
 
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<any>(null);
@@ -73,8 +74,14 @@ function EditProductionContent() {
     <div className="flex-1 flex flex-col items-center animate-fadeIn py-8 px-4 w-full">
       <div className="w-full max-w-6xl flex justify-between items-center mb-6">
         <button 
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-semibold transition-colors"
+          onClick={() => {
+            if (returnUrl) {
+              router.push(returnUrl);
+            } else {
+              router.back();
+            }
+          }}
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-semibold transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
           Batal Edit
@@ -90,9 +97,10 @@ function EditProductionContent() {
           isEdit={true} 
           defaultMeter={defaultMeter} 
           defaultPcsIndex={defaultPcsIndex}
+          returnUrl={returnUrl}
         />
       ) : (
-        <EmployeeForm initialData={data} isEdit={true} />
+        <EmployeeForm initialData={data} isEdit={true} returnUrl={returnUrl} />
       )}
     </div>
   );

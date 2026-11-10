@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Edit, CheckCircle2, XCircle, Trash2, Clock } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
@@ -51,6 +52,7 @@ export default function PanelHistoryTable({
   onToggleSelectAll,
   onRequestBulkDelete,
   onRefresh,
+  allowEditTimestamp,
 }: {
   panels: any[];
   pcsKey: string;
@@ -61,7 +63,19 @@ export default function PanelHistoryTable({
   onToggleSelectAll?: (ids: string[]) => void;
   onRequestBulkDelete?: () => void;
   onRefresh?: () => void;
+  allowEditTimestamp?: boolean;
 }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentUrl = React.useMemo(() => {
+    if (!pathname) return "";
+    const qs = searchParams?.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [pathname, searchParams]);
+
+  const isShiftCorrectionPage = pathname ? pathname.includes("shift-history") : false;
+  const canEditTimestamp = allowEditTimestamp ?? isShiftCorrectionPage;
+
   const [quickDefectModal, setQuickDefectModal] = useState<{
     isOpen: boolean;
     headerId: string;
@@ -402,7 +416,7 @@ export default function PanelHistoryTable({
           <th className="px-1 py-2 text-center w-12 border-r border-slate-100">KET ✓/X</th>
           <th className="px-2 py-2 min-w-[250px] w-full border-r border-slate-100">KETERANGAN CACAT</th>
           <th className="px-1 py-2 text-center w-16 border-r border-slate-100">DOWNTIME</th>
-          <th className="px-1 py-2 text-center w-12">AKSI</th>
+          <th className={`px-2 py-2 text-center whitespace-nowrap ${canEditTimestamp ? "w-24" : "w-14"}`}>AKSI</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -947,12 +961,21 @@ export default function PanelHistoryTable({
               <td className={`px-1 py-1 text-center text-[11px] font-bold border-r border-slate-100 ${downtimeDisplay && downtimeDisplay !== "-" ? "text-rose-600" : "text-slate-400"}`}>
                 {downtimeDisplay}
               </td>
-              <td className="px-1 py-1 text-center">
+              <td className="px-2 py-1 text-center whitespace-nowrap">
                 {isDeleted ? (
                   <span className="text-[10px] text-slate-400 font-semibold italic">Dihapus</span>
                 ) : (
                   <div className="flex items-center justify-center gap-1">
-                    {itemHeader?.id && !isBsAwal && !isBsAkhir && (
+                    {itemHeader?.id && detail.keterangan_cacat !== "FINISH" && !isBsAwal && !isBsAkhir && (
+                      <Link
+                        href={currentUrl ? `/edit/${itemHeader.id}?returnUrl=${encodeURIComponent(currentUrl)}` : `/edit/${itemHeader.id}`}
+                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors cursor-pointer"
+                        title="Edit Data Lengkap (Operator, Cacat, Downtime, dll.)"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
+                    {canEditTimestamp && itemHeader?.id && !isBsAwal && !isBsAkhir && (
                       <button
                         type="button"
                         onClick={() => setEditingTimestamp({
@@ -962,7 +985,7 @@ export default function PanelHistoryTable({
                           jam: item.jamStr || "",
                           opr: item.oprStr || itemHeader.operators?.nama_operator || "",
                         })}
-                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-sky-100 text-[#0070bc] transition-colors cursor-pointer"
+                        className="inline-flex items-center justify-center p-1.5 rounded hover:bg-amber-100 text-amber-600 transition-colors cursor-pointer"
                         title="Koreksi Tanggal & Jam"
                       >
                         <Clock className="w-3.5 h-3.5" />
@@ -1036,7 +1059,7 @@ export default function PanelHistoryTable({
     )}
 
     {/* Confirmation Dialog Ubah ❌ -> ✔ */}
-    {editingTimestamp && (
+    {canEditTimestamp && editingTimestamp && (
       <EditTimestampModal
         isOpen={Boolean(editingTimestamp)}
         onClose={() => setEditingTimestamp(null)}

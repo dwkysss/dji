@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { GROUPED_PROBLEM_DETAILS, DEFAULT_MODULAR_DEFINITIONS } from "@/lib/constants";
 
 export interface ProblemDetailItem {
   id: string;
@@ -152,7 +153,6 @@ export async function deleteProblemCategory(
   }
 }
 
-import { GROUPED_PROBLEM_DETAILS } from "@/lib/constants";
 
 // ----------------------------------------------------
 // PROBLEM DETAIL & GROUP MAPPING ACTIONS
@@ -352,10 +352,39 @@ export async function getProblemDetailsGrouped(): Promise<{
   }
 }
 
+// ----------------------------------------------------
+// MODULAR (OBJEK + AKSI) ACTIONS
+// ----------------------------------------------------
+
+export async function getModularProblemDefinitions(): Promise<{
+  success: boolean;
+  definitions: Record<string, { objects: string[]; actions: string[] }>;
+  error?: string;
+}> {
+  try {
+    const supabase = await createAdminClient();
+    // Pastikan tidak ada data modular kustom yang tertinggal di machine_configs
+    await supabase.from("machine_configs").delete().eq("nomor_mc", "MODULAR_PROBLEM_DEFINITIONS");
+  } catch (_) {}
+
+  return { success: true, definitions: DEFAULT_MODULAR_DEFINITIONS };
+}
+
+export async function addModularDefinitionItem(
+  _catId: string,
+  _obj?: string,
+  _act?: string
+): Promise<{ success: boolean; error?: string }> {
+  // Pilihan modular bersifat statis bawaan pabrik, penambahan kustom saat input downtime bersifat sementara dan tidak disimpan ke database
+  return { success: true };
+}
+
 export async function createProblemDetail(input: {
   kategori: string;
   nama_detail: string;
   sub_kategori?: string;
+  objek?: string;
+  aksi?: string;
 }): Promise<{ success: boolean; data?: ProblemDetailItem; error?: string }> {
   try {
     if (!input.kategori || !input.nama_detail || input.nama_detail.trim() === "") {

@@ -2,14 +2,20 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useFieldArray, Control, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info, Edit3, Link2, Lightbulb, Pin, Layers } from "lucide-react";
+import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info, Edit3, Link2, Lightbulb, Pin, Layers, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import { ContinuousFormInput } from "@/lib/schemas";
 import { submitMechanicDowntime, cancelMechanicDowntime } from "@/actions/mechanic-actions";
-import { getProblemDetailsGrouped, createProblemDetail } from "@/actions/problem-detail-actions";
+import { getProblemDetailsGrouped, getModularProblemDefinitions } from "@/actions/problem-detail-actions";
 import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import WifiDowntimeTrigger from "./WifiDowntimeTrigger";
 import { useWifiContext } from "@/lib/wifi-context";
 import { getShiftName, getShiftDate, getShiftBoundarySegments } from "@/lib/shift-utils";
+import { getFlexibleProblemDetail } from "@/lib/canonical-problem-utils";
+import { GROUPED_PROBLEM_DETAILS, PROBLEM_DETAILS, DEFAULT_MODULAR_DEFINITIONS } from "@/lib/constants";
+import { getProblemGroupMapping } from "@/actions/problem-detail-actions";
+import { useAuth } from "@/lib/auth-context";
+import { useInputTheme } from "@/lib/input-theme-context";
+import { cn } from "@/lib/utils";
 
 const PROBLEM_CATEGORIES = [
   { id: "A", name: "Kode A: Masalah dan Perbaikan Benang" },
@@ -21,11 +27,11 @@ const PROBLEM_CATEGORIES = [
   { id: "G", name: "Kode G: Faktor Eksternal dan Non-Teknis" },
 ];
 
-import { GROUPED_PROBLEM_DETAILS, PROBLEM_DETAILS } from "@/lib/constants";
-import { getProblemGroupMapping } from "@/actions/problem-detail-actions";
-import { useAuth } from "@/lib/auth-context";
-import { useInputTheme } from "@/lib/input-theme-context";
-import { cn } from "@/lib/utils";
+export const getCanonicalProblemDetail = (catId: string, obj: string, act: string): string => {
+  return getFlexibleProblemDetail(catId, obj, act);
+};
+
+const MODULAR_PROBLEM_DEFINITIONS = DEFAULT_MODULAR_DEFINITIONS;
 
 interface DowntimeTrackerProps {
   control: any;
@@ -124,6 +130,44 @@ export default function DowntimeTracker({
   const [targetPanelNo, setTargetPanelNo] = useState<string>("1");
   const [deferredToast, setDeferredToast] = useState<string | null>(null);
 
+  // Persistent State: Tampilkan Semua Kategori (C - G) vs Prioritas A & B
+  const [showAllCategories, setShowAllCategories] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("dji_show_all_categories");
+      if (saved !== null) return saved === "true";
+    }
+    return false;
+  });
+
+  const handleToggleShowAllCategories = () => {
+    setShowAllCategories((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("dji_show_all_categories", String(next));
+      } catch (e) { }
+      return next;
+    });
+  };
+
+  // Persistent State: Mode Pemilihan Masalah (Instan vs Kombinasi Objek + Aksi)
+  const [problemSelectMode, setProblemSelectMode] = useState<"instant" | "modular">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("dji_problem_select_mode");
+      if (saved === "modular" || saved === "instant") return saved;
+    }
+    return "instant";
+  });
+
+  // State builder untuk Mode Kombinasi per kategori
+  const [modularBuilderState, setModularBuilderState] = useState<Record<string, { obj?: string; act?: string }>>({});
+
+  const handleToggleProblemSelectMode = (mode: "instant" | "modular") => {
+    setProblemSelectMode(mode);
+    try {
+      localStorage.setItem("dji_problem_select_mode", mode);
+    } catch (e) { }
+  };
+
   useEffect(() => {
     if (typeof window !== "undefined" && !navigator.onLine) return;
     try {
@@ -132,7 +176,41 @@ export default function DowntimeTracker({
           setDynamicGroupMapping(res.mapping);
         }
       }).catch(() => { });
-    } catch (e) {}
+    } catch (e) { }
+  }, []);
+
+  // Dynamic Modular Definitions (Objek + Aksi)
+  const [modularDefinitions, setModularDefinitions] = useState(MODULAR_PROBLEM_DEFINITIONS);
+  const [manualInputObjek, setManualInputObjek] = useState<Record<string, string>>({});
+  const [manualInputAksi, setManualInputAksi] = useState<Record<string, string>>({});
+  const [openCustomInputCats, setOpenCustomInputCats] = useState<Record<string, boolean>>({});
+
+  const handleManualObjekChange = (catId: string, val: string) => {
+    setManualInputObjek((prev) => ({ ...prev, [catId]: val }));
+  };
+  const handleManualAksiChange = (catId: string, val: string) => {
+    setManualInputAksi((prev) => ({ ...prev, [catId]: val }));
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !navigator.onLine) return;
+    try {
+      getModularProblemDefinitions().then((res) => {
+        if (res.success && res.definitions) {
+          setModularDefinitions((prev) => {
+            const next = { ...prev };
+            Object.keys(res.definitions).forEach((k) => {
+              const cur = next[k] || { objects: [], actions: [] };
+              next[k] = {
+                objects: Array.from(new Set([...cur.objects, ...(res.definitions[k]?.objects || [])])),
+                actions: Array.from(new Set([...cur.actions, ...(res.definitions[k]?.actions || [])])),
+              };
+            });
+            return next;
+          });
+        }
+      }).catch(() => { });
+    } catch (e) { }
   }, []);
 
   const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([
@@ -142,6 +220,22 @@ export default function DowntimeTracker({
     "Jarum pattern patah/bengkok",
     "Ganti Jacquard",
   ]);
+
+  const isDefectRequiringBlock = (defectName: string) => {
+    if (!defectName) return false;
+    const dLow = defectName.toLowerCase();
+    return requiredBlockDefects.some((req) => {
+      const rLow = req.toLowerCase();
+      if (dLow === rLow || dLow.includes(rLow) || rLow.includes(dLow)) return true;
+      if (
+        (dLow.includes("putus") || dLow.includes("lolos") || dLow.includes("bolong") || dLow.includes("patah") || dLow.includes("bengkok")) &&
+        (rLow.includes("putus") || rLow.includes("lolos") || rLow.includes("bolong") || rLow.includes("patah") || rLow.includes("bengkok"))
+      ) {
+        return true;
+      }
+      return false;
+    });
+  };
   const [blockValidationError, setBlockValidationError] = useState<string | null>(null);
   const [showBlockInfo, setShowBlockInfo] = useState(false);
   const [dynamicProblemDetails, setDynamicProblemDetails] = useState<Record<string, string[]>>(PROBLEM_DETAILS);
@@ -316,6 +410,205 @@ export default function DowntimeTracker({
     }
   };
 
+  const handleModularObjectClick = (catId: string, obj: string) => {
+    const cur = modularBuilderState[catId] || {};
+    const isDeselect = cur.obj === obj;
+    const newObj = isDeselect ? undefined : obj;
+
+    if (newObj && cur.act) {
+      const combined = getCanonicalProblemDetail(catId, newObj, cur.act);
+      const currentSelected = currentDetails[catId] || [];
+      if (!currentSelected.includes(combined)) {
+        handleDetailToggle(catId, combined, true);
+        const existingList = dynamicProblemDetails[catId] || [];
+        if (!existingList.includes(combined)) {
+          setDynamicProblemDetails((prev) => ({
+            ...prev,
+            [catId]: [...(prev[catId] || []), combined],
+          }));
+        }
+      }
+    }
+
+    setModularBuilderState((prev) => ({
+      ...prev,
+      [catId]: { ...prev[catId], obj: newObj },
+    }));
+  };
+
+  const handleModularActionClick = (catId: string, act: string) => {
+    const cur = modularBuilderState[catId] || {};
+    const currentObj = cur.obj;
+
+    if (!currentObj) {
+      const isDeselect = cur.act === act;
+      setModularBuilderState((prev) => ({
+        ...prev,
+        [catId]: { ...prev[catId], act: isDeselect ? undefined : act },
+      }));
+      return;
+    }
+
+    const combined = getCanonicalProblemDetail(catId, currentObj, act);
+    const currentSelected = currentDetails[catId] || [];
+    const isAlreadyChecked = currentSelected.includes(combined);
+
+    handleDetailToggle(catId, combined, !isAlreadyChecked);
+
+    if (!isAlreadyChecked) {
+      const existingList = dynamicProblemDetails[catId] || [];
+      if (!existingList.includes(combined)) {
+        setDynamicProblemDetails((prev) => ({
+          ...prev,
+          [catId]: [...(prev[catId] || []), combined],
+        }));
+      }
+    }
+
+    setModularBuilderState((prev) => ({
+      ...prev,
+      [catId]: { ...prev[catId], act },
+    }));
+  };
+
+  const renderBlockInputForCategory = (
+    catId: string,
+    isRequired: boolean,
+    isMissing: boolean,
+    reqDetails: string[] = []
+  ) => {
+    const currentBlokVal = currentBloks[catId] || "";
+    const rawTokens = currentBlokVal
+      ? currentBlokVal.split(",").map((s) => s.trim())
+      : [];
+
+    // Min input count: if there are defects requiring block, count matches reqDetails.length (e.g. 2 problems -> 2 inputs)
+    const minCount = Math.max(reqDetails.length, 1);
+    const targetCount = Math.max(minCount, rawTokens.length);
+
+    const blockList: string[] = [];
+    for (let i = 0; i < targetCount; i++) {
+      blockList.push(rawTokens[i] || "");
+    }
+
+    const updateBlockList = (newList: string[]) => {
+      const cleaned = newList.map((s) => s.replace(/[^0-9]/g, "").slice(0, 2).trim());
+      const joined = cleaned.join(", ");
+      handleBlockListChange(catId, joined);
+    };
+
+    return (
+      <div className={cn(
+        "mt-2.5 p-3 sm:p-3.5 rounded-2xl border transition-all animate-fadeIn",
+        isMissing
+          ? (isDark ? "bg-rose-950/40 border-rose-700/80 ring-2 ring-rose-900/60" : "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200")
+          : (isDark ? "bg-slate-800/80 border-slate-700" : "bg-sky-50/80 border-sky-200")
+      )}>
+        <div className="flex items-center justify-between mb-2">
+          <span className={cn("text-xs font-black uppercase flex items-center gap-1.5", isDark ? "text-slate-200" : "text-slate-800")}>
+            <Box className="w-4 h-4 text-[#0070bc] dark:text-sky-400" />
+            Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
+          </span>
+          <div className="flex items-center gap-2">
+            {reqDetails.length > 1 && (
+              <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-950/80 px-2 py-0.5 rounded-full border border-sky-200 dark:border-sky-800">
+                {reqDetails.length} Masalah Terpilih
+              </span>
+            )}
+            {isRequired ? (
+              <span className="bg-rose-600 text-white font-black text-[9px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
+                Wajib Diisi
+              </span>
+            ) : (
+              <span className={cn("font-bold text-[9px]", isDark ? "text-slate-400" : "text-slate-400")}>Opsional</span>
+            )}
+          </div>
+        </div>
+
+        {/* Input Nomor Blok dalam Mode Flex */}
+        <div className="flex flex-wrap items-center gap-2">
+          {blockList.map((itemVal, bIdx) => {
+            const defectLabel = reqDetails && reqDetails[bIdx] ? reqDetails[bIdx] : null;
+            const isItemEmpty = isRequired && (!itemVal || itemVal.trim() === "");
+
+            return (
+              <div
+                key={bIdx}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all shadow-2xs",
+                  isDark
+                    ? "bg-slate-900 border-slate-700"
+                    : "bg-white border-sky-200/90",
+                  isItemEmpty && "ring-1 ring-rose-400 border-rose-300 dark:border-rose-700"
+                )}
+              >
+                <span className="text-[11px] font-black uppercase text-sky-700 dark:text-sky-300 whitespace-nowrap">
+                  {defectLabel ? defectLabel : `Blok ${bIdx + 1}`}:
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={2}
+                  value={itemVal}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
+                    const nextList = [...blockList];
+                    nextList[bIdx] = val;
+                    updateBlockList(nextList);
+                  }}
+                  placeholder="No"
+                  className={cn(
+                    "w-12 sm:w-14 h-8 px-1 rounded-lg border text-center font-black font-mono text-xs focus:outline-none transition-all",
+                    isDark
+                      ? "bg-slate-800 text-slate-100 placeholder:text-slate-500"
+                      : "bg-slate-50 text-slate-900 placeholder:text-slate-400",
+                    isItemEmpty
+                      ? "border-rose-400 focus:ring-2 focus:ring-rose-500 bg-rose-50/60"
+                      : "border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-sky-500"
+                  )}
+                />
+                {blockList.length > Math.max(reqDetails.length, 1) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextList = blockList.filter((_, i) => i !== bIdx);
+                      updateBlockList(nextList);
+                    }}
+                    className="w-6 h-6 rounded-md hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-500 flex items-center justify-center cursor-pointer transition-colors"
+                    title="Hapus nomor blok tambahan"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => updateBlockList([...blockList, ""])}
+            className={cn(
+              "h-11 px-3 rounded-xl border border-dashed flex items-center justify-center gap-1 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0",
+              isDark
+                ? "bg-slate-900/60 hover:bg-slate-800 border-slate-700 text-sky-400"
+                : "bg-white hover:bg-sky-50 border-sky-300 text-sky-700"
+            )}
+            title="Tambah nomor blok tambahan"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-bold">+ Blok</span>
+          </button>
+        </div>
+
+        {isMissing && (
+          <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-1.5">
+            Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
+          </p>
+        )}
+      </div>
+    );
+  };
+
   const handleManualDetailTextChange = (catId: string, value: string) => {
     if (problemInputMode === "per_pcs") {
       setPerPcsProblems((prev) => {
@@ -337,7 +630,12 @@ export default function DowntimeTracker({
   };
 
   const handleAddManualDetail = (catId: string) => {
-    const text = (currentManualDetails[catId] || "").trim();
+    const objVal = (manualInputObjek[catId] || "").trim();
+    const actVal = (manualInputAksi[catId] || "").trim();
+
+    if (!objVal || !actVal) return;
+
+    const text = getCanonicalProblemDetail(catId, objVal, actVal);
     if (!text) return;
 
     if (problemInputMode === "per_pcs") {
@@ -382,21 +680,47 @@ export default function DowntimeTracker({
       }));
     }
 
-    try {
-      createProblemDetail({ kategori: catId, nama_detail: text }).then((res) => {
-        if (res.success) {
-          setDynamicProblemDetails((prev) => {
-            const list = prev[catId] || [];
-            if (list.includes(text)) return prev;
-            return { ...prev, [catId]: [...list, text] };
-          });
-        }
+    setManualInputObjek((prev) => ({ ...prev, [catId]: "" }));
+    setManualInputAksi((prev) => ({ ...prev, [catId]: "" }));
+
+    // SEMENTARA HANYA DI MEMORI LOKAL (JANGAN MASUK KE DATABASE)
+    setDynamicProblemDetails((prev) => {
+      const list = prev[catId] || [];
+      if (list.includes(text)) return prev;
+      return { ...prev, [catId]: [...list, text] };
+    });
+    if (objVal || actVal) {
+      setModularDefinitions((prev) => {
+        const cur = prev[catId] || { objects: [], actions: [] };
+        return {
+          ...prev,
+          [catId]: {
+            objects: objVal && !cur.objects.includes(objVal) ? [...cur.objects, objVal] : cur.objects,
+            actions: actVal && !cur.actions.includes(actVal) ? [...cur.actions, actVal] : cur.actions,
+          },
+        };
       });
-    } catch (e) { }
+    }
   };
 
   useEffect(() => {
-    if (!showModal || (typeof window !== "undefined" && !navigator.onLine)) return;
+    if (!showModal) {
+      setModularDefinitions(DEFAULT_MODULAR_DEFINITIONS);
+      setModularBuilderState({});
+      setManualInputObjek({});
+      setManualInputAksi({});
+      setManualInputDetails({});
+      return;
+    }
+
+    // Saat modal terbuka, selalu mulai dengan definisi modular standar bersih
+    setModularDefinitions(DEFAULT_MODULAR_DEFINITIONS);
+    setModularBuilderState({});
+    setManualInputObjek({});
+    setManualInputAksi({});
+    setManualInputDetails({});
+
+    if (typeof window !== "undefined" && !navigator.onLine) return;
     try {
       getProblemDetailsGrouped().then((res) => {
         if (res.success && res.grouped && Object.keys(res.grouped).length > 0) {
@@ -406,7 +730,7 @@ export default function DowntimeTracker({
           }));
         }
       }).catch(() => { });
-    } catch (e) {}
+    } catch (e) { }
   }, [showModal]);
 
   useEffect(() => {
@@ -1115,6 +1439,11 @@ export default function DowntimeTracker({
     setProblemInputMode("same");
     setActivePcsProblemTab(pcsKeys[0] || "1");
     setPerPcsProblems({});
+    setModularDefinitions(DEFAULT_MODULAR_DEFINITIONS);
+    setModularBuilderState({});
+    setManualInputObjek({});
+    setManualInputAksi({});
+    setManualInputDetails({});
   };
 
   const handlePcsMeterChange = (pcsKey: string, rawVal: string) => {
@@ -1817,11 +2146,16 @@ export default function DowntimeTracker({
         const pcsBloks = perPcsProblems[pcsKey]?.bloks || {};
         for (const catId of pcsCats) {
           const details = pcsDetails[catId] || [];
-          const reqDetails = details.filter((d) => requiredBlockDefects.includes(d));
+          const reqDetails = details.filter((d) => isDefectRequiringBlock(d));
           if (reqDetails.length > 0) {
-            const blockVal = pcsBloks[catId]?.trim();
-            if (!blockVal) {
-              setBlockValidationError(`Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}" pada PCS ${pcsKey}!`);
+            const blockVal = pcsBloks[catId]?.trim() || "";
+            const tokens = blockVal ? blockVal.split(",").map((s) => s.trim()).filter(Boolean) : [];
+            if (tokens.length < reqDetails.length) {
+              setBlockValidationError(
+                reqDetails.length > 1
+                  ? `Nomor blok WAJIB DIISI lengkap (${reqDetails.length} blok) untuk masalah: "${reqDetails.join(", ")}" pada PCS ${pcsKey}!`
+                  : `Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}" pada PCS ${pcsKey}!`
+              );
               return;
             }
           }
@@ -1831,11 +2165,16 @@ export default function DowntimeTracker({
       if (selectedCategories.length === 0) return;
       for (const catId of selectedCategories) {
         const details = selectedDetails[catId] || [];
-        const reqDetails = details.filter((d) => requiredBlockDefects.includes(d));
+        const reqDetails = details.filter((d) => isDefectRequiringBlock(d));
         if (reqDetails.length > 0) {
-          const blockVal = inputBloks[catId]?.trim();
-          if (!blockVal) {
-            setBlockValidationError(`Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}"`);
+          const blockVal = inputBloks[catId]?.trim() || "";
+          const tokens = blockVal ? blockVal.split(",").map((s) => s.trim()).filter(Boolean) : [];
+          if (tokens.length < reqDetails.length) {
+            setBlockValidationError(
+              reqDetails.length > 1
+                ? `Nomor blok WAJIB DIISI lengkap (${reqDetails.length} blok) untuk masalah: "${reqDetails.join(", ")}"`
+                : `Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}"`
+            );
             return;
           }
         }
@@ -1890,9 +2229,6 @@ export default function DowntimeTracker({
             const manualText = (pcsData.manualDetails?.[catId] || "").trim();
             if (manualText && !details.includes(manualText)) {
               details.push(manualText);
-              try {
-                createProblemDetail({ kategori: catId, nama_detail: manualText });
-              } catch (e) { }
             }
             problems.push({
               kategori: catId,
@@ -1916,9 +2252,6 @@ export default function DowntimeTracker({
           const manualText = (manualInputDetails[catId] || "").trim();
           if (manualText && !details.includes(manualText)) {
             details.push(manualText);
-            try {
-              createProblemDetail({ kategori: catId, nama_detail: manualText });
-            } catch (e) { }
           }
           return {
             kategori: catId,
@@ -3271,7 +3604,7 @@ export default function DowntimeTracker({
             }
           }}
         >
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh]">
+          <div className="bg-white rounded-3xl w-full max-w-lg sm:max-w-xl md:max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh]">
             {/* Top Bar Simulasi ESP32 di Dalam Modal (Disembunyikan, ubah false ke true jika ingin mengaktifkan kembali) */}
             {false && (
               <div className="bg-purple-950 text-white px-3.5 py-2 flex items-center justify-between gap-2 border-b border-purple-800 text-xs shrink-0">
@@ -3326,8 +3659,8 @@ export default function DowntimeTracker({
                       {isUnblockingBlock
                         ? "Penyelesaian Perbaikan (Unblock Mesin)"
                         : batchClassifyIds.length > 0
-                        ? `Klasifikasi Sekaligus (${batchClassifyIds.length} Event)`
-                        : "Simpan Downtime"}
+                          ? `Klasifikasi Sekaligus (${batchClassifyIds.length} Event)`
+                          : "Simpan Downtime"}
                     </h3>
                     <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-orange-200/90 rounded-xl shadow-2xs hover:bg-orange-50 transition-colors" title="Ketuk untuk mengubah durasi secara manual">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -3579,8 +3912,8 @@ export default function DowntimeTracker({
                               onChange={(e) => handlePcsMeterChange(selectedPcsKeList[0], e.target.value)}
                               placeholder="Contoh: 18"
                               className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${!inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
-                                  ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
-                                  : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-emerald-50/30 text-emerald-900"
+                                ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
+                                : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-emerald-50/30 text-emerald-900"
                                 }`}
                             />
                             <span className="absolute right-3.5 px-2 py-0.5 bg-slate-100 rounded-md text-xs font-bold text-slate-500 pointer-events-none border border-slate-200">
@@ -3612,8 +3945,8 @@ export default function DowntimeTracker({
                           </div>
 
                           <div className={`grid gap-2.5 w-full ${selectedPcsKeList.length === 2 ? "grid-cols-2" :
-                              selectedPcsKeList.length === 3 ? "grid-cols-3" :
-                                "grid-cols-2 sm:grid-cols-4"
+                            selectedPcsKeList.length === 3 ? "grid-cols-3" :
+                              "grid-cols-2 sm:grid-cols-4"
                             }`}>
                             {selectedPcsKeList.map((pcsKey) => {
                               const val = inputMeters[pcsKey] || "";
@@ -3638,8 +3971,8 @@ export default function DowntimeTracker({
                                       onChange={(e) => handlePcsMeterChange(pcsKey, e.target.value)}
                                       placeholder="0"
                                       className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${isMeterEmpty
-                                          ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 placeholder:text-slate-400"
-                                          : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-emerald-900 bg-emerald-50/50"
+                                        ? "border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 placeholder:text-slate-400"
+                                        : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-emerald-900 bg-emerald-50/50"
                                         }`}
                                     />
                                     <span className="absolute right-2 text-[10px] font-bold text-slate-400 pointer-events-none">
@@ -3810,296 +4143,536 @@ export default function DowntimeTracker({
               )}
 
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className={cn("text-xs font-bold uppercase", isDark ? "text-slate-300" : "text-slate-700")}>
-                    Pilih Kategori Masalah {problemInputMode === "per_pcs" && `(Khusus PCS ${activePcsProblemTab})`}
-                  </label>
-                  {problemInputMode === "per_pcs" && (
-                    <span className="text-[10px] font-black text-sky-600 bg-sky-50 dark:bg-sky-950/70 dark:text-sky-300 px-2 py-0.5 rounded-md border border-sky-200 dark:border-sky-800">
-                      Tab PCS {activePcsProblemTab}
-                    </span>
-                  )}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <label className={cn("text-xs font-bold uppercase", isDark ? "text-slate-300" : "text-slate-700")}>
+                        Pilih Kategori Masalah {problemInputMode === "per_pcs" && `(Khusus PCS ${activePcsProblemTab})`}
+                      </label>
+                      {problemInputMode === "per_pcs" && (
+                        <span className="text-[10px] font-black text-sky-600 bg-sky-50 dark:bg-sky-950/70 dark:text-sky-300 px-2 py-0.5 rounded-md border border-sky-200 dark:border-sky-800">
+                          Tab PCS {activePcsProblemTab}
+                        </span>
+                      )}
+                    </div>
+                    <p className={cn("text-[11px] mt-0.5", isDark ? "text-slate-400" : "text-slate-500")}>
+                      {problemSelectMode === "instant"
+                        ? "Mode Instan: Klik tombol masalah langsung"
+                        : "Mode Kombinasi: 1. Klik Objek, 2. Klik Kerusakan"}
+                    </p>
+                  </div>
+
+                  {/* Toggle Mode: Instan vs Kombinasi */}
+                  <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 self-start sm:self-auto shrink-0 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleProblemSelectMode("instant")}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        problemSelectMode === "instant"
+                          ? "bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                      )}
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Instan</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleProblemSelectMode("modular")}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        problemSelectMode === "modular"
+                          ? "bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                      )}
+                    >
+                      <Layers className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Kombinasi</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2">
-                  {PROBLEM_CATEGORIES.map((cat) => (
-                    <div key={cat.id} className="flex flex-col gap-2">
-                      <label className="cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="kategori"
-                          value={cat.id}
-                          checked={currentCategories.includes(cat.id)}
-                          onChange={(e) => handleCategoryToggle(cat.id, e.target.checked)}
-                          className="peer sr-only"
-                        />
-                        <div
-                          className={cn(
-                            "p-3 rounded-xl border-2 text-sm font-semibold transition-all",
-                            isDark
-                              ? "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 peer-checked:border-sky-500 peer-checked:bg-sky-950/40 peer-checked:text-sky-300"
-                              : "border-slate-100 bg-white text-slate-600 hover:border-slate-300 peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700"
-                          )}
-                        >
-                          {cat.name}
-                        </div>
-                      </label>
+                {/* Filter Visible Categories: A & B default, C - G collapsible (or keep visible if selected) */}
+                {(() => {
+                  const visibleCategories = PROBLEM_CATEGORIES.filter((cat) => {
+                    if (showAllCategories) return true;
+                    if (cat.id === "A" || cat.id === "B") return true;
+                    if (currentCategories.includes(cat.id)) return true;
+                    return false;
+                  });
 
-                      {currentCategories.includes(cat.id) && (dynamicProblemDetails[cat.id] || PROBLEM_DETAILS[cat.id]) && (
-                        <div className={cn(
-                          "pl-3.5 pr-2 py-3 border-l-2 border-sky-400 ml-2 space-y-3.5 rounded-r-xl mt-1.5 animate-in slide-in-from-top-2",
-                          isDark ? "bg-slate-900/60" : "bg-slate-50/50"
-                        )}>
-                          <div className="flex items-center justify-between">
-                            <label className={cn("text-[10px] font-extrabold uppercase tracking-wider block", isDark ? "text-slate-400" : "text-slate-500")}>
-                              Pilih Detail Masalah {problemInputMode === "per_pcs" && `(PCS ${activePcsProblemTab})`}
+                  return (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 gap-2">
+                        {visibleCategories.map((cat) => (
+                          <div key={cat.id} className="flex flex-col gap-2">
+                            <label className="cursor-pointer">
+                              <input
+                                type="checkbox"
+                                name="kategori"
+                                value={cat.id}
+                                checked={currentCategories.includes(cat.id)}
+                                onChange={(e) => handleCategoryToggle(cat.id, e.target.checked)}
+                                className="peer sr-only"
+                              />
+                              <div
+                                className={cn(
+                                  "p-3 rounded-xl border-2 text-sm font-semibold transition-all flex items-center justify-between",
+                                  isDark
+                                    ? "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 peer-checked:border-sky-500 peer-checked:bg-sky-950/40 peer-checked:text-sky-300"
+                                    : "border-slate-100 bg-white text-slate-600 hover:border-slate-300 peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700"
+                                )}
+                              >
+                                <span>{cat.name}</span>
+                                {currentCategories.includes(cat.id) && (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-500 text-white shadow-2xs">
+                                    {(currentDetails[cat.id] || []).length} dipilih
+                                  </span>
+                                )}
+                              </div>
                             </label>
-                            <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">
-                              {(currentDetails[cat.id] || []).length} dipilih
-                            </span>
-                          </div>
 
-                          {(() => {
-                            const predefinedGroups = dynamicGroupMapping[cat.id] || GROUPED_PROBLEM_DETAILS[cat.id] || [];
-                            // Only display groups that have items
-                            const activeGroups = predefinedGroups.filter((g) => g.items && g.items.length > 0);
-                            const allKnownItems = new Set(activeGroups.flatMap((g) => g.items));
-
-                            // User-typed custom details (not part of known items)
-                            const customInputDetails = (currentDetails[cat.id] || []).filter((d) => !allKnownItems.has(d));
-
-                            return (
-                              <div className="space-y-3">
-                                {activeGroups.map((group, gIdx) => {
-                                  const selectedInThisGroup = group.items.filter((item) => currentDetails[cat.id]?.includes(item));
-                                  const hasSelectedInThisGroup = selectedInThisGroup.length > 0;
-
-                                  return (
-                                    <div key={gIdx} className="space-y-1.5">
-                                      <div className="flex items-center gap-2 pt-1 first:pt-0">
-                                        <span className={cn(
-                                          "text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs",
-                                          isDark
-                                            ? "text-sky-300 bg-sky-950/80 border-sky-800/70"
-                                            : "text-sky-800 bg-sky-100/90 border-sky-200/70"
-                                        )}>
-                                          {group.groupName}
+                            {currentCategories.includes(cat.id) && (
+                              <div className={cn(
+                                "pl-3.5 pr-2 py-3 border-l-2 border-sky-400 ml-2 space-y-3.5 rounded-r-xl mt-1.5 animate-in slide-in-from-top-2",
+                                isDark ? "bg-slate-900/60" : "bg-slate-50/50"
+                              )}>
+                                {problemSelectMode === "modular" ? (
+                                  /* MODE MODULAR (Objek + Aksi) */
+                                  <div className="space-y-3.5">
+                                    {/* Chips of currently selected problems in this category */}
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1.5">
+                                        <span className={cn("text-[10px] font-extrabold uppercase tracking-wider", isDark ? "text-slate-400" : "text-slate-500")}>
+                                          Masalah Terpilih:
                                         </span>
-                                        <div className={cn("flex-1 h-px", isDark ? "bg-slate-800" : "bg-slate-200/80")} />
+                                        <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">
+                                          {(currentDetails[cat.id] || []).length} dipilih
+                                        </span>
                                       </div>
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {group.items.map((detail) => (
-                                          <label key={detail} className="cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              name={`detail-${cat.id}`}
-                                              value={detail}
-                                              checked={currentDetails[cat.id]?.includes(detail) || false}
-                                              onChange={(e) => handleDetailToggle(cat.id, detail, e.target.checked)}
-                                              className="peer sr-only"
-                                            />
-                                            <div className={cn(
-                                              "p-2.5 rounded-lg border text-xs font-semibold transition-all text-center shadow-2xs",
-                                              isDark
-                                                ? "border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 peer-checked:bg-sky-600 peer-checked:border-sky-500 peer-checked:text-white"
-                                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white"
-                                            )}>
-                                              {detail}
+                                      {(currentDetails[cat.id] || []).length === 0 ? (
+                                        <div className={cn("text-xs py-2 px-3 rounded-lg border border-dashed text-center italic", isDark ? "border-slate-800 text-slate-500" : "border-slate-200 text-slate-400")}>
+                                          Belum ada masalah dipilih. Klik Objek lalu klik Kerusakan di bawah.
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {(currentDetails[cat.id] || []).map((detail) => (
+                                            <div
+                                              key={detail}
+                                              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg bg-sky-600 text-white text-xs font-bold shadow-xs animate-fadeIn"
+                                            >
+                                              <span>{detail}</span>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDetailToggle(cat.id, detail, false)}
+                                                className="w-4 h-4 rounded-full hover:bg-sky-700 flex items-center justify-center cursor-pointer transition-colors"
+                                                title="Hapus masalah"
+                                              >
+                                                <X className="w-3 h-3 text-white" />
+                                              </button>
                                             </div>
-                                          </label>
-                                        ))}
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Modular Object and Action pickers */}
+                                    {modularDefinitions[cat.id] ? (
+                                      <div className="space-y-3">
+                                        {/* Step 1: Objek */}
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <span className={cn(
+                                                "text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs",
+                                                isDark ? "text-sky-300 bg-sky-950/80 border-sky-800/70" : "text-sky-800 bg-sky-100/90 border-sky-200/70"
+                                              )}>
+                                                1. Pilih Objek / Komponen
+                                              </span>
+                                            </div>
+                                            {modularBuilderState[cat.id]?.obj && (
+                                              <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">
+                                                Dipilih: <span className="underline">{modularBuilderState[cat.id]?.obj}</span>
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                            {(modularDefinitions[cat.id]?.objects || []).map((obj) => {
+                                              const isSelected = modularBuilderState[cat.id]?.obj === obj;
+                                              return (
+                                                <button
+                                                  key={obj}
+                                                  type="button"
+                                                  onClick={() => handleModularObjectClick(cat.id, obj)}
+                                                  className={cn(
+                                                    "p-2 min-h-[44px] flex items-center justify-center rounded-xl border text-[11px] sm:text-xs font-semibold text-center transition-all cursor-pointer shadow-2xs active:scale-95 leading-snug break-words [overflow-wrap:anywhere]",
+                                                    isSelected
+                                                      ? "bg-sky-600 border-sky-500 text-white font-bold ring-2 ring-sky-300 dark:ring-sky-700 shadow-xs"
+                                                      : isDark
+                                                        ? "border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700"
+                                                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                                  )}
+                                                >
+                                                  {typeof obj === "string" ? obj.replace(/\//g, "/\u200B") : obj}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+
+                                        {/* Step 2: Aksi / Kerusakan */}
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <span className={cn(
+                                                "text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs",
+                                                isDark ? "text-amber-300 bg-amber-950/80 border-amber-800/70" : "text-amber-800 bg-amber-100/90 border-amber-200/70"
+                                              )}>
+                                                2. Pilih Aksi / Kerusakan
+                                              </span>
+                                            </div>
+                                            {modularBuilderState[cat.id]?.act && (
+                                              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                                Dipilih: <span className="underline">{modularBuilderState[cat.id]?.act}</span>
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                            {(modularDefinitions[cat.id]?.actions || []).map((act) => {
+                                              const currentObj = modularBuilderState[cat.id]?.obj;
+                                              const canonical = currentObj ? getCanonicalProblemDetail(cat.id, currentObj, act) : "";
+                                              const isCombinedSelected = !!canonical && (currentDetails[cat.id] || []).includes(canonical);
+                                              const isActionClicked = modularBuilderState[cat.id]?.act === act;
+                                              return (
+                                                <button
+                                                  key={act}
+                                                  type="button"
+                                                  onClick={() => handleModularActionClick(cat.id, act)}
+                                                  className={cn(
+                                                    "p-2 min-h-[44px] flex items-center justify-center rounded-xl border text-[11px] sm:text-xs font-semibold text-center transition-all cursor-pointer shadow-2xs active:scale-95 leading-snug break-words [overflow-wrap:anywhere]",
+                                                    isCombinedSelected
+                                                      ? "bg-sky-600 border-sky-500 text-white font-bold ring-2 ring-sky-300 dark:ring-sky-700 shadow-xs"
+                                                      : isActionClicked
+                                                        ? "bg-amber-500 border-amber-400 text-white font-bold ring-2 ring-amber-300 dark:ring-amber-700"
+                                                        : isDark
+                                                          ? "border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700"
+                                                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                                  )}
+                                                >
+                                                  {typeof act === "string" ? act.replace(/\//g, "/\u200B") : act}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className={cn("text-xs p-3 rounded-lg border", isDark ? "border-slate-800 bg-slate-900 text-slate-400" : "border-slate-200 bg-slate-50 text-slate-600")}>
+                                        Pilihan kombinasi untuk kategori ini belum tersedia. Gunakan Mode Instan atau ketik manual.
+                                      </div>
+                                    )}
+
+                                    {/* Input Nomor Blok di Mode Modular jika ada masalah terpilih */}
+                                    {showBlockInput !== false && (currentDetails[cat.id] || []).length > 0 && (() => {
+                                      const selectedList = currentDetails[cat.id] || [];
+                                      const reqDetails = selectedList.filter((d) => isDefectRequiringBlock(d));
+                                      const isRequired = reqDetails.length > 0;
+                                      const isMissing = isRequired && (!currentBloks[cat.id] || currentBloks[cat.id]?.trim() === "");
+                                      return renderBlockInputForCategory(cat.id, isRequired, isMissing, reqDetails);
+                                    })()}
+
+                                    {/* Input Masalah Baru (2 Kolom: Objek + Aksi) */}
+                                    <div className={cn("mt-3 pt-3 border-t", isDark ? "border-slate-800" : "border-sky-100")}>
+                                      <label className={cn("text-[10px] font-bold uppercase mb-1.5 flex items-center justify-between", isDark ? "text-slate-400" : "text-slate-600")}>
+                                        <span className="flex items-center gap-1">
+                                          <Edit3 className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                                          Input Masalah Kustom
+                                        </span>
+                                        {manualInputObjek[cat.id]?.trim() && manualInputAksi[cat.id]?.trim() && (
+                                          <span className="text-[10px] font-black text-sky-600 dark:text-sky-400">
+                                            = {getCanonicalProblemDetail(cat.id, manualInputObjek[cat.id], manualInputAksi[cat.id])}
+                                          </span>
+                                        )}
+                                      </label>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                                        <input
+                                          type="text"
+                                          list={`dt-objek-${cat.id}`}
+                                          value={manualInputObjek[cat.id] || ""}
+                                          onChange={(e) => handleManualObjekChange(cat.id, e.target.value)}
+                                          placeholder="1. Objek (contoh: L1, Benang...)"
+                                          className={cn(
+                                            "px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium",
+                                            isDark
+                                              ? "border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                                              : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400"
+                                          )}
+                                        />
+                                        <datalist id={`dt-objek-${cat.id}`}>
+                                          {(modularDefinitions[cat.id]?.objects || []).map((o) => (
+                                            <option key={o} value={o} />
+                                          ))}
+                                        </datalist>
+
+                                        <input
+                                          type="text"
+                                          list={`dt-aksi-${cat.id}`}
+                                          value={manualInputAksi[cat.id] || ""}
+                                          onChange={(e) => handleManualAksiChange(cat.id, e.target.value)}
+                                          placeholder="2. Aksi (contoh: Putus, Narik...)"
+                                          className={cn(
+                                            "px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium",
+                                            isDark
+                                              ? "border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                                              : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400"
+                                          )}
+                                        />
+                                        <datalist id={`dt-aksi-${cat.id}`}>
+                                          {(modularDefinitions[cat.id]?.actions || []).map((a) => (
+                                            <option key={a} value={a} />
+                                          ))}
+                                        </datalist>
                                       </div>
 
-                                      {/* Tampilkan Input Nomor Blok Tepat di Bawah Sub-Grup Masalah yang Dipilih */}
-                                      {showBlockInput !== false && hasSelectedInThisGroup && (() => {
-                                        const reqDetails = selectedInThisGroup.filter((d) => requiredBlockDefects.includes(d));
-                                        const isRequired = reqDetails.length > 0;
+                                      <div className="flex items-center justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddManualDetail(cat.id)}
+                                          disabled={!(manualInputObjek[cat.id]?.trim() && manualInputAksi[cat.id]?.trim())}
+                                          className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                        >
+                                          <Plus className="w-3.5 h-3.5" />
+                                          <span>Tambah Masalah (Objek + Aksi)</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* MODE INSTAN (Pilihan Cepat) */
+                                  (() => {
+                                    const predefinedGroups = dynamicGroupMapping[cat.id] || GROUPED_PROBLEM_DETAILS[cat.id] || [];
+                                    const activeGroups = predefinedGroups.filter((g) => g.items && g.items.length > 0);
+                                    const allKnownItems = new Set(activeGroups.flatMap((g) => g.items));
+                                    const customInputDetails = (currentDetails[cat.id] || []).filter((d) => !allKnownItems.has(d));
 
-                                        const isMissing = isRequired && (!currentBloks[cat.id] || currentBloks[cat.id]?.trim() === "");
+                                    return (
+                                      <div className="space-y-3">
+                                        {activeGroups.map((group, gIdx) => {
+                                          const selectedInThisGroup = group.items.filter((item) => currentDetails[cat.id]?.includes(item));
+                                          const hasSelectedInThisGroup = selectedInThisGroup.length > 0;
 
-                                        const currentBlokVal = currentBloks[cat.id] || "";
-                                        const blockList = currentBlokVal
-                                          ? currentBlokVal.split(",").map((s) => s.trim())
-                                          : [""];
-
-                                        const updateBlockList = (newList: string[]) => {
-                                          const joined = newList
-                                            .map((s) => s.replace(/[^0-9\-,\s]/g, ""))
-                                            .join(", ");
-                                          handleBlockListChange(cat.id, joined);
-                                        };
-
-                                        return (
-                                          <div className={cn(
-                                            "mt-2 p-3 rounded-xl border transition-all animate-fadeIn",
-                                            isMissing
-                                              ? (isDark ? "bg-rose-950/50 border-rose-700 ring-2 ring-rose-900" : "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200")
-                                              : (isDark ? "bg-slate-800/80 border-slate-700" : "bg-sky-50 border-sky-100")
-                                          )}>
-                                            <label className="text-[10px] font-extrabold uppercase mb-1.5 flex items-center justify-between">
-                                              <span className={cn("flex items-center gap-1.5", isDark ? "text-slate-200" : "text-slate-800")}>
-                                                <Box className="w-3.5 h-3.5 text-[#0070bc] dark:text-sky-400" />
-                                                Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
-                                              </span>
-                                              {isRequired ? (
-                                                <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                                  Wajib Diisi
+                                          return (
+                                            <div key={gIdx} className="space-y-1.5">
+                                              <div className="flex items-center gap-2 pt-1 first:pt-0">
+                                                <span className={cn(
+                                                  "text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs",
+                                                  isDark
+                                                    ? "text-sky-300 bg-sky-950/80 border-sky-800/70"
+                                                    : "text-sky-800 bg-sky-100/90 border-sky-200/70"
+                                                )}>
+                                                  {group.groupName}
                                                 </span>
-                                              ) : (
-                                                <span className={cn("font-bold text-[9px]", isDark ? "text-slate-400" : "text-slate-400")}>Opsional</span>
-                                              )}
-                                            </label>
-
-                                            <div className="flex flex-wrap items-center gap-2">
-                                              {blockList.map((itemVal, bIdx) => (
-                                                <div key={bIdx} className="flex items-center gap-1">
-                                                  <input
-                                                    type="text"
-                                                    inputMode="numeric"
-                                                    maxLength={2}
-                                                    value={itemVal}
-                                                    onChange={(e) => {
-                                                      const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
-                                                      const nextList = [...blockList];
-                                                      nextList[bIdx] = val;
-                                                      updateBlockList(nextList);
-                                                    }}
-                                                    placeholder={bIdx === 0 ? "Blok (15)" : `Blok ${bIdx + 1}`}
-                                                    className={cn(
-                                                      "w-28 h-9 px-3 rounded-lg border text-center font-bold text-xs",
+                                                <div className={cn("flex-1 h-px", isDark ? "bg-slate-800" : "bg-slate-200/80")} />
+                                              </div>
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {group.items.map((detail) => (
+                                                  <label key={detail} className="cursor-pointer">
+                                                    <input
+                                                      type="checkbox"
+                                                      name={`detail-${cat.id}`}
+                                                      value={detail}
+                                                      checked={currentDetails[cat.id]?.includes(detail) || false}
+                                                      onChange={(e) => handleDetailToggle(cat.id, detail, e.target.checked)}
+                                                      className="peer sr-only"
+                                                    />
+                                                    <div className={cn(
+                                                      "p-2.5 rounded-lg border text-xs font-semibold transition-all text-center shadow-2xs cursor-pointer",
                                                       isDark
-                                                        ? "bg-slate-900 text-slate-100 placeholder:text-slate-500"
-                                                        : "bg-white text-slate-800 placeholder:text-slate-400",
-                                                      isMissing
-                                                        ? "border-rose-400 focus:ring-2 focus:ring-rose-500"
-                                                        : "border-sky-200 dark:border-slate-600 focus:ring-2 focus:ring-sky-500"
-                                                    )}
-                                                  />
-                                                  {blockList.length > 1 && (
+                                                        ? "border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 peer-checked:bg-sky-600 peer-checked:border-sky-500 peer-checked:text-white"
+                                                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 peer-checked:bg-sky-500 peer-checked:border-sky-500 peer-checked:text-white"
+                                                    )}>
+                                                      {detail}
+                                                    </div>
+                                                  </label>
+                                                ))}
+                                              </div>
+
+                                            </div>
+                                          );
+                                        })}
+
+                                        {customInputDetails.length > 0 && (
+                                          <div className="space-y-1.5 pt-1">
+                                            <div className="flex items-center gap-2">
+                                              <span className={cn(
+                                                "text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs",
+                                                isDark
+                                                  ? "text-amber-200 bg-amber-950/80 border-amber-800"
+                                                  : "text-amber-800 bg-amber-100 border-amber-200"
+                                              )}>
+                                                Input Manual / Kombinasi
+                                              </span>
+                                              <div className={cn("flex-1 h-px", isDark ? "bg-slate-800" : "bg-slate-200/80")} />
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                              {customInputDetails.map((customDetail) => (
+                                                <div key={customDetail} className="relative flex items-center">
+                                                  <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-xs font-semibold flex items-center justify-between shadow-xs">
+                                                    <span className="truncate">{customDetail}</span>
                                                     <button
                                                       type="button"
-                                                      onClick={() => {
-                                                        const nextList = blockList.filter((_, i) => i !== bIdx);
-                                                        updateBlockList(nextList);
-                                                      }}
-                                                      className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/80 hover:bg-rose-100 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 flex items-center justify-center transition-colors shrink-0"
-                                                      title="Hapus blok"
+                                                      onClick={() => handleRemoveCustomDetail(cat.id, customDetail)}
+                                                      className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
+                                                      title="Hapus detail"
                                                     >
                                                       <X className="w-3.5 h-3.5" />
                                                     </button>
-                                                  )}
+                                                  </div>
                                                 </div>
                                               ))}
+                                            </div>
+                                          </div>
+                                        )}
 
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  updateBlockList([...blockList, ""]);
-                                                }}
+                                        {/* Input Nomor Blok di Mode Instan (Per Kategori) */}
+                                        {showBlockInput !== false && (currentDetails[cat.id] || []).length > 0 && (() => {
+                                          const selectedList = currentDetails[cat.id] || [];
+                                          const reqDetails = selectedList.filter((d) => isDefectRequiringBlock(d));
+                                          const isRequired = reqDetails.length > 0;
+                                          const isMissing = isRequired && (!currentBloks[cat.id] || currentBloks[cat.id]?.trim() === "");
+                                          return renderBlockInputForCategory(cat.id, isRequired, isMissing, reqDetails);
+                                        })()}
+
+                                        {/* Input Masalah Kustom (2 Kolom: Objek + Aksi) di Mode Instan */}
+                                        {(cat.id === "G" || openCustomInputCats[cat.id]) ? (
+                                          <div className={cn("mt-3 pt-3 border-t", isDark ? "border-slate-800" : "border-sky-100")}>
+                                            <label className={cn("text-[10px] font-bold uppercase mb-1.5 flex items-center justify-between", isDark ? "text-slate-400" : "text-slate-600")}>
+                                              <span className="flex items-center gap-1">
+                                                <Edit3 className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                                                Input Masalah Kustom
+                                              </span>
+                                              {manualInputObjek[cat.id]?.trim() && manualInputAksi[cat.id]?.trim() && (
+                                                <span className="text-[10px] font-black text-sky-600 dark:text-sky-400">
+                                                  = {getCanonicalProblemDetail(cat.id, manualInputObjek[cat.id], manualInputAksi[cat.id])}
+                                                </span>
+                                              )}
+                                            </label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                                              <input
+                                                type="text"
+                                                list={`dt-inst-objek-${cat.id}`}
+                                                value={manualInputObjek[cat.id] || ""}
+                                                onChange={(e) => handleManualObjekChange(cat.id, e.target.value)}
+                                                placeholder="1. Objek (contoh: L1, Benang...)"
                                                 className={cn(
-                                                  "w-9 h-9 rounded-lg border flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer shrink-0",
+                                                  "px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium",
                                                   isDark
-                                                    ? "bg-slate-800 hover:bg-slate-700 border-slate-600 text-sky-400"
-                                                    : "bg-white hover:bg-sky-100/60 border-sky-200 text-[#0070bc]"
+                                                    ? "border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                                                    : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400"
                                                 )}
-                                                title="Tambah Blok"
-                                              >
-                                                <Plus className="w-4 h-4" />
-                                              </button>
+                                              />
+                                              <datalist id={`dt-inst-objek-${cat.id}`}>
+                                                {(modularDefinitions[cat.id]?.objects || []).map((o) => (
+                                                  <option key={o} value={o} />
+                                                ))}
+                                              </datalist>
+
+                                              <input
+                                                type="text"
+                                                list={`dt-inst-aksi-${cat.id}`}
+                                                value={manualInputAksi[cat.id] || ""}
+                                                onChange={(e) => handleManualAksiChange(cat.id, e.target.value)}
+                                                placeholder="2. Aksi (contoh: Putus, Narik...)"
+                                                className={cn(
+                                                  "px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium",
+                                                  isDark
+                                                    ? "border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                                                    : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400"
+                                                )}
+                                              />
+                                              <datalist id={`dt-inst-aksi-${cat.id}`}>
+                                                {(modularDefinitions[cat.id]?.actions || []).map((a) => (
+                                                  <option key={a} value={a} />
+                                                ))}
+                                              </datalist>
                                             </div>
 
-                                            {isMissing && (
-                                              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-1.5">
-                                                Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
-                                              </p>
-                                            )}
+                                            <div className="flex items-center justify-end gap-2">
+                                              {cat.id !== "G" && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setOpenCustomInputCats((prev) => ({ ...prev, [cat.id]: false }))}
+                                                  className="text-xs text-slate-400 hover:text-slate-600 px-2 py-1.5 cursor-pointer font-bold"
+                                                  title="Tutup input kustom"
+                                                >
+                                                  Batal
+                                                </button>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleAddManualDetail(cat.id)}
+                                                disabled={!(manualInputObjek[cat.id]?.trim() && manualInputAksi[cat.id]?.trim())}
+                                                className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                              >
+                                                <Plus className="w-3.5 h-3.5" />
+                                                <span>Tambah Masalah (Objek + Aksi)</span>
+                                              </button>
+                                            </div>
                                           </div>
-                                        );
-                                      })()}
-                                    </div>
-                                  );
-                                })}
-
-                                {customInputDetails.length > 0 && (
-                                  <div className="space-y-1.5 pt-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className={cn(
-                                        "text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs",
-                                        isDark
-                                          ? "text-amber-200 bg-amber-950/80 border-amber-800"
-                                          : "text-amber-800 bg-amber-100 border-amber-200"
-                                      )}>
-                                        Input Manual
-                                      </span>
-                                      <div className={cn("flex-1 h-px", isDark ? "bg-slate-800" : "bg-slate-200/80")} />
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                      {customInputDetails.map((customDetail) => (
-                                        <div key={customDetail} className="relative flex items-center">
-                                          <div className="flex-1 p-2.5 rounded-lg border border-sky-500 bg-sky-500 text-white text-xs font-semibold flex items-center justify-between shadow-xs">
-                                            <span className="truncate">{customDetail}</span>
+                                        ) : (
+                                          <div className={cn("mt-2 pt-2 border-t", isDark ? "border-slate-800/80" : "border-slate-100")}>
                                             <button
                                               type="button"
-                                              onClick={() => handleRemoveCustomDetail(cat.id, customDetail)}
-                                              className="ml-1 p-0.5 hover:bg-sky-600 rounded text-white cursor-pointer"
-                                              title="Hapus detail manual"
+                                              onClick={() => setOpenCustomInputCats((prev) => ({ ...prev, [cat.id]: true }))}
+                                              className={cn(
+                                                "text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer",
+                                                isDark ? "text-slate-400 hover:text-sky-400" : "text-slate-500 hover:text-sky-600"
+                                              )}
                                             >
-                                              <X className="w-3.5 h-3.5" />
+                                              <Plus className="w-3.5 h-3.5" />
+                                              <span>+ Tambah Masalah Lain di Kategori Ini</span>
                                             </button>
                                           </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()
                                 )}
                               </div>
-                            );
-                          })()}
+                            )}
+                          </div>
+                        ))}
+                      </div>
 
-                          {cat.id === "G" && (
-                            <div className={cn("mt-3 pt-3 border-t", isDark ? "border-slate-800" : "border-sky-100")}>
-                              <label className={cn("text-[10px] font-bold uppercase mb-1.5 flex items-center justify-between", isDark ? "text-slate-400" : "text-slate-600")}>
-                                <span className="flex items-center gap-1">
-                                  <Edit3 className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                                  Input Masalah Manual (Jika tidak ada di pilihan)
-                                </span>
-                              </label>
-                              <div className="flex gap-2">
-                                <input
-                                  type="text"
-                                  value={currentManualDetails[cat.id] || ""}
-                                  onChange={(e) => handleManualDetailTextChange(cat.id, e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      handleAddManualDetail(cat.id);
-                                    }
-                                  }}
-                                  placeholder="Ketik detail masalah manual di sini..."
-                                  className={cn(
-                                    "flex-1 px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium",
-                                    isDark
-                                      ? "border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
-                                      : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400"
-                                  )}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleAddManualDetail(cat.id)}
-                                  disabled={!(currentManualDetails[cat.id] || "").trim()}
-                                  className="px-3 py-2 bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Tambah</span>
-                                </button>
-                              </div>
-                            </div>
+                      {/* Tombol Collapsible: Tampilkan Semua Kategori (C - G) vs Sembunyikan */}
+                      <div className="pt-1.5">
+                        <button
+                          type="button"
+                          onClick={handleToggleShowAllCategories}
+                          className={cn(
+                            "w-full py-2.5 px-4 rounded-xl border border-dashed flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-[0.99]",
+                            isDark
+                              ? "border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300"
+                              : "border-slate-300 bg-slate-50/80 hover:bg-slate-100 text-slate-600"
                           )}
-                        </div>
-                      )}
+                        >
+                          {showAllCategories ? (
+                            <>
+                              <ChevronUp className="w-4 h-4 text-sky-500" />
+                              <span>Sembunyikan Kategori Lainnya (Hanya Tampilkan Kode A & B)</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-4 h-4 text-sky-500" />
+                              <span>Tampilkan Semua Kategori Masalah (Kode C - G)</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -4131,28 +4704,28 @@ export default function DowntimeTracker({
                   isSavingMechanic ||
                   (problemInputMode === "per_pcs" && dikerjakanOleh === "Operator" && selectedPcsKeList.length > 1
                     ? (
-                        selectedPcsKeList.length === 0 ||
-                        selectedPcsKeList.some((k) => {
-                          const pcsData = perPcsProblems[k];
-                          const cats = pcsData?.categories || [];
-                          if (cats.length === 0) return true;
-                          const dets = pcsData?.details || {};
-                          const manuals = pcsData?.manualDetails || {};
-                          return cats.some((cat) => {
-                            const hasDetails = (dets[cat] || []).length > 0;
-                            const hasManual = !!(manuals[cat] || "").trim();
-                            return !hasDetails && !hasManual;
-                          });
-                        })
-                      )
-                    : (
-                        selectedCategories.length === 0 ||
-                        selectedCategories.some((cat) => {
-                          const hasDetails = (selectedDetails[cat] || []).length > 0;
-                          const hasManual = !!(manualInputDetails[cat] || "").trim();
+                      selectedPcsKeList.length === 0 ||
+                      selectedPcsKeList.some((k) => {
+                        const pcsData = perPcsProblems[k];
+                        const cats = pcsData?.categories || [];
+                        if (cats.length === 0) return true;
+                        const dets = pcsData?.details || {};
+                        const manuals = pcsData?.manualDetails || {};
+                        return cats.some((cat) => {
+                          const hasDetails = (dets[cat] || []).length > 0;
+                          const hasManual = !!(manuals[cat] || "").trim();
                           return !hasDetails && !hasManual;
-                        })
-                      )) ||
+                        });
+                      })
+                    )
+                    : (
+                      selectedCategories.length === 0 ||
+                      selectedCategories.some((cat) => {
+                        const hasDetails = (selectedDetails[cat] || []).length > 0;
+                        const hasManual = !!(manualInputDetails[cat] || "").trim();
+                        return !hasDetails && !hasManual;
+                      })
+                    )) ||
                   (dikerjakanOleh === "Operator" && pcsKeys.length > 1 && selectedPcsKeList.length === 0) ||
                   hasMissingMeter
                 }
@@ -4515,8 +5088,8 @@ export default function DowntimeTracker({
                               onChange={(e) => handlePcsMeterChange(selectedPcsKeList[0], e.target.value)}
                               placeholder="Contoh: 18"
                               className={`w-full h-11 pl-4 pr-16 text-left sm:text-center rounded-xl border text-sm font-bold font-mono transition-all shadow-inner ${!inputMeters[selectedPcsKeList[0]] || inputMeters[selectedPcsKeList[0]].trim() === ""
-                                  ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
-                                  : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-emerald-50/30 text-emerald-900"
+                                ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
+                                : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-emerald-50/30 text-emerald-900"
                                 }`}
                             />
                             <span className="absolute right-3.5 px-2 py-0.5 bg-slate-100 rounded-md text-xs font-bold text-slate-500 pointer-events-none border border-slate-200">
@@ -4550,8 +5123,8 @@ export default function DowntimeTracker({
                           </div>
 
                           <div className={`grid gap-2.5 w-full ${selectedPcsKeList.length === 2 ? "grid-cols-2" :
-                              selectedPcsKeList.length === 3 ? "grid-cols-3" :
-                                "grid-cols-2 sm:grid-cols-4"
+                            selectedPcsKeList.length === 3 ? "grid-cols-3" :
+                              "grid-cols-2 sm:grid-cols-4"
                             }`}>
                             {selectedPcsKeList.map((pcsKey) => {
                               const val = inputMeters[pcsKey] || "";
@@ -4576,8 +5149,8 @@ export default function DowntimeTracker({
                                       onChange={(e) => handlePcsMeterChange(pcsKey, e.target.value)}
                                       placeholder="0"
                                       className={`w-full h-9 pl-2 pr-7 text-center rounded-lg border text-xs font-bold font-mono transition-all ${isMeterEmpty
-                                          ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-white text-slate-800 placeholder:text-slate-400"
-                                          : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-emerald-900 bg-emerald-50/50"
+                                        ? "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-white text-slate-800 placeholder:text-slate-400"
+                                        : "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-emerald-900 bg-emerald-50/50"
                                         }`}
                                     />
                                     <span className="absolute right-2 text-[10px] font-bold text-slate-400 pointer-events-none">

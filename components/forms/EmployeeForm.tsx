@@ -423,11 +423,13 @@ const fileToBase64 = (file: File): Promise<string> => {
 type EmployeeFormProps = {
   initialData?: any;
   isEdit?: boolean;
+  returnUrl?: string;
 };
 
 export default function EmployeeForm({
   initialData,
   isEdit,
+  returnUrl,
 }: EmployeeFormProps = {}) {
   const { user } = useAuth();
   const { isDark } = useInputTheme();
@@ -1505,7 +1507,9 @@ export default function EmployeeForm({
     if (isEdit) {
       sessionStorage.removeItem("dji_history_data");
       sessionStorage.removeItem("dji_history_searched");
-      if (successData) {
+      if (returnUrl) {
+        router.push(returnUrl);
+      } else if (successData) {
         const mc = successData.nomorMc || "";
         const design = successData.designId || "";
         const potongan = successData.potonganKe || "";

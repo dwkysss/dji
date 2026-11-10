@@ -528,6 +528,7 @@ function HistoryDetailContent() {
             if (sortedPcsKeys.length === 0) return null;
 
             const isMeterReport = detailData.panels?.some((p: any) => p.panel_no === "METERAN");
+            const isSinglePcs = sortedPcsKeys.length === 1;
 
             return (
               <div className="mb-6">
@@ -536,8 +537,13 @@ function HistoryDetailContent() {
                     Rincian per Panel
                   </h4>
                 )}
-                <div className="w-full overflow-x-auto pb-4 no-scrollbar bg-white p-3 sm:p-6 rounded-xl border border-slate-200 shadow-sm">
-                  <div className="flex w-max min-w-full gap-4 sm:gap-8">
+                {isMeterReport && isSinglePcs && (
+                  <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    Rincian Produksi Meteran
+                  </h4>
+                )}
+                <div className={`w-full ${isSinglePcs ? "" : "overflow-x-auto"} pb-4 no-scrollbar bg-white p-3 sm:p-6 rounded-xl border border-slate-200 shadow-sm`}>
+                  <div className={isSinglePcs ? "w-full" : "flex w-max min-w-full gap-4 sm:gap-8"}>
                     {sortedPcsKeys.map((pcsKey) => {
                       const pcsLabel = `PCS ${pcsKey}`;
                       const panels = pcsGroups[pcsKey].sort((a, b) => {
@@ -562,21 +568,32 @@ function HistoryDetailContent() {
                       const isMeter = detailData.is_meter || panels.some((p: any) => p.panel_no === "METERAN");
 
                       return (
-                        <div key={pcsKey} className="w-min flex-none bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                          <div className="bg-slate-100/80 px-4 py-3 border-b border-slate-200 text-center">
-                            <span className="font-black text-slate-800 text-sm tracking-wider uppercase">{pcsLabel}</span>
-                          </div>
-                          {isMeter ? (
-                            <MeterHistoryTable
-                              panels={panels}
-                              pcsKey={pcsKey}
-                              hasNextPotongan={Boolean(detailData?.has_next_potongan || detailData?.tanggal_potong)}
-                              onDataUpdated={fetchDetail}
-                              onRefresh={fetchDetail}
-                            />
-                          ) : (
-                            <PanelHistoryTable panels={panels} pcsKey={pcsKey} onRefresh={fetchDetail} />
+                        <div
+                          key={pcsKey}
+                          className={
+                            isSinglePcs
+                              ? "w-full bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+                              : "w-min flex-none bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+                          }
+                        >
+                          {!isSinglePcs && (
+                            <div className="bg-slate-100/80 px-4 py-3 border-b border-slate-200 text-center">
+                              <span className="font-black text-slate-800 text-sm tracking-wider uppercase">{pcsLabel}</span>
+                            </div>
                           )}
+                          <div className="w-full overflow-x-auto no-scrollbar">
+                            {isMeter ? (
+                              <MeterHistoryTable
+                                panels={panels}
+                                pcsKey={pcsKey}
+                                hasNextPotongan={Boolean(detailData?.has_next_potongan || detailData?.tanggal_potong)}
+                                onDataUpdated={fetchDetail}
+                                onRefresh={fetchDetail}
+                              />
+                            ) : (
+                              <PanelHistoryTable panels={panels} pcsKey={pcsKey} onRefresh={fetchDetail} />
+                            )}
+                          </div>
                       </div>
                     );
                   })}

@@ -405,6 +405,7 @@ type ContinuousFormProps = {
   initialData?: any;
   defaultMeter?: string;
   defaultPcsIndex?: string;
+  returnUrl?: string;
 };
 
 function parseFormMeterValue(value: string | null | undefined): number | null {
@@ -429,6 +430,7 @@ export default function ContinuousForm({
   isEdit,
   defaultMeter,
   defaultPcsIndex,
+  returnUrl,
 }: ContinuousFormProps = {}) {
   const { user } = useAuth();
   const { isDark } = useInputTheme();
@@ -1946,7 +1948,9 @@ export default function ContinuousForm({
     if (isEdit) {
       sessionStorage.removeItem("dji_history_data");
       sessionStorage.removeItem("dji_history_searched");
-      if (successData) {
+      if (returnUrl) {
+        router.push(returnUrl);
+      } else if (successData) {
         const mc = successData.nomorMc || "";
         const design = successData.designId || "";
         const potongan = successData.potonganKe || "";

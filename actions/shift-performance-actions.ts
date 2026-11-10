@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getShiftDate } from "@/lib/shift-utils";
 import { getDefectMeterLength } from "@/lib/defect-format-utils";
+import { mapToCanonicalProblem } from "@/lib/canonical-problem-utils";
 
 export interface ShiftOperatorPerformance {
   operatorId: number | string;
@@ -455,7 +456,8 @@ export async function getMonthlyShiftPerformance(
             if (det) {
               const stat = categoryStatsMap.get(k);
               if (stat) {
-                stat.issues.set(det, (stat.issues.get(det) || 0) + 1);
+                const canonicalDet = mapToCanonicalProblem(k, det);
+                stat.issues.set(canonicalDet, (stat.issues.get(canonicalDet) || 0) + 1);
               }
             }
           });
@@ -470,7 +472,8 @@ export async function getMonthlyShiftPerformance(
               cats.forEach((k) => {
                 const stat = categoryStatsMap.get(k);
                 if (stat) {
-                  stat.issues.set(det, (stat.issues.get(det) || 0) + 1);
+                  const canonicalDet = mapToCanonicalProblem(k, det);
+                  stat.issues.set(canonicalDet, (stat.issues.get(canonicalDet) || 0) + 1);
                 }
               });
             });

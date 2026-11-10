@@ -12,6 +12,8 @@ import {
   deleteProblemDetail,
   saveProblemGroupMapping,
   getProblemGroupMapping,
+  getModularProblemDefinitions,
+  addModularDefinitionItem,
   ProblemCategoryItem,
   ProblemDetailItem,
 } from "@/actions/problem-detail-actions";
@@ -36,7 +38,7 @@ import {
   ChevronDown,
   Check,
 } from "lucide-react";
-import { GROUPED_PROBLEM_DETAILS } from "@/lib/constants";
+import { GROUPED_PROBLEM_DETAILS, DEFAULT_MODULAR_DEFINITIONS } from "@/lib/constants";
 
 const FALLBACK_CATEGORIES: ProblemCategoryItem[] = [
   { kode: "A", label: "Masalah dan Perbaikan Benang", description: "Masalah terkait benang dasar, benang timbul, & perbaikan benang", color: "from-amber-500 to-orange-600" },
@@ -96,12 +98,18 @@ export default function ProblemDetailsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Modular (2 Kolom: Objek + Aksi) Form State
+  const [formObjek, setFormObjek] = useState("");
+  const [formAksi, setFormAksi] = useState("");
+  const [modularDefs, setModularDefs] = useState<Record<string, { objects: string[]; actions: string[] }>>(DEFAULT_MODULAR_DEFINITIONS);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [catRes, detRes] = await Promise.all([
+      const [catRes, detRes, modRes] = await Promise.all([
         getProblemCategories(),
         getProblemDetailsGrouped(),
+        getModularProblemDefinitions(),
       ]);
 
       if (catRes.success && catRes.categories && catRes.categories.length > 0) {
@@ -110,6 +118,9 @@ export default function ProblemDetailsPage() {
       if (detRes.success) {
         if (detRes.rawList) setRawList(detRes.rawList);
         if (detRes.groupMapping) setGroupMapping(detRes.groupMapping);
+      }
+      if (modRes.success && modRes.definitions) {
+        setModularDefs(modRes.definitions);
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Terjadi kesalahan memuat data");
@@ -270,6 +281,8 @@ export default function ProblemDetailsPage() {
     const targetCat = cat || activeCategory;
     setFormKategori(targetCat);
     setFormNamaDetail("");
+    setFormObjek("");
+    setFormAksi("");
     const catGroups = groupMapping[targetCat] || [];
     setFormSubKategori(defaultGroup || (catGroups.length > 0 ? catGroups[0].groupName : "Umum"));
     setCustomSubKatInput("");
@@ -282,6 +295,24 @@ export default function ProblemDetailsPage() {
     setEditingItem(item);
     setFormKategori(item.kategori);
     setFormNamaDetail(item.nama_detail);
+
+    // Parse Objek and Aksi from nama_detail
+    const knownObjList = modularDefs[item.kategori]?.objects || [];
+    const matchedObj = knownObjList.find((o) => item.nama_detail.startsWith(o));
+    if (matchedObj) {
+      setFormObjek(matchedObj);
+      setFormAksi(item.nama_detail.slice(matchedObj.length).trim());
+    } else {
+      const parts = item.nama_detail.split(" ");
+      if (parts.length >= 2) {
+        setFormObjek(parts.slice(0, parts.length - 1).join(" "));
+        setFormAksi(parts[parts.length - 1]);
+      } else {
+        setFormObjek(item.nama_detail);
+        setFormAksi("");
+      }
+    }
+
     setFormSubKategori(item.sub_kategori || "");
     setCustomSubKatInput("");
     setFormIsActive(item.is_active);
@@ -297,8 +328,10 @@ export default function ProblemDetailsPage() {
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formNamaDetail.trim()) {
-      setErrorMsg("Nama detail masalah tidak boleh kosong!");
+    const finalNama = `${formObjek.trim()} ${formAksi.trim()}`.trim();
+
+    if (!formObjek.trim() || !formAksi.trim()) {
+      setErrorMsg("Kolom 1 (Objek) dan Kolom 2 (Aksi) wajib diisi keduanya!");
       return;
     }
 
@@ -308,8 +341,10 @@ export default function ProblemDetailsPage() {
     setErrorMsg("");
     const res = await createProblemDetail({
       kategori: formKategori,
-      nama_detail: formNamaDetail,
+      nama_detail: finalNama,
       sub_kategori: effectiveSubKat || "Umum",
+      objek: formObjek.trim(),
+      aksi: formAksi.trim(),
     });
 
     setSubmitting(false);
@@ -324,8 +359,10 @@ export default function ProblemDetailsPage() {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
-    if (!formNamaDetail.trim()) {
-      setErrorMsg("Nama detail masalah tidak boleh kosong!");
+    const finalNama = `${formObjek.trim()} ${formAksi.trim()}`.trim();
+
+    if (!formObjek.trim() || !formAksi.trim()) {
+      setErrorMsg("Kolom 1 (Objek) dan Kolom 2 (Aksi) wajib diisi keduanya!");
       return;
     }
 
@@ -334,12 +371,18 @@ export default function ProblemDetailsPage() {
     setSubmitting(true);
     setErrorMsg("");
     const res = await updateProblemDetail(editingItem.id, {
-      nama_detail: formNamaDetail,
+      nama_detail: finalNama,
       is_active: formIsActive,
       sub_kategori: effectiveSubKat,
       kategori: editingItem.kategori,
       old_nama_detail: editingItem.nama_detail,
     });
+
+    if (formObjek.trim() || formAksi.trim()) {
+      try {
+        await addModularDefinitionItem(editingItem.kategori, formObjek.trim(), formAksi.trim());
+      } catch (_) { }
+    }
 
     setSubmitting(false);
     if (res.success) {
@@ -1338,18 +1381,105 @@ export default function ProblemDetailsPage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Nama Detail Masalah
-                </label>
-                <input
-                  type="text"
-                  value={formNamaDetail}
-                  onChange={(e) => setFormNamaDetail(e.target.value)}
-                  placeholder="Contoh: Jarum patah blok A..."
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
-                  autoFocus={formSubKategori !== "__NEW__"}
-                />
+              {/* Komponen Masalah (2 Kolom: Objek + Aksi) */}
+              <div className="space-y-3 p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-amber-900 uppercase tracking-wider">
+                    Format Masalah
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Kolom 1: Objek */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-amber-900 mb-1">
+                      1. Objek / Komponen
+                    </label>
+                    <input
+                      type="text"
+                      list="add-objek-suggestions"
+                      value={formObjek}
+                      onChange={(e) => setFormObjek(e.target.value)}
+                      placeholder="Pilih / ketik objek..."
+                      className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                    />
+                    <datalist id="add-objek-suggestions">
+                      {(modularDefs[formKategori]?.objects || []).map((o) => (
+                        <option key={o} value={o} />
+                      ))}
+                    </datalist>
+                    <div className="flex flex-wrap gap-1 mt-1.5 max-h-16 overflow-y-auto no-scrollbar">
+                      {(modularDefs[formKategori]?.objects || []).map((o) => (
+                        <button
+                          key={o}
+                          type="button"
+                          onClick={() => setFormObjek(o)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${formObjek === o
+                            ? "bg-amber-500 text-white border-amber-600 shadow-2xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-amber-100/60"
+                            }`}
+                        >
+                          {o}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Kolom 2: Aksi */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-amber-900 mb-1">
+                      2. Aksi / Kerusakan
+                    </label>
+                    <input
+                      type="text"
+                      list="add-aksi-suggestions"
+                      value={formAksi}
+                      onChange={(e) => setFormAksi(e.target.value)}
+                      placeholder="Pilih / ketik aksi..."
+                      className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                    />
+                    <datalist id="add-aksi-suggestions">
+                      {(modularDefs[formKategori]?.actions || []).map((a) => (
+                        <option key={a} value={a} />
+                      ))}
+                    </datalist>
+                    <div className="flex flex-wrap gap-1 mt-1.5 max-h-16 overflow-y-auto no-scrollbar">
+                      {(modularDefs[formKategori]?.actions || []).map((a) => (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => setFormAksi(a)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${formAksi === a
+                            ? "bg-amber-500 text-white border-amber-600 shadow-2xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-amber-100/60"
+                            }`}
+                        >
+                          {a}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview Hasil Gabungan */}
+                <div className="p-2.5 rounded-xl bg-white border border-amber-200 flex items-center justify-between shadow-2xs">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-amber-700 tracking-wider block">
+                      Hasil Gabungan:
+                    </span>
+                    <span className="text-xs font-black text-slate-900">
+                      {formObjek.trim() && formAksi.trim() ? (
+                        `${formObjek.trim()} ${formAksi.trim()}`
+                      ) : (
+                        <span className="text-slate-400 font-semibold italic text-[11px]">
+                          Ketik Objek & Aksi di atas...
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {formObjek.trim() && formAksi.trim() && (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 sm:gap-3 pt-4 border-t border-slate-100">
@@ -1412,16 +1542,105 @@ export default function ProblemDetailsPage() {
             )}
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Nama Detail Masalah
-                </label>
-                <input
-                  type="text"
-                  value={formNamaDetail}
-                  onChange={(e) => setFormNamaDetail(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
-                />
+              {/* Komponen Masalah (2 Kolom: Objek + Aksi) */}
+              <div className="space-y-3 p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-blue-900 uppercase tracking-wider">
+                    Format Masalah
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Kolom 1: Objek */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-blue-900 mb-1">
+                      1. Objek / Komponen
+                    </label>
+                    <input
+                      type="text"
+                      list="edit-objek-suggestions"
+                      value={formObjek}
+                      onChange={(e) => setFormObjek(e.target.value)}
+                      placeholder="Pilih / ketik objek..."
+                      className="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <datalist id="edit-objek-suggestions">
+                      {(modularDefs[editingItem.kategori]?.objects || []).map((o) => (
+                        <option key={o} value={o} />
+                      ))}
+                    </datalist>
+                    <div className="flex flex-wrap gap-1 mt-1.5 max-h-16 overflow-y-auto no-scrollbar">
+                      {(modularDefs[editingItem.kategori]?.objects || []).map((o) => (
+                        <button
+                          key={o}
+                          type="button"
+                          onClick={() => setFormObjek(o)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${formObjek === o
+                            ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-blue-100/60"
+                            }`}
+                        >
+                          {o}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Kolom 2: Aksi */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-blue-900 mb-1">
+                      2. Aksi / Kerusakan
+                    </label>
+                    <input
+                      type="text"
+                      list="edit-aksi-suggestions"
+                      value={formAksi}
+                      onChange={(e) => setFormAksi(e.target.value)}
+                      placeholder="Pilih / ketik aksi..."
+                      className="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <datalist id="edit-aksi-suggestions">
+                      {(modularDefs[editingItem.kategori]?.actions || []).map((a) => (
+                        <option key={a} value={a} />
+                      ))}
+                    </datalist>
+                    <div className="flex flex-wrap gap-1 mt-1.5 max-h-16 overflow-y-auto no-scrollbar">
+                      {(modularDefs[editingItem.kategori]?.actions || []).map((a) => (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => setFormAksi(a)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${formAksi === a
+                            ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-blue-100/60"
+                            }`}
+                        >
+                          {a}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview Hasil Gabungan */}
+                <div className="p-2.5 rounded-xl bg-white border border-blue-200 flex items-center justify-between shadow-2xs">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-blue-700 tracking-wider block">
+                      Hasil Gabungan:
+                    </span>
+                    <span className="text-xs font-black text-slate-900">
+                      {formObjek.trim() && formAksi.trim() ? (
+                        `${formObjek.trim()} ${formAksi.trim()}`
+                      ) : (
+                        <span className="text-slate-400 font-semibold italic text-[11px]">
+                          Ketik Objek & Aksi di atas...
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {formObjek.trim() && formAksi.trim() && (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  )}
+                </div>
               </div>
 
               <div>

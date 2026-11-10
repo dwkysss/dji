@@ -50,6 +50,9 @@ db_out.json
 *.tmp
 *.temp
 
+# Local ESP32 portal credentials
+firmware/esp32_wifi_dual_timer/secrets.h
+
 # Excel files
 *.xlsx
 

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getShiftDate, parseAsWibDate, getShiftName } from "@/lib/shift-utils";
 import { PROBLEM_DETAILS } from "@/lib/constants";
+import { mapToCanonicalProblem } from "@/lib/canonical-problem-utils";
 
 export interface MonthlyMachineReportData {
   tanggal: number;
@@ -492,7 +493,8 @@ export async function getMonthlyMachineReport(
         addDefectCode(kat);
         recordedKats.add(kat);
         if (d) {
-          addKeterangan(kat, d);
+          const canonicalD = mapToCanonicalProblem(kat, d);
+          addKeterangan(kat, canonicalD);
         }
       };
 
