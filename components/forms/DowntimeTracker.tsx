@@ -415,6 +415,7 @@ export default function DowntimeTracker({
     const isDeselect = cur.obj === obj;
     const newObj = isDeselect ? undefined : obj;
 
+    // Jika Aksi sudah dipilih sebelumnya, dan sekarang Objek dipilih -> Bentuk masalah & RESET tombol ke putih netral!
     if (newObj && cur.act) {
       const combined = getCanonicalProblemDetail(catId, newObj, cur.act);
       const currentSelected = currentDetails[catId] || [];
@@ -428,6 +429,12 @@ export default function DowntimeTracker({
           }));
         }
       }
+      // Reset pilihan builder ke putih netral setelah berhasil masuk ke Masalah Terpilih
+      setModularBuilderState((prev) => ({
+        ...prev,
+        [catId]: { obj: undefined, act: undefined },
+      }));
+      return;
     }
 
     setModularBuilderState((prev) => ({
@@ -440,6 +447,7 @@ export default function DowntimeTracker({
     const cur = modularBuilderState[catId] || {};
     const currentObj = cur.obj;
 
+    // Jika Objek belum dipilih, simpan aksi sementara (menunggu objek) atau batalkan jika diklik ulang
     if (!currentObj) {
       const isDeselect = cur.act === act;
       setModularBuilderState((prev) => ({
@@ -449,13 +457,11 @@ export default function DowntimeTracker({
       return;
     }
 
+    // Objek sudah ada dan sekarang Aksi dipilih -> Bentuk masalah & RESET tombol ke putih netral!
     const combined = getCanonicalProblemDetail(catId, currentObj, act);
     const currentSelected = currentDetails[catId] || [];
-    const isAlreadyChecked = currentSelected.includes(combined);
-
-    handleDetailToggle(catId, combined, !isAlreadyChecked);
-
-    if (!isAlreadyChecked) {
+    if (!currentSelected.includes(combined)) {
+      handleDetailToggle(catId, combined, true);
       const existingList = dynamicProblemDetails[catId] || [];
       if (!existingList.includes(combined)) {
         setDynamicProblemDetails((prev) => ({
@@ -465,9 +471,10 @@ export default function DowntimeTracker({
       }
     }
 
+    // Reset pilihan builder ke putih netral setelah berhasil masuk ke Masalah Terpilih
     setModularBuilderState((prev) => ({
       ...prev,
-      [catId]: { ...prev[catId], act },
+      [catId]: { obj: undefined, act: undefined },
     }));
   };
 
@@ -3010,68 +3017,37 @@ export default function DowntimeTracker({
                       </button>
                     </>
                   ) : isWifiConnected ? (
-                    (() => {
-                      const currentMc = String(watch("nomorMc") || "").trim().toUpperCase();
-                      const isR11 = currentMc === "R11" || currentMc.endsWith("11") || currentMc.includes("R11");
-                      if (isR11) {
-                        return (
-                          <div className="flex flex-col gap-2.5">
-                            <div
-                              className={cn(
-                                "flex flex-col items-center justify-center p-2.5 border rounded-2xl text-center gap-1 transition-colors",
-                                isDark
-                                  ? "bg-emerald-950/40 border-emerald-800/80 text-emerald-300"
-                                  : "bg-emerald-50 border-emerald-200/80 text-emerald-700"
-                              )}
-                            >
-                              <div className="flex items-center gap-1.5 font-extrabold text-xs">
-                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                                <span>ESP32 Wi-Fi Terhubung</span>
-                              </div>
-                              <p
-                                className={cn(
-                                  "text-[10px] font-medium leading-tight",
-                                  isDark ? "text-emerald-400/90" : "text-emerald-600/90"
-                                )}
-                              >
-                                Sensor kabel Mesin R11 belum terhubung. Gunakan tombol manual di bawah.
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleStartTimer}
-                              className="flex items-center justify-center gap-2 w-full h-11 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
-                            >
-                              <AlertTriangle className="w-4 h-4 fill-current" />
-                              Mulai Manual
-                            </button>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div
+                    <div className="flex flex-col gap-2.5">
+                      <div
+                        className={cn(
+                          "flex flex-col items-center justify-center p-2.5 border rounded-2xl text-center gap-1 transition-colors",
+                          isDark
+                            ? "bg-emerald-950/40 border-emerald-800/80 text-emerald-300"
+                            : "bg-emerald-50 border-emerald-200/80 text-emerald-700"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>ESP32 Wi-Fi Terhubung</span>
+                        </div>
+                        <p
                           className={cn(
-                            "flex flex-col items-center justify-center p-3 border rounded-2xl text-center gap-1.5 transition-colors",
-                            isDark
-                              ? "bg-emerald-950/40 border-emerald-800/80 text-emerald-300"
-                              : "bg-emerald-50 border-emerald-200/80 text-emerald-700"
+                            "text-[10px] font-medium leading-tight",
+                            isDark ? "text-emerald-400/90" : "text-emerald-600/90"
                           )}
                         >
-                          <div className="flex items-center gap-1.5 font-extrabold text-xs">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                            <span>ESP32 Wi-Fi Terhubung</span>
-                          </div>
-                          <p
-                            className={cn(
-                              "text-[10px] font-medium leading-tight",
-                              isDark ? "text-emerald-400/90" : "text-emerald-600/90"
-                            )}
-                          >
-                            Timer downtime dikontrol otomatis oleh sensor mesin.
-                          </p>
-                        </div>
-                      );
-                    })()
+                          Sensor otomatis standby. Gunakan tombol manual di bawah jika sensor mesin tidak merespons.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleStartTimer}
+                        className="flex items-center justify-center gap-2 w-full h-11 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wide rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                      >
+                        <AlertTriangle className="w-4 h-4 fill-current" />
+                        Mulai Manual
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
@@ -4327,22 +4303,19 @@ export default function DowntimeTracker({
                                             <div className="flex items-center gap-2">
                                               <span className={cn(
                                                 "text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs",
-                                                isDark ? "text-amber-300 bg-amber-950/80 border-amber-800/70" : "text-amber-800 bg-amber-100/90 border-amber-200/70"
+                                                isDark ? "text-sky-300 bg-sky-950/80 border-sky-800/70" : "text-sky-800 bg-sky-100/90 border-sky-200/70"
                                               )}>
                                                 2. Pilih Aksi / Kerusakan
                                               </span>
                                             </div>
                                             {modularBuilderState[cat.id]?.act && (
-                                              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                              <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">
                                                 Dipilih: <span className="underline">{modularBuilderState[cat.id]?.act}</span>
                                               </span>
                                             )}
                                           </div>
                                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                                             {(modularDefinitions[cat.id]?.actions || []).map((act) => {
-                                              const currentObj = modularBuilderState[cat.id]?.obj;
-                                              const canonical = currentObj ? getCanonicalProblemDetail(cat.id, currentObj, act) : "";
-                                              const isCombinedSelected = !!canonical && (currentDetails[cat.id] || []).includes(canonical);
                                               const isActionClicked = modularBuilderState[cat.id]?.act === act;
                                               return (
                                                 <button
@@ -4351,13 +4324,11 @@ export default function DowntimeTracker({
                                                   onClick={() => handleModularActionClick(cat.id, act)}
                                                   className={cn(
                                                     "p-2 min-h-[44px] flex items-center justify-center rounded-xl border text-[11px] sm:text-xs font-semibold text-center transition-all cursor-pointer shadow-2xs active:scale-95 leading-snug break-words [overflow-wrap:anywhere]",
-                                                    isCombinedSelected
+                                                    isActionClicked
                                                       ? "bg-sky-600 border-sky-500 text-white font-bold ring-2 ring-sky-300 dark:ring-sky-700 shadow-xs"
-                                                      : isActionClicked
-                                                        ? "bg-amber-500 border-amber-400 text-white font-bold ring-2 ring-amber-300 dark:ring-amber-700"
-                                                        : isDark
-                                                          ? "border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700"
-                                                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                                      : isDark
+                                                        ? "border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700"
+                                                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                                                   )}
                                                 >
                                                   {typeof act === "string" ? act.replace(/\//g, "/\u200B") : act}
