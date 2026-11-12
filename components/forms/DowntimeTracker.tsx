@@ -108,6 +108,7 @@ export default function DowntimeTracker({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedDetails, setSelectedDetails] = useState<Record<string, string[]>>({});
   const [inputBloks, setInputBloks] = useState<Record<string, string>>({});
+  const [perProblemBloks, setPerProblemBloks] = useState<Record<string, Record<string, string[]>>>({});
   const [inputMeters, setInputMeters] = useState<Record<string, string>>({});
   const [singleMeterInput, setSingleMeterInput] = useState<string>("");
   const [isPerPcsMeterMode, setIsPerPcsMeterMode] = useState<boolean>(false);
@@ -305,6 +306,13 @@ export default function DowntimeTracker({
           newCats = newCats.filter((c) => c !== catId);
           delete newDets[catId];
           delete newBlks[catId];
+          const pcsCatKey = `${activePcsProblemTab}_${catId}`;
+          setPerProblemBloks((prevBlk) => {
+            if (!prevBlk[pcsCatKey]) return prevBlk;
+            const next = { ...prevBlk };
+            delete next[pcsCatKey];
+            return next;
+          });
         }
         return {
           ...prev,
@@ -331,12 +339,27 @@ export default function DowntimeTracker({
           delete next[catId];
           return next;
         });
+        setPerProblemBloks((prevBlk) => {
+          if (!prevBlk[catId]) return prevBlk;
+          const next = { ...prevBlk };
+          delete next[catId];
+          return next;
+        });
       }
     }
   };
 
   const handleDetailToggle = (catId: string, detail: string, isChecked: boolean) => {
     if (problemInputMode === "per_pcs") {
+      if (!isChecked) {
+        const pcsCatKey = `${activePcsProblemTab}_${catId}`;
+        setPerProblemBloks((prevBlk) => {
+          if (!prevBlk[pcsCatKey] || !prevBlk[pcsCatKey][detail]) return prevBlk;
+          const nextCat = { ...prevBlk[pcsCatKey] };
+          delete nextCat[detail];
+          return { ...prevBlk, [pcsCatKey]: nextCat };
+        });
+      }
       setPerPcsProblems((prev) => {
         const curPcs = prev[activePcsProblemTab] || { categories: [], details: {}, bloks: {}, manualDetails: {} };
         const curDets = curPcs.details[catId] || [];
@@ -355,6 +378,14 @@ export default function DowntimeTracker({
         };
       });
     } else {
+      if (!isChecked) {
+        setPerProblemBloks((prevBlk) => {
+          if (!prevBlk[catId] || !prevBlk[catId][detail]) return prevBlk;
+          const nextCat = { ...prevBlk[catId] };
+          delete nextCat[detail];
+          return { ...prevBlk, [catId]: nextCat };
+        });
+      }
       setSelectedDetails((prev) => {
         const current = prev[catId] || [];
         return {
@@ -388,6 +419,13 @@ export default function DowntimeTracker({
 
   const handleRemoveCustomDetail = (catId: string, customDetail: string) => {
     if (problemInputMode === "per_pcs") {
+      const pcsCatKey = `${activePcsProblemTab}_${catId}`;
+      setPerProblemBloks((prevBlk) => {
+        if (!prevBlk[pcsCatKey] || !prevBlk[pcsCatKey][customDetail]) return prevBlk;
+        const nextCat = { ...prevBlk[pcsCatKey] };
+        delete nextCat[customDetail];
+        return { ...prevBlk, [pcsCatKey]: nextCat };
+      });
       setPerPcsProblems((prev) => {
         const curPcs = prev[activePcsProblemTab] || { categories: [], details: {}, bloks: {}, manualDetails: {} };
         const curDets = curPcs.details[catId] || [];
@@ -403,6 +441,12 @@ export default function DowntimeTracker({
         };
       });
     } else {
+      setPerProblemBloks((prevBlk) => {
+        if (!prevBlk[catId] || !prevBlk[catId][customDetail]) return prevBlk;
+        const nextCat = { ...prevBlk[catId] };
+        delete nextCat[customDetail];
+        return { ...prevBlk, [catId]: nextCat };
+      });
       setSelectedDetails((prev) => ({
         ...prev,
         [catId]: (prev[catId] || []).filter((d) => d !== customDetail),
@@ -482,44 +526,121 @@ export default function DowntimeTracker({
     catId: string,
     isRequired: boolean,
     isMissing: boolean,
-    reqDetails: string[] = []
+    targetProblems: string[] = []
   ) => {
-    const currentBlokVal = currentBloks[catId] || "";
-    const rawTokens = currentBlokVal
-      ? currentBlokVal.split(",").map((s) => s.trim())
-      : [];
+    const catKey = problemInputMode === "per_pcs" ? `${activePcsProblemTab}_${catId}` : catId;
+    const problemList = targetProblems && targetProblems.length > 0 ? targetProblems : [""];
 
-    // Min input count: if there are defects requiring block, count matches reqDetails.length (e.g. 2 problems -> 2 inputs)
-    const minCount = Math.max(reqDetails.length, 1);
-    const targetCount = Math.max(minCount, rawTokens.length);
+    const getProblemBlocks = (probName: string, pIdx: number): string[] => {
+      const existing = perProblemBloks[catKey]?.[probName];
+      if (existing && existing.length > 0) return existing;
 
-    const blockList: string[] = [];
-    for (let i = 0; i < targetCount; i++) {
-      blockList.push(rawTokens[i] || "");
-    }
-
-    const updateBlockList = (newList: string[]) => {
-      const cleaned = newList.map((s) => s.replace(/[^0-9]/g, "").slice(0, 2).trim());
-      const joined = cleaned.join(", ");
-      handleBlockListChange(catId, joined);
+      const currentBlokVal = currentBloks[catId] || "";
+      if (currentBlokVal) {
+        const tokens = currentBlokVal.split(",").map((s) => s.trim()).filter(Boolean);
+        if (problemList.length <= 1) {
+          return tokens.length > 0 ? tokens : [""];
+        }
+        if (pIdx < problemList.length - 1) {
+          return tokens[pIdx] ? [tokens[pIdx]] : [""];
+        } else {
+          const rest = tokens.slice(pIdx);
+          return rest.length > 0 ? rest : [""];
+        }
+      }
+      return [""];
     };
 
+    const syncBlocksToForm = (updatedMap: Record<string, string[]>) => {
+      const allTokens: string[] = [];
+      problemList.forEach((pName, pIdx) => {
+        const list = updatedMap[pName] || getProblemBlocks(pName, pIdx);
+        list.forEach((b) => {
+          const cleaned = b.replace(/[^0-9]/g, "").slice(0, 2).trim();
+          if (cleaned) allTokens.push(cleaned);
+        });
+      });
+      handleBlockListChange(catId, allTokens.join(", "));
+    };
+
+    const updateProblemBlock = (probName: string, pIdx: number, bIdx: number, val: string) => {
+      const cleaned = val.replace(/[^0-9]/g, "").slice(0, 2);
+      const currentList = [...getProblemBlocks(probName, pIdx)];
+      currentList[bIdx] = cleaned;
+      const nextCatMap = {
+        ...(perProblemBloks[catKey] || {}),
+        [probName]: currentList,
+      };
+      setPerProblemBloks((prev) => ({
+        ...prev,
+        [catKey]: nextCatMap,
+      }));
+      syncBlocksToForm(nextCatMap);
+    };
+
+    const addProblemBlock = (probName: string, pIdx: number) => {
+      const currentList = [...getProblemBlocks(probName, pIdx)];
+      currentList.push("");
+      const nextCatMap = {
+        ...(perProblemBloks[catKey] || {}),
+        [probName]: currentList,
+      };
+      setPerProblemBloks((prev) => ({
+        ...prev,
+        [catKey]: nextCatMap,
+      }));
+    };
+
+    const removeProblemBlock = (probName: string, pIdx: number, bIdx: number) => {
+      const currentList = getProblemBlocks(probName, pIdx).filter((_, i) => i !== bIdx);
+      const nextList = currentList.length > 0 ? currentList : [""];
+      const nextCatMap = {
+        ...(perProblemBloks[catKey] || {}),
+        [probName]: nextList,
+      };
+      setPerProblemBloks((prev) => ({
+        ...prev,
+        [catKey]: nextCatMap,
+      }));
+      syncBlocksToForm(nextCatMap);
+    };
+
+    // Cek apakah ada masalah wajib yang belum terisi nomor bloknya
+    const missingAnyRequired = problemList.some((probName, pIdx) => {
+      const isReq = probName ? isDefectRequiringBlock(probName) : isRequired;
+      if (!isReq) return false;
+      const blks = getProblemBlocks(probName, pIdx);
+      return !blks.some((b) => b && b.trim() !== "");
+    });
+    const effectiveIsMissing = isMissing || missingAnyRequired;
+
     return (
-      <div className={cn(
-        "mt-2.5 p-3 sm:p-3.5 rounded-2xl border transition-all animate-fadeIn",
-        isMissing
-          ? (isDark ? "bg-rose-950/40 border-rose-700/80 ring-2 ring-rose-900/60" : "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200")
-          : (isDark ? "bg-slate-800/80 border-slate-700" : "bg-sky-50/80 border-sky-200")
-      )}>
-        <div className="flex items-center justify-between mb-2">
-          <span className={cn("text-xs font-black uppercase flex items-center gap-1.5", isDark ? "text-slate-200" : "text-slate-800")}>
+      <div
+        className={cn(
+          "mt-2.5 p-3 sm:p-3.5 rounded-2xl border transition-all animate-fadeIn",
+          effectiveIsMissing
+            ? isDark
+              ? "bg-rose-950/40 border-rose-700/80 ring-2 ring-rose-900/60"
+              : "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
+            : isDark
+            ? "bg-slate-800/80 border-slate-700"
+            : "bg-sky-50/80 border-sky-200"
+        )}
+      >
+        <div className="flex items-center justify-between mb-2.5">
+          <span
+            className={cn(
+              "text-xs font-black uppercase flex items-center gap-1.5",
+              isDark ? "text-slate-200" : "text-slate-800"
+            )}
+          >
             <Box className="w-4 h-4 text-[#0070bc] dark:text-sky-400" />
             Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
           </span>
           <div className="flex items-center gap-2">
-            {reqDetails.length > 1 && (
+            {problemList.filter(Boolean).length > 1 && (
               <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-950/80 px-2 py-0.5 rounded-full border border-sky-200 dark:border-sky-800">
-                {reqDetails.length} Masalah Terpilih
+                {problemList.filter(Boolean).length} Masalah Terpilih
               </span>
             )}
             {isRequired ? (
@@ -527,88 +648,119 @@ export default function DowntimeTracker({
                 Wajib Diisi
               </span>
             ) : (
-              <span className={cn("font-bold text-[9px]", isDark ? "text-slate-400" : "text-slate-400")}>Opsional</span>
+              <span className={cn("font-bold text-[9px]", isDark ? "text-slate-400" : "text-slate-400")}>
+                Opsional
+              </span>
             )}
           </div>
         </div>
 
-        {/* Input Nomor Blok dalam Mode Flex */}
-        <div className="flex flex-wrap items-center gap-2">
-          {blockList.map((itemVal, bIdx) => {
-            const defectLabel = reqDetails && reqDetails[bIdx] ? reqDetails[bIdx] : null;
-            const isItemEmpty = isRequired && (!itemVal || itemVal.trim() === "");
+        {/* Input Nomor Blok Mandiri Per Setiap Masalah Terpilih */}
+        <div className="space-y-2.5">
+          {problemList.map((probName, pIdx) => {
+            const probBlockList = getProblemBlocks(probName, pIdx);
+            const isThisProbRequired = probName ? isDefectRequiringBlock(probName) : isRequired;
+            const isProblemMissing = isThisProbRequired && !probBlockList.some((b) => b && b.trim() !== "");
 
             return (
               <div
-                key={bIdx}
+                key={probName || `prob_${pIdx}`}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all shadow-2xs",
-                  isDark
-                    ? "bg-slate-900 border-slate-700"
-                    : "bg-white border-sky-200/90",
-                  isItemEmpty && "ring-1 ring-rose-400 border-rose-300 dark:border-rose-700"
+                  "p-2.5 sm:p-3 rounded-xl border transition-all",
+                  isDark ? "bg-slate-900/90 border-slate-700/80" : "bg-white border-sky-200/80 shadow-2xs",
+                  isProblemMissing && "ring-1 ring-rose-400 border-rose-300 dark:border-rose-700"
                 )}
               >
-                <span className="text-[11px] font-black uppercase text-sky-700 dark:text-sky-300 whitespace-nowrap">
-                  {defectLabel ? defectLabel : `Blok ${bIdx + 1}`}:
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={2}
-                  value={itemVal}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
-                    const nextList = [...blockList];
-                    nextList[bIdx] = val;
-                    updateBlockList(nextList);
-                  }}
-                  placeholder="No"
-                  className={cn(
-                    "w-12 sm:w-14 h-8 px-1 rounded-lg border text-center font-black font-mono text-xs focus:outline-none transition-all",
-                    isDark
-                      ? "bg-slate-800 text-slate-100 placeholder:text-slate-500"
-                      : "bg-slate-50 text-slate-900 placeholder:text-slate-400",
-                    isItemEmpty
-                      ? "border-rose-400 focus:ring-2 focus:ring-rose-500 bg-rose-50/60"
-                      : "border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-sky-500"
+                {/* Header Masalah */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={cn("text-xs font-black uppercase", isDark ? "text-sky-300" : "text-sky-800")}>
+                      {probName ? probName : "Nomor Blok"}
+                    </span>
+                    {isThisProbRequired && <span className="text-rose-500 font-black text-xs">*</span>}
+                    {isThisProbRequired && (
+                      <span className="text-[9px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900">
+                        Wajib
+                      </span>
+                    )}
+                  </div>
+                  {probBlockList.length > 1 && (
+                    <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800">
+                      {probBlockList.length} Blok
+                    </span>
                   )}
-                />
-                {blockList.length > Math.max(reqDetails.length, 1) && (
+                </div>
+
+                {/* Input Nomor Blok & Tombol + Blok Khusus untuk Masalah Ini */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {probBlockList.map((bVal, bIdx) => {
+                    const isItemEmpty = isThisProbRequired && (!bVal || bVal.trim() === "");
+                    return (
+                      <div
+                        key={bIdx}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all",
+                          isDark ? "bg-slate-800/80 border-slate-700" : "bg-slate-50 border-slate-200",
+                          isItemEmpty && "border-rose-400 bg-rose-50/60 dark:bg-rose-950/40"
+                        )}
+                      >
+                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          {probBlockList.length > 1 ? `Blok ${bIdx + 1}:` : "Blok:"}
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={2}
+                          value={bVal}
+                          onChange={(e) => updateProblemBlock(probName, pIdx, bIdx, e.target.value)}
+                          placeholder="No"
+                          className={cn(
+                            "w-12 sm:w-14 h-8 px-1 rounded-md border text-center font-black font-mono text-xs focus:outline-none transition-all",
+                            isDark
+                              ? "bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                              : "bg-white text-slate-900 placeholder:text-slate-400",
+                            isItemEmpty
+                              ? "border-rose-400 focus:ring-2 focus:ring-rose-500"
+                              : "border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-sky-500"
+                          )}
+                        />
+                        {probBlockList.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeProblemBlock(probName, pIdx, bIdx)}
+                            className="w-6 h-6 rounded hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-500 flex items-center justify-center cursor-pointer transition-colors"
+                            title={`Hapus nomor blok ${bIdx + 1}`}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Tombol + Blok Khusus untuk Masalah Ini */}
                   <button
                     type="button"
-                    onClick={() => {
-                      const nextList = blockList.filter((_, i) => i !== bIdx);
-                      updateBlockList(nextList);
-                    }}
-                    className="w-6 h-6 rounded-md hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-500 flex items-center justify-center cursor-pointer transition-colors"
-                    title="Hapus nomor blok tambahan"
+                    onClick={() => addProblemBlock(probName, pIdx)}
+                    className={cn(
+                      "h-8 px-2.5 rounded-lg border border-dashed flex items-center justify-center gap-1 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0",
+                      isDark
+                        ? "bg-slate-800 hover:bg-slate-700 border-sky-600 text-sky-300"
+                        : "bg-sky-50 hover:bg-sky-100 border-sky-300 text-sky-700"
+                    )}
+                    title={`Tambah nomor blok tambahan untuk ${probName || "masalah ini"}`}
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5" />
+                    <span className="text-[11px] font-bold">+ Blok</span>
                   </button>
-                )}
+                </div>
               </div>
             );
           })}
-
-          <button
-            type="button"
-            onClick={() => updateBlockList([...blockList, ""])}
-            className={cn(
-              "h-11 px-3 rounded-xl border border-dashed flex items-center justify-center gap-1 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0",
-              isDark
-                ? "bg-slate-900/60 hover:bg-slate-800 border-slate-700 text-sky-400"
-                : "bg-white hover:bg-sky-50 border-sky-300 text-sky-700"
-            )}
-            title="Tambah nomor blok tambahan"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="text-[11px] font-bold">+ Blok</span>
-          </button>
         </div>
 
-        {isMissing && (
-          <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-1.5">
+        {effectiveIsMissing && (
+          <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-2">
             Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
           </p>
         )}
@@ -1389,6 +1541,7 @@ export default function DowntimeTracker({
     setSelectedCategories([]);
     setSelectedDetails({});
     setInputBloks({});
+    setPerProblemBloks({});
     setInputMeters({});
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
@@ -1435,6 +1588,7 @@ export default function DowntimeTracker({
     setSelectedCategories([]);
     setSelectedDetails({});
     setInputBloks({});
+    setPerProblemBloks({});
     setInputMeters({});
     setSingleMeterInput("");
     setIsPerPcsMeterMode(false);
@@ -1741,6 +1895,7 @@ export default function DowntimeTracker({
     setSelectedCategories([]);
     setSelectedDetails({});
     setInputBloks({});
+    setPerProblemBloks({});
     setInputMeters({});
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
@@ -1923,6 +2078,7 @@ export default function DowntimeTracker({
     setSelectedCategories([]);
     setSelectedDetails({});
     setInputBloks({});
+    setPerProblemBloks({});
     setInputMeters({});
     setDikerjakanOleh("Operator");
     setNamaPenanganan("");
@@ -2155,15 +2311,30 @@ export default function DowntimeTracker({
           const details = pcsDetails[catId] || [];
           const reqDetails = details.filter((d) => isDefectRequiringBlock(d));
           if (reqDetails.length > 0) {
-            const blockVal = pcsBloks[catId]?.trim() || "";
-            const tokens = blockVal ? blockVal.split(",").map((s) => s.trim()).filter(Boolean) : [];
-            if (tokens.length < reqDetails.length) {
-              setBlockValidationError(
-                reqDetails.length > 1
-                  ? `Nomor blok WAJIB DIISI lengkap (${reqDetails.length} blok) untuk masalah: "${reqDetails.join(", ")}" pada PCS ${pcsKey}!`
-                  : `Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}" pada PCS ${pcsKey}!`
-              );
-              return;
+            const catKey = `${pcsKey}_${catId}`;
+            const probMap = perProblemBloks[catKey];
+            if (probMap) {
+              const missingReq = reqDetails.filter((r) => {
+                const bList = probMap[r] || [];
+                return !bList.some((b) => b && b.trim() !== "");
+              });
+              if (missingReq.length > 0) {
+                setBlockValidationError(
+                  `Nomor blok WAJIB DIISI untuk masalah: "${missingReq.join(", ")}" pada PCS ${pcsKey}!`
+                );
+                return;
+              }
+            } else {
+              const blockVal = pcsBloks[catId]?.trim() || "";
+              const tokens = blockVal ? blockVal.split(",").map((s) => s.trim()).filter(Boolean) : [];
+              if (tokens.length < reqDetails.length) {
+                setBlockValidationError(
+                  reqDetails.length > 1
+                    ? `Nomor blok WAJIB DIISI lengkap (${reqDetails.length} blok) untuk masalah: "${reqDetails.join(", ")}" pada PCS ${pcsKey}!`
+                    : `Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}" pada PCS ${pcsKey}!`
+                );
+                return;
+              }
             }
           }
         }
@@ -2174,15 +2345,29 @@ export default function DowntimeTracker({
         const details = selectedDetails[catId] || [];
         const reqDetails = details.filter((d) => isDefectRequiringBlock(d));
         if (reqDetails.length > 0) {
-          const blockVal = inputBloks[catId]?.trim() || "";
-          const tokens = blockVal ? blockVal.split(",").map((s) => s.trim()).filter(Boolean) : [];
-          if (tokens.length < reqDetails.length) {
-            setBlockValidationError(
-              reqDetails.length > 1
-                ? `Nomor blok WAJIB DIISI lengkap (${reqDetails.length} blok) untuk masalah: "${reqDetails.join(", ")}"`
-                : `Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}"`
-            );
-            return;
+          const probMap = perProblemBloks[catId];
+          if (probMap) {
+            const missingReq = reqDetails.filter((r) => {
+              const bList = probMap[r] || [];
+              return !bList.some((b) => b && b.trim() !== "");
+            });
+            if (missingReq.length > 0) {
+              setBlockValidationError(
+                `Nomor blok WAJIB DIISI untuk masalah: "${missingReq.join(", ")}"`
+              );
+              return;
+            }
+          } else {
+            const blockVal = inputBloks[catId]?.trim() || "";
+            const tokens = blockVal ? blockVal.split(",").map((s) => s.trim()).filter(Boolean) : [];
+            if (tokens.length < reqDetails.length) {
+              setBlockValidationError(
+                reqDetails.length > 1
+                  ? `Nomor blok WAJIB DIISI lengkap (${reqDetails.length} blok) untuk masalah: "${reqDetails.join(", ")}"`
+                  : `Nomor blok WAJIB DIISI untuk masalah: "${reqDetails.join(", ")}"`
+              );
+              return;
+            }
           }
         }
       }
@@ -4350,7 +4535,7 @@ export default function DowntimeTracker({
                                       const reqDetails = selectedList.filter((d) => isDefectRequiringBlock(d));
                                       const isRequired = reqDetails.length > 0;
                                       const isMissing = isRequired && (!currentBloks[cat.id] || currentBloks[cat.id]?.trim() === "");
-                                      return renderBlockInputForCategory(cat.id, isRequired, isMissing, reqDetails);
+                                      return renderBlockInputForCategory(cat.id, isRequired, isMissing, selectedList);
                                     })()}
 
                                     {/* Input Masalah Baru (2 Kolom: Objek + Aksi) */}
@@ -4512,7 +4697,7 @@ export default function DowntimeTracker({
                                           const reqDetails = selectedList.filter((d) => isDefectRequiringBlock(d));
                                           const isRequired = reqDetails.length > 0;
                                           const isMissing = isRequired && (!currentBloks[cat.id] || currentBloks[cat.id]?.trim() === "");
-                                          return renderBlockInputForCategory(cat.id, isRequired, isMissing, reqDetails);
+                                          return renderBlockInputForCategory(cat.id, isRequired, isMissing, selectedList);
                                         })()}
 
                                         {/* Input Masalah Kustom (2 Kolom: Objek + Aksi) di Mode Instan */}
