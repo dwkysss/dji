@@ -17,6 +17,7 @@ import {
   Scissors,
   Settings2,
   AlertOctagon,
+  Clock,
 } from "lucide-react";
 import { submitStatusMesin } from "@/actions/status-actions";
 import {
@@ -24,6 +25,7 @@ import {
   GROUPED_PROBLEM_DETAILS,
   DEFAULT_PROBLEM_DETAILS,
 } from "@/lib/constants";
+import { getRemainingShiftSeconds } from "@/lib/shift-utils";
 
 export interface MachineStopModalProps {
   isOpen: boolean;
@@ -38,6 +40,13 @@ export interface MachineStopModalProps {
   rpm?: string;
   pick?: string;
   course?: string;
+  jenisBenangDasar?: string;
+  liner?: string;
+  heavy?: string;
+  shadow?: string;
+  pinggiran?: string;
+  noOrderBarang?: string;
+  noCustomer?: string;
   onSuccess?: (message?: string) => void;
 }
 
@@ -148,6 +157,13 @@ export default function MachineStopModal({
   rpm,
   pick,
   course,
+  jenisBenangDasar,
+  liner,
+  heavy,
+  shadow,
+  pinggiran,
+  noOrderBarang,
+  noCustomer,
   onSuccess,
 }: MachineStopModalProps) {
   // Default ke Kategori G (Eksternal / Tidak ada order / Mati Listrik) karena paling sering untuk mesin berhenti shift
@@ -155,8 +171,32 @@ export default function MachineStopModal({
   const [selectedDetail, setSelectedDetail] = useState<string>("Tidak ada order");
   const [detailCatatan, setDetailCatatan] = useState<string>("");
   const [cakupan, setCakupan] = useState<"SHIFT" | "FULL_DAY">("SHIFT");
+  const [durasiPreset, setDurasiPreset] = useState<"FULL_SHIFT" | "REMAINING_SHIFT" | "CUSTOM">("FULL_SHIFT");
+  const [customHours, setCustomHours] = useState<number>(1);
+  const [customMinutes, setCustomMinutes] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const remainingShiftSec = React.useMemo(() => getRemainingShiftSeconds(new Date()), []);
+
+  const formatDurationNice = (totalSec: number) => {
+    if (!totalSec || isNaN(totalSec) || totalSec <= 0) return "0 Dtk";
+    const hours = Math.floor(totalSec / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    if (hours > 0) {
+      if (minutes > 0) return `${hours} Jam ${minutes} Mnt`;
+      return `${hours} Jam`;
+    }
+    if (minutes > 0) return `${minutes} Mnt`;
+    return `${totalSec} Dtk`;
+  };
+
+  const calculatedDurationSeconds = React.useMemo(() => {
+    if (cakupan === "FULL_DAY") return 86400; // 24 jam penuh
+    if (durasiPreset === "FULL_SHIFT") return 28800; // 8 jam
+    if (durasiPreset === "REMAINING_SHIFT") return Math.max(60, remainingShiftSec);
+    return Math.max(60, (Math.max(0, customHours) * 3600) + (Math.max(0, customMinutes) * 60));
+  }, [cakupan, durasiPreset, remainingShiftSec, customHours, customMinutes]);
 
   if (!isOpen) return null;
 
@@ -214,12 +254,20 @@ export default function MachineStopModal({
         status: fullStatus,
         kategoriMasalah: selectedCategory,
         cakupan: cakupan,
+        durasiDetik: calculatedDurationSeconds,
         submittedAt: new Date().toISOString(),
         potonganKe: potonganKe ? String(potonganKe) : undefined,
         designId: designId || undefined,
         rpm: rpm || undefined,
         pick: pick || undefined,
         course: course || undefined,
+        jenisBenangDasar: jenisBenangDasar || undefined,
+        liner: liner || undefined,
+        heavy: heavy || undefined,
+        shadow: shadow || undefined,
+        pinggiran: pinggiran || undefined,
+        noOrderBarang: noOrderBarang || undefined,
+        noCustomer: noCustomer || undefined,
       });
 
       if (res.success) {
@@ -476,30 +524,6 @@ export default function MachineStopModal({
             />
           </div>
 
-          {/* Preview Ringkasan Laporan - Menggunakan Clean Slate Card dengan Aksen Dinamis */}
-          <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span
-                className={`w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center shrink-0 shadow-2xs ${currentCategoryStyle.previewBadgeBg}`}
-              >
-                {selectedCategory}
-              </span>
-              <div className="min-w-0">
-                <span className="text-[10px] font-extrabold uppercase text-slate-500 block">
-                  Kendala Yang Akan Dicatat:
-                </span>
-                <span className="text-xs font-black text-slate-800 truncate block">
-                  {selectedDetail}
-                  {detailCatatan.trim() ? ` (${detailCatatan.trim()})` : ""}
-                </span>
-              </div>
-            </div>
-            <span className="text-[10px] font-black bg-rose-50 text-rose-700 px-2.5 py-1 rounded-lg border border-rose-200/80 shadow-2xs shrink-0 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-              0 Produksi (Berhenti)
-            </span>
-          </div>
-
           {/* 4. Pilihan Cakupan Waktu */}
           <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-100/70 border border-slate-200">
             <div className="flex flex-col">
@@ -535,6 +559,121 @@ export default function MachineStopModal({
               >
                 1 Hari Penuh
               </button>
+            </div>
+          </div>
+
+          {/* 5. Durasi Berhenti / Mati */}
+          {cakupan === "SHIFT" && (
+            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>5. Durasi Mesin Mati Shift Ini</span>
+                </label>
+                <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                  {formatDurationNice(calculatedDurationSeconds)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDurasiPreset("FULL_SHIFT")}
+                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer text-xs font-bold ${
+                    durasiPreset === "FULL_SHIFT"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  <div>1 Shift Penuh</div>
+                  <div className={`text-[10px] font-semibold mt-0.5 ${durasiPreset === "FULL_SHIFT" ? "text-slate-300" : "text-slate-400"}`}>
+                    8 Jam
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDurasiPreset("REMAINING_SHIFT")}
+                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer text-xs font-bold ${
+                    durasiPreset === "REMAINING_SHIFT"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  <div>Sisa Shift</div>
+                  <div className={`text-[10px] font-semibold mt-0.5 ${durasiPreset === "REMAINING_SHIFT" ? "text-slate-300" : "text-slate-400"}`}>
+                    ~{formatDurationNice(remainingShiftSec)}
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDurasiPreset("CUSTOM")}
+                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer text-xs font-bold ${
+                    durasiPreset === "CUSTOM"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  <div>Kustom</div>
+                  <div className={`text-[10px] font-semibold mt-0.5 ${durasiPreset === "CUSTOM" ? "text-slate-300" : "text-slate-400"}`}>
+                    Jam & Mnt
+                  </div>
+                </button>
+              </div>
+
+              {durasiPreset === "CUSTOM" && (
+                <div className="flex items-center gap-2 pt-1 animate-fadeIn">
+                  <div className="flex-1 flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                    <span className="text-[11px] font-bold text-slate-500">Jam:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="24"
+                      value={customHours}
+                      onChange={(e) => setCustomHours(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-full text-xs font-bold text-slate-800 outline-none text-right"
+                    />
+                  </div>
+                  <div className="flex-1 flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                    <span className="text-[11px] font-bold text-slate-500">Menit:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={customMinutes}
+                      onChange={(e) => setCustomMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+                      className="w-full text-xs font-bold text-slate-800 outline-none text-right"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Preview Ringkasan Laporan - Menggunakan Clean Slate Card dengan Aksen Dinamis */}
+          <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span
+                className={`w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center shrink-0 shadow-2xs ${currentCategoryStyle.previewBadgeBg}`}
+              >
+                {selectedCategory}
+              </span>
+              <div className="min-w-0">
+                <span className="text-[10px] font-extrabold uppercase text-slate-500 block">
+                  Kendala ({formatDurationNice(calculatedDurationSeconds)}):
+                </span>
+                <span className="text-xs font-black text-slate-800 truncate block">
+                  {selectedDetail}
+                  {detailCatatan.trim() ? ` (${detailCatatan.trim()})` : ""}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <span className="text-[10px] font-black bg-rose-50 text-rose-700 px-2.5 py-1 rounded-lg border border-rose-200/80 shadow-2xs flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                0 Produksi
+              </span>
             </div>
           </div>
 

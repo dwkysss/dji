@@ -3,7 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { productionFormSchema, ProductionFormInput } from "@/lib/schemas";
 import { revalidatePath } from "next/cache";
-import { getShiftDate, parseAsWibDate, getJakartaDateTimeString } from "@/lib/shift-utils";
+import { getShiftDate, parseAsWibDate, getJakartaDateTimeString, getRemainingShiftSeconds } from "@/lib/shift-utils";
 
 // Helper untuk menghasilkan ID acak 8 karakter seperti di Excel (misal: e78cbacd)
 function generateExcelStyleId(): string {
@@ -1317,6 +1317,11 @@ export async function searchEmployeeHistory(filters: {
           }
         } catch (e) {}
       }
+      // Jika baris laporan mesin mati belum memiliki total_downtime_detik (data lama), hitung durasi dari waktu kejadian ke akhir shift
+      if (dtDetik === 0 && (row.panel_no === "BERHENTI" || (row.production_details && row.production_details.some((d: any) => d.indikator_stop)))) {
+        const remSec = getRemainingShiftSeconds(row.tanggal_jam || row.tgl);
+        dtDetik = remSec > 0 ? remSec : 28800;
+      }
       batch.total_downtime_detik += dtDetik;
       if (isMeteranRow) {
         batch.is_meter = true;
@@ -1561,6 +1566,45 @@ export async function searchEmployeeHistory(filters: {
                 p.has_next_potongan = hasNext;
               });
             }
+          }
+        }
+
+        // Jika spesifikasi material benang atau no order/customer kosong (misal pada transaksi Lapor Mesin Mati),
+        // otomatis lengkapi dari data potongan terakhir yang valid pada mesin ini
+        const isMissingSpecs = !batch.jenis_benang_dasar || batch.jenis_benang_dasar === "-" ||
+                               !batch.liner || batch.liner === "-" ||
+                               !batch.heavy || batch.heavy === "-" ||
+                               !batch.shadow || batch.shadow === "-" ||
+                               !batch.pinggiran || batch.pinggiran === "-" ||
+                               !batch.no_order_barang || batch.no_order_barang === "-" ||
+                               !batch.no_customer || batch.no_customer === "-";
+
+        if (isMissingSpecs && batch.nomor_mc) {
+          try {
+            const { data: refHeader } = await supabase
+              .from("production_headers")
+              .select("jenis_benang_dasar, liner, heavy, shadow, pinggiran, no_order_barang, no_customer, pick, course, rpm, status_matching")
+              .eq("nomor_mc", batch.nomor_mc)
+              .neq("panel_no", "BERHENTI")
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (refHeader) {
+              if (!batch.jenis_benang_dasar || batch.jenis_benang_dasar === "-") batch.jenis_benang_dasar = refHeader.jenis_benang_dasar;
+              if (!batch.liner || batch.liner === "-") batch.liner = refHeader.liner;
+              if (!batch.heavy || batch.heavy === "-") batch.heavy = refHeader.heavy;
+              if (!batch.shadow || batch.shadow === "-") batch.shadow = refHeader.shadow;
+              if (!batch.pinggiran || batch.pinggiran === "-") batch.pinggiran = refHeader.pinggiran;
+              if (!batch.no_order_barang || batch.no_order_barang === "-") batch.no_order_barang = refHeader.no_order_barang;
+              if (!batch.no_customer || batch.no_customer === "-") batch.no_customer = refHeader.no_customer;
+              if (!batch.pick || batch.pick === "-") batch.pick = refHeader.pick;
+              if (!batch.course || batch.course === "-") batch.course = refHeader.course;
+              if (!batch.rpm || batch.rpm === "-") batch.rpm = refHeader.rpm;
+              if (!batch.status_matching || batch.status_matching === "-") batch.status_matching = refHeader.status_matching;
+            }
+          } catch (e) {
+            console.warn("Fallback query for batch specs failed:", e);
           }
         }
       }

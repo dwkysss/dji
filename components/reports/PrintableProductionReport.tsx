@@ -544,7 +544,21 @@ function buildMeterRows(panels: any[], shiftName: string, hasNextPotongan?: bool
 
     // START row
     if (!isSameOpr) {
-      const startMeter = prevLastMeter !== null ? String(prevLastMeter) : cleanMeterVal(h.meter_awal ?? "0");
+      let opExplicitStartMeter: string | null = null;
+      for (let sIdx = idx; sIdx < filtered.length; sIdx++) {
+        const nextItem = filtered[sIdx];
+        const nextH = nextItem.production_headers || nextItem;
+        const nextOpr = (nextH.pic || "").trim();
+        if (nextOpr !== opr) break;
+        if (nextH.meter_awal !== undefined && nextH.meter_awal !== null) {
+          opExplicitStartMeter = cleanMeterVal(nextH.meter_awal);
+          break;
+        }
+      }
+
+      const startMeter = opExplicitStartMeter !== null
+        ? opExplicitStartMeter
+        : (prevLastMeter !== null ? String(prevLastMeter) : cleanMeterVal(h.meter_awal ?? "0"));
       globalNo += 1;
       rows.push({ isStartRow: true, displayNo: globalNo, tglStr: tgl, jamStr, grpStr: grp, oprStr: opr, meterDisplay: startMeter });
       const v = parseFloat(startMeter);

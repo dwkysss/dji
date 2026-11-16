@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { searchEmployeeHistory, markPotonganAsCut } from "@/actions/employee-actions";
 import { cancelMechanicDowntime } from "@/actions/mechanic-actions";
+import { deleteProductionBatch } from "@/actions/shift-performance-actions";
+import { updateMachineStopDuration } from "@/actions/status-actions";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
-import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight, Printer, Scissors, CheckCircle, X, Trash2, RefreshCw } from "lucide-react";
+import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight, Printer, Scissors, CheckCircle, X, Trash2, RefreshCw, AlertOctagon } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { parseAsWibDate, getShiftName } from "@/lib/shift-utils";
+import { parseAsWibDate, getShiftName, getRemainingShiftSeconds } from "@/lib/shift-utils";
 import PanelHistoryTable from "./components/PanelHistoryTable";
 import MeterHistoryTable from "./components/MeterHistoryTable";
 import PrintableProductionReport from "@/components/reports/PrintableProductionReport";
@@ -56,11 +58,75 @@ function HistoryDetailContent() {
     }
   };
 
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
+
+  const handleDeleteWholeBatch = async () => {
+    if (!detailData) return;
+    const isStop = Boolean(detailData.has_machine_stop || (detailData.total_panels === 0 && detailData.total_meter === 0));
+    const confirmMsg = isStop
+      ? `Apakah Anda yakin ingin menghapus Laporan Mesin Mati pada Mesin ${detailData.nomor_mc} Potongan Ke-${detailData.potongan_ke}?\n\nData laporan ini akan dihapus permanen dari riwayat.`
+      : `Apakah Anda yakin ingin menghapus seluruh data produksi Mesin ${detailData.nomor_mc} Potongan Ke-${detailData.potongan_ke}?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setIsDeletingBatch(true);
+      const res = await deleteProductionBatch({
+        nomor_mc: detailData.nomor_mc,
+        design_id: detailData.design_id,
+        potongan_ke: detailData.potongan_ke,
+      });
+
+      if (res && res.success) {
+        alert("Laporan berhasil dihapus.");
+        router.push("/history");
+      } else {
+        alert("Gagal menghapus: " + (res?.error || "Terjadi kesalahan saat menghapus data."));
+      }
+    } catch (err: any) {
+      alert("Terjadi kesalahan: " + (err?.message || err));
+    } finally {
+      setIsDeletingBatch(false);
+    }
+  };
+
   // Tandai Potong Kain Modal State
   const [isMarkCutModalOpen, setIsMarkCutModalOpen] = useState(false);
   const [markCutDate, setMarkCutDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [isSubmittingMarkCut, setIsSubmittingMarkCut] = useState(false);
   const [markCutError, setMarkCutError] = useState<string | null>(null);
+
+  // Edit Durasi Mesin Mati Modal State
+  const [isEditDurationModalOpen, setIsEditDurationModalOpen] = useState(false);
+  const [editDurationHours, setEditDurationHours] = useState(8);
+  const [editDurationMinutes, setEditDurationMinutes] = useState(0);
+  const [isUpdatingDuration, setIsUpdatingDuration] = useState(false);
+
+  const handleUpdateDuration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!detailData?.panels || detailData.panels.length === 0) return;
+    const headerIds = detailData.panels.map((p: any) => p.id || p.header_id).filter(Boolean);
+    const durasiDetik = Math.max(60, (Math.max(0, editDurationHours) * 3600) + (Math.max(0, editDurationMinutes) * 60));
+
+    try {
+      setIsUpdatingDuration(true);
+      const res = await updateMachineStopDuration({
+        headerIds,
+        durasiDetik,
+      });
+
+      if (res && res.success) {
+        setIsEditDurationModalOpen(false);
+        await fetchDetail();
+      } else {
+        alert("Gagal memperbarui durasi: " + (res?.error || "Terjadi kesalahan"));
+      }
+    } catch (err: any) {
+      alert("Terjadi kesalahan: " + (err?.message || err));
+    } finally {
+      setIsUpdatingDuration(false);
+    }
+  };
 
   const fetchDetail = React.useCallback(async () => {
     if (!nomor_mc || !potongan_ke) {
@@ -163,10 +229,16 @@ function HistoryDetailContent() {
             downtimeSeconds += (Number(ev.duration || ev.durasiDetik || ev.durasi_detik) || 0);
           });
         }
+        if (p.total_downtime_detik && Number(p.total_downtime_detik) > 0) {
+          downtimeSeconds += Number(p.total_downtime_detik);
+        }
       });
     }
 
-    const runningSeconds = Math.max(0, grossSeconds - downtimeSeconds);
+    const isStopBatch = Boolean(
+      detailData.has_machine_stop ||
+      (detailData.total_panels === 0 && detailData.total_meter === 0 && detailData.machine_stop_reason)
+    );
 
     const formatTimeOnly = (d: Date) => {
       try {
@@ -181,12 +253,31 @@ function HistoryDetailContent() {
       }
     };
 
+    if (isStopBatch) {
+      // Mesin mati / berhenti total: Waktu jalan mesin 0 dtk, downtime adalah durasi berhentinya
+      if (downtimeSeconds === 0) {
+        const remSec = getRemainingShiftSeconds(startTime);
+        downtimeSeconds = remSec > 0 ? remSec : 28800;
+      }
+      return {
+        grossSeconds: downtimeSeconds,
+        startTimeStr: formatTimeOnly(startTime),
+        downtimeSeconds,
+        runningSeconds: 0,
+        hasMultiplePanels: true,
+        isStopBatch: true,
+      };
+    }
+
+    const runningSeconds = Math.max(0, grossSeconds - downtimeSeconds);
+
     return {
       grossSeconds,
       startTimeStr: formatTimeOnly(startTime),
       downtimeSeconds,
       runningSeconds,
       hasMultiplePanels: sorted.length > 1 && grossSeconds > 0,
+      isStopBatch: false,
     };
   }, [detailData]);
 
@@ -286,6 +377,23 @@ function HistoryDetailContent() {
             <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Cetak Laporan</span>
           </button>
+
+          {(detailData?.has_machine_stop || (detailData?.total_panels === 0 && detailData?.total_meter === 0) || isKepalaShiftOrAdmin) && (
+            <button
+              type="button"
+              disabled={isDeletingBatch}
+              onClick={handleDeleteWholeBatch}
+              className="h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap disabled:opacity-50"
+              title="Hapus Laporan Ini (Khususnya Laporan Mesin Mati / Testing)"
+            >
+              {isDeletingBatch ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              )}
+              <span>Hapus Laporan</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -336,7 +444,9 @@ function HistoryDetailContent() {
               <span className="truncate">Waktu Jalan Mesin</span>
             </span>
             <span className="text-sm sm:text-base font-black text-emerald-700 font-mono tracking-tight truncate">
-              {operationalStats.hasMultiplePanels
+              {operationalStats.isStopBatch
+                ? "0 dtk (Mesin Berhenti)"
+                : operationalStats.hasMultiplePanels
                 ? formatDurationNice(operationalStats.runningSeconds)
                 : "0 dtk"}
             </span>
@@ -360,10 +470,86 @@ function HistoryDetailContent() {
               <span className="truncate">Total Rentang Waktu</span>
             </span>
             <span className="text-sm sm:text-base font-black text-slate-800 font-mono tracking-tight truncate">
-              {operationalStats.hasMultiplePanels
+              {operationalStats.isStopBatch
+                ? formatDurationNice(operationalStats.grossSeconds)
+                : operationalStats.hasMultiplePanels
                 ? formatDurationNice(operationalStats.grossSeconds)
                 : `0 Mnt (Mulai ${operationalStats.startTimeStr})`}
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Banner / Card Mesin Berhenti / Mati jika ada laporan stop mesin */}
+      {(detailData.has_machine_stop || (detailData.total_panels === 0 && detailData.total_meter === 0 && detailData.machine_stop_reason)) && (
+        <div className="mb-4 p-4 sm:p-5 rounded-2xl border border-rose-200 bg-rose-50/80 shadow-xs animate-fadeIn">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-300 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertOctagon className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-rose-800">
+                    Laporan Mesin Mati / Berhenti Total
+                  </span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider shadow-2xs">
+                    0 Produksi Kain
+                  </span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white uppercase tracking-wider shadow-2xs flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Durasi Mati: {formatDurationNice(operationalStats?.downtimeSeconds || 28800)}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm font-bold text-slate-800 mt-1">
+                  Kendala / Alasan: <span className="text-rose-700 font-black">{detailData.machine_stop_reason || "Mesin Berhenti"}</span>
+                </p>
+                {detailData.machine_stop_category && (
+                  <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                    Kategori Masalah: Kode {detailData.machine_stop_category}
+                  </p>
+                )}
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Tidak ada kain yang diproduksi pada potongan ini karena mesin berstatus berhenti total.
+                </p>
+              </div>
+            </div>
+            <div className="text-left sm:text-right text-xs text-slate-600 border-t sm:border-t-0 pt-2 sm:pt-0 border-rose-200/60 flex flex-col sm:items-end justify-between gap-2.5">
+              <div>
+                <p className="font-bold text-slate-700">Waktu Lapor: {detailData.waktu_input_terakhir || "-"}</p>
+                <p className="mt-0.5">Operator PIC: <span className="font-extrabold text-slate-900">{detailData.operators_list || "-"}</span></p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const curSec = operationalStats?.downtimeSeconds || 28800;
+                    setEditDurationHours(Math.floor(curSec / 3600));
+                    setEditDurationMinutes(Math.floor((curSec % 3600) / 60));
+                    setIsEditDurationModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-all shadow-xs cursor-pointer active:scale-95"
+                  title="Ubah Durasi Berhenti Mesin"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Ubah Durasi ({formatDurationNice(operationalStats?.downtimeSeconds || 28800)})</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingBatch}
+                  onClick={handleDeleteWholeBatch}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                  title="Hapus Laporan Mesin Mati Ini"
+                >
+                  {isDeletingBatch ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>Hapus Laporan Ini</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -606,7 +792,7 @@ function HistoryDetailContent() {
         {/* Render Mechanic / Special Downtimes explicitly in Table format */}
         {(() => {
            const mechanicPanels = detailData.panels?.filter((p: any) => {
-             return p.panel_no === "Downtime Mekanik (Direct)" || p.panel_no === "BERHENTI";
+             return p.panel_no === "Downtime Mekanik (Direct)";
            });
 
             const cleanPenanggungJawab = (raw: string | undefined | null) => {
@@ -759,6 +945,8 @@ function HistoryDetailContent() {
                     ? mp.production_details
                     : [{ kategori_masalah: mp.kategori_masalah, detail_masalah: mp.detail_masalah }];
 
+                  const stopDurasi = mp.total_downtime_detik || operationalStats?.downtimeSeconds || 28800;
+
                   details.forEach((d: any, dIdx: number) => {
                     const kat = d.kategori_masalah || mp.kategori_masalah || "G";
                     const detailTxt = d.detail_masalah || mp.detail_masalah || "Mesin Berhenti / Tidak Beroperasi";
@@ -770,7 +958,7 @@ function HistoryDetailContent() {
                       dateStr,
                       penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
                       shift: shiftStr,
-                      durasiDisplay: "Mesin Berhenti",
+                      durasiDisplay: formatDurationNice(stopDurasi),
                       isMachineStop: true,
                       kategori: kat,
                       detailMasalah: detailTxt,
@@ -856,6 +1044,9 @@ function HistoryDetailContent() {
                          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border shrink-0 self-start sm:self-auto ${row.isMachineStop ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-red-50 text-red-600 border-red-100"}`}>
                            <Clock className="w-3.5 h-3.5" />
                            <span className="text-xs font-black">{row.durasiDisplay}</span>
+                           {row.isMachineStop && (
+                             <span className="text-[10px] font-bold text-rose-600 uppercase tracking-tight ml-0.5">(Mesin Berhenti)</span>
+                           )}
                          </div>
                           <div className="flex flex-col sm:items-end">
                             <div className="flex items-center gap-1.5">
@@ -897,7 +1088,7 @@ function HistoryDetailContent() {
 
            return (
              <>
-               {renderSection(mechanicPanels, "Laporan Downtime Khusus", "Mesin berhenti total — tanpa produksi", "blue")}
+               {renderSection(mechanicPanels, "Laporan Downtime Khusus", "Riwayat perbaikan mekanik / blok mesin", "blue")}
              </>
            );
          })()}
@@ -993,6 +1184,133 @@ function HistoryDetailContent() {
                 <span>Simpan & Buat BS Akhir</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ubah Durasi Mesin Mati */}
+      {isEditDurationModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden my-auto animate-scaleUp">
+            <div className="p-4 bg-gradient-to-r from-amber-500 to-amber-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm">Ubah Durasi Mesin Mati</h3>
+                  <p className="text-[11px] text-amber-100">Mesin {detailData?.nomor_mc} - Potongan Ke-{detailData?.potongan_ke}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditDurationModalOpen(false)}
+                className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateDuration} className="p-4 sm:p-5 space-y-4 text-xs">
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 leading-relaxed text-[11px]">
+                Atur durasi downtime mesin mati untuk laporan ini. Data waktu operasional dan kartu ringkasan KPI akan diperbarui otomatis.
+              </div>
+
+              {/* Pilihan Cepat */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                  Pilihan Durasi Cepat
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setEditDurationHours(8); setEditDurationMinutes(0); }}
+                    className={`py-2 px-1 rounded-xl border text-center font-bold text-xs transition-all cursor-pointer ${
+                      editDurationHours === 8 && editDurationMinutes === 0
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    1 Shift (8 Jam)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const startTime = detailData?.tanggal_jam ? new Date(detailData.tanggal_jam) : new Date();
+                      const remSec = getRemainingShiftSeconds(startTime);
+                      const h = Math.floor(remSec / 3600);
+                      const m = Math.floor((remSec % 3600) / 60);
+                      setEditDurationHours(h);
+                      setEditDurationMinutes(m);
+                    }}
+                    className="py-2 px-1 rounded-xl border text-center font-bold text-xs bg-white text-slate-700 border-slate-200 hover:bg-slate-50 transition-all cursor-pointer"
+                  >
+                    Sisa Shift
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditDurationHours(24); setEditDurationMinutes(0); }}
+                    className={`py-2 px-1 rounded-xl border text-center font-bold text-xs transition-all cursor-pointer ${
+                      editDurationHours === 24 && editDurationMinutes === 0
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    24 Jam (1 Hari)
+                  </button>
+                </div>
+              </div>
+
+              {/* Input Jam & Menit */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                  Atur Waktu Bebas
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                    <span className="text-[11px] font-bold text-slate-500">Jam:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="72"
+                      value={editDurationHours}
+                      onChange={(e) => setEditDurationHours(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-full text-xs font-black text-slate-800 outline-none text-right"
+                    />
+                  </div>
+                  <div className="flex-1 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                    <span className="text-[11px] font-bold text-slate-500">Menit:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={editDurationMinutes}
+                      onChange={(e) => setEditDurationMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+                      className="w-full text-xs font-black text-slate-800 outline-none text-right"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-slate-50 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsEditDurationModalOpen(false)}
+                  disabled={isUpdatingDuration}
+                  className="h-9 px-4 rounded-xl text-slate-600 font-bold text-xs hover:bg-slate-200/60 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingDuration || (editDurationHours === 0 && editDurationMinutes === 0)}
+                  className="h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50 active:scale-95 cursor-pointer"
+                >
+                  {isUpdatingDuration ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                  <span>Simpan Durasi</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

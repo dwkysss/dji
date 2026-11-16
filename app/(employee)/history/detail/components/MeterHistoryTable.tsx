@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Edit, CheckCircle2, XCircle, Trash2 } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { Edit, CheckCircle2, XCircle, Trash2, PlusCircle } from "lucide-react";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 import QuickEditMeterModal from "@/components/forms/QuickEditMeterModal";
+import AddMissingFinishModal from "@/components/forms/AddMissingFinishModal";
 import { parseAsWibDate } from "@/lib/shift-utils";
 
 const formatWibTime = (dateVal?: string): string => {
@@ -74,7 +75,18 @@ export default function MeterHistoryTable({
   onRefresh?: () => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const isShiftCorrectionPage = pathname ? pathname.includes("shift-history") : false;
+
   const [editingRowItem, setEditingRowItem] = useState<any | null>(null);
+  const [addFinishModalData, setAddFinishModalData] = useState<{
+    isOpen: boolean;
+    operatorName: string;
+    groupName?: string;
+    lastRecordedMeter: number;
+    suggestedFinishMeter?: number;
+    defaultDate?: string;
+  } | null>(null);
   const header = panels[0] || {};
   const actualDowntimeRecords = downtimeRecords || panels.flatMap(p => p.downtime_records || []);
   const hasNext = hasNextPotongan ?? panels.some((p: any) => Boolean(p.has_next_potongan || p.tanggal_potong || p.production_headers?.tanggal_potong));
@@ -621,12 +633,14 @@ export default function MeterHistoryTable({
             isStartRow: false,
             isMeter: true,
             displayNo: (globalRowCount + 1).toString(),
-            tglStr: prevItem?.tgl || "-",
-            jamStr: prevItem?.jamStr || "-",
+            tglStr: lastOpHeader?.tgl || prevItem?.tgl || "-",
+            jamStr: lastOpHeader?.tanggal_jam ? formatWibTime(lastOpHeader.tanggal_jam) : (prevItem?.jamStr || "-"),
             grpStr: prevGrp,
             oprStr: prevOpr,
             meterDisplay: cleanMeterVal(lastOpHeader.meter_akhir),
             cacatDisplay: "FINISH",
+            rawTanggalJam: lastOpHeader?.tanggal_jam || prevItem?.rawJam,
+            rawTgl: lastOpHeader?.tgl || prevItem?.tgl,
             backupOpName: "",
             isGradable: false,
             showTgl: false,
@@ -647,11 +661,32 @@ export default function MeterHistoryTable({
           ? Math.abs(currentOpLastMeter - currentOpStartMeter)
           : null;
 
+        // Cek apakah operator sebelumnya sudah memiliki baris FINISH
+        const updatedPrevOpItems = items.filter((it) => !it.isTotalRow && it.oprStr === prevOpr);
+        const prevHasFinish = updatedPrevOpItems.some((it) => it.cacatDisplay === "FINISH");
+
+        // Cari start meter operator berikutnya sebagai sugesti finish meter
+        let nextOpSuggestedMeter: number | undefined = undefined;
+        for (let sIdx = idx; sIdx < sortedProcessed.length; sIdx++) {
+          if (sortedProcessed[sIdx].operatorStr !== operatorStr) break;
+          const sH = sortedProcessed[sIdx].item?.production_headers;
+          if (sH && sH.meter_awal !== undefined && sH.meter_awal !== null && Number(sH.meter_awal) > 0) {
+            nextOpSuggestedMeter = Number(sH.meter_awal);
+            break;
+          }
+        }
+
         items.push({
           id: `total-${lastOprString}-${Math.random()}`,
           isTotalRow: true,
           totalLabel: `Total Produksi${prevGrp ? ` (${prevGrp})` : ""} ${prevOpr}:`,
           totalMeter: totalMeter !== null ? `${totalMeter} Meter` : "-",
+          hasFinish: prevHasFinish,
+          opr: prevOpr,
+          grp: prevGrp,
+          lastMeter: currentOpLastMeter || 0,
+          suggestedFinishMeter: nextOpSuggestedMeter || currentOpLastMeter || 0,
+          defaultDate: prevItem?.tgl || h.tgl,
         });
         prevOperatorLastMeter = currentOpLastMeter;
         currentOpStartMeter = null;
@@ -664,9 +699,23 @@ export default function MeterHistoryTable({
 
       if (!isSameAsPrev) {
         const startTglStr = h.tgl || "-";
-        const startMeter = prevOperatorLastMeter !== null
-          ? String(prevOperatorLastMeter)
-          : (h.meter_awal !== undefined && h.meter_awal !== null ? cleanMeterVal(h.meter_awal) : "0");
+
+        // Prioritaskan meter_awal resmi yang dicatat oleh operator ini pada potongan ini jika ada
+        let opExplicitStartMeter: string | null = null;
+        for (let sIdx = idx; sIdx < sortedProcessed.length; sIdx++) {
+          if (sortedProcessed[sIdx].operatorStr !== operatorStr) break;
+          const sH = sortedProcessed[sIdx].item?.production_headers;
+          if (sH && sH.meter_awal !== undefined && sH.meter_awal !== null) {
+            opExplicitStartMeter = cleanMeterVal(sH.meter_awal);
+            break;
+          }
+        }
+
+        const startMeter = opExplicitStartMeter !== null
+          ? opExplicitStartMeter
+          : (prevOperatorLastMeter !== null
+              ? String(prevOperatorLastMeter)
+              : (h.meter_awal !== undefined && h.meter_awal !== null ? cleanMeterVal(h.meter_awal) : "0"));
 
         items.push({
           id: `start-${idx}-${Math.random()}`,
@@ -976,12 +1025,20 @@ export default function MeterHistoryTable({
         globalRowCount += 1;
       }
 
+      const updatedLastOpItems = items.filter((it) => !it.isTotalRow && it.oprStr === lastOprOnly);
+      const lastHasFinish = updatedLastOpItems.some((it) => it.cacatDisplay === "FINISH");
       const totalMeter = Math.abs(currentOpLastMeter - currentOpStartMeter);
       items.push({
         id: `total-last-${lastOprString}-${Math.random()}`,
         isTotalRow: true,
         totalLabel: `Total Produksi${lastGrp ? ` (${lastGrp})` : ""} ${lastOprOnly}:`,
         totalMeter: `${totalMeter} Meter`,
+        hasFinish: lastHasFinish,
+        opr: lastOprOnly,
+        grp: lastGrp,
+        lastMeter: currentOpLastMeter || 0,
+        suggestedFinishMeter: currentOpLastMeter || 0,
+        defaultDate: lastItem?.tgl || lastOpHeader?.tgl,
       });
     }
 
@@ -1041,7 +1098,32 @@ export default function MeterHistoryTable({
             return (
               <tr key={item.id || index} className="bg-slate-100 border-t-2 border-b-2 border-slate-300">
                 <td colSpan={onToggleSelectDetail ? 11 : 10} className="px-3 py-2 text-center text-xs font-semibold text-slate-600">
-                  {item.totalLabel} <span className="font-extrabold text-slate-800 ml-1">{item.totalMeter}</span>
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <span>
+                      {item.totalLabel} <span className="font-extrabold text-slate-800 ml-1">{item.totalMeter}</span>
+                    </span>
+                    {/* KHUSUS HALAMAN KEPALA SHIFT: Jika operator ini belum lapor FINISH */}
+                    {isShiftCorrectionPage && !item.hasFinish && item.opr && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddFinishModalData({
+                            isOpen: true,
+                            operatorName: item.opr,
+                            groupName: item.grp,
+                            lastRecordedMeter: item.lastMeter || 0,
+                            suggestedFinishMeter: item.suggestedFinishMeter,
+                            defaultDate: item.defaultDate,
+                          });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-black text-[11px] shadow-xs transition-all cursor-pointer ml-2 active:scale-95"
+                        title={`Tambah Laporan Finish Susulan untuk ${item.opr}`}
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        <span>+ Tambah Finish {item.opr}</span>
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             );
@@ -1380,6 +1462,26 @@ export default function MeterHistoryTable({
         else router.refresh();
       }}
     />
+
+    {addFinishModalData && (
+      <AddMissingFinishModal
+        isOpen={addFinishModalData.isOpen}
+        onClose={() => setAddFinishModalData(null)}
+        nomorMc={header.nomor_mc || ""}
+        potonganKe={header.potongan_ke || ""}
+        operatorName={addFinishModalData.operatorName}
+        groupName={addFinishModalData.groupName}
+        lastRecordedMeter={addFinishModalData.lastRecordedMeter}
+        suggestedFinishMeter={addFinishModalData.suggestedFinishMeter}
+        defaultDate={addFinishModalData.defaultDate}
+        onSuccess={() => {
+          setAddFinishModalData(null);
+          if (onDataUpdated) onDataUpdated();
+          else if (onRefresh) onRefresh();
+          else router.refresh();
+        }}
+      />
+    )}
     </>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAllProductionPlans, deleteProductionPlan, upsertProductionPlan, getRecentPlansByMachine } from "@/actions/plan-actions";
+import { getAllProductionPlans, deleteProductionPlan, upsertProductionPlan, upsertBatchProductionPlans, getRecentPlansByMachine } from "@/actions/plan-actions";
 import { getMachineConfigs, getAllMaxPanelConfigs } from "@/actions/machine-config-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
 import { FileSpreadsheet, Plus, Edit, Trash2, RefreshCw, X, Save, Search } from "lucide-react";
@@ -16,6 +16,11 @@ export default function ProductionPlansPage() {
   const [recentPlans, setRecentPlans] = useState<any[]>([]);
   const [machineConfigs, setMachineConfigs] = useState<Record<string, { default_pcs: number; input_type: "PANEL" | "METER" }>>({});
   const [maxPanelConfigs, setMaxPanelConfigs] = useState<Record<string, number>>({});
+
+  // Batch Range Mode states
+  const [isRangeMode, setIsRangeMode] = useState(false);
+  const [rangeFrom, setRangeFrom] = useState<string>("");
+  const [rangeTo, setRangeTo] = useState<string>("");
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -149,6 +154,9 @@ export default function ProductionPlansPage() {
 
   const handleOpenModal = (plan?: any) => {
     setErrorMsg(null);
+    setIsRangeMode(false);
+    setRangeFrom("");
+    setRangeTo("");
     if (plan) {
       const mcKey = String(plan.nomor_mc || "").toUpperCase().trim();
       const cfg = machineConfigs[mcKey];
@@ -184,9 +192,31 @@ export default function ProductionPlansPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nomor_mc || !formData.potongan_ke) {
-      setErrorMsg("Nomor Mesin dan Potongan Ke harus diisi.");
+    if (!formData.nomor_mc) {
+      setErrorMsg("Nomor Mesin harus dipilih.");
       return;
+    }
+
+    if (isRangeMode && !formData.id) {
+      const fromNum = parseInt(rangeFrom);
+      const toNum = parseInt(rangeTo);
+      if (isNaN(fromNum) || isNaN(toNum) || fromNum <= 0 || toNum <= 0) {
+        setErrorMsg("Rentang potongan (Dari & Sampai) harus diisi dengan angka bulat positif.");
+        return;
+      }
+      if (toNum < fromNum) {
+        setErrorMsg("Nomor potongan 'Sampai' harus lebih besar atau sama dengan potongan 'Dari'.");
+        return;
+      }
+      if (toNum - fromNum > 100) {
+        setErrorMsg("Maksimal rentang 100 potongan sekaligus dalam sekali simpan.");
+        return;
+      }
+    } else {
+      if (!formData.potongan_ke) {
+        setErrorMsg("Nomor Mesin dan Potongan Ke harus diisi.");
+        return;
+      }
     }
     
     setSaving(true);
@@ -204,7 +234,15 @@ export default function ProductionPlansPage() {
         }
       });
       
-      const res = await upsertProductionPlan(payload);
+      let res;
+      if (isRangeMode && !formData.id) {
+        const fromNum = parseInt(rangeFrom);
+        const toNum = parseInt(rangeTo);
+        res = await upsertBatchProductionPlans(payload, fromNum, toNum);
+      } else {
+        res = await upsertProductionPlan(payload);
+      }
+
       if (res.success) {
         setIsModalOpen(false);
         fetchPlans();
@@ -555,15 +593,73 @@ export default function ProductionPlansPage() {
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">Potongan Ke *</label>
-                  <input
-                    type="number"
-                    required
-                    value={formData.potongan_ke}
-                    onChange={(e) => setFormData({ ...formData, potongan_ke: e.target.value })}
-                    className="h-10 px-3 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none font-black text-[#0070bc] text-xs shadow-2xs"
-                    placeholder="Contoh: 550"
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
+                      {isRangeMode ? "Rentang Potongan *" : "Potongan Ke *"}
+                    </label>
+                    {!formData.id && (
+                      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[9px] font-black">
+                        <button
+                          type="button"
+                          onClick={() => setIsRangeMode(false)}
+                          className={`px-1.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                            !isRangeMode ? "bg-[#0070bc] text-white shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                          }`}
+                          title="Input 1 potongan"
+                        >
+                          1 Pot
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsRangeMode(true);
+                            if (!rangeFrom && formData.potongan_ke) setRangeFrom(String(formData.potongan_ke));
+                          }}
+                          className={`px-1.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                            isRangeMode ? "bg-[#0070bc] text-white shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                          }`}
+                          title="Input rentang banyak potongan sekaligus (misal: 100 s/d 110)"
+                        >
+                          Rentang
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {!isRangeMode ? (
+                    <input
+                      type="number"
+                      required
+                      value={formData.potongan_ke || ""}
+                      onChange={(e) => setFormData({ ...formData, potongan_ke: e.target.value })}
+                      className="h-10 px-3 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none font-black text-[#0070bc] text-xs shadow-2xs"
+                      placeholder="Contoh: 550"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        required
+                        value={rangeFrom}
+                        onChange={(e) => setRangeFrom(e.target.value)}
+                        className="h-10 w-full px-2 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none font-black text-[#0070bc] text-xs shadow-2xs text-center"
+                        placeholder="Dari: 100"
+                      />
+                      <span className="text-slate-400 font-bold text-xs">-</span>
+                      <input
+                        type="number"
+                        required
+                        value={rangeTo}
+                        onChange={(e) => setRangeTo(e.target.value)}
+                        className="h-10 w-full px-2 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-500/10 focus:bg-white bg-slate-50/70 outline-none font-black text-[#0070bc] text-xs shadow-2xs text-center"
+                        placeholder="Sampai: 110"
+                      />
+                    </div>
+                  )}
+                  {isRangeMode && rangeFrom && rangeTo && Number(rangeTo) >= Number(rangeFrom) && (
+                    <span className="text-[10px] font-black text-[#0070bc] bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md text-center">
+                      ⚡ {Number(rangeTo) - Number(rangeFrom) + 1} Potongan ({rangeFrom} s/d {rangeTo})
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center justify-between">
@@ -753,8 +849,18 @@ export default function ProductionPlansPage() {
                 disabled={saving}
                 className="mt-4 w-full py-3 bg-gradient-to-r from-[#0070bc] to-[#005a96] hover:from-[#005a96] hover:to-[#004777] active:scale-[0.98] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-[#0070bc]/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
               >
-                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>Simpan Jadwal</span>
+                {saving ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                <span>
+                  {saving
+                    ? "Menyimpan Jadwal..."
+                    : isRangeMode && rangeFrom && rangeTo && Number(rangeTo) >= Number(rangeFrom)
+                    ? `Simpan ${Number(rangeTo) - Number(rangeFrom) + 1} Jadwal Sekaligus`
+                    : "Simpan Jadwal"}
+                </span>
               </button>
             </form>
           </div>

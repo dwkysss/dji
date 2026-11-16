@@ -2,7 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getShiftDate, getShiftName, getJakartaDateTimeString, parseAsWibDate } from "@/lib/shift-utils";
+import { getShiftDate, getShiftName, getJakartaDateTimeString, parseAsWibDate, getRemainingShiftSeconds } from "@/lib/shift-utils";
 
 // Helper untuk menghasilkan ID acak 8 karakter seperti di Excel
 function generateExcelStyleId(): string {
@@ -31,6 +31,14 @@ export interface StatusMesinInput {
   cakupan?: "FULL_DAY" | "SHIFT";
   idempotencyKey?: string;
   submittedAt?: string;
+  durasiDetik?: number;
+  jenisBenangDasar?: string;
+  liner?: string;
+  heavy?: string;
+  shadow?: string;
+  pinggiran?: string;
+  noOrderBarang?: string;
+  noCustomer?: string;
 }
 
 export async function submitStatusMesin(inputData: StatusMesinInput) {
@@ -88,6 +96,37 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
     let resolvedPic = inputData.pic ? inputData.pic.trim() : "";
 
     if (supabase) {
+      // 0. Anti-Double Submit: Cegah duplikasi jika laporan mesin mati identik dikirim dalam 30 detik terakhir
+      if (inputData.nomorMc) {
+        try {
+          let dupQuery = supabase
+            .from("production_headers")
+            .select("id, tanggal_jam")
+            .eq("nomor_mc", inputData.nomorMc)
+            .eq("panel_no", "BERHENTI");
+
+          if (inputData.potonganKe) {
+            dupQuery = dupQuery.eq("potongan_ke", parseInt(String(inputData.potonganKe)));
+          }
+
+          const { data: recentDup } = await dupQuery
+            .order("tanggal_jam", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (recentDup && recentDup.tanggal_jam) {
+            const recentMs = parseAsWibDate(recentDup.tanggal_jam).getTime();
+            const curMs = now.getTime();
+            if (Math.abs(curMs - recentMs) < 30000) {
+              console.warn("Mencegah duplikasi laporan mesin mati (dalam selisih 30 detik).");
+              return { success: true, message: "Laporan sudah tersimpan (duplikat dicegah)." };
+            }
+          }
+        } catch (e) {
+          console.warn("Deduplication check failed:", e);
+        }
+      }
+
       // 1. If operator_id is missing but pic is provided, find in operators table
       if (!resolvedOperatorId && resolvedPic && resolvedPic !== "-" && resolvedPic.toUpperCase() !== "ADMIN") {
         try {
@@ -125,10 +164,45 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
       { id: 3, name: "C", time: "23:30:00" },
     ];
 
+    let benangDasar = inputData.jenisBenangDasar || null;
+    let liner = inputData.liner || null;
+    let heavy = inputData.heavy || null;
+    let shadow = inputData.shadow || null;
+    let pinggiran = inputData.pinggiran || null;
+    let noOrder = inputData.noOrderBarang || null;
+    let noCustomer = inputData.noCustomer || null;
+
+    // Jika parameter material benang atau order kosong, cari dari potongan terakhir yang valid di mesin ini
+    if (supabase && (!benangDasar || !liner || !heavy || !shadow || !pinggiran || !noOrder || !noCustomer)) {
+      try {
+        const { data: refH } = await supabase
+          .from("production_headers")
+          .select("jenis_benang_dasar, liner, heavy, shadow, pinggiran, no_order_barang, no_customer")
+          .eq("nomor_mc", inputData.nomorMc)
+          .neq("panel_no", "BERHENTI")
+          .order("tanggal_jam", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (refH) {
+          if (!benangDasar) benangDasar = refH.jenis_benang_dasar || null;
+          if (!liner) liner = refH.liner || null;
+          if (!heavy) heavy = refH.heavy || null;
+          if (!shadow) shadow = refH.shadow || null;
+          if (!pinggiran) pinggiran = refH.pinggiran || null;
+          if (!noOrder) noOrder = refH.no_order_barang || null;
+          if (!noCustomer) noCustomer = refH.no_customer || null;
+        }
+      } catch (e) {
+        console.warn("Fallback query for machine stop spec failed:", e);
+      }
+    }
+
     for (const d of dates) {
       if (isFullDay) {
-        // Buat 3 catatan untuk setiap shift (A, B, C) pada tanggal tersebut
+        // Buat 3 catatan untuk setiap shift (A, B, C) pada tanggal tersebut (8 jam = 28.800 detik per shift)
         const potonganKeNum = inputData.potonganKe ? parseInt(String(inputData.potonganKe)) : null;
+        const durasiPerShift = 28800; // 8 Jam
 
         for (const grp of GROUPS_CONFIG) {
           const headerId = generateExcelStyleId();
@@ -144,11 +218,26 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
             course: inputData.course || null,
             rpm: inputData.rpm ? parseInt(inputData.rpm) : null,
             design_id: inputData.designId || null,
-            total_downtime_detik: 0,
+            total_downtime_detik: durasiPerShift,
+            downtime_events: JSON.stringify([
+              {
+                kategori: kategori,
+                detail: inputData.status,
+                durasiDetik: durasiPerShift,
+                dikerjakanOleh: resolvedPic || inputData.pic || null,
+              },
+            ]),
             idempotency_key: inputData.idempotencyKey ? `${inputData.idempotencyKey}-${d}-${grp.id}` : null,
             pic: resolvedPic || inputData.pic || "-",
             operator_id: resolvedOperatorId,
             group_id: grp.id,
+            jenis_benang_dasar: benangDasar,
+            liner: liner,
+            heavy: heavy,
+            shadow: shadow,
+            pinggiran: pinggiran,
+            no_order_barang: noOrder,
+            no_customer: noCustomer,
           });
 
           detailsToInsert.push({
@@ -177,6 +266,15 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
         const shiftDefaultTime = targetGroupId === 2 ? "16:00:00" : (targetGroupId === 3 ? "23:30:00" : "08:00:00");
         const finalTanggalJam = isFuturePlan ? `${d} ${shiftDefaultTime}` : currentWibDateTime;
 
+        // Tentukan durasi downtime mesin mati
+        let finalDurasiDetik = 28800; // Default 1 shift penuh (8 jam)
+        if (inputData.durasiDetik && inputData.durasiDetik > 0) {
+          finalDurasiDetik = inputData.durasiDetik;
+        } else if (isRealTime) {
+          const remSec = getRemainingShiftSeconds(now);
+          finalDurasiDetik = remSec > 0 ? remSec : 28800;
+        }
+
         const potonganKeNum = inputData.potonganKe ? parseInt(String(inputData.potonganKe)) : null;
         headersToInsert.push({
           id: headerId,
@@ -190,11 +288,26 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
           course: inputData.course || null,
           rpm: inputData.rpm ? parseInt(inputData.rpm) : null,
           design_id: inputData.designId || null,
-          total_downtime_detik: 0,
+          total_downtime_detik: finalDurasiDetik,
+          downtime_events: JSON.stringify([
+            {
+              kategori: kategori,
+              detail: inputData.status,
+              durasiDetik: finalDurasiDetik,
+              dikerjakanOleh: resolvedPic || inputData.pic || null,
+            },
+          ]),
           idempotency_key: inputData.idempotencyKey ? `${inputData.idempotencyKey}-${d}` : null,
           pic: resolvedPic || inputData.pic || "-",
           operator_id: resolvedOperatorId,
           group_id: targetGroupId,
+          jenis_benang_dasar: benangDasar,
+          liner: liner,
+          heavy: heavy,
+          shadow: shadow,
+          pinggiran: pinggiran,
+          no_order_barang: noOrder,
+          no_customer: noCustomer,
         });
 
         detailsToInsert.push({
@@ -252,6 +365,25 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
 
       if (detailError) {
         throw new Error(`Gagal menyimpan detail status: ${detailError.message}`);
+      }
+
+      // Simpan juga ke downtime_records agar sinkron dengan riwayat downtime mekanik & analitik
+      try {
+        const dtRecords = headersToInsert.map((h) => ({
+          header_id: h.id,
+          kategori: kategori,
+          detail: inputData.status,
+          durasi_detik: h.total_downtime_detik || 28800,
+          dikerjakan_oleh: h.pic !== "-" ? h.pic : null,
+        }));
+        if (dtRecords.length > 0) {
+          const { error: dtError } = await supabase.from("downtime_records").insert(dtRecords);
+          if (dtError) {
+            console.warn("Gagal menyimpan downtime_records status mesin:", dtError);
+          }
+        }
+      } catch (errDt) {
+        console.warn("Penyimpanan downtime_records dilewati:", errDt);
       }
 
       revalidatePath("/(dashboard)/reports/monthly-machine");
@@ -438,3 +570,81 @@ export async function getLastMachineSpec(nomorMc: string, beforeDate?: string) {
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Memperbarui durasi downtime untuk laporan mesin mati / berhenti yang sudah tersimpan di database.
+ */
+export async function updateMachineStopDuration(input: {
+  headerIds: string[];
+  durasiDetik: number;
+}) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const hasSupabase = Boolean(supabaseUrl && supabaseAnonKey && supabaseAnonKey !== "your_supabase_anon_key_here");
+    if (!hasSupabase) return { success: false, error: "Database tidak aktif." };
+
+    const supabase = await createClient();
+    if (!supabase) return { success: false, error: "Gagal terhubung ke database." };
+
+    const validHeaderIds = (input.headerIds || []).filter(Boolean);
+    if (validHeaderIds.length === 0) {
+      return { success: false, error: "ID laporan tidak ditemukan." };
+    }
+
+    const { error: headerErr } = await supabase
+      .from("production_headers")
+      .update({ total_downtime_detik: input.durasiDetik })
+      .in("id", validHeaderIds);
+
+    if (headerErr) {
+      return { success: false, error: headerErr.message };
+    }
+
+    // Perbarui atau tambahkan catatan di downtime_records
+    for (const hId of validHeaderIds) {
+      try {
+        const { data: existingRec } = await supabase
+          .from("downtime_records")
+          .select("id")
+          .eq("header_id", hId)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingRec) {
+          await supabase
+            .from("downtime_records")
+            .update({ durasi_detik: input.durasiDetik })
+            .eq("id", existingRec.id);
+        } else {
+          const { data: hData } = await supabase
+            .from("production_headers")
+            .select("pic, production_details(kategori_masalah, detail_masalah)")
+            .eq("id", hId)
+            .maybeSingle();
+
+          const pDet = hData?.production_details?.[0];
+          await supabase.from("downtime_records").insert({
+            header_id: hId,
+            kategori: pDet?.kategori_masalah || "A",
+            detail: pDet?.detail_masalah || "Mesin Berhenti",
+            durasi_detik: input.durasiDetik,
+            dikerjakan_oleh: hData?.pic !== "-" ? hData?.pic : null,
+          });
+        }
+      } catch (e) {
+        console.warn("Gagal memperbarui downtime_records untuk header", hId, e);
+      }
+    }
+
+    revalidatePath("/(employee)/history");
+    revalidatePath("/(employee)/history/detail");
+    revalidatePath("/history");
+    revalidatePath("/history/detail");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error in updateMachineStopDuration:", err);
+    return { success: false, error: err?.message || "Gagal memperbarui durasi mesin mati." };
+  }
+}
+

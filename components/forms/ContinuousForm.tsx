@@ -4187,6 +4187,13 @@ export default function ContinuousForm({
         rpm={watch("rpm") || ""}
         pick={watch("pick") || ""}
         course={watch("course") || ""}
+        jenisBenangDasar={watch("jenisBenangDasar") || ""}
+        liner={watch("liner") || ""}
+        heavy={watch("heavy") || ""}
+        shadow={watch("shadow") || ""}
+        pinggiran={watch("pinggiran") || ""}
+        noOrderBarang={watch("noOrderBarang") || ""}
+        noCustomer={watch("noCustomer") || ""}
         onSuccess={(msg) => {
           setStopModalSuccessMsg(msg || "Laporan mesin berhenti berhasil disimpan!");
           setTimeout(() => setStopModalSuccessMsg(null), 7000);

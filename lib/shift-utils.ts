@@ -113,6 +113,48 @@ export function getShiftName(dateInput: Date | string | number): "Shift 1" | "Sh
 }
 
 /**
+ * Given an operational shift date (YYYY-MM-DD) and a time string (HH:mm or HH:mm:ss),
+ * converts it into the corresponding calendar timestamp in WIB, the operational date (tgl), and the shift name.
+ * 
+ * Factory Rule:
+ * Cut-off is 07:10:00 WIB.
+ * - Shift 1: 07:10 - 15:10 WIB (same calendar day)
+ * - Shift 2: 15:10 - 23:10 WIB (same calendar day)
+ * - Shift 3: 23:10 - 07:10 WIB:
+ *    - 23:10 to 23:59: same calendar day
+ *    - 00:00 to 07:09:59: next calendar day (opDate + 1 day)
+ * 
+ * Therefore, when the user inputs operational date D and a time < 07:10:
+ * The wall-clock calendar timestamp is (D + 1 day) HH:mm:ss.
+ * Its shift is "Shift 3", and its operational date (tgl) is D.
+ */
+export function getCalendarDateTimeFromShift(opDate: string, timeStr: string): {
+  tanggal_jam: string;
+  tgl: string;
+  shift: "Shift 1" | "Shift 2" | "Shift 3";
+} {
+  const cleanDate = (opDate || "").trim();
+  let cleanTime = (timeStr || "12:00").trim().replace(/\./g, ":");
+  if (cleanTime.length === 5) cleanTime += ":00";
+  const [hStr, mStr] = cleanTime.split(":");
+  const totalMinutes = (parseInt(hStr, 10) || 0) * 60 + (parseInt(mStr, 10) || 0);
+
+  let calendarDate = cleanDate;
+  // If time < 07:10 (0 to 429 minutes), it is the morning portion of Shift 3, occurring on calendar day D + 1.
+  if (totalMinutes < 430 && /^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+    const baseDate = parseAsWibDate(cleanDate);
+    const nextDate = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000);
+    calendarDate = nextDate.toISOString().slice(0, 10);
+  }
+
+  const tanggal_jam = `${calendarDate} ${cleanTime}`;
+  const tgl = cleanDate;
+  const shift = getShiftName(tanggal_jam);
+
+  return { tanggal_jam, tgl, shift };
+}
+
+/**
  * Formats a timestamp into real-time display string for operators (e.g., "06 Agt 2026, 02:15 WIB").
  * Preserves the actual real-time clock without shifting.
  */
@@ -250,4 +292,39 @@ export function getShiftBoundarySegments(startTimeMs: number, endTimeMs: number)
 
   return segments;
 }
+
+/**
+ * Calculates remaining seconds from a given timestamp until the end of its active operational shift:
+ * - Shift 1 (Pagi):  ends at 15:10 WIB (54,600s into the day)
+ * - Shift 2 (Sore):  ends at 23:10 WIB (83,400s into the day)
+ * - Shift 3 (Malam): ends at 07:10 WIB (25,800s next morning)
+ */
+export function getRemainingShiftSeconds(dateInput?: Date | string | number): number {
+  const dt = dateInput ? parseAsWibDate(dateInput) : new Date();
+  const wibMs = dt.getTime() + 7 * 60 * 60 * 1000;
+  const wibDate = new Date(wibMs);
+  const hour = wibDate.getUTCHours();
+  const min = wibDate.getUTCMinutes();
+  const sec = wibDate.getUTCSeconds();
+  const currentTotalSeconds = hour * 3600 + min * 60 + sec;
+
+  let endSec = 0;
+  if (currentTotalSeconds >= 25800 && currentTotalSeconds < 54600) {
+    // Shift 1 ends at 15:10
+    endSec = 54600;
+  } else if (currentTotalSeconds >= 54600 && currentTotalSeconds < 83400) {
+    // Shift 2 ends at 23:10
+    endSec = 83400;
+  } else {
+    // Shift 3 ends at 07:10 next morning
+    if (currentTotalSeconds >= 83400) {
+      endSec = 86400 + 25800; // tomorrow 07:10
+    } else {
+      endSec = 25800; // today 07:10
+    }
+  }
+
+  return Math.max(0, endSec - currentTotalSeconds);
+}
+
 

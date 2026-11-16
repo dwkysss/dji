@@ -773,7 +773,11 @@ export default function EmployeeHistoryPage() {
                             )}
                           </td>
                           <td className="px-2 py-2 text-center whitespace-nowrap">
-                            {batch.total_downtime_detik > 0 ? (
+                            {batch.has_machine_stop ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200" title="Durasi Mesin Berhenti Total">
+                                {formatDurationNice(batch.total_downtime_detik || 28800)}
+                              </span>
+                            ) : batch.total_downtime_detik > 0 ? (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">
                                 {formatDurationNice(batch.total_downtime_detik)}
                               </span>

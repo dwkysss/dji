@@ -3,7 +3,7 @@
 import { continuousFormSchema, ContinuousFormInput } from "@/lib/schemas";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getShiftDate, getShiftName, parseAsWibDate, getJakartaDateTimeString } from "@/lib/shift-utils";
+import { getShiftDate, getShiftName, parseAsWibDate, getJakartaDateTimeString, getCalendarDateTimeFromShift } from "@/lib/shift-utils";
 
 async function resolveAutomaticMeterStart(input: {
   nomorMc?: string | null;
@@ -1910,10 +1910,11 @@ export async function updateQuickMeterValue(params: {
       const currentDt = parseAsWibDate(currentTs);
       const currentIso = currentDt.toISOString();
 
-      const targetDate = params.newTanggal ? params.newTanggal.trim() : (header.tgl || currentIso.slice(0, 10));
+      const currentShiftDate = header.tgl || getShiftDate(currentTs);
+      const targetDate = params.newTanggal ? params.newTanggal.trim() : currentShiftDate;
       let targetTime = "12:00:00";
       if (params.newJam && params.newJam.trim()) {
-        const cleanJam = params.newJam.trim();
+        const cleanJam = params.newJam.trim().replace(/\./g, ":");
         targetTime = cleanJam.length === 5 ? `${cleanJam}:00` : cleanJam;
       } else if (currentTs.includes(" ")) {
         targetTime = currentTs.split(" ")[1];
@@ -1921,8 +1922,7 @@ export async function updateQuickMeterValue(params: {
         targetTime = currentTs.split("T")[1].slice(0, 8);
       }
 
-      const newTanggalJam = `${targetDate} ${targetTime}`;
-      const newTgl = getShiftDate(newTanggalJam);
+      const { tanggal_jam: newTanggalJam, tgl: newTgl } = getCalendarDateTimeFromShift(targetDate, targetTime);
 
       const { error: timeErr } = await supabase
         .from("production_headers")
@@ -2155,12 +2155,10 @@ export async function updateRecordTimestamp(params: {
     }
 
     const targetDate = params.newTanggal.trim();
-    let targetTime = params.newJam.trim();
+    let targetTime = params.newJam.trim().replace(/\./g, ":");
     if (targetTime.length === 5) targetTime += ":00";
 
-    const newTanggalJam = `${targetDate} ${targetTime}`;
-    const newTgl = getShiftDate(newTanggalJam);
-    const shiftName = getShiftName(newTanggalJam);
+    const { tanggal_jam: newTanggalJam, tgl: newTgl, shift: shiftName } = getCalendarDateTimeFromShift(targetDate, targetTime);
 
     const { error: updErr } = await supabase
       .from("production_headers")
@@ -2188,5 +2186,127 @@ export async function updateRecordTimestamp(params: {
   } catch (err: any) {
     console.error("Error updateRecordTimestamp:", err);
     return { success: false, error: err.message || "Gagal memperbarui waktu inputan." };
+  }
+}
+
+export async function addMissingFinishReport(params: {
+  nomorMc: string;
+  potonganKe: string | number;
+  operatorName: string;
+  finishMeter: number;
+  tanggal: string; // YYYY-MM-DD
+  jam: string;     // HH:mm or HH:mm:ss
+  keterangan?: string;
+}): Promise<{ success: boolean; error?: string; insertedId?: string }> {
+  try {
+    const supabase = await createAdminClient();
+    const nomorMcClean = params.nomorMc.trim();
+    const potonganKeNum = typeof params.potonganKe === "number" ? params.potonganKe : parseInt(params.potonganKe);
+    const finishMeterNum = Number(params.finishMeter);
+
+    if (!nomorMcClean || isNaN(potonganKeNum) || isNaN(finishMeterNum) || finishMeterNum < 0) {
+      return { success: false, error: "Data mesin, nomor potongan, atau nilai meter finish tidak valid." };
+    }
+
+    // Ambil seluruh header pada potongan ini
+    const { data: headers, error: hErr } = await supabase
+      .from("production_headers")
+      .select("id, tgl, tanggal_jam, operator_id, group_id, design_id, nomor_mc, potongan_ke, pic, meter_awal, meter_akhir, total_produksi_meter, pcs")
+      .ilike("nomor_mc", nomorMcClean)
+      .eq("potongan_ke", potonganKeNum)
+      .order("tanggal_jam", { ascending: true });
+
+    if (hErr || !headers || headers.length === 0) {
+      return { success: false, error: "Data produksi tidak ditemukan pada potongan ini." };
+    }
+
+    // Filter header milik operator yang bersangkutan
+    const opHeaders = headers.filter(
+      (h) => (h.pic || "").trim().toLowerCase() === params.operatorName.trim().toLowerCase()
+    );
+
+    if (opHeaders.length === 0) {
+      return { success: false, error: `Data operator ${params.operatorName} tidak ditemukan pada potongan ini.` };
+    }
+
+    // Cek meter_akhir tertinggi yang sudah pernah dicatat oleh operator ini
+    let prevFinishMeter = 0;
+    let opStartMeter = 0;
+    for (const ph of opHeaders) {
+      if (ph.meter_akhir && Number(ph.meter_akhir) > prevFinishMeter) {
+        prevFinishMeter = Number(ph.meter_akhir);
+      }
+      if (ph.meter_awal && Number(ph.meter_awal) > 0) {
+        if (opStartMeter === 0 || Number(ph.meter_awal) < opStartMeter) {
+          opStartMeter = Number(ph.meter_awal);
+        }
+      }
+    }
+
+    // Jika belum pernah ada meter_akhir, closingStart adalah opStartMeter (atau 0)
+    const closingStart = prevFinishMeter > 0 ? prevFinishMeter : opStartMeter;
+
+    if (finishMeterNum <= closingStart) {
+      return {
+        success: false,
+        error: `Nilai meter finish (${finishMeterNum}m) harus lebih besar dari meter tercatat sebelumnya (${closingStart}m).`,
+      };
+    }
+
+    const closingTotal = finishMeterNum - closingStart;
+    const refHeader = opHeaders[opHeaders.length - 1];
+
+    const targetDate = params.tanggal.trim();
+    let targetTime = params.jam.trim().replace(/\./g, ":");
+    if (targetTime.length === 5) targetTime += ":00";
+    const { tanggal_jam: newTanggalJam, tgl: newTgl } = getCalendarDateTimeFromShift(targetDate, targetTime);
+
+    const newHeaderId = generateExcelStyleId();
+    const pcsCount = Number(refHeader.pcs) || 1;
+
+    const { error: insErr } = await supabase.from("production_headers").insert({
+      id: newHeaderId,
+      tgl: newTgl,
+      tanggal_jam: newTanggalJam,
+      operator_id: refHeader.operator_id,
+      group_id: refHeader.group_id,
+      design_id: refHeader.design_id,
+      nomor_mc: nomorMcClean,
+      potongan_ke: potonganKeNum,
+      panel_no: "METERAN",
+      pcs: pcsCount,
+      meter_awal: closingStart,
+      meter_akhir: finishMeterNum,
+      total_produksi_meter: closingTotal,
+      pic: params.operatorName.trim(),
+      created_by_name: "Kepala Shift",
+      status_matching: "OK",
+    });
+
+    if (insErr) throw insErr;
+
+    // Insert detail rows untuk setiap PCS agar terdistribusi merata di setiap tab
+    const detailsToInsert = Array.from({ length: pcsCount }).map((_, i) => ({
+      id: `${newHeaderId}-${i}`,
+      header_id: newHeaderId,
+      pcs_index: i,
+      meter_kain: String(finishMeterNum),
+      detail_masalah: params.keterangan ? `Finish Susulan: ${params.keterangan}` : null,
+    }));
+
+    await supabase.from("production_details").insert(detailsToInsert);
+
+    revalidatePath("/(dashboard)/shift-history/detail");
+    revalidatePath("/shift-history/detail");
+    revalidatePath("/(employee)/history/detail");
+    revalidatePath("/history/detail");
+    revalidatePath("/history");
+    revalidatePath("/reports/monthly-machine");
+    revalidatePath("/reports/daily-production");
+
+    return { success: true, insertedId: newHeaderId };
+  } catch (err: any) {
+    console.error("Error addMissingFinishReport:", err);
+    return { success: false, error: err?.message || "Gagal menambahkan laporan finish susulan." };
   }
 }

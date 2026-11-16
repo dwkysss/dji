@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Save, Loader2, AlertCircle, ArrowUpRight, Gauge, Calendar, Clock } from "lucide-react";
 import { updateQuickMeterValue } from "@/actions/continuous-actions";
-import { parseAsWibDate, getShiftDate, getShiftName } from "@/lib/shift-utils";
+import { parseAsWibDate, getShiftDate, getShiftName, getCalendarDateTimeFromShift } from "@/lib/shift-utils";
 
 export interface QuickEditMeterModalProps {
   isOpen: boolean;
@@ -81,20 +81,16 @@ export default function QuickEditMeterModal({
     const rawMeter = rowItem.meterDisplay && rowItem.meterDisplay !== "-" ? rowItem.meterDisplay : "";
     setMeterVal(rawMeter.replace(/[^0-9.]/g, ""));
 
-    // Parse tanggal awal
-    let initTgl = rowItem.rawTgl || "";
-    if (!initTgl && rowItem.tglStr && /^\d{4}-\d{2}-\d{2}$/.test(rowItem.tglStr)) {
+    // Parse tanggal awal (selalu gunakan tanggal operasional shift pabrik)
+    let initTgl = "";
+    if (rowItem.rawTgl && /^\d{4}-\d{2}-\d{2}$/.test(rowItem.rawTgl)) {
+      initTgl = rowItem.rawTgl;
+    } else if (rowItem.tglStr && /^\d{4}-\d{2}-\d{2}$/.test(rowItem.tglStr)) {
       initTgl = rowItem.tglStr;
-    }
-    if (!initTgl && rowItem.rawTanggalJam) {
-      const dt = parseAsWibDate(rowItem.rawTanggalJam);
-      if (!isNaN(dt.getTime())) {
-        const wibIso = new Date(dt.getTime() + 7 * 3600 * 1000).toISOString();
-        initTgl = wibIso.slice(0, 10);
-      }
-    }
-    if (!initTgl) {
-      initTgl = new Date().toISOString().slice(0, 10);
+    } else if (rowItem.rawTanggalJam) {
+      initTgl = getShiftDate(rowItem.rawTanggalJam);
+    } else {
+      initTgl = getShiftDate(new Date());
     }
     setTanggalVal(initTgl);
 
@@ -140,10 +136,8 @@ export default function QuickEditMeterModal({
   const shiftPreview = React.useMemo(() => {
     if (!tanggalVal || !jamVal) return null;
     try {
-      const ts = `${tanggalVal} ${jamVal.length === 5 ? `${jamVal}:00` : jamVal}`;
-      const shift = getShiftName(ts);
-      const opDate = getShiftDate(ts);
-      return { shift, opDate };
+      const res = getCalendarDateTimeFromShift(tanggalVal, jamVal);
+      return { shift: res.shift, opDate: res.tgl };
     } catch {
       return null;
     }
@@ -307,7 +301,8 @@ export default function QuickEditMeterModal({
                   required
                   value={tanggalVal}
                   onChange={(e) => setTanggalVal(e.target.value)}
-                  className="w-full text-xs font-bold px-2.5 py-2 rounded-xl border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 shadow-2xs outline-hidden"
+                  onClick={(e) => e.currentTarget.showPicker?.()}
+                  className="w-full text-xs font-bold px-2.5 py-2 rounded-xl border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 shadow-2xs outline-hidden cursor-pointer"
                 />
               </div>
               <div>
@@ -320,7 +315,8 @@ export default function QuickEditMeterModal({
                   required
                   value={jamVal}
                   onChange={(e) => setJamVal(e.target.value)}
-                  className="w-full text-xs font-bold px-2.5 py-2 rounded-xl border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 shadow-2xs outline-hidden"
+                  onClick={(e) => e.currentTarget.showPicker?.()}
+                  className="w-full text-xs font-bold px-2.5 py-2 rounded-xl border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 bg-white text-slate-800 shadow-2xs outline-hidden cursor-pointer"
                 />
               </div>
             </div>

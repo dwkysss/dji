@@ -128,6 +128,124 @@ export async function upsertProductionPlan(data: any) {
   }
 }
 
+/**
+ * Menjadwalkan beberapa potongan sekaligus (Batch Range)
+ * Contoh: dari potongan 100 s/d 110 dengan spek yang sama
+ */
+export async function upsertBatchProductionPlans(data: any, fromPot: number, toPot: number) {
+  try {
+    const supabase = await createClient();
+    const { max_panel, input_type, id, potongan_ke, ...cleanPayload } = data;
+
+    const start = Math.min(fromPot, toPot);
+    const end = Math.max(fromPot, toPot);
+
+    if (isNaN(start) || isNaN(end) || start <= 0) {
+      return { success: false, error: "Nomor potongan harus berupa angka bulat positif." };
+    }
+
+    if (end - start > 100) {
+      return { success: false, error: "Maksimal rentang 100 potongan dalam sekali input." };
+    }
+
+    if (!cleanPayload.nomor_mc) {
+      return { success: false, error: "Nomor mesin belum ditentukan." };
+    }
+
+    // 1. Update machine config (input_type / default_pcs) jika disediakan
+    if (input_type && cleanPayload.nomor_mc) {
+      const { data: mcData } = await supabase
+        .from("machine_configs")
+        .select("default_pcs")
+        .eq("nomor_mc", cleanPayload.nomor_mc.trim())
+        .maybeSingle();
+
+      const defaultPcsToKeep =
+        mcData?.default_pcs !== undefined && mcData?.default_pcs !== null
+          ? Number(mcData.default_pcs)
+          : Number(data.pcs_count || 1);
+
+      await upsertMachineConfig(cleanPayload.nomor_mc, defaultPcsToKeep, input_type);
+    }
+
+    // 2. Ambil list potongan yang sudah ada di database dalam range ini
+    const potonganList: number[] = [];
+    for (let p = start; p <= end; p++) {
+      potonganList.push(p);
+    }
+
+    const { data: existingList, error: fetchErr } = await supabase
+      .from("production_plans")
+      .select("id, potongan_ke")
+      .eq("nomor_mc", cleanPayload.nomor_mc)
+      .in("potongan_ke", potonganList);
+
+    if (fetchErr) throw fetchErr;
+
+    const existingMap = new Map<number, string>();
+    (existingList || []).forEach((row: any) => {
+      existingMap.set(Number(row.potongan_ke), row.id);
+    });
+
+    const updates: any[] = [];
+    const inserts: any[] = [];
+
+    for (const pot of potonganList) {
+      const payloadItem = {
+        ...cleanPayload,
+        potongan_ke: pot,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existingMap.has(pot)) {
+        updates.push({ id: existingMap.get(pot), ...payloadItem });
+      } else {
+        inserts.push(payloadItem);
+      }
+    }
+
+    // Jalankan updates
+    for (const item of updates) {
+      const { id: itemId, ...itemData } = item;
+      const { error: updErr } = await supabase
+        .from("production_plans")
+        .update(itemData)
+        .eq("id", itemId);
+      if (updErr) throw updErr;
+    }
+
+    // Jalankan inserts secara batch
+    if (inserts.length > 0) {
+      const { error: insErr } = await supabase
+        .from("production_plans")
+        .insert(inserts);
+      if (insErr) throw insErr;
+    }
+
+    // Simpan konfigurasi max_panel untuk setiap potongan
+    if (max_panel !== undefined && cleanPayload.nomor_mc) {
+      const maxPanelPromises = potonganList.map((pot) => {
+        if (Number(max_panel) > 0) {
+          return saveMaxPanelConfig(cleanPayload.nomor_mc, Number(max_panel), pot);
+        } else {
+          return deleteMaxPanelConfig(cleanPayload.nomor_mc, pot);
+        }
+      });
+      await Promise.all(maxPanelPromises);
+    }
+
+    return {
+      success: true,
+      count: potonganList.length,
+      from: start,
+      to: end,
+    };
+  } catch (err: any) {
+    console.error("Error in upsertBatchProductionPlans:", err);
+    return { success: false, error: err.message || "Gagal menyimpan jadwal batch." };
+  }
+}
+
 export async function getAllProductionPlans(page: number = 1, limit: number = 20, search: string = "") {
   try {
     const supabase = await createClient();

@@ -1455,9 +1455,26 @@ export default function FinalInspectionPage() {
 
       if (!isSameAsPrev) {
         const startTglStr = h.tgl || "-";
-        const startMeter = prevOperatorLastMeter !== null
-          ? String(prevOperatorLastMeter)
-          : (h.meter_awal !== undefined && h.meter_awal !== null ? cleanMeterVal(h.meter_awal) : "0");
+
+        let opExplicitStartMeter: string | null = null;
+        for (let sIdx = idx; sIdx < detailsToDisplay.length; sIdx++) {
+          const sItem = detailsToDisplay[sIdx];
+          const sH = sItem.production_headers || {};
+          const sOpr = sH.operators?.nama_operator || sH.pic || "";
+          const sGrp = sH.groups?.nama_grup || "";
+          const sOperatorStr = (sGrp ? `(${sGrp}) ` : '') + sOpr;
+          if (sOperatorStr !== operatorStr) break;
+          if (sH.meter_awal !== undefined && sH.meter_awal !== null) {
+            opExplicitStartMeter = cleanMeterVal(sH.meter_awal);
+            break;
+          }
+        }
+
+        const startMeter = opExplicitStartMeter !== null
+          ? opExplicitStartMeter
+          : (prevOperatorLastMeter !== null
+              ? String(prevOperatorLastMeter)
+              : (h.meter_awal !== undefined && h.meter_awal !== null ? cleanMeterVal(h.meter_awal) : "0"));
 
         const rawStartJam = h.tanggal_jam || h.created_at || item.tanggal_jam || item.created_at || "";
         const startJamStr = rawStartJam ? formatHHMM(rawStartJam) : "-";

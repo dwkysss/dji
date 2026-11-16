@@ -404,9 +404,26 @@ export default function MeterHistoryTable({
 
       if (!isSameAsPrev) {
         const startTglStr = h.tgl || "-";
-        const startMeter = prevOperatorLastMeter !== null
-          ? String(prevOperatorLastMeter)
-          : (h.meter_awal !== undefined && h.meter_awal !== null ? cleanMeterVal(h.meter_awal) : "0");
+
+        let opExplicitStartMeter: string | null = null;
+        for (let sIdx = idx; sIdx < sortedDetails.length; sIdx++) {
+          const sItem = sortedDetails[sIdx];
+          const sH = sItem.production_headers || {};
+          const sOpr = sH.operators?.nama_operator || sH.pic || "";
+          const sGrp = sH.groups?.nama_grup || "";
+          const sOperatorStr = (sGrp ? `(${sGrp}) ` : '') + sOpr;
+          if (sOperatorStr !== operatorStr) break;
+          if (sH.meter_awal !== undefined && sH.meter_awal !== null) {
+            opExplicitStartMeter = cleanMeterVal(sH.meter_awal);
+            break;
+          }
+        }
+
+        const startMeter = opExplicitStartMeter !== null
+          ? opExplicitStartMeter
+          : (prevOperatorLastMeter !== null
+              ? String(prevOperatorLastMeter)
+              : (h.meter_awal !== undefined && h.meter_awal !== null ? cleanMeterVal(h.meter_awal) : "0"));
 
         items.push({
           id: `start-${idx}-${Math.random()}`,
