@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { getMendingReportOptions, getMendingReportData } from "@/actions/mending-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
+import { formatDurationSmart } from "@/lib/shift-utils";
 import { 
   syncPotongKainToGoogleSheet, 
   syncAllPotongKainMachines, 
@@ -439,15 +440,7 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
   
   let durationStr = "";
   if (elapsedSec > 0) {
-    const mins = Math.floor(elapsedSec / 60);
-    const secs = elapsedSec % 60;
-    if (mins > 0 && secs > 0) {
-      durationStr = `${mins}m ${secs}s`;
-    } else if (mins > 0) {
-      durationStr = `${mins}m`;
-    } else {
-      durationStr = `${secs}s`;
-    }
+    durationStr = formatDurationSmart(elapsedSec, { zeroText: "" });
   }
   
   if (cleanNotes && durationStr) {

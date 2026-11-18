@@ -29,13 +29,8 @@ const PROBLEM_CATEGORIES = [
   { id: "G", name: "Kode G: Faktor Eksternal dan Non-Teknis" },
 ];
 
-const REQUIRED_BLOCK_DEFECTS = [
-  "L1/L2/L3 Benang timbul putus",
-  "Benang lolos",
-  "Bolong corak",
-  "Jarum pattern patah/bengkok",
-  "Ganti Jacquard",
-];
+// Sementara seluruh inputan nomor blok bersifat opsional (tidak ada yang diwajibkan dulu)
+const REQUIRED_BLOCK_DEFECTS: string[] = [];
 
 export default function QuickDefectModal({
   isOpen,

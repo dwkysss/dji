@@ -214,28 +214,11 @@ export default function DowntimeTracker({
     } catch (e) { }
   }, []);
 
-  const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([
-    "L1/L2/L3 Benang timbul putus",
-    "Benang lolos",
-    "Bolong corak",
-    "Jarum pattern patah/bengkok",
-    "Ganti Jacquard",
-  ]);
+  // Sementara seluruh inputan nomor blok bersifat opsional (tidak ada yang diwajibkan dulu)
+  const [requiredBlockDefects, setRequiredBlockDefects] = useState<string[]>([]);
 
-  const isDefectRequiringBlock = (defectName: string) => {
-    if (!defectName) return false;
-    const dLow = defectName.toLowerCase();
-    return requiredBlockDefects.some((req) => {
-      const rLow = req.toLowerCase();
-      if (dLow === rLow || dLow.includes(rLow) || rLow.includes(dLow)) return true;
-      if (
-        (dLow.includes("putus") || dLow.includes("lolos") || dLow.includes("bolong") || dLow.includes("patah") || dLow.includes("bengkok")) &&
-        (rLow.includes("putus") || rLow.includes("lolos") || rLow.includes("bolong") || rLow.includes("patah") || rLow.includes("bengkok"))
-      ) {
-        return true;
-      }
-      return false;
-    });
+  const isDefectRequiringBlock = (_defectName: string) => {
+    return false;
   };
   const [blockValidationError, setBlockValidationError] = useState<string | null>(null);
   const [showBlockInfo, setShowBlockInfo] = useState(false);
@@ -3821,35 +3804,81 @@ export default function DowntimeTracker({
                           ? `Klasifikasi Sekaligus (${batchClassifyIds.length} Event)`
                           : "Simpan Downtime"}
                     </h3>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-orange-200/90 rounded-xl shadow-2xs hover:bg-orange-50 transition-colors" title="Ketuk untuk mengubah durasi secara manual">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        {batchClassifyIds.length > 0 ? "Total Durasi:" : "Durasi (Mnt:Dtk):"}
-                      </span>
-                      <div className="flex items-center font-mono font-black text-xs sm:text-sm text-orange-600 bg-orange-100/50 px-1.5 py-0.5 rounded-lg border border-orange-200/50">
-                        <input
-                          type="number"
-                          min="0"
-                          className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black cursor-pointer hover:bg-orange-200/50 rounded transition-colors"
-                          value={Math.floor(tempDuration / 60)}
-                          onChange={(e) => {
-                            const val = e.target.value === "" ? 0 : parseInt(e.target.value);
-                            setTempDuration((isNaN(val) ? 0 : val) * 60 + (tempDuration % 60));
-                          }}
-                        />
-                        <span className="text-orange-400 font-bold mx-0.5">:</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="59"
-                          className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black cursor-pointer hover:bg-orange-200/50 rounded transition-colors"
-                          value={tempDuration % 60 < 10 && tempDuration % 60 !== 0 ? `0${tempDuration % 60}` : tempDuration % 60}
-                          onChange={(e) => {
-                            const val = e.target.value === "" ? 0 : parseInt(e.target.value);
-                            setTempDuration(Math.floor(tempDuration / 60) * 60 + (isNaN(val) ? 0 : Math.min(59, val)));
-                          }}
-                        />
-                      </div>
-                    </div>
+                    {(() => {
+                      const days = Math.floor(tempDuration / 86400);
+                      const hours = Math.floor((tempDuration % 86400) / 3600);
+                      const mins = Math.floor((tempDuration % 3600) / 60);
+                      const secs = tempDuration % 60;
+                      return (
+                        <div
+                          className="flex items-center flex-wrap gap-1.5 px-2.5 py-1 bg-white border border-orange-200/90 rounded-xl shadow-2xs hover:bg-orange-50 transition-colors"
+                          title="Ketuk angka untuk mengubah durasi secara manual"
+                        >
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            {batchClassifyIds.length > 0 ? "Total Durasi:" : "Durasi:"}
+                          </span>
+                          <div className="flex items-center flex-wrap gap-1 font-mono font-black text-xs sm:text-sm text-orange-600 bg-orange-100/50 px-2 py-0.5 rounded-lg border border-orange-200/50">
+                            {days > 0 && (
+                              <span className="inline-flex items-center gap-0.5">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black cursor-pointer hover:bg-orange-200/50 rounded transition-colors"
+                                  value={days}
+                                  onChange={(e) => {
+                                    const val = e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0);
+                                    setTempDuration(val * 86400 + hours * 3600 + mins * 60 + secs);
+                                  }}
+                                />
+                                <span className="text-[10px] font-sans font-bold text-orange-500">Hari</span>
+                              </span>
+                            )}
+                            {(days > 0 || hours > 0) && (
+                              <span className="inline-flex items-center gap-0.5">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black cursor-pointer hover:bg-orange-200/50 rounded transition-colors"
+                                  value={hours}
+                                  onChange={(e) => {
+                                    const val = e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0);
+                                    setTempDuration(days * 86400 + val * 3600 + mins * 60 + secs);
+                                  }}
+                                />
+                                <span className="text-[10px] font-sans font-bold text-orange-500">Jam</span>
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-0.5">
+                              <input
+                                type="number"
+                                min="0"
+                                className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black cursor-pointer hover:bg-orange-200/50 rounded transition-colors"
+                                value={mins}
+                                onChange={(e) => {
+                                  const val = e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0);
+                                  setTempDuration(days * 86400 + hours * 3600 + val * 60 + secs);
+                                }}
+                              />
+                              <span className="text-[10px] font-sans font-bold text-orange-500">Mnt</span>
+                            </span>
+                            <span className="inline-flex items-center gap-0.5">
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                className="w-7 text-center bg-transparent outline-none p-0 m-0 border-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none font-mono font-black cursor-pointer hover:bg-orange-200/50 rounded transition-colors"
+                                value={secs}
+                                onChange={(e) => {
+                                  const val = e.target.value === "" ? 0 : Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
+                                  setTempDuration(days * 86400 + hours * 3600 + mins * 60 + val);
+                                }}
+                              />
+                              <span className="text-[10px] font-sans font-bold text-orange-500">Dtk</span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

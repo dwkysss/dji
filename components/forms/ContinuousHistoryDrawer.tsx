@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cancelMechanicDowntime } from "@/actions/mechanic-actions";
-import { parseAsWibDate, getShiftName, formatDurationSmart } from "@/lib/shift-utils";
+import { parseAsWibDate, getShiftName, formatDurationSmart, getRemainingShiftSeconds } from "@/lib/shift-utils";
 
 interface ContinuousHistoryDrawerProps {
   isOpen: boolean;
@@ -552,6 +552,10 @@ export default function ContinuousHistoryDrawer({
                   specialPanels.forEach((mp: any) => {
                     const rawDate = mp.tgl || mp.tanggal_jam || mp.created_at;
                     const dateStr = formatWibDate(rawDate);
+                    const isStopRow =
+                      mp.panel_no === "BERHENTI" ||
+                      Boolean(mp.production_details && mp.production_details.some((d: any) => d.indikator_stop));
+
                     let dtEvents: any[] = [];
                     try {
                       dtEvents = typeof mp.downtime_events === 'string' ? JSON.parse(mp.downtime_events) : (mp.downtime_events || []);
@@ -565,6 +569,7 @@ export default function ContinuousHistoryDrawer({
                           ev.problems.forEach((p: any, pIdx: number) => {
                             const detailText = (p.details && Array.isArray(p.details)) ? p.details.join(", ") : (p.details || ev.detail || "-");
                             const blokText = p.blok ? ` (Blok: ${p.blok})` : (ev.blok ? ` (Blok: ${ev.blok})` : "");
+                            const durSec = ev.durasiDetik || mp.total_downtime_detik || (isStopRow ? (getRemainingShiftSeconds(rawTime) || 28800) : 0);
                             specialRows.push({
                               id: `${mp.id}-${idx}-${pIdx}`,
                               headerId: mp.id,
@@ -572,14 +577,16 @@ export default function ContinuousHistoryDrawer({
                               dateStr,
                               penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
                               shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
-                              durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
+                              durasiDisplay: formatDurationNice(durSec),
+                              isMachineStop: isStopRow,
                               kategori: p.kategori || ev.kategori || "-",
-                              detailMasalah: `${detailText}${blokText}`,
+                              detailMasalah: `${detailText}${blokText}`.replace(/^[\s\-–—]+/, "").trim() || "-",
                             });
                           });
                         } else {
                           const detailText = ev.detail || "-";
                           const blokText = ev.blok ? ` (Blok: ${ev.blok})` : "";
+                          const durSec = ev.durasiDetik || mp.total_downtime_detik || (isStopRow ? (getRemainingShiftSeconds(rawTime) || 28800) : 0);
                           specialRows.push({
                             id: `${mp.id}-${idx}`,
                             headerId: mp.id,
@@ -587,9 +594,10 @@ export default function ContinuousHistoryDrawer({
                             dateStr,
                             penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
                             shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
-                            durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
+                            durasiDisplay: formatDurationNice(durSec),
+                            isMachineStop: isStopRow,
                             kategori: ev.kategori || "-",
-                            detailMasalah: `${detailText}${blokText}`,
+                            detailMasalah: `${detailText}${blokText}`.replace(/^[\s\-–—]+/, "").trim() || "-",
                           });
                         }
                       });
@@ -599,6 +607,7 @@ export default function ContinuousHistoryDrawer({
                         const timeStr = formatWibTime(rawTime);
                         const detailText = dr.detail || "-";
                         const blokText = dr.blok ? ` (Blok: ${dr.blok})` : "";
+                        const durSec = dr.durasi_detik || mp.total_downtime_detik || (isStopRow ? (getRemainingShiftSeconds(rawTime) || 28800) : 0);
                         specialRows.push({
                           id: `${mp.id}-dr-${dIdx}`,
                           headerId: mp.id,
@@ -606,9 +615,10 @@ export default function ContinuousHistoryDrawer({
                           dateStr,
                           penanggungJawab: cleanPenanggungJawab(dr.dikerjakan_oleh || mp.pic || mp.operators?.nama_operator),
                           shift: mp.grup || mp.groups?.nama_grup || "-",
-                          durasiDisplay: formatDurationNice(dr.durasi_detik || mp.total_downtime_detik || 0),
+                          durasiDisplay: formatDurationNice(durSec),
+                          isMachineStop: isStopRow,
                           kategori: dr.kategori || "-",
-                          detailMasalah: `${detailText}${blokText}`,
+                          detailMasalah: `${detailText}${blokText}`.replace(/^[\s\-–—]+/, "").trim() || "-",
                         });
                       });
                     } else if (mp.total_downtime_detik > 0) {
@@ -622,11 +632,11 @@ export default function ContinuousHistoryDrawer({
                         penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
                         shift: mp.grup || mp.groups?.nama_grup || (mp.group_id === 1 ? "A" : mp.group_id === 2 ? "B" : mp.group_id === 3 ? "C" : "-"),
                         durasiDisplay: formatDurationNice(mp.total_downtime_detik || 0),
-                        isMachineStop: false,
+                        isMachineStop: isStopRow,
                         kategori: mp.kategori_masalah || "-",
-                        detailMasalah: mp.detail_masalah || "-",
+                        detailMasalah: String(mp.detail_masalah || "-").replace(/^[\s\-–—]+/, "").trim() || "-",
                       });
-                    } else if (mp.panel_no === "BERHENTI" || (mp.production_details && mp.production_details.some((d: any) => d.indikator_stop))) {
+                    } else if (isStopRow) {
                       const rawTime = mp.tanggal_jam || mp.created_at;
                       const timeStr = formatWibTime(rawTime);
                       const derivedShift = rawTime ? (getShiftName(rawTime) === "Shift 1" ? "A" : (getShiftName(rawTime) === "Shift 2" ? "B" : "C")) : "-";
@@ -634,10 +644,13 @@ export default function ContinuousHistoryDrawer({
                       const details = (mp.production_details && mp.production_details.length > 0)
                         ? mp.production_details
                         : [{ kategori_masalah: mp.kategori_masalah, detail_masalah: mp.detail_masalah }];
+                      const fallbackDurSec = rawTime ? (getRemainingShiftSeconds(rawTime) || 28800) : 28800;
 
                       details.forEach((d: any, dIdx: number) => {
                         const kat = d.kategori_masalah || mp.kategori_masalah || "G";
-                        const detailTxt = d.detail_masalah || mp.detail_masalah || "Mesin Berhenti / Tidak Beroperasi";
+                        const detailTxt = String(d.detail_masalah || mp.detail_masalah || "Mesin Berhenti / Tidak Beroperasi")
+                          .replace(/^[\s\-–—]+/, "")
+                          .trim() || "Mesin Berhenti";
                         specialRows.push({
                           id: `${mp.id}-stop-${dIdx}`,
                           headerId: mp.id,
@@ -645,7 +658,7 @@ export default function ContinuousHistoryDrawer({
                           dateStr,
                           penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
                           shift: shiftStr,
-                          durasiDisplay: "Mesin Berhenti",
+                          durasiDisplay: formatDurationNice(fallbackDurSec),
                           isMachineStop: true,
                           kategori: kat,
                           detailMasalah: detailTxt,
@@ -678,7 +691,10 @@ export default function ContinuousHistoryDrawer({
                           <div key={row.id} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-slate-50 transition-colors">
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2 shrink-0">
-                                <div className={`w-2 h-2 rounded-full shrink-0 ${row.isMachineStop ? "bg-rose-500" : "bg-[#0070bc]"}`} />
+                                <div
+                                  className={`w-2 h-2 rounded-full shrink-0 ${row.isMachineStop ? "bg-rose-500" : "bg-[#0070bc]"}`}
+                                  title={row.isMachineStop ? "Laporan Mesin Mati / Stop" : "Downtime Perbaikan"}
+                                />
                                 <div className="flex flex-col">
                                   {row.dateStr && row.dateStr !== "-" && (
                                     <span className="text-[10px] font-bold text-slate-500 leading-tight">
@@ -696,17 +712,17 @@ export default function ContinuousHistoryDrawer({
                                 </div>
                                 <div className="flex flex-col">
                                   <span className="text-xs font-bold text-slate-800 leading-tight">{row.penanggungJawab}</span>
-                                  <span className="text-[9px] text-slate-400">Shift {row.shift}</span>
+                                  <span className="text-[9px] text-slate-400">Grup {row.shift}</span>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2 sm:ml-auto">
-                              <div className={`flex items-center gap-1 px-2 py-0.5 rounded border shrink-0 ${row.isMachineStop ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-red-50 text-red-600 border-red-100"}`}>
+                            <div className="flex items-center gap-2 sm:ml-auto flex-wrap sm:flex-nowrap">
+                              <div className="flex items-center gap-1 px-2 py-0.5 rounded border shrink-0 bg-rose-50 text-rose-700 border-rose-200">
                                 <Clock className="w-3 h-3" />
                                 <span className="text-[11px] font-black">{row.durasiDisplay}</span>
                               </div>
-                              <span className={`px-2 py-0.5 rounded border text-[10px] font-extrabold shrink-0 ${row.isMachineStop ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-sky-50 border-sky-200 text-sky-700"}`}>
+                              <span className="px-2 py-0.5 rounded border text-[10px] font-extrabold shrink-0 bg-sky-50 border-sky-200 text-sky-700">
                                 {row.kategori === "-" ? "Problem" : (row.kategori.startsWith("Kategori") ? row.kategori : `Kategori ${row.kategori}`)}
                               </span>
                               <span className="text-[11px] text-slate-600 max-w-[140px] truncate" title={row.detailMasalah}>

@@ -146,21 +146,8 @@ export async function getBlockRequiredDefects(): Promise<{ success: boolean; dat
     console.error("Error in getBlockRequiredDefects:", e);
   }
 
-  const defaultList = [
-    "L1 Benang timbul putus",
-    "L2 Benang timbul putus",
-    "L3 Benang timbul putus",
-    "Benang lolos",
-    "Bolong corak",
-    "Jarum pattern patah/bengkok",
-    "Keluar Jarum",
-    "Error design",
-    "Error Servo Drive",
-    "Sensor Benang/Laser Stop",
-    "Ganti motor servo",
-    "Konsleting",
-  ];
-  return { success: true, data: defaultList };
+  // Sementara default tidak ada defect yang mewajibkan input blok (opsional)
+  return { success: true, data: [] };
 }
 
 export async function saveBlockRequiredDefects(defects: string[]) {

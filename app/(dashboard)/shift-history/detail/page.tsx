@@ -24,7 +24,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cancelMechanicDowntime } from "@/actions/mechanic-actions";
-import { parseAsWibDate, getShiftName, formatDurationSmart } from "@/lib/shift-utils";
+import { parseAsWibDate, getShiftName, formatDurationSmart, getRemainingShiftSeconds } from "@/lib/shift-utils";
 import { useAuth } from "@/lib/auth-context";
 import PanelHistoryTable from "@/app/(employee)/history/detail/components/PanelHistoryTable";
 import MeterHistoryTable from "@/app/(employee)/history/detail/components/MeterHistoryTable";
@@ -933,10 +933,13 @@ function ShiftHistoryDetailContent() {
                 const details = (mp.production_details && mp.production_details.length > 0)
                   ? mp.production_details
                   : [{ kategori_masalah: mp.kategori_masalah, detail_masalah: mp.detail_masalah }];
+                const fallbackDurSec = rawTime ? (getRemainingShiftSeconds(rawTime) || 28800) : 28800;
 
                 details.forEach((d: any, dIdx: number) => {
                   const kat = d.kategori_masalah || mp.kategori_masalah || "G";
-                  const detailTxt = d.detail_masalah || mp.detail_masalah || "Mesin Berhenti / Tidak Beroperasi";
+                  const detailTxt = String(d.detail_masalah || mp.detail_masalah || "Mesin Berhenti / Tidak Beroperasi")
+                    .replace(/^[\s\-–—]+/, "")
+                    .trim() || "Mesin Berhenti";
                   rows.push({
                     id: `${mp.id}-stop-${dIdx}`,
                     headerId: mp.id,
@@ -945,7 +948,7 @@ function ShiftHistoryDetailContent() {
                     dateStr,
                     penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
                     shift: shiftStr,
-                    durasiDisplay: "Mesin Berhenti",
+                    durasiDisplay: formatDurationNice(fallbackDurSec),
                     isMachineStop: true,
                     kategori: kat,
                     detailMasalah: detailTxt,
