@@ -26,14 +26,11 @@ import { useScreenWakeLock } from "@/lib/wake-lock-context";
 import { useInputTheme } from "@/lib/input-theme-context";
 import WifiController from "@/components/WifiController";
 import PinAuthModal from "@/components/PinAuthModal";
+import { formatDurationSmart } from "@/lib/shift-utils";
 
-// Helper format seconds to HH:MM:SS
+// Helper format seconds with automatic unit escalation (Dtk -> Mnt -> Jam -> Hari)
 function formatTime(totalSeconds: number): string {
-  const hrs = Math.floor(totalSeconds / 3600);
-  const mins = Math.floor((totalSeconds % 3600) / 60);
-  const secs = totalSeconds % 60;
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+  return formatDurationSmart(totalSeconds, { zeroText: "0 Dtk", includeSeconds: true });
 }
 
 interface WifiDowntimeTriggerProps {

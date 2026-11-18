@@ -8,7 +8,7 @@ import { PROBLEM_DETAILS } from "@/lib/constants";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 import QuickEditMeterModal from "@/components/forms/QuickEditMeterModal";
 import AddMissingFinishModal from "@/components/forms/AddMissingFinishModal";
-import { parseAsWibDate } from "@/lib/shift-utils";
+import { parseAsWibDate, formatDurationSmart } from "@/lib/shift-utils";
 
 const formatWibTime = (dateVal?: string): string => {
   if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
@@ -899,9 +899,7 @@ export default function MeterHistoryTable({
         }
 
         if (totalDowntimeSecs > 0) {
-          const mins = Math.floor(totalDowntimeSecs / 60);
-          const secs = totalDowntimeSecs % 60;
-          downtimeDisplay = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+          downtimeDisplay = formatDurationSmart(totalDowntimeSecs, { zeroText: "-" });
         }
       }
 

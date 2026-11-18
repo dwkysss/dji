@@ -6,7 +6,7 @@ import {
   searchEmployeeHistory,
 } from "@/actions/employee-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
-import { getShiftDate } from "@/lib/shift-utils";
+import { getShiftDate, formatDurationSmart } from "@/lib/shift-utils";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import {
   Search,
@@ -427,6 +427,7 @@ export default function EmployeeHistoryPage() {
     });
     if (batch.design_id) searchParams.set("design", batch.design_id);
     if (batch.tgl) searchParams.set("tgl", batch.tgl);
+    if (batch.batch_id) searchParams.set("batchId", batch.batch_id);
 
     router.push(`/history/detail?${searchParams.toString()}`);
   };
@@ -711,22 +712,8 @@ export default function EmployeeHistoryPage() {
 
                       const operatorName = batch.operators_list || "-";
 
-                      const formatDurationNice = (totalSec: number | string) => {
-                        const sec = typeof totalSec === "string" ? parseInt(totalSec) || 0 : totalSec || 0;
-                        if (sec <= 0) return "-";
-                        const hours = Math.floor(sec / 3600);
-                        const minutes = Math.floor((sec % 3600) / 60);
-                        const seconds = sec % 60;
-                        if (hours > 0) {
-                          if (minutes > 0) return `${hours} Jam ${minutes} Mnt`;
-                          return `${hours} Jam`;
-                        }
-                        if (minutes > 0) {
-                          if (seconds > 0) return `${minutes} Mnt ${seconds} Dtk`;
-                          return `${minutes} Mnt`;
-                        }
-                        return `${seconds} Dtk`;
-                      };
+                      const formatDurationNice = (totalSec: number | string) =>
+                        formatDurationSmart(totalSec, { zeroText: "-" });
 
                       return (
                         <tr
@@ -753,7 +740,7 @@ export default function EmployeeHistoryPage() {
                             {batch.design_id || "-"}
                           </td>
                           <td className="px-2 py-2 text-center whitespace-nowrap font-bold text-slate-700">
-                            Ke-{batch.potongan_ke || "-"}
+                            {batch.potongan_ke ? `Ke-${batch.potongan_ke}` : "-"}
                           </td>
                           <td className="px-2 py-2 text-center whitespace-nowrap">
                             {batch.total_panels === 0 && batch.total_meter === 0 ? (

@@ -3,7 +3,7 @@
 import React from "react";
 import { Printer, X } from "lucide-react";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
-import { parseAsWibDate } from "@/lib/shift-utils";
+import { parseAsWibDate, formatDurationSmart } from "@/lib/shift-utils";
 
 interface PrintableProductionReportProps {
   detailData: any;
@@ -134,14 +134,8 @@ const buildCacatText = (item: any): string => {
   return numberedLines.length > 0 ? numberedLines.join("\n").replace(/\bbenang\b/gi, "B.") : "-";
 };
 
-const formatDurationNice = (totalSec: number | string) => {
-  const sec = typeof totalSec === "string" ? parseInt(totalSec) || 0 : totalSec || 0;
-  if (sec <= 0) return "-";
-  const hours = Math.floor(sec / 3600); const minutes = Math.floor((sec % 3600) / 60); const seconds = sec % 60;
-  if (hours > 0) return minutes > 0 ? `${hours}j ${minutes}m` : `${hours}j`;
-  if (minutes > 0) return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
-  return `${seconds}s`;
-};
+const formatDurationNice = (totalSec: number | string) =>
+  formatDurationSmart(totalSec, { zeroText: "-" });
 
 // final_inspection_id: 1 = A, 2 = B, 3 = BS. Also check keterangan/kategori for BS/GAGAL.
 const getGrade = (panel: any, detail: any): "A" | "B" | "BS" | "" => {

@@ -24,7 +24,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cancelMechanicDowntime } from "@/actions/mechanic-actions";
-import { parseAsWibDate, getShiftName } from "@/lib/shift-utils";
+import { parseAsWibDate, getShiftName, formatDurationSmart } from "@/lib/shift-utils";
 import { useAuth } from "@/lib/auth-context";
 import PanelHistoryTable from "@/app/(employee)/history/detail/components/PanelHistoryTable";
 import MeterHistoryTable from "@/app/(employee)/history/detail/components/MeterHistoryTable";
@@ -39,6 +39,7 @@ function ShiftHistoryDetailContent() {
   const design_id = searchParams.get("design");
   const potongan_ke = searchParams.get("potongan");
   const tgl = searchParams.get("tgl");
+  const batchId = searchParams.get("batchId");
 
   const [detailData, setDetailData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -193,7 +194,8 @@ function ShiftHistoryDetailContent() {
   };
 
   const fetchDetail = async () => {
-    if (!nomor_mc || !potongan_ke) {
+    const cleanPotongan = potongan_ke ? potongan_ke.trim() : "";
+    if (!nomor_mc || (!cleanPotongan && !tgl && !batchId)) {
       setErrorMsg("Parameter tidak lengkap.");
       setIsLoading(false);
       return;
@@ -204,16 +206,31 @@ function ShiftHistoryDetailContent() {
       const res = await searchEmployeeHistory({
         nomor_mc: nomor_mc,
         design_id: design_id || undefined,
-        potongan_ke: potongan_ke,
+        potongan_ke: cleanPotongan || undefined,
+        date: !cleanPotongan && tgl ? tgl : undefined,
         includeDetails: true,
       });
 
       if (res.success && res.data && res.data.length > 0) {
-        const batch = res.data.find(
-          (b: any) =>
-            String(b.nomor_mc || "").trim().toUpperCase() === String(nomor_mc || "").trim().toUpperCase() &&
-            b.potongan_ke == potongan_ke
-        );
+        let batch = null;
+        if (batchId) {
+          batch = res.data.find((b: any) => b.batch_id === batchId);
+        }
+        if (!batch && cleanPotongan) {
+          batch = res.data.find(
+            (b: any) =>
+              String(b.nomor_mc || "").trim().toUpperCase() === String(nomor_mc || "").trim().toUpperCase() &&
+              b.potongan_ke == cleanPotongan
+          );
+        }
+        if (!batch && !cleanPotongan) {
+          batch = res.data.find(
+            (b: any) =>
+              String(b.nomor_mc || "").trim().toUpperCase() === String(nomor_mc || "").trim().toUpperCase() &&
+              !b.potongan_ke &&
+              (!design_id || String(b.design_id || "").trim().toUpperCase() === String(design_id).trim().toUpperCase())
+          );
+        }
 
         if (batch) {
           setDetailData(batch);
@@ -232,7 +249,7 @@ function ShiftHistoryDetailContent() {
 
   useEffect(() => {
     fetchDetail();
-  }, [nomor_mc, design_id, potongan_ke, tgl]);
+  }, [nomor_mc, design_id, potongan_ke, tgl, batchId]);
 
   const handleDeletePanel = async (mode: "permanent" | "keep_slot" | "shift") => {
     if (!detailToDelete) return;
@@ -260,22 +277,8 @@ function ShiftHistoryDetailContent() {
     }
   };
 
-  const formatDurationNice = (totalSec: number | string) => {
-    const sec = typeof totalSec === "string" ? parseInt(totalSec) || 0 : totalSec || 0;
-    if (sec <= 0) return "0 dtk";
-    const hours = Math.floor(sec / 3600);
-    const minutes = Math.floor((sec % 3600) / 60);
-    const seconds = sec % 60;
-    if (hours > 0) {
-      if (minutes > 0) return `${hours} Jam ${minutes} Mnt`;
-      return `${hours} Jam`;
-    }
-    if (minutes > 0) {
-      if (seconds > 0) return `${minutes} Mnt ${seconds} Dtk`;
-      return `${minutes} Mnt`;
-    }
-    return `${seconds} Dtk`;
-  };
+  const formatDurationNice = (totalSec: number | string) =>
+    formatDurationSmart(totalSec, { zeroText: "0 Dtk" });
 
   if (isLoading) {
     return (
@@ -406,11 +409,20 @@ function ShiftHistoryDetailContent() {
 
       <CompactHeaderCard
         nomorMc={detailData.nomor_mc}
-        shiftName={detailData.panels?.[0]?.groups?.nama_grup || "-"}
+        shiftName={
+          detailData.panels?.[0]?.groups?.nama_grup ||
+          (detailData.panels?.[0]?.group_id === 1
+            ? "A"
+            : detailData.panels?.[0]?.group_id === 2
+            ? "B"
+            : detailData.panels?.[0]?.group_id === 3
+            ? "C"
+            : "-")
+        }
         operatorName={detailData.operators_list}
         design={detailData.design_id}
         pcsCount={detailData.total_panels}
-        panelPotongan={`- / ${detailData.potongan_ke}`}
+        panelPotongan={`- / ${detailData.potongan_ke || "-"}`}
         courseRpm={`${detailData.course || "-"} / ${detailData.rpm || "-"}`}
         noCustomer={detailData.no_customer || "-"}
         noOrder={detailData.no_order_barang || "-"}

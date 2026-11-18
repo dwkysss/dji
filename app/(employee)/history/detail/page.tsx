@@ -10,7 +10,7 @@ import { updateMachineStopDuration } from "@/actions/status-actions";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import { Loader2, ArrowLeft, Clock, AlertCircle, Timer, Wrench, ChevronRight, Printer, Scissors, CheckCircle, X, Trash2, RefreshCw, AlertOctagon } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { parseAsWibDate, getShiftName, getRemainingShiftSeconds } from "@/lib/shift-utils";
+import { parseAsWibDate, getShiftName, getRemainingShiftSeconds, formatDurationSmart } from "@/lib/shift-utils";
 import PanelHistoryTable from "./components/PanelHistoryTable";
 import MeterHistoryTable from "./components/MeterHistoryTable";
 import PrintableProductionReport from "@/components/reports/PrintableProductionReport";
@@ -24,6 +24,7 @@ function HistoryDetailContent() {
   const design_id = searchParams.get("design");
   const potongan_ke = searchParams.get("potongan");
   const tgl = searchParams.get("tgl");
+  const batchId = searchParams.get("batchId");
 
   const [detailData, setDetailData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,9 +64,10 @@ function HistoryDetailContent() {
   const handleDeleteWholeBatch = async () => {
     if (!detailData) return;
     const isStop = Boolean(detailData.has_machine_stop || (detailData.total_panels === 0 && detailData.total_meter === 0));
+    const potText = detailData.potongan_ke ? `Potongan Ke-${detailData.potongan_ke}` : `(Tanpa Nomor Potongan)`;
     const confirmMsg = isStop
-      ? `Apakah Anda yakin ingin menghapus Laporan Mesin Mati pada Mesin ${detailData.nomor_mc} Potongan Ke-${detailData.potongan_ke}?\n\nData laporan ini akan dihapus permanen dari riwayat.`
-      : `Apakah Anda yakin ingin menghapus seluruh data produksi Mesin ${detailData.nomor_mc} Potongan Ke-${detailData.potongan_ke}?`;
+      ? `Apakah Anda yakin ingin menghapus Laporan Mesin Mati pada Mesin ${detailData.nomor_mc} ${potText}?\n\nData laporan ini akan dihapus permanen dari riwayat.`
+      : `Apakah Anda yakin ingin menghapus seluruh data produksi Mesin ${detailData.nomor_mc} ${potText}?`;
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -75,6 +77,7 @@ function HistoryDetailContent() {
         nomor_mc: detailData.nomor_mc,
         design_id: detailData.design_id,
         potongan_ke: detailData.potongan_ke,
+        headerIds: (detailData.panels || []).map((p: any) => p.id || p.header_id).filter(Boolean),
       });
 
       if (res && res.success) {
@@ -129,7 +132,8 @@ function HistoryDetailContent() {
   };
 
   const fetchDetail = React.useCallback(async () => {
-    if (!nomor_mc || !potongan_ke) {
+    const cleanPotongan = potongan_ke ? potongan_ke.trim() : "";
+    if (!nomor_mc || (!cleanPotongan && !tgl && !batchId)) {
       setErrorMsg("Parameter tidak lengkap.");
       setIsLoading(false);
       return;
@@ -140,16 +144,31 @@ function HistoryDetailContent() {
       const res = await searchEmployeeHistory({
         nomor_mc: nomor_mc,
         design_id: design_id || undefined,
-        potongan_ke: potongan_ke,
+        potongan_ke: cleanPotongan || undefined,
+        date: !cleanPotongan && tgl ? tgl : undefined,
         includeDetails: true,
       });
 
       if (res.success && res.data && res.data.length > 0) {
-        const batch = res.data.find(
-          (b: any) =>
-            String(b.nomor_mc || "").trim().toUpperCase() === String(nomor_mc || "").trim().toUpperCase() &&
-            b.potongan_ke == potongan_ke
-        );
+        let batch = null;
+        if (batchId) {
+          batch = res.data.find((b: any) => b.batch_id === batchId);
+        }
+        if (!batch && cleanPotongan) {
+          batch = res.data.find(
+            (b: any) =>
+              String(b.nomor_mc || "").trim().toUpperCase() === String(nomor_mc || "").trim().toUpperCase() &&
+              b.potongan_ke == cleanPotongan
+          );
+        }
+        if (!batch && !cleanPotongan) {
+          batch = res.data.find(
+            (b: any) =>
+              String(b.nomor_mc || "").trim().toUpperCase() === String(nomor_mc || "").trim().toUpperCase() &&
+              !b.potongan_ke &&
+              (!design_id || String(b.design_id || "").trim().toUpperCase() === String(design_id).trim().toUpperCase())
+          );
+        }
 
         if (batch) {
           setDetailData(batch);
@@ -164,28 +183,14 @@ function HistoryDetailContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [nomor_mc, design_id, potongan_ke]);
+  }, [nomor_mc, design_id, potongan_ke, tgl, batchId]);
 
   useEffect(() => {
     fetchDetail();
   }, [fetchDetail, tgl]);
 
-  const formatDurationNice = (totalSec: number | string) => {
-    const sec = typeof totalSec === "string" ? parseInt(totalSec) || 0 : totalSec || 0;
-    if (sec <= 0) return "0 dtk";
-    const hours = Math.floor(sec / 3600);
-    const minutes = Math.floor((sec % 3600) / 60);
-    const seconds = sec % 60;
-    if (hours > 0) {
-      if (minutes > 0) return `${hours} Jam ${minutes} Mnt`;
-      return `${hours} Jam`;
-    }
-    if (minutes > 0) {
-      if (seconds > 0) return `${minutes} Mnt ${seconds} Dtk`;
-      return `${minutes} Mnt`;
-    }
-    return `${seconds} Dtk`;
-  };
+  const formatDurationNice = (totalSec: number | string) =>
+    formatDurationSmart(totalSec, { zeroText: "0 Dtk" });
 
   // Kalkulasi Waktu Jalan Mesin (Net Running Time):
   // (Waktu Input Terakhir - Waktu Input Awal) - Total Downtime
@@ -345,97 +350,106 @@ function HistoryDetailContent() {
             String(p.panel_no || "").toUpperCase().includes("BS AKHIR") ||
             String(p.panel_no || "").toUpperCase() === "BS AKHIR"
           )) && (
-            <button
-              type="button"
-              onClick={() => {
-                setMarkCutDate(detailData?.tgl || new Date().toISOString().split("T")[0]);
-                setMarkCutError(null);
-                setIsMarkCutModalOpen(true);
-              }}
-              className="h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap"
-              title="Tandai Selesai Potong & Buat BS Akhir"
-            >
-              <Scissors className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>Tandai Potong Kain</span>
-            </button>
-          )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMarkCutDate(detailData?.tgl || new Date().toISOString().split("T")[0]);
+                  setMarkCutError(null);
+                  setIsMarkCutModalOpen(true);
+                }}
+                className="h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap"
+                title="Tandai Selesai Potong & Buat BS Akhir"
+              >
+                <Scissors className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span>Tandai Potong Kain</span>
+              </button>
+            )}
 
           <button
             type="button"
             onClick={() => setIsPrintModalOpen(true)}
-            className={`h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap ${
-              detailData?.panels?.some(
-                (p: any) =>
-                  String(p.panel_no || "").toUpperCase().includes("BS AKHIR") ||
-                  String(p.panel_no || "").toUpperCase() === "BS AKHIR"
-              )
-                ? "col-span-2 sm:col-span-1"
-                : ""
-            }`}
+            className={`h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap ${detailData?.panels?.some(
+              (p: any) =>
+                String(p.panel_no || "").toUpperCase().includes("BS AKHIR") ||
+                String(p.panel_no || "").toUpperCase() === "BS AKHIR"
+            )
+              ? "col-span-2 sm:col-span-1"
+              : ""
+              }`}
             title="Cetak Laporan / Simpan PDF"
           >
             <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Cetak Laporan</span>
           </button>
 
-          {(detailData?.has_machine_stop || (detailData?.total_panels === 0 && detailData?.total_meter === 0) || isKepalaShiftOrAdmin) && (
-            <button
-              type="button"
-              disabled={isDeletingBatch}
-              onClick={handleDeleteWholeBatch}
-              className="h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap disabled:opacity-50"
-              title="Hapus Laporan Ini (Khususnya Laporan Mesin Mati / Testing)"
-            >
-              {isDeletingBatch ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              )}
-              <span>Hapus Laporan</span>
-            </button>
-          )}
+          {!(detailData?.has_machine_stop || (detailData?.total_panels === 0 && detailData?.total_meter === 0 && detailData?.machine_stop_reason)) &&
+            ((detailData?.total_panels === 0 && detailData?.total_meter === 0) || isKepalaShiftOrAdmin) && (
+              <button
+                type="button"
+                disabled={isDeletingBatch}
+                onClick={handleDeleteWholeBatch}
+                className="h-9 sm:h-9.5 px-3 sm:px-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 whitespace-nowrap disabled:opacity-50"
+                title="Hapus Laporan Ini"
+              >
+                {isDeletingBatch ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                )}
+                <span>Hapus Laporan</span>
+              </button>
+            )}
         </div>
       </div>
 
 
       <CompactHeaderCard
-            nomorMc={detailData.nomor_mc}
-            shiftName={detailData.panels?.[0]?.groups?.nama_grup || "-"}
-            operatorName={detailData.operators_list}
-            design={detailData.design_id}
-            pcsCount={detailData.total_panels}
-            panelPotongan={`- / ${detailData.potongan_ke}`}
-            courseRpm={`${detailData.course || "-"} / ${detailData.rpm || "-"}`}
-            noCustomer={detailData.no_customer || "-"}
-            noOrder={detailData.no_order_barang || "-"}
-            tanggalPotong={detailData.tanggal_potong || "-"}
-            statusMatching={detailData.status_matching || "-"}
-            pick={detailData.pick || "-"}
-            benangDasar={detailData.jenis_benang_dasar || "-"}
-            liner={detailData.liner || "-"}
-            heavy={detailData.heavy || "-"}
-            shadow={detailData.shadow || "-"}
-            pinggiran={detailData.pinggiran || "-"}
-            tanggalProduksi={(() => {
-              let oldest = detailData.tanggal_jam || detailData.created_at || detailData.tgl;
-              if (detailData.panels && Array.isArray(detailData.panels)) {
-                detailData.panels.forEach((p: any) => {
-                  const ts = p.tanggal_jam || p.created_at || p.tgl;
-                  if (ts && (!oldest || String(ts).localeCompare(String(oldest)) < 0)) {
-                    oldest = ts;
-                  }
-                });
+        nomorMc={detailData.nomor_mc}
+        shiftName={
+          detailData.panels?.[0]?.groups?.nama_grup ||
+          (detailData.panels?.[0]?.group_id === 1
+            ? "A"
+            : detailData.panels?.[0]?.group_id === 2
+              ? "B"
+              : detailData.panels?.[0]?.group_id === 3
+                ? "C"
+                : "-")
+        }
+        operatorName={detailData.operators_list}
+        design={detailData.design_id}
+        pcsCount={detailData.total_panels}
+        panelPotongan={`- / ${detailData.potongan_ke || "-"}`}
+        courseRpm={`${detailData.course || "-"} / ${detailData.rpm || "-"}`}
+        noCustomer={detailData.no_customer || "-"}
+        noOrder={detailData.no_order_barang || "-"}
+        tanggalPotong={detailData.tanggal_potong || "-"}
+        statusMatching={detailData.status_matching || "-"}
+        pick={detailData.pick || "-"}
+        benangDasar={detailData.jenis_benang_dasar || "-"}
+        liner={detailData.liner || "-"}
+        heavy={detailData.heavy || "-"}
+        shadow={detailData.shadow || "-"}
+        pinggiran={detailData.pinggiran || "-"}
+        tanggalProduksi={(() => {
+          let oldest = detailData.tanggal_jam || detailData.created_at || detailData.tgl;
+          if (detailData.panels && Array.isArray(detailData.panels)) {
+            detailData.panels.forEach((p: any) => {
+              const ts = p.tanggal_jam || p.created_at || p.tgl;
+              if (ts && (!oldest || String(ts).localeCompare(String(oldest)) < 0)) {
+                oldest = ts;
               }
-              return oldest || "-";
-            })()}
-            course={detailData.course}
-            rpm={detailData.rpm}
-            potonganKe={detailData.potongan_ke}
+            });
+          }
+          return oldest || "-";
+        })()}
+        course={detailData.course}
+        rpm={detailData.rpm}
+        potonganKe={detailData.potongan_ke}
       />
 
 
-      {/* Ringkasan Waktu Operasional Mesin (Responsif Tablet & Mobile: Stack Atas-Bawah) */}
-      {operationalStats && (
+      {/* Ringkasan Waktu Operasional Mesin (Sembunyikan jika murni Laporan Mesin Mati agar tidak duplikat) */}
+      {operationalStats && !operationalStats.isStopBatch && (
         <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
           {/* 1. Waktu Jalan Mesin */}
           <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 flex flex-col justify-center gap-0.5 min-w-0 shadow-2xs">
@@ -447,8 +461,8 @@ function HistoryDetailContent() {
               {operationalStats.isStopBatch
                 ? "0 dtk (Mesin Berhenti)"
                 : operationalStats.hasMultiplePanels
-                ? formatDurationNice(operationalStats.runningSeconds)
-                : "0 dtk"}
+                  ? formatDurationNice(operationalStats.runningSeconds)
+                  : "0 dtk"}
             </span>
           </div>
 
@@ -473,53 +487,109 @@ function HistoryDetailContent() {
               {operationalStats.isStopBatch
                 ? formatDurationNice(operationalStats.grossSeconds)
                 : operationalStats.hasMultiplePanels
-                ? formatDurationNice(operationalStats.grossSeconds)
-                : `0 Mnt (Mulai ${operationalStats.startTimeStr})`}
+                  ? formatDurationNice(operationalStats.grossSeconds)
+                  : `0 Mnt (Mulai ${operationalStats.startTimeStr})`}
             </span>
           </div>
         </div>
       )}
 
-      {/* Banner / Card Mesin Berhenti / Mati jika ada laporan stop mesin */}
-      {(detailData.has_machine_stop || (detailData.total_panels === 0 && detailData.total_meter === 0 && detailData.machine_stop_reason)) && (
-        <div className="mb-4 p-4 sm:p-5 rounded-2xl border border-rose-200 bg-rose-50/80 shadow-xs animate-fadeIn">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-300 text-rose-600 flex items-center justify-center shrink-0">
-                <AlertOctagon className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-rose-800">
-                    Laporan Mesin Mati / Berhenti Total
-                  </span>
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider shadow-2xs">
-                    0 Produksi Kain
-                  </span>
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white uppercase tracking-wider shadow-2xs flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    Durasi Mati: {formatDurationNice(operationalStats?.downtimeSeconds || 28800)}
-                  </span>
+      {/* Card Detail Laporan Mesin Berhenti — Structured Enterprise Layout */}
+      {(detailData.has_machine_stop || (detailData.total_panels === 0 && detailData.total_meter === 0 && detailData.machine_stop_reason)) && (() => {
+        const stopPanels = (detailData.panels || []).filter(
+          (p: any) =>
+            p.panel_no === "BERHENTI" ||
+            (p.production_details && p.production_details.some((d: any) => d.indikator_stop))
+        );
+        const refStopPanels = stopPanels.length > 0 ? stopPanels : (detailData.panels || []);
+
+        const stopGroups = Array.from(
+          new Set(
+            refStopPanels
+              .map((p: any) =>
+                p.groups?.nama_grup ||
+                (p.group_id === 1 ? "A" : p.group_id === 2 ? "B" : p.group_id === 3 ? "C" : null)
+              )
+              .filter(Boolean)
+          )
+        );
+        const groupLabel =
+          stopGroups.length >= 3
+            ? "A, B, & C (Semua Shift)"
+            : stopGroups.length > 0
+              ? `Grup ${stopGroups.join(", ")}`
+              : "-";
+
+        const stopOperators = Array.from(
+          new Set(
+            refStopPanels
+              .map((p: any) => p.operators?.nama_operator || (p.pic && String(p.pic).trim() !== "-" ? p.pic : null))
+              .filter(Boolean)
+          )
+        );
+        const operatorLabel =
+          stopOperators.length > 0
+            ? stopOperators.join(", ")
+            : stopGroups.length >= 3
+              ? "Semua Shift"
+              : detailData.operators_list || "-";
+
+        const rawWaktu = detailData.waktu_input_terakhir || "";
+        let formattedWaktu = "-";
+        if (rawWaktu) {
+          try {
+            const dt = parseAsWibDate(rawWaktu);
+            if (!isNaN(dt.getTime())) {
+              formattedWaktu =
+                new Intl.DateTimeFormat("id-ID", {
+                  timeZone: "Asia/Jakarta",
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                })
+                  .format(dt)
+                  .replace(".", ":") + " WIB";
+            } else {
+              formattedWaktu = String(rawWaktu).replace("T", " ").slice(0, 16) + " WIB";
+            }
+          } catch {
+            formattedWaktu = String(rawWaktu).replace("T", " ").slice(0, 16) + " WIB";
+          }
+        }
+
+        const cleanReason = String(detailData.machine_stop_reason || "Mesin Berhenti")
+          .replace(/^[\s\-–—:]+/, "")
+          .trim() || "Mesin Berhenti";
+
+        const durasiLabel = formatDurationNice(operationalStats?.downtimeSeconds || 28800);
+
+        return (
+          <div className="mb-5 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden animate-fadeIn">
+            {/* Header Bar */}
+            <div className="px-4 sm:px-5 py-3.5 bg-rose-50/70 border-b border-rose-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-rose-100 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertOctagon className="w-4 h-4" />
                 </div>
-                <p className="text-xs sm:text-sm font-bold text-slate-800 mt-1">
-                  Kendala / Alasan: <span className="text-rose-700 font-black">{detailData.machine_stop_reason || "Mesin Berhenti"}</span>
-                </p>
-                {detailData.machine_stop_category && (
-                  <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-                    Kategori Masalah: Kode {detailData.machine_stop_category}
-                  </p>
-                )}
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Tidak ada kain yang diproduksi pada potongan ini karena mesin berstatus berhenti total.
-                </p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xs sm:text-sm font-black text-slate-800 tracking-tight">
+                      Laporan Mesin Berhenti
+                    </h3>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold">
+                      {detailData.total_panels === 0 && detailData.total_meter === 0
+                        ? "0 Produksi Kain"
+                        : "Catatan Mesin Berhenti"}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="text-left sm:text-right text-xs text-slate-600 border-t sm:border-t-0 pt-2 sm:pt-0 border-rose-200/60 flex flex-col sm:items-end justify-between gap-2.5">
-              <div>
-                <p className="font-bold text-slate-700">Waktu Lapor: {detailData.waktu_input_terakhir || "-"}</p>
-                <p className="mt-0.5">Operator PIC: <span className="font-extrabold text-slate-900">{detailData.operators_list || "-"}</span></p>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
+
+              {/* Action Buttons (Quiet & Clear) */}
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -528,17 +598,17 @@ function HistoryDetailContent() {
                     setEditDurationMinutes(Math.floor((curSec % 3600) / 60));
                     setIsEditDurationModalOpen(true);
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-all shadow-xs cursor-pointer active:scale-95"
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200 hover:border-amber-300 font-bold text-xs transition-colors cursor-pointer"
                   title="Ubah Durasi Berhenti Mesin"
                 >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Ubah Durasi ({formatDurationNice(operationalStats?.downtimeSeconds || 28800)})</span>
+                  <Clock className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Ubah Durasi</span>
                 </button>
                 <button
                   type="button"
                   disabled={isDeletingBatch}
                   onClick={handleDeleteWholeBatch}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
                   title="Hapus Laporan Mesin Mati Ini"
                 >
                   {isDeletingBatch ? (
@@ -546,240 +616,293 @@ function HistoryDetailContent() {
                   ) : (
                     <Trash2 className="w-3.5 h-3.5" />
                   )}
-                  <span>Hapus Laporan Ini</span>
+                  <span>Hapus</span>
                 </button>
               </div>
             </div>
+
+            {/* Body: Alasan Berhenti */}
+            <div className="px-4 sm:px-5 py-4 border-b border-slate-100">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Alasan / Kendala Berhenti
+                </span>
+                {detailData.machine_stop_category && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
+                    Kategori Kode {detailData.machine_stop_category}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm sm:text-base font-bold text-slate-800 leading-snug">
+                {cleanReason}
+              </p>
+            </div>
+
+            {/* Footer: 4-Column Structured Metadata Grid (2x2 mobile, 4-col tablet/desktop) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 bg-slate-50/50">
+              <div className="px-4 sm:px-5 py-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Waktu Lapor
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5">
+                  {formattedWaktu}
+                </div>
+              </div>
+              <div className="px-4 sm:px-5 py-3 border-l border-slate-100 md:border-l-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Group / Shift
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5">
+                  {groupLabel}
+                </div>
+              </div>
+              <div className="px-4 sm:px-5 py-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Operator
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5">
+                  {operatorLabel}
+                </div>
+              </div>
+              <div className="px-4 sm:px-5 py-3 border-l border-slate-100 md:border-l-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Durasi Berhenti
+                </div>
+                <div className="text-xs sm:text-sm font-black text-amber-600 mt-0.5">
+                  {durasiLabel}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Laporan Produksi Table */}
       <div className="pb-4">
-          {(() => {
-            // Group panels by pcs
-            const pcsGroups: { [key: string]: any[] } = {};
+        {(() => {
+          // Group panels by pcs
+          const pcsGroups: { [key: string]: any[] } = {};
 
-            // Deduplicate by panel.id
-            const uniqueById = new Map();
-            (detailData.panels || []).forEach((panel: any) => {
-              if (!uniqueById.has(panel.id)) {
-                uniqueById.set(panel.id, { ...panel, production_details: [...(panel.production_details || [])] });
-              }
-            });
+          // Deduplicate by panel.id
+          const uniqueById = new Map();
+          (detailData.panels || []).forEach((panel: any) => {
+            if (!uniqueById.has(panel.id)) {
+              uniqueById.set(panel.id, { ...panel, production_details: [...(panel.production_details || [])] });
+            }
+          });
 
-            // Deduplicate by panel_no for non-METERAN
-            const deduplicatedPanels = Array.from(uniqueById.values());
-            const finalPanels: any[] = [];
-            const seenPanelNo = new Map<string, any>();
+          // Deduplicate by panel_no for non-METERAN
+          const deduplicatedPanels = Array.from(uniqueById.values());
+          const finalPanels: any[] = [];
+          const seenPanelNo = new Map<string, any>();
 
-            deduplicatedPanels.forEach((panel: any) => {
-              if (panel.panel_no === "METERAN") {
-                finalPanels.push(panel);
+          deduplicatedPanels.forEach((panel: any) => {
+            if (panel.panel_no === "METERAN") {
+              finalPanels.push(panel);
+            } else {
+              const key = panel.panel_no;
+              const existing = seenPanelNo.get(key);
+              if (existing) {
+                // Merge production details
+                existing.production_details.push(...(panel.production_details || []));
+
+                // Merge downtime events
+                let existingDt: any[] = [];
+                try {
+                  const parsed = typeof existing.downtime_events === 'string' ? JSON.parse(existing.downtime_events) : existing.downtime_events;
+                  existingDt = Array.isArray(parsed) ? parsed : [];
+                } catch (e) {
+                  existingDt = [];
+                }
+                let newDt: any[] = [];
+                try {
+                  const parsed = typeof panel.downtime_events === 'string' ? JSON.parse(panel.downtime_events) : panel.downtime_events;
+                  newDt = Array.isArray(parsed) ? parsed : [];
+                } catch (e) {
+                  newDt = [];
+                }
+                existing.downtime_events = [...existingDt, ...newDt];
+
+                // Update total PCS if the new one has more PCS
+                const existingPcs = parseInt(existing.pcs || "1");
+                const newPcs = parseInt(panel.pcs || "1");
+                if (newPcs > existingPcs) existing.pcs = newPcs.toString();
               } else {
-                const key = panel.panel_no;
-                const existing = seenPanelNo.get(key);
-                if (existing) {
-                  // Merge production details
-                  existing.production_details.push(...(panel.production_details || []));
+                seenPanelNo.set(key, panel);
+              }
+            }
+          });
 
-                  // Merge downtime events
-                  let existingDt: any[] = [];
-                  try {
-                    const parsed = typeof existing.downtime_events === 'string' ? JSON.parse(existing.downtime_events) : existing.downtime_events;
-                    existingDt = Array.isArray(parsed) ? parsed : [];
-                  } catch (e) {
-                    existingDt = [];
-                  }
-                  let newDt: any[] = [];
-                  try {
-                    const parsed = typeof panel.downtime_events === 'string' ? JSON.parse(panel.downtime_events) : panel.downtime_events;
-                    newDt = Array.isArray(parsed) ? parsed : [];
-                  } catch (e) {
-                    newDt = [];
-                  }
-                  existing.downtime_events = [...existingDt, ...newDt];
+          finalPanels.push(...Array.from(seenPanelNo.values()));
 
-                  // Update total PCS if the new one has more PCS
-                  const existingPcs = parseInt(existing.pcs || "1");
-                  const newPcs = parseInt(panel.pcs || "1");
-                  if (newPcs > existingPcs) existing.pcs = newPcs.toString();
+          // Group finalPanels by operator to find the oldest panel ID for each operator
+          const oldestPanelIdByOperator = new Map<string, string>();
+          const sortedByTime = [...finalPanels].sort((a, b) => String(a.tanggal_jam || "").localeCompare(String(b.tanggal_jam || "")));
+          sortedByTime.forEach((p: any) => {
+            const opr = p.operators?.nama_operator || p.pic || p.created_by_name || "";
+            const grp = p.groups?.nama_grup || "";
+            const operatorStr = (grp ? `(${grp}) ` : '') + opr;
+            if (!oldestPanelIdByOperator.has(operatorStr)) {
+              oldestPanelIdByOperator.set(operatorStr, p.id);
+            }
+          });
+
+          // Dapatkan jumlah max PCS pada potongan ini agar counter meter mesin didistribusikan ke seluruh PCS
+          let maxBatchPcs = 1;
+          finalPanels.forEach((p: any) => {
+            const pPcs = parseInt(p.pcs || "1");
+            if (pPcs > maxBatchPcs) maxBatchPcs = pPcs;
+            if (p.production_details && Array.isArray(p.production_details)) {
+              p.production_details.forEach((d: any) => {
+                const dPcs = d.pcs_index ? parseInt(d.pcs_index) : 1;
+                if (dPcs > maxBatchPcs) maxBatchPcs = dPcs;
+              });
+            }
+          });
+
+          finalPanels.forEach((panel: any) => {
+            if (panel.panel_no === "Downtime Mekanik (Direct)" || panel.panel_no === "BERHENTI" || panel.pcs === 0 || panel.pcs === "0") {
+              return;
+            }
+            const isMeterInput = panel.panel_no === "METERAN";
+            const totalPcs = isMeterInput ? Math.max(maxBatchPcs, parseInt(panel.pcs ?? "1")) : parseInt(panel.pcs ?? "1");
+            for (let i = 1; i <= totalPcs; i++) {
+              const pcsKey = i.toString();
+              if (!pcsGroups[pcsKey]) pcsGroups[pcsKey] = [];
+
+              const panelClone = { ...panel };
+
+              let dtEvents: any[] = [];
+              try {
+                if (typeof panelClone.downtime_events === 'string') {
+                  const parsed = JSON.parse(panelClone.downtime_events);
+                  dtEvents = Array.isArray(parsed) ? parsed : [];
+                } else if (Array.isArray(panelClone.downtime_events)) {
+                  dtEvents = panelClone.downtime_events;
+                }
+              } catch (e) {
+                dtEvents = [];
+              }
+
+              const matchedEvents = dtEvents.filter(
+                (e: any) =>
+                  !e.pcsKe ||
+                  e.pcsKe === "Semua" ||
+                  e.pcsKe.split(",").map((x: any) => x.trim()).includes(pcsKey)
+              );
+
+              let hasDetails = false;
+              if (panelClone.production_details) {
+                const filteredDetails = panelClone.production_details.filter((d: any) => {
+                  const pIndex = d.pcs_index ? parseInt(d.pcs_index) : 1;
+                  return pIndex === i;
+                });
+                const hasErrors = filteredDetails.some((d: any) => d.kategori_masalah || d.keterangan_cacat);
+                if (hasErrors) {
+                  hasDetails = true;
+                  panelClone.production_details = filteredDetails;
                 } else {
-                  seenPanelNo.set(key, panel);
+                  panelClone.production_details = [];
                 }
               }
-            });
 
-            finalPanels.push(...Array.from(seenPanelNo.values()));
+              const isIstirahat = panelClone.production_details?.some((d: any) => d.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT")) ||
+                dtEvents.some((e: any) => e.kategori?.toUpperCase().includes("ISTIRAHAT"));
 
-             // Group finalPanels by operator to find the oldest panel ID for each operator
-             const oldestPanelIdByOperator = new Map<string, string>();
-             const sortedByTime = [...finalPanels].sort((a, b) => String(a.tanggal_jam || "").localeCompare(String(b.tanggal_jam || "")));
-             sortedByTime.forEach((p: any) => {
-               const opr = p.operators?.nama_operator || p.pic || p.created_by_name || "";
-               const grp = p.groups?.nama_grup || "";
-               const operatorStr = (grp ? `(${grp}) ` : '') + opr;
-               if (!oldestPanelIdByOperator.has(operatorStr)) {
-                 oldestPanelIdByOperator.set(operatorStr, p.id);
-               }
-             });
+              const isMeterInput = panelClone.panel_no === "METERAN";
+              const opr = panelClone.operators?.nama_operator || panelClone.pic || panelClone.created_by_name || "";
+              const grp = panelClone.groups?.nama_grup || "";
+              const operatorStr = (grp ? `(${grp}) ` : '') + opr;
+              const isOldest = oldestPanelIdByOperator.get(operatorStr) === panelClone.id;
+              const isFinishReport = isMeterInput && panelClone.meter_akhir !== null && panelClone.meter_akhir !== undefined && String(panelClone.meter_akhir).trim() !== "";
 
-              // Dapatkan jumlah max PCS pada potongan ini agar counter meter mesin didistribusikan ke seluruh PCS
-              let maxBatchPcs = 1;
-              finalPanels.forEach((p: any) => {
-                const pPcs = parseInt(p.pcs || "1");
-                if (pPcs > maxBatchPcs) maxBatchPcs = pPcs;
-                if (p.production_details && Array.isArray(p.production_details)) {
-                  p.production_details.forEach((d: any) => {
-                    const dPcs = d.pcs_index ? parseInt(d.pcs_index) : 1;
-                    if (dPcs > maxBatchPcs) maxBatchPcs = dPcs;
-                  });
+              if (isMeterInput) {
+                if (isOldest || isFinishReport || matchedEvents.length > 0 || hasDetails || isIstirahat) {
+                  pcsGroups[pcsKey].push(panelClone);
                 }
-              });
-
-              finalPanels.forEach((panel: any) => {
-                if (panel.panel_no === "Downtime Mekanik (Direct)" || panel.panel_no === "BERHENTI" || panel.pcs === 0 || panel.pcs === "0") {
-                  return;
+              } else {
+                if (panelClone.production_details.length === 0) {
+                  panelClone.production_details = panel.production_details?.filter((d: any) => {
+                    const pIndex = d.pcs_index ? parseInt(d.pcs_index) : 1;
+                    return pIndex === i;
+                  }) || [];
                 }
-                const isMeterInput = panel.panel_no === "METERAN";
-                const totalPcs = isMeterInput ? Math.max(maxBatchPcs, parseInt(panel.pcs ?? "1")) : parseInt(panel.pcs ?? "1");
-                for (let i = 1; i <= totalPcs; i++) {
-                 const pcsKey = i.toString();
-                 if (!pcsGroups[pcsKey]) pcsGroups[pcsKey] = [];
+                pcsGroups[pcsKey].push(panelClone);
+              }
+            }
+          });
 
-                 const panelClone = { ...panel };
-                 
-                 let dtEvents: any[] = [];
-                 try {
-                   if (typeof panelClone.downtime_events === 'string') {
-                     const parsed = JSON.parse(panelClone.downtime_events);
-                     dtEvents = Array.isArray(parsed) ? parsed : [];
-                   } else if (Array.isArray(panelClone.downtime_events)) {
-                     dtEvents = panelClone.downtime_events;
-                   }
-                 } catch (e) {
-                   dtEvents = [];
-                 }
+          // Sort keys numerically
+          const sortedPcsKeys = Object.keys(pcsGroups).sort((a, b) => parseInt(a) - parseInt(b));
+          if (sortedPcsKeys.length === 0) return null;
 
-                 const matchedEvents = dtEvents.filter(
-                   (e: any) =>
-                     !e.pcsKe ||
-                     e.pcsKe === "Semua" ||
-                     e.pcsKe.split(",").map((x: any) => x.trim()).includes(pcsKey)
-                 );
+          const isMeterReport = detailData.panels?.some((p: any) => p.panel_no === "METERAN");
+          const isSinglePcs = sortedPcsKeys.length === 1;
 
-                 let hasDetails = false;
-                 if (panelClone.production_details) {
-                   const filteredDetails = panelClone.production_details.filter((d: any) => {
-                     const pIndex = d.pcs_index ? parseInt(d.pcs_index) : 1;
-                     return pIndex === i;
-                   });
-                   const hasErrors = filteredDetails.some((d: any) => d.kategori_masalah || d.keterangan_cacat);
-                   if (hasErrors) {
-                     hasDetails = true;
-                     panelClone.production_details = filteredDetails;
-                   } else {
-                     panelClone.production_details = [];
-                   }
-                 }
+          return (
+            <div className="mb-6">
+              {!isMeterReport && (
+                <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  Rincian per Panel
+                </h4>
+              )}
+              {isMeterReport && isSinglePcs && (
+                <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  Rincian Produksi Meteran
+                </h4>
+              )}
+              <div className={`w-full ${isSinglePcs ? "" : "overflow-x-auto"} pb-4 no-scrollbar bg-white p-3 sm:p-6 rounded-xl border border-slate-200 shadow-sm`}>
+                <div className={isSinglePcs ? "w-full" : "flex w-max min-w-full gap-4 sm:gap-8"}>
+                  {sortedPcsKeys.map((pcsKey) => {
+                    const pcsLabel = `PCS ${pcsKey}`;
+                    const panels = pcsGroups[pcsKey].sort((a, b) => {
+                      if (a.panel_no === "METERAN" && b.panel_no === "METERAN") {
+                        return String(a.tanggal_jam || "").localeCompare(String(b.tanggal_jam || ""));
+                      }
+                      if (a.panel_no === "METERAN") return 1;
+                      if (b.panel_no === "METERAN") return -1;
 
-                 const isIstirahat = panelClone.production_details?.some((d: any) => d.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT")) ||
-                                     dtEvents.some((e: any) => e.kategori?.toUpperCase().includes("ISTIRAHAT"));
+                      const pA = parseInt(a.panel_no || "0");
+                      const pB = parseInt(b.panel_no || "0");
+                      if (pA === pB) {
+                        const isABs = String(a.panel_no || "").includes("(BS)") || String(a.panel_no || "").includes("(GAGAL)");
+                        const isBBs = String(b.panel_no || "").includes("(BS)") || String(b.panel_no || "").includes("(GAGAL)");
+                        if (isABs && !isBBs) return -1;
+                        if (!isABs && isBBs) return 1;
+                        return String(a.tanggal_jam || "").localeCompare(String(b.tanggal_jam || ""));
+                      }
+                      return pA - pB;
+                    });
 
-                 const isMeterInput = panelClone.panel_no === "METERAN";
-                 const opr = panelClone.operators?.nama_operator || panelClone.pic || panelClone.created_by_name || "";
-                 const grp = panelClone.groups?.nama_grup || "";
-                 const operatorStr = (grp ? `(${grp}) ` : '') + opr;
-                 const isOldest = oldestPanelIdByOperator.get(operatorStr) === panelClone.id;
-                 const isFinishReport = isMeterInput && panelClone.meter_akhir !== null && panelClone.meter_akhir !== undefined && String(panelClone.meter_akhir).trim() !== "";
+                    const isMeter = detailData.is_meter || panels.some((p: any) => p.panel_no === "METERAN");
 
-                 if (isMeterInput) {
-                   if (isOldest || isFinishReport || matchedEvents.length > 0 || hasDetails || isIstirahat) {
-                     pcsGroups[pcsKey].push(panelClone);
-                   }
-                 } else {
-                   if (panelClone.production_details.length === 0) {
-                     panelClone.production_details = panel.production_details?.filter((d: any) => {
-                       const pIndex = d.pcs_index ? parseInt(d.pcs_index) : 1;
-                       return pIndex === i;
-                     }) || [];
-                   }
-                   pcsGroups[pcsKey].push(panelClone);
-                 }
-               }
-             });
-
-            // Sort keys numerically
-            const sortedPcsKeys = Object.keys(pcsGroups).sort((a, b) => parseInt(a) - parseInt(b));
-            if (sortedPcsKeys.length === 0) return null;
-
-            const isMeterReport = detailData.panels?.some((p: any) => p.panel_no === "METERAN");
-            const isSinglePcs = sortedPcsKeys.length === 1;
-
-            return (
-              <div className="mb-6">
-                {!isMeterReport && (
-                  <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    Rincian per Panel
-                  </h4>
-                )}
-                {isMeterReport && isSinglePcs && (
-                  <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    Rincian Produksi Meteran
-                  </h4>
-                )}
-                <div className={`w-full ${isSinglePcs ? "" : "overflow-x-auto"} pb-4 no-scrollbar bg-white p-3 sm:p-6 rounded-xl border border-slate-200 shadow-sm`}>
-                  <div className={isSinglePcs ? "w-full" : "flex w-max min-w-full gap-4 sm:gap-8"}>
-                    {sortedPcsKeys.map((pcsKey) => {
-                      const pcsLabel = `PCS ${pcsKey}`;
-                      const panels = pcsGroups[pcsKey].sort((a, b) => {
-                          if (a.panel_no === "METERAN" && b.panel_no === "METERAN") {
-                            return String(a.tanggal_jam || "").localeCompare(String(b.tanggal_jam || ""));
-                          }
-                          if (a.panel_no === "METERAN") return 1;
-                          if (b.panel_no === "METERAN") return -1;
-                          
-                          const pA = parseInt(a.panel_no || "0");
-                          const pB = parseInt(b.panel_no || "0");
-                          if (pA === pB) {
-                            const isABs = String(a.panel_no || "").includes("(BS)") || String(a.panel_no || "").includes("(GAGAL)");
-                            const isBBs = String(b.panel_no || "").includes("(BS)") || String(b.panel_no || "").includes("(GAGAL)");
-                            if (isABs && !isBBs) return -1;
-                            if (!isABs && isBBs) return 1;
-                            return String(a.tanggal_jam || "").localeCompare(String(b.tanggal_jam || ""));
-                          }
-                          return pA - pB;
-                        });
-
-                      const isMeter = detailData.is_meter || panels.some((p: any) => p.panel_no === "METERAN");
-
-                      return (
-                        <div
-                          key={pcsKey}
-                          className={
-                            isSinglePcs
-                              ? "w-full bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
-                              : "w-min flex-none bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
-                          }
-                        >
-                          {!isSinglePcs && (
-                            <div className="bg-slate-100/80 px-4 py-3 border-b border-slate-200 text-center">
-                              <span className="font-black text-slate-800 text-sm tracking-wider uppercase">{pcsLabel}</span>
-                            </div>
-                          )}
-                          <div className="w-full overflow-x-auto no-scrollbar">
-                            {isMeter ? (
-                              <MeterHistoryTable
-                                panels={panels}
-                                pcsKey={pcsKey}
-                                hasNextPotongan={Boolean(detailData?.has_next_potongan || detailData?.tanggal_potong)}
-                                onDataUpdated={fetchDetail}
-                                onRefresh={fetchDetail}
-                              />
-                            ) : (
-                              <PanelHistoryTable panels={panels} pcsKey={pcsKey} onRefresh={fetchDetail} />
-                            )}
+                    return (
+                      <div
+                        key={pcsKey}
+                        className={
+                          isSinglePcs
+                            ? "w-full bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+                            : "w-min flex-none bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+                        }
+                      >
+                        {!isSinglePcs && (
+                          <div className="bg-slate-100/80 px-4 py-3 border-b border-slate-200 text-center">
+                            <span className="font-black text-slate-800 text-sm tracking-wider uppercase">{pcsLabel}</span>
                           </div>
+                        )}
+                        <div className="w-full overflow-x-auto no-scrollbar">
+                          {isMeter ? (
+                            <MeterHistoryTable
+                              panels={panels}
+                              pcsKey={pcsKey}
+                              hasNextPotongan={Boolean(detailData?.has_next_potongan || detailData?.tanggal_potong)}
+                              onDataUpdated={fetchDetail}
+                              onRefresh={fetchDetail}
+                            />
+                          ) : (
+                            <PanelHistoryTable panels={panels} pcsKey={pcsKey} onRefresh={fetchDetail} />
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -791,104 +914,88 @@ function HistoryDetailContent() {
 
         {/* Render Mechanic / Special Downtimes explicitly in Table format */}
         {(() => {
-           const mechanicPanels = detailData.panels?.filter((p: any) => {
-             return p.panel_no === "Downtime Mekanik (Direct)";
-           });
+          const mechanicPanels = detailData.panels?.filter((p: any) => {
+            return p.panel_no === "Downtime Mekanik (Direct)";
+          });
 
-            const cleanPenanggungJawab = (raw: string | undefined | null) => {
-              if (!raw) return "Operator";
-              const pkMatch = raw.match(/^Perbaikan Khusus\s*\((.*)\)$/i);
-              if (pkMatch && pkMatch[1]) return pkMatch[1].trim();
-              const opMatch = raw.match(/^Operator\s*\((.*)\)$/i);
-              if (opMatch && opMatch[1]) return opMatch[1].trim();
-              return raw.replace(/^Perbaikan Khusus\s*/i, "").replace(/^Operator\s*/i, "").trim() || raw;
-            };
+          const cleanPenanggungJawab = (raw: string | undefined | null) => {
+            if (!raw) return "Operator";
+            const pkMatch = raw.match(/^Perbaikan Khusus\s*\((.*)\)$/i);
+            if (pkMatch && pkMatch[1]) return pkMatch[1].trim();
+            const opMatch = raw.match(/^Operator\s*\((.*)\)$/i);
+            if (opMatch && opMatch[1]) return opMatch[1].trim();
+            return raw.replace(/^Perbaikan Khusus\s*/i, "").replace(/^Operator\s*/i, "").trim() || raw;
+          };
 
-            const formatWibDate = (dateVal?: string): string => {
-    if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
-    try {
-      const dt = parseAsWibDate(dateVal);
-      if (isNaN(dt.getTime())) return "-";
-      return new Intl.DateTimeFormat("id-ID", {
-        timeZone: "Asia/Jakarta",
-        weekday: "long",
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(dt);
-    } catch {
-      return "-";
-    }
-  };
+          const formatWibDate = (dateVal?: string): string => {
+            if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
+            try {
+              const dt = parseAsWibDate(dateVal);
+              if (isNaN(dt.getTime())) return "-";
+              return new Intl.DateTimeFormat("id-ID", {
+                timeZone: "Asia/Jakarta",
+                weekday: "long",
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              }).format(dt);
+            } catch {
+              return "-";
+            }
+          };
 
-  const formatWibTime = (dateVal?: string): string => {
-              if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
-              try {
-                let str = String(dateVal).trim();
-                if (!str) return "-";
-                // Jam mentah tanpa tanggal (misal: "09:32" atau "09:32:15")
-                if (/^\d{2}:\d{2}(:\d{2})?$/.test(str)) {
-                  return str.substring(0, 5);
-                }
-
-                // Tanggal dan jam lokal tanpa info offset timezone (misal: "2026-10-26 09:32:00")
-                if (str.includes(" ") && !str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) {
-                  const timePart = str.split(" ")[1];
-                  if (timePart && timePart.includes(":")) {
-                    return timePart.substring(0, 5);
-                  }
-                }
-
-                // Timestamp ISO (dengan T, Z, atau +00:00 dari database Supabase): konversi presisi ke Asia/Jakarta (WIB)
-                const dt = parseAsWibDate(str);
-                if (isNaN(dt.getTime())) return "-";
-
-                return new Intl.DateTimeFormat("id-ID", {
-                  timeZone: "Asia/Jakarta",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: false,
-                }).format(dt).replace(".", ":");
-              } catch (e) {
-                return "-";
+          const formatWibTime = (dateVal?: string): string => {
+            if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
+            try {
+              let str = String(dateVal).trim();
+              if (!str) return "-";
+              // Jam mentah tanpa tanggal (misal: "09:32" atau "09:32:15")
+              if (/^\d{2}:\d{2}(:\d{2})?$/.test(str)) {
+                return str.substring(0, 5);
               }
-            };
 
-            const renderSection = (sourcePanels: any[], title: string, subtitle: string, variant: "blue" | "amber") => {
-              if (!sourcePanels || sourcePanels.length === 0) return null;
-              const rows: any[] = [];
-              sourcePanels.forEach((mp: any) => {
-                const rawDate = mp.tgl || mp.tanggal_jam || mp.created_at;
-                const dateStr = formatWibDate(rawDate);
-                let dtEvents: any[] = [];
-                try { dtEvents = typeof mp.downtime_events === 'string' ? JSON.parse(mp.downtime_events) : (mp.downtime_events || []); } catch(e){}
-                const panelLabel = mp.panel_no ? `Panel ${mp.panel_no}` : "";
-                if (dtEvents && dtEvents.length > 0) {
-                  dtEvents.forEach((ev: any, idx: number) => {
-                    const rawTime = ev.waktu || ev.timestamp || mp.tanggal_jam || mp.created_at;
-                    const timeStr = formatWibTime(rawTime);
-                    if (ev.problems && ev.problems.length > 0) {
-                      ev.problems.forEach((p: any, pIdx: number) => {
-                        const detailText = (p.details && Array.isArray(p.details)) ? p.details.join(", ") : (p.details || ev.detail || "-");
-                        const blokText = p.blok ? ` (Blok: ${p.blok})` : (ev.blok ? ` (Blok: ${ev.blok})` : "");
-                        rows.push({
-                          id: `${mp.id}-${idx}-${pIdx}`,
-                          headerId: mp.id,
-                          panelNo: panelLabel,
-                          timeStr,
-                          dateStr,
-                          penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
-                          shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
-                          durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
-                          kategori: p.kategori || ev.kategori || "-",
-                          detailMasalah: `${detailText}${blokText}`,
-                        });
-                      });
-                    } else {
-                      const detailText = ev.detail || "-";
-                      const blokText = ev.blok ? ` (Blok: ${ev.blok})` : "";
+              // Tanggal dan jam lokal tanpa info offset timezone (misal: "2026-10-26 09:32:00")
+              if (str.includes(" ") && !str.includes("Z") && !str.includes("+") && !str.includes("-", 10)) {
+                const timePart = str.split(" ")[1];
+                if (timePart && timePart.includes(":")) {
+                  return timePart.substring(0, 5);
+                }
+              }
+
+              // Timestamp ISO (dengan T, Z, atau +00:00 dari database Supabase): konversi presisi ke Asia/Jakarta (WIB)
+              const dt = parseAsWibDate(str);
+              if (isNaN(dt.getTime())) return "-";
+
+              return new Intl.DateTimeFormat("id-ID", {
+                timeZone: "Asia/Jakarta",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }).format(dt).replace(".", ":");
+            } catch (e) {
+              return "-";
+            }
+          };
+
+          const renderSection = (sourcePanels: any[], title: string, subtitle: string, variant: "blue" | "amber") => {
+            if (!sourcePanels || sourcePanels.length === 0) return null;
+            const rows: any[] = [];
+            sourcePanels.forEach((mp: any) => {
+              const rawDate = mp.tgl || mp.tanggal_jam || mp.created_at;
+              const dateStr = formatWibDate(rawDate);
+              let dtEvents: any[] = [];
+              try { dtEvents = typeof mp.downtime_events === 'string' ? JSON.parse(mp.downtime_events) : (mp.downtime_events || []); } catch (e) { }
+              const panelLabel = mp.panel_no ? `Panel ${mp.panel_no}` : "";
+              if (dtEvents && dtEvents.length > 0) {
+                dtEvents.forEach((ev: any, idx: number) => {
+                  const rawTime = ev.waktu || ev.timestamp || mp.tanggal_jam || mp.created_at;
+                  const timeStr = formatWibTime(rawTime);
+                  if (ev.problems && ev.problems.length > 0) {
+                    ev.problems.forEach((p: any, pIdx: number) => {
+                      const detailText = (p.details && Array.isArray(p.details)) ? p.details.join(", ") : (p.details || ev.detail || "-");
+                      const blokText = p.blok ? ` (Blok: ${p.blok})` : (ev.blok ? ` (Blok: ${ev.blok})` : "");
                       rows.push({
-                        id: `${mp.id}-${idx}`,
+                        id: `${mp.id}-${idx}-${pIdx}`,
                         headerId: mp.id,
                         panelNo: panelLabel,
                         timeStr,
@@ -896,206 +1003,222 @@ function HistoryDetailContent() {
                         penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
                         shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
                         durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
-                        kategori: ev.kategori || "-",
+                        kategori: p.kategori || ev.kategori || "-",
                         detailMasalah: `${detailText}${blokText}`,
                       });
-                    }
-                  });
-                } else if (mp.downtime_records && mp.downtime_records.length > 0) {
-                  mp.downtime_records.forEach((dr: any, dIdx: number) => {
-                    const rawTime = dr.waktu || dr.created_at || dr.tanggal_jam || mp.tanggal_jam;
-                    const timeStr = formatWibTime(rawTime);
-                    const detailText = dr.detail || "-";
-                    const blokText = dr.blok ? ` (Blok: ${dr.blok})` : "";
+                    });
+                  } else {
+                    const detailText = ev.detail || "-";
+                    const blokText = ev.blok ? ` (Blok: ${ev.blok})` : "";
                     rows.push({
-                      id: `${mp.id}-dr-${dIdx}`,
+                      id: `${mp.id}-${idx}`,
                       headerId: mp.id,
                       panelNo: panelLabel,
                       timeStr,
                       dateStr,
-                      penanggungJawab: cleanPenanggungJawab(dr.dikerjakan_oleh || mp.pic || mp.operators?.nama_operator),
-                      shift: mp.grup || mp.groups?.nama_grup || "-",
-                      durasiDisplay: formatDurationNice(dr.durasi_detik || mp.total_downtime_detik || 0),
-                      kategori: dr.kategori || "-",
+                      penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
+                      shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
+                      durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
+                      kategori: ev.kategori || "-",
                       detailMasalah: `${detailText}${blokText}`,
                     });
-                  });
-                } else if (mp.total_downtime_detik > 0) {
-                  const rawTime = mp.tanggal_jam || mp.created_at;
+                  }
+                });
+              } else if (mp.downtime_records && mp.downtime_records.length > 0) {
+                mp.downtime_records.forEach((dr: any, dIdx: number) => {
+                  const rawTime = dr.waktu || dr.created_at || dr.tanggal_jam || mp.tanggal_jam;
                   const timeStr = formatWibTime(rawTime);
+                  const detailText = dr.detail || "-";
+                  const blokText = dr.blok ? ` (Blok: ${dr.blok})` : "";
                   rows.push({
-                    id: `${mp.id}-fallback`,
+                    id: `${mp.id}-dr-${dIdx}`,
                     headerId: mp.id,
                     panelNo: panelLabel,
                     timeStr,
                     dateStr,
+                    penanggungJawab: cleanPenanggungJawab(dr.dikerjakan_oleh || mp.pic || mp.operators?.nama_operator),
+                    shift: mp.grup || mp.groups?.nama_grup || "-",
+                    durasiDisplay: formatDurationNice(dr.durasi_detik || mp.total_downtime_detik || 0),
+                    kategori: dr.kategori || "-",
+                    detailMasalah: `${detailText}${blokText}`,
+                  });
+                });
+              } else if (mp.total_downtime_detik > 0) {
+                const rawTime = mp.tanggal_jam || mp.created_at;
+                const timeStr = formatWibTime(rawTime);
+                rows.push({
+                  id: `${mp.id}-fallback`,
+                  headerId: mp.id,
+                  panelNo: panelLabel,
+                  timeStr,
+                  dateStr,
+                  penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
+                  shift: mp.grup || mp.groups?.nama_grup || (mp.group_id === 1 ? "A" : mp.group_id === 2 ? "B" : mp.group_id === 3 ? "C" : "-"),
+                  durasiDisplay: formatDurationNice(mp.total_downtime_detik || 0),
+                  isMachineStop: false,
+                  kategori: mp.kategori_masalah || "-",
+                  detailMasalah: mp.detail_masalah || "-",
+                });
+              } else if (mp.panel_no === "BERHENTI" || (mp.production_details && mp.production_details.some((d: any) => d.indikator_stop))) {
+                const rawTime = mp.tanggal_jam || mp.created_at;
+                const timeStr = formatWibTime(rawTime);
+                const derivedShift = rawTime ? (getShiftName(rawTime) === "Shift 1" ? "A" : (getShiftName(rawTime) === "Shift 2" ? "B" : "C")) : "-";
+                const shiftStr = mp.grup || mp.groups?.nama_grup || (mp.group_id === 1 ? "A" : mp.group_id === 2 ? "B" : mp.group_id === 3 ? "C" : derivedShift);
+                const details = (mp.production_details && mp.production_details.length > 0)
+                  ? mp.production_details
+                  : [{ kategori_masalah: mp.kategori_masalah, detail_masalah: mp.detail_masalah }];
+
+                const stopDurasi = mp.total_downtime_detik || operationalStats?.downtimeSeconds || 28800;
+
+                details.forEach((d: any, dIdx: number) => {
+                  const kat = d.kategori_masalah || mp.kategori_masalah || "G";
+                  const detailTxt = d.detail_masalah || mp.detail_masalah || "Mesin Berhenti / Tidak Beroperasi";
+                  rows.push({
+                    id: `${mp.id}-stop-${dIdx}`,
+                    headerId: mp.id,
+                    panelNo: panelLabel || "Mesin Mati",
+                    timeStr,
+                    dateStr,
                     penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
-                    shift: mp.grup || mp.groups?.nama_grup || (mp.group_id === 1 ? "A" : mp.group_id === 2 ? "B" : mp.group_id === 3 ? "C" : "-"),
-                    durasiDisplay: formatDurationNice(mp.total_downtime_detik || 0),
-                    isMachineStop: false,
-                    kategori: mp.kategori_masalah || "-",
-                    detailMasalah: mp.detail_masalah || "-",
+                    shift: shiftStr,
+                    durasiDisplay: formatDurationNice(stopDurasi),
+                    isMachineStop: true,
+                    kategori: kat,
+                    detailMasalah: detailTxt,
                   });
-                } else if (mp.panel_no === "BERHENTI" || (mp.production_details && mp.production_details.some((d: any) => d.indikator_stop))) {
-                  const rawTime = mp.tanggal_jam || mp.created_at;
-                  const timeStr = formatWibTime(rawTime);
-                  const derivedShift = rawTime ? (getShiftName(rawTime) === "Shift 1" ? "A" : (getShiftName(rawTime) === "Shift 2" ? "B" : "C")) : "-";
-                  const shiftStr = mp.grup || mp.groups?.nama_grup || (mp.group_id === 1 ? "A" : mp.group_id === 2 ? "B" : mp.group_id === 3 ? "C" : derivedShift);
-                  const details = (mp.production_details && mp.production_details.length > 0)
-                    ? mp.production_details
-                    : [{ kategori_masalah: mp.kategori_masalah, detail_masalah: mp.detail_masalah }];
+                });
+              }
+            });
 
-                  const stopDurasi = mp.total_downtime_detik || operationalStats?.downtimeSeconds || 28800;
+            if (rows.length === 0) return null;
 
-                  details.forEach((d: any, dIdx: number) => {
-                    const kat = d.kategori_masalah || mp.kategori_masalah || "G";
-                    const detailTxt = d.detail_masalah || mp.detail_masalah || "Mesin Berhenti / Tidak Beroperasi";
-                    rows.push({
-                      id: `${mp.id}-stop-${dIdx}`,
-                      headerId: mp.id,
-                      panelNo: panelLabel || "Mesin Mati",
-                      timeStr,
-                      dateStr,
-                      penanggungJawab: cleanPenanggungJawab(mp.pic || mp.operators?.nama_operator),
-                      shift: shiftStr,
-                      durasiDisplay: formatDurationNice(stopDurasi),
-                      isMachineStop: true,
-                      kategori: kat,
-                      detailMasalah: detailTxt,
-                    });
-                  });
-                }
-              });
+            const bgHeader = variant === "blue"
+              ? "linear-gradient(135deg, #0a1628 0%, #0b3068 60%, #0070bc 100%)"
+              : "linear-gradient(135deg, #451a03 0%, #9a3412 60%, #f59e0b 100%)";
+            const iconBg = variant === "blue" ? "bg-white/15 border-white/20" : "bg-white/15 border-white/20";
+            const titleColor = "text-white";
+            const subtitleColor = variant === "blue" ? "text-sky-200" : "text-amber-100";
+            const dotColor = variant === "blue" ? "bg-[#0070bc]" : "bg-amber-500";
 
-             if (rows.length === 0) return null;
+            return (
+              <div className="mt-8 rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                {/* Section Header */}
+                <div className="px-6 py-4 flex items-center gap-3" style={{ background: bgHeader }}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${iconBg}`}>
+                    <Wrench className="w-4.5 h-4.5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-black tracking-tight ${titleColor}`}>
+                      {title}
+                    </h3>
+                    <p className={`text-[10px] font-semibold ${subtitleColor}`}>
+                      {subtitle}
+                    </p>
+                  </div>
+                  <div className="ml-auto bg-white/20 border border-white/30 rounded-full px-3 py-1 text-[10px] font-black text-white">
+                    {rows.length} laporan
+                  </div>
+                </div>
 
-             const bgHeader = variant === "blue" 
-                ? "linear-gradient(135deg, #0a1628 0%, #0b3068 60%, #0070bc 100%)"
-                : "linear-gradient(135deg, #451a03 0%, #9a3412 60%, #f59e0b 100%)";
-             const iconBg = variant === "blue" ? "bg-white/15 border-white/20" : "bg-white/15 border-white/20";
-             const titleColor = "text-white";
-             const subtitleColor = variant === "blue" ? "text-sky-200" : "text-amber-100";
-             const dotColor = variant === "blue" ? "bg-[#0070bc]" : "bg-amber-500";
-
-             return (
-               <div className="mt-8 rounded-2xl overflow-hidden shadow-md border border-slate-200">
-                 {/* Section Header */}
-                 <div className="px-6 py-4 flex items-center gap-3" style={{ background: bgHeader }}>
-                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${iconBg}`}>
-                     <Wrench className="w-4.5 h-4.5 text-white" />
-                   </div>
-                   <div>
-                     <h3 className={`text-sm font-black tracking-tight ${titleColor}`}>
-                       {title}
-                     </h3>
-                     <p className={`text-[10px] font-semibold ${subtitleColor}`}>
-                       {subtitle}
-                     </p>
-                   </div>
-                   <div className="ml-auto bg-white/20 border border-white/30 rounded-full px-3 py-1 text-[10px] font-black text-white">
-                     {rows.length} laporan
-                   </div>
-                 </div>
-
-                 {/* Cards */}
-                 <div className="bg-slate-50/60 divide-y divide-slate-100">
-                   {rows.map((row) => (
-                     <div key={row.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-slate-50 transition-colors">
-                       {/* Time & Date */}
-                       <div className="flex items-center gap-2 shrink-0">
-                         <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
-                         <div className="flex flex-col">
-                           {row.dateStr && row.dateStr !== "-" && (
-                             <span className="text-[10px] font-bold text-slate-500 leading-tight">
-                               {row.dateStr}
-                             </span>
-                           )}
-                           <span className="text-xs font-black text-slate-800 font-mono leading-tight">
-                             {row.timeStr} WIB
-                           </span>
-                         </div>
-                       </div>
-
-                       {/* Penanggung Jawab */}
-                       <div className="flex items-center gap-2 sm:w-48 shrink-0">
-                         <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
-                           {row.penanggungJawab.charAt(0).toUpperCase()}
-                         </div>
-                         <div className="flex flex-col">
-                            <span className="text-xs font-bold text-slate-700 leading-tight">{row.penanggungJawab}</span>
-                           <span className="text-[10px] text-slate-400">Penanggung Jawab</span>
-                         </div>
-                       </div>
-
-                        {/* Shift & Panel */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-[#0070bc] text-white tracking-wide">
-                            {row.shift}
-                          </span>
-                          {row.panelNo && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700">
-                              {row.panelNo}
+                {/* Cards */}
+                <div className="bg-slate-50/60 divide-y divide-slate-100">
+                  {rows.map((row) => (
+                    <div key={row.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-slate-50 transition-colors">
+                      {/* Time & Date */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
+                        <div className="flex flex-col">
+                          {row.dateStr && row.dateStr !== "-" && (
+                            <span className="text-[10px] font-bold text-slate-500 leading-tight">
+                              {row.dateStr}
                             </span>
+                          )}
+                          <span className="text-xs font-black text-slate-800 font-mono leading-tight">
+                            {row.timeStr} WIB
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Penanggung Jawab */}
+                      <div className="flex items-center gap-2 sm:w-48 shrink-0">
+                        <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                          {row.penanggungJawab.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-slate-700 leading-tight">{row.penanggungJawab}</span>
+                          <span className="text-[10px] text-slate-400">Penanggung Jawab</span>
+                        </div>
+                      </div>
+
+                      {/* Shift & Panel */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-[#0070bc] text-white tracking-wide">
+                          {row.shift}
+                        </span>
+                        {row.panelNo && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700">
+                            {row.panelNo}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Durasi & Kategori - Pushed to Right on Desktop */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:ml-auto gap-3 sm:gap-4 mt-2 sm:mt-0">
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border shrink-0 self-start sm:self-auto ${row.isMachineStop ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-red-50 text-red-600 border-red-100"}`}>
+                          <Clock className="w-3.5 h-3.5" />
+                          <span className="text-xs font-black">{row.durasiDisplay}</span>
+                          {row.isMachineStop && (
+                            <span className="text-[10px] font-bold text-rose-600 uppercase tracking-tight ml-0.5">(Mesin Berhenti)</span>
                           )}
                         </div>
-
-                       {/* Durasi & Kategori - Pushed to Right on Desktop */}
-                       <div className="flex flex-col sm:flex-row sm:items-center sm:ml-auto gap-3 sm:gap-4 mt-2 sm:mt-0">
-                         <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border shrink-0 self-start sm:self-auto ${row.isMachineStop ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-red-50 text-red-600 border-red-100"}`}>
-                           <Clock className="w-3.5 h-3.5" />
-                           <span className="text-xs font-black">{row.durasiDisplay}</span>
-                           {row.isMachineStop && (
-                             <span className="text-[10px] font-bold text-rose-600 uppercase tracking-tight ml-0.5">(Mesin Berhenti)</span>
-                           )}
-                         </div>
-                          <div className="flex flex-col sm:items-end">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`px-2 py-0.5 rounded-md border text-xs font-extrabold ${row.isMachineStop ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-sky-50 border-sky-200 text-sky-700"}`}>
-                                {row.kategori === "-" ? "Problem" : (row.kategori.startsWith("Kategori") ? row.kategori : `Kategori ${row.kategori}`)}
-                              </span>
-                            </div>
-                            <span className="text-[11px] text-slate-700 font-medium mt-1 max-w-[200px] sm:text-right truncate">
-                              {row.detailMasalah}
+                        <div className="flex flex-col sm:items-end">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-2 py-0.5 rounded-md border text-xs font-extrabold ${row.isMachineStop ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-sky-50 border-sky-200 text-sky-700"}`}>
+                              {row.kategori === "-" ? "Problem" : (row.kategori.startsWith("Kategori") ? row.kategori : `Kategori ${row.kategori}`)}
                             </span>
                           </div>
+                          <span className="text-[11px] text-slate-700 font-medium mt-1 max-w-[200px] sm:text-right truncate">
+                            {row.detailMasalah}
+                          </span>
+                        </div>
 
-                          {/* Tombol Hapus Khusus Kepala Shift / Admin */}
-                          {isKepalaShiftOrAdmin && row.headerId && (
-                            <button
-                              type="button"
-                              disabled={deletingHeaderId === row.headerId}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSpecialDowntime(row.headerId, row.timeStr, row.penanggungJawab);
-                              }}
-                              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-50 self-start sm:self-auto border border-rose-200/80 shadow-2xs"
-                              title="Hapus Laporan Downtime Khusus (Khusus Kepala Shift / Admin)"
-                            >
-                              {deletingHeaderId === row.headerId ? (
-                                <RefreshCw className="w-4 h-4 animate-spin text-rose-500" />
-                              ) : (
-                                <Trash2 className="w-4 h-4 text-rose-500 hover:scale-110 transition-transform" />
-                              )}
-                            </button>
-                          )}
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-               </div>
-             );
-           };
+                        {/* Tombol Hapus Khusus Kepala Shift / Admin */}
+                        {isKepalaShiftOrAdmin && row.headerId && (
+                          <button
+                            type="button"
+                            disabled={deletingHeaderId === row.headerId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSpecialDowntime(row.headerId, row.timeStr, row.penanggungJawab);
+                            }}
+                            className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-50 self-start sm:self-auto border border-rose-200/80 shadow-2xs"
+                            title="Hapus Laporan Downtime Khusus (Khusus Kepala Shift / Admin)"
+                          >
+                            {deletingHeaderId === row.headerId ? (
+                              <RefreshCw className="w-4 h-4 animate-spin text-rose-500" />
+                            ) : (
+                              <Trash2 className="w-4 h-4 text-rose-500 hover:scale-110 transition-transform" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          };
 
-           return (
-             <>
-               {renderSection(mechanicPanels, "Laporan Downtime Khusus", "Riwayat perbaikan mekanik / blok mesin", "blue")}
-             </>
-           );
-         })()}
+          return (
+            <>
+              {renderSection(mechanicPanels, "Laporan Downtime Khusus", "Riwayat perbaikan mekanik / blok mesin", "blue")}
+            </>
+          );
+        })()}
 
-       </div>
+      </div>
 
-       {isMarkCutModalOpen && (
+      {isMarkCutModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-3 sm:p-4 animate-fadeIn">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto no-scrollbar border border-slate-100 flex flex-col">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -1225,11 +1348,10 @@ function HistoryDetailContent() {
                   <button
                     type="button"
                     onClick={() => { setEditDurationHours(8); setEditDurationMinutes(0); }}
-                    className={`py-2 px-1 rounded-xl border text-center font-bold text-xs transition-all cursor-pointer ${
-                      editDurationHours === 8 && editDurationMinutes === 0
-                        ? "bg-slate-900 text-white border-slate-900"
-                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
+                    className={`py-2 px-1 rounded-xl border text-center font-bold text-xs transition-all cursor-pointer ${editDurationHours === 8 && editDurationMinutes === 0
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
                   >
                     1 Shift (8 Jam)
                   </button>
@@ -1250,11 +1372,10 @@ function HistoryDetailContent() {
                   <button
                     type="button"
                     onClick={() => { setEditDurationHours(24); setEditDurationMinutes(0); }}
-                    className={`py-2 px-1 rounded-xl border text-center font-bold text-xs transition-all cursor-pointer ${
-                      editDurationHours === 24 && editDurationMinutes === 0
-                        ? "bg-slate-900 text-white border-slate-900"
-                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
+                    className={`py-2 px-1 rounded-xl border text-center font-bold text-xs transition-all cursor-pointer ${editDurationHours === 24 && editDurationMinutes === 0
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
                   >
                     24 Jam (1 Hari)
                   </button>

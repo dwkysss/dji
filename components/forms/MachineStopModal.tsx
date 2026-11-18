@@ -25,7 +25,7 @@ import {
   GROUPED_PROBLEM_DETAILS,
   DEFAULT_PROBLEM_DETAILS,
 } from "@/lib/constants";
-import { getRemainingShiftSeconds } from "@/lib/shift-utils";
+import { getRemainingShiftSeconds, formatDurationSmart } from "@/lib/shift-utils";
 
 export interface MachineStopModalProps {
   isOpen: boolean;
@@ -179,17 +179,8 @@ export default function MachineStopModal({
 
   const remainingShiftSec = React.useMemo(() => getRemainingShiftSeconds(new Date()), []);
 
-  const formatDurationNice = (totalSec: number) => {
-    if (!totalSec || isNaN(totalSec) || totalSec <= 0) return "0 Dtk";
-    const hours = Math.floor(totalSec / 3600);
-    const minutes = Math.floor((totalSec % 3600) / 60);
-    if (hours > 0) {
-      if (minutes > 0) return `${hours} Jam ${minutes} Mnt`;
-      return `${hours} Jam`;
-    }
-    if (minutes > 0) return `${minutes} Mnt`;
-    return `${totalSec} Dtk`;
-  };
+  const formatDurationNice = (totalSec: number) =>
+    formatDurationSmart(totalSec, { zeroText: "0 Dtk" });
 
   const calculatedDurationSeconds = React.useMemo(() => {
     if (cakupan === "FULL_DAY") return 86400; // 24 jam penuh

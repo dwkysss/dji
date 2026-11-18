@@ -705,29 +705,44 @@ export async function getMonthlyShiftPerformance(
 export async function deleteProductionBatch(params: {
   nomor_mc: string;
   design_id?: string | null;
-  potongan_ke: string | number;
+  potongan_ke?: string | number | null;
+  headerIds?: string[];
 }) {
   try {
     const supabase = await createClient();
 
     // 1. Find all headers for this batch
-    let query = supabase
-      .from("production_headers")
-      .select("id")
-      .eq("nomor_mc", params.nomor_mc)
-      .eq("potongan_ke", parseInt(String(params.potongan_ke)));
+    let headerIds: string[] = [];
 
-    if (params.design_id) {
-      query = query.eq("design_id", params.design_id);
+    if (params.headerIds && params.headerIds.length > 0 && (!params.potongan_ke || isNaN(parseInt(String(params.potongan_ke))))) {
+      headerIds = params.headerIds.filter(Boolean);
+    } else {
+      const potNum = params.potongan_ke !== undefined && params.potongan_ke !== null ? parseInt(String(params.potongan_ke)) : NaN;
+      if (isNaN(potNum)) {
+        return { success: false, error: "Nomor potongan atau ID header tidak valid." };
+      }
+      let query = supabase
+        .from("production_headers")
+        .select("id")
+        .eq("nomor_mc", params.nomor_mc)
+        .eq("potongan_ke", potNum);
+
+      if (params.design_id) {
+        query = query.eq("design_id", params.design_id);
+      }
+
+      const { data: headers, error: headErr } = await query;
+      if (headErr) throw headErr;
+      if (!headers || headers.length === 0) {
+        return { success: true, message: "Tidak ada data batch yang ditemukan." };
+      }
+
+      headerIds = headers.map((h: any) => h.id);
     }
 
-    const { data: headers, error: headErr } = await query;
-    if (headErr) throw headErr;
-    if (!headers || headers.length === 0) {
+    if (headerIds.length === 0) {
       return { success: true, message: "Tidak ada data batch yang ditemukan." };
     }
-
-    const headerIds = headers.map((h: any) => h.id);
 
     // 2. Find all details
     const { data: details } = await supabase

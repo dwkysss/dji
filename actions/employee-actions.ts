@@ -1092,7 +1092,7 @@ export async function searchEmployeeHistory(filters: {
     const startDate = filters.startDate || filters.date;
     const endDate = filters.endDate || filters.startDate || filters.date;
 
-    if (startDate && endDate && !filters.includeDetails) {
+    if (startDate && endDate && (!filters.includeDetails || !filters.potongan_ke)) {
       const endD = parseAsWibDate(endDate);
       const nextEndD = new Date(endD.getTime() + 24 * 60 * 60 * 1000);
       const nextEndDateStr = nextEndD.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
@@ -1187,7 +1187,7 @@ export async function searchEmployeeHistory(filters: {
     (data || []).forEach((row: any) => {
       const shiftDate = row.tanggal_jam ? getShiftDate(row.tanggal_jam) : (row.tgl ? getShiftDate(row.tgl) : "-");
 
-      if (startDate && endDate && !filters.includeDetails) {
+      if (startDate && endDate && (!filters.includeDetails || !filters.potongan_ke)) {
         if (shiftDate < startDate || shiftDate > endDate) {
           return;
         }
@@ -1371,7 +1371,10 @@ export async function searchEmployeeHistory(filters: {
         batch.total_meter = Math.max(batch.total_meter, rowMaxMeter);
       }
 
-      const opName = row.created_by_name || row.pic || (row.operators ? row.operators.nama_operator : null);
+      const opName =
+        (row.operators ? row.operators.nama_operator : null) ||
+        (row.pic && String(row.pic).trim() !== "-" ? row.pic : null) ||
+        row.created_by_name;
       if (opName) batch.operators.add(opName);
 
       // update latest input time and date

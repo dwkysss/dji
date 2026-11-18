@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cancelMechanicDowntime } from "@/actions/mechanic-actions";
-import { parseAsWibDate, getShiftName } from "@/lib/shift-utils";
+import { parseAsWibDate, getShiftName, formatDurationSmart } from "@/lib/shift-utils";
 
 interface ContinuousHistoryDrawerProps {
   isOpen: boolean;
@@ -51,14 +51,8 @@ export default function ContinuousHistoryDrawer({
     return raw.replace(/^Perbaikan Khusus\s*/i, "").replace(/^Operator\s*/i, "").trim() || raw;
   };
 
-  const formatDurationNice = (seconds: number): string => {
-    if (!seconds || seconds <= 0) return "0 Dtk";
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    if (m > 0 && s > 0) return `${m} Mnt ${s} Dtk`;
-    if (m > 0) return `${m} Mnt`;
-    return `${s} Dtk`;
-  };
+  const formatDurationNice = (seconds: number): string =>
+    formatDurationSmart(seconds, { zeroText: "0 Dtk" });
 
   const formatWibDate = (dateVal?: string): string => {
     if (!dateVal || dateVal === "-" || dateVal === "—") return "-";
@@ -191,15 +185,8 @@ export default function ContinuousHistoryDrawer({
 
     const runningSeconds = Math.max(0, grossSeconds - downtimeSeconds);
 
-    const formatDurationClean = (sec: number) => {
-      if (sec <= 0) return "0 dtk";
-      const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      const s = sec % 60;
-      if (h > 0) return m > 0 ? `${h} Jam ${m} Mnt` : `${h} Jam`;
-      if (m > 0) return s > 0 ? `${m} Mnt ${s} Dtk` : `${m} Mnt`;
-      return `${s} Dtk`;
-    };
+    const formatDurationClean = (sec: number) =>
+      formatDurationSmart(sec, { zeroText: "0 Dtk" });
 
     const formatTimeOnly = (d: Date) => {
       try {

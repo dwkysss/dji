@@ -232,6 +232,55 @@ export function formatTimerSeconds(totalSec: number): string {
   return `${pad(mins)}:${pad(secs)}`;
 }
 
+/**
+ * Formats total seconds into a human-readable Indonesian duration string with automatic unit escalation:
+ * - > 59 seconds -> Mnt (minutes)
+ * - > 59 minutes -> Jam (hours)
+ * - > 23 hours   -> Hari (days)
+ *
+ * Examples:
+ * - 45       -> "45 Dtk"
+ * - 125      -> "2 Mnt 5 Dtk"
+ * - 9108     -> "2 Jam 31 Mnt"
+ * - 484494   -> "5 Hari 14 Jam 34 Mnt"
+ * - 753000   -> "8 Hari 17 Jam 10 Mnt"
+ */
+export function formatDurationSmart(
+  totalSec: number | string | null | undefined,
+  options?: { zeroText?: string; includeSeconds?: boolean }
+): string {
+  const zeroText = options?.zeroText ?? "0 Dtk";
+  const includeSeconds = options?.includeSeconds ?? false;
+  const sec = Math.floor(
+    typeof totalSec === "string" ? parseFloat(totalSec) || 0 : Number(totalSec) || 0
+  );
+  if (sec <= 0 || isNaN(sec)) return zeroText;
+
+  const days = Math.floor(sec / 86400);
+  const hours = Math.floor((sec % 86400) / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  const seconds = sec % 60;
+
+  const parts: string[] = [];
+  if (days > 0) {
+    parts.push(`${days} Hari`);
+    if (hours > 0) parts.push(`${hours} Jam`);
+    if (minutes > 0) parts.push(`${minutes} Mnt`);
+    if (includeSeconds && seconds > 0) parts.push(`${seconds} Dtk`);
+  } else if (hours > 0) {
+    parts.push(`${hours} Jam`);
+    if (minutes > 0) parts.push(`${minutes} Mnt`);
+    if (includeSeconds && seconds > 0) parts.push(`${seconds} Dtk`);
+  } else if (minutes > 0) {
+    parts.push(`${minutes} Mnt`);
+    if (seconds > 0) parts.push(`${seconds} Dtk`);
+  } else {
+    parts.push(`${seconds} Dtk`);
+  }
+
+  return parts.join(" ");
+}
+
 export interface ShiftSegment {
   startTime: number;
   endTime: number;

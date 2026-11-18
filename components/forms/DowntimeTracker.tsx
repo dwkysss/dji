@@ -9,7 +9,7 @@ import { getProblemDetailsGrouped, getModularProblemDefinitions } from "@/action
 import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import WifiDowntimeTrigger from "./WifiDowntimeTrigger";
 import { useWifiContext } from "@/lib/wifi-context";
-import { getShiftName, getShiftDate, getShiftBoundarySegments } from "@/lib/shift-utils";
+import { getShiftName, getShiftDate, getShiftBoundarySegments, formatDurationSmart } from "@/lib/shift-utils";
 import { getFlexibleProblemDetail } from "@/lib/canonical-problem-utils";
 import { GROUPED_PROBLEM_DETAILS, PROBLEM_DETAILS, DEFAULT_MODULAR_DEFINITIONS } from "@/lib/constants";
 import { getProblemGroupMapping } from "@/actions/problem-detail-actions";
@@ -623,8 +623,8 @@ export default function DowntimeTracker({
               ? "bg-rose-950/40 border-rose-700/80 ring-2 ring-rose-900/60"
               : "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
             : isDark
-            ? "bg-slate-800/80 border-slate-700"
-            : "bg-sky-50/80 border-sky-200"
+              ? "bg-slate-800/80 border-slate-700"
+              : "bg-sky-50/80 border-sky-200"
         )}
       >
         <div className="flex items-center justify-between mb-2.5">
@@ -2745,11 +2745,8 @@ export default function DowntimeTracker({
     }
   };
 
-  const formatTimer = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  };
+  const formatTimer = (seconds: number) =>
+    formatDurationSmart(seconds, { zeroText: "0 Dtk", includeSeconds: true });
 
   const formatShiftLabel = (shiftVal: any) => {
     if (!shiftVal) return "A";
@@ -2870,7 +2867,7 @@ export default function DowntimeTracker({
                     : "bg-slate-50 border-slate-200"
                 )}
               >
-                <div className="flex items-start justify-between gap-2.5">
+                <div className="flex flex-col gap-2.5">
                   <div className="flex items-start gap-2.5 min-w-0">
                     <div
                       className={cn(
@@ -2880,18 +2877,18 @@ export default function DowntimeTracker({
                     >
                       <Lock className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h4
                           className={cn(
-                            "text-xs font-black uppercase tracking-wide truncate transition-colors",
+                            "text-xs font-black uppercase tracking-wide leading-snug transition-colors",
                             isDark ? "text-slate-100" : "text-slate-800"
                           )}
                         >
                           Mesin Diblok (Dalam Perbaikan)
                         </h4>
                         {activeBlock.isAutoBlocked && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
                             <AlertTriangle className="w-2.5 h-2.5" /> Auto-Block 1 Jam
                           </span>
                         )}
@@ -2907,25 +2904,26 @@ export default function DowntimeTracker({
                     </div>
                   </div>
 
+                  {/* Dedicated Full-Width Total Stop Bar (Anti-Overlap di Tablet & Mobile) */}
                   <div
                     className={cn(
-                      "text-right shrink-0 px-2.5 py-1 rounded-xl border shadow-2xs transition-colors",
+                      "w-full flex items-center justify-between gap-2 flex-wrap px-3 py-2 rounded-xl border shadow-2xs transition-colors",
                       isDark
                         ? "bg-slate-950/80 border-slate-800 text-slate-100"
-                        : "bg-white/80 border-slate-200/80 text-slate-800"
+                        : "bg-white/90 border-slate-200/80 text-slate-800"
                     )}
                   >
                     <span
                       className={cn(
-                        "text-[9px] font-extrabold uppercase block",
-                        isDark ? "text-slate-500" : "text-slate-400"
+                        "text-[9px] font-extrabold uppercase tracking-wider shrink-0",
+                        isDark ? "text-slate-400" : "text-slate-500"
                       )}
                     >
-                      Total Stop:
+                      Total Stop
                     </span>
                     <span
                       className={cn(
-                        "text-sm font-black font-mono",
+                        "text-xs sm:text-sm font-black font-mono leading-tight",
                         isDark ? "text-amber-400" : "text-slate-800"
                       )}
                     >
@@ -2998,28 +2996,28 @@ export default function DowntimeTracker({
                       type="button"
                       onClick={() => setShowAddNoteModal(true)}
                       className={cn(
-                        "w-full py-2 px-2.5 rounded-xl font-extrabold text-xs transition-all border flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap",
+                        "w-full min-w-0 py-2 px-2 rounded-xl font-extrabold text-[11px] xl:text-xs transition-all border flex items-center justify-center gap-1 shadow-2xs active:scale-95 cursor-pointer",
                         isDark
                           ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
                           : "bg-white hover:bg-slate-100 text-slate-700 border-slate-200/80"
                       )}
                     >
                       <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span>Catat Progres</span>
+                      <span className="truncate">Catat Progres</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setShowHandoffModal(true)}
                       className={cn(
-                        "w-full py-2 px-2.5 rounded-xl font-extrabold text-xs transition-all border flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap",
+                        "w-full min-w-0 py-2 px-2 rounded-xl font-extrabold text-[11px] xl:text-xs transition-all border flex items-center justify-center gap-1 active:scale-95 cursor-pointer",
                         isDark
                           ? "bg-sky-950/60 hover:bg-sky-900/70 text-sky-300 border-sky-800"
                           : "bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200/70"
                       )}
                     >
                       <RefreshCw className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                      <span>Serah Terima</span>
+                      <span className="truncate">Serah Terima</span>
                     </button>
                   </div>
 
@@ -3061,7 +3059,7 @@ export default function DowntimeTracker({
             )}
           >
             <div className="flex flex-col gap-2 mb-4">
-              <div className="flex items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2 shrink-0">
                   <div
                     className={cn(
@@ -3082,9 +3080,9 @@ export default function DowntimeTracker({
                     Downtime
                   </h3>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="text-right min-w-0">
                   <span className={cn("text-[10px] sm:text-xs font-bold", isDark ? "text-slate-400" : "text-slate-400")}>Total: </span>
-                  <span className={cn("text-sm sm:text-base font-black", isDark ? "text-amber-400" : "text-amber-600")}>
+                  <span className={cn("text-xs sm:text-sm font-black font-mono", isDark ? "text-amber-400" : "text-amber-600")}>
                     {formatTimer((watch("downtimeEvents") || fields || []).reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0))}
                   </span>
                 </div>
@@ -3252,7 +3250,7 @@ export default function DowntimeTracker({
                       isDark ? "bg-slate-950 border-amber-500/60" : "bg-white border-amber-200"
                     )}
                   >
-                    <span className="text-2xl font-black text-amber-500 font-mono tracking-wider animate-pulse">
+                    <span className="text-lg sm:text-xl font-black text-amber-500 font-mono tracking-tight animate-pulse">
                       {formatTimer(liveTimerSeconds)}
                     </span>
                   </div>
@@ -3270,7 +3268,7 @@ export default function DowntimeTracker({
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                       <div className="flex-1">
                         <span className="font-extrabold block">
-                          Peringatan: Mesin Berhenti &gt; {Math.floor(liveTimerSeconds / 60)} Menit
+                          Peringatan: Mesin Berhenti {formatDurationSmart(liveTimerSeconds)}
                         </span>
                         <span className="block mt-0.5 font-medium">
                           Jika perbaikan berlangsung lama, Anda dapat menggunakan tombol <strong>Block Mesin</strong> di atas. Sistem akan otomatis memblokir mesin &amp; mencatat draft pada menit ke-60.
@@ -5411,3 +5409,4 @@ export default function DowntimeTracker({
     </div>
   );
 }
+444

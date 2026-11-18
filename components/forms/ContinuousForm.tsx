@@ -18,7 +18,7 @@ import { getProductionPlan, getLatestMachineHeader } from "@/actions/plan-action
 import { getMachineConfigs } from "@/actions/machine-config-actions";
 import { getOperatorsList } from "@/actions/operator-actions";
 import { createClient } from "@/lib/supabase/client";
-import { getJakartaDateTimeString } from "@/lib/shift-utils";
+import { getJakartaDateTimeString, formatDurationSmart } from "@/lib/shift-utils";
 import { triggerPiggybackSync } from "@/lib/offline-store";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import { useInputTheme } from "@/lib/input-theme-context";
@@ -653,13 +653,8 @@ export default function ContinuousForm({
     setLiveTimerSeconds(0);
   };
 
-  const formatTimer = (totalSeconds: number) => {
-    const m = Math.floor(totalSeconds / 60)
-      .toString()
-      .padStart(2, "0");
-    const s = (totalSeconds % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
-  };
+  const formatTimer = (totalSeconds: number) =>
+    formatDurationSmart(totalSeconds, { zeroText: "0 Dtk", includeSeconds: true });
 
   // Hubungkan ke Supabase secara dinamis
   useEffect(() => {

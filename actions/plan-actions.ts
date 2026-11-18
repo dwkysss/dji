@@ -314,14 +314,14 @@ export async function getRecentPlansByMachine(nomorMc: string) {
     // Fetch records from ACTUAL production history
     const { data, error } = await supabase
       .from("production_headers")
-      .select("potongan_ke, design_id, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, rpm, status_matching, pcs, tanggal_jam")
+      .select("tgl, potongan_ke, design_id, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, rpm, status_matching, pcs, tanggal_jam")
       .eq("nomor_mc", cleanMc)
       .not("design_id", "is", null)
       .neq("design_id", "")
       .neq("panel_no", "Downtime Mekanik (Direct)")
       .neq("panel_no", "BERHENTI")
       .order("tanggal_jam", { ascending: false })
-      .limit(25);
+      .limit(60);
 
     if (error) throw error;
 
@@ -331,12 +331,13 @@ export async function getRecentPlansByMachine(nomorMc: string) {
     
     if (data) {
       for (const row of data) {
-        const key = `${row.potongan_ke}-${row.design_id}`;
+        const key = `${row.potongan_ke ?? ""}-${row.design_id ?? ""}`;
         if (!seen.has(key)) {
           seen.add(key);
           uniquePlans.push({
-            id: row.potongan_ke + "-" + (row.design_id || ""), // synthetic ID for the dropdown
+            id: `${row.potongan_ke ?? "none"}-${row.design_id || ""}`, // synthetic ID for the dropdown
             nomor_mc: cleanMc,
+            tgl: row.tgl || (row.tanggal_jam ? String(row.tanggal_jam).slice(0, 10) : ""),
             potongan_ke: row.potongan_ke,
             design_id: row.design_id,
             pick: row.pick,
@@ -352,7 +353,7 @@ export async function getRecentPlansByMachine(nomorMc: string) {
             status_matching: row.status_matching || "",
             pcs: row.pcs || null,
           });
-          if (uniquePlans.length >= 5) break;
+          if (uniquePlans.length >= 10) break;
         }
       }
     }

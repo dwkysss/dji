@@ -7,6 +7,7 @@ import {
   BlockSummary,
   BlockProblemItem,
 } from "@/actions/dashboard-actions";
+import { formatDurationSmart } from "@/lib/shift-utils";
 import {
   ArrowLeft,
   Box,
@@ -121,21 +122,8 @@ export default function MachineBlockAnalyticsPage({ params }: PageProps) {
     }
   }, [nomorMc, daysBack]);
 
-  const formatDurationNice = (totalSec: number) => {
-    if (totalSec <= 0) return "0 Dtk";
-    const hours = Math.floor(totalSec / 3600);
-    const minutes = Math.floor((totalSec % 3600) / 60);
-    const seconds = totalSec % 60;
-    if (hours > 0) {
-      if (minutes > 0) return `${hours} Jam ${minutes} Mnt`;
-      return `${hours} Jam`;
-    }
-    if (minutes > 0) {
-      if (seconds > 0) return `${minutes} Mnt ${seconds} Dtk`;
-      return `${minutes} Mnt`;
-    }
-    return `${seconds} Dtk`;
-  };
+  const formatDurationNice = (totalSec: number) =>
+    formatDurationSmart(totalSec, { zeroText: "0 Dtk" });
 
   // Filtered block rankings based on block search input
   const filteredSummary = useMemo(() => {

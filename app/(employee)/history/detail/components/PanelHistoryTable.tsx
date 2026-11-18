@@ -9,7 +9,7 @@ import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 import QuickDefectModal, { QuickDefectData } from "@/components/forms/QuickDefectModal";
 import PinAuthModal from "@/components/PinAuthModal";
 import { updateInstantPanelDefectStatus } from "@/actions/continuous-actions";
-import { parseAsWibDate } from "@/lib/shift-utils";
+import { parseAsWibDate, formatDurationSmart } from "@/lib/shift-utils";
 import EditTimestampModal from "@/components/forms/EditTimestampModal";
 
 const formatWibTime = (dateVal?: string): string => {
@@ -508,13 +508,7 @@ export default function PanelHistoryTable({
             if (matchedEvents.length > 0) {
               const totalSeconds = matchedEvents.reduce((acc: number, e: any) => acc + (parseInt(e.durasiDetik || e.durasi_detik, 10) || 0), 0);
               if (totalSeconds > 0) {
-                const mins = Math.floor(totalSeconds / 60);
-                const secs = totalSeconds % 60;
-                if (mins > 0) {
-                  downtimeDisplay = `${mins}m ${secs}s`;
-                } else {
-                  downtimeDisplay = `${secs}s`;
-                }
+                downtimeDisplay = formatDurationSmart(totalSeconds, { zeroText: "-" });
               }
             }
 

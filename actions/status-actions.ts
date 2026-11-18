@@ -29,6 +29,7 @@ export interface StatusMesinInput {
   tanggalOff?: string;
   sampaiTanggalOff?: string;
   cakupan?: "FULL_DAY" | "SHIFT";
+  shiftSlot?: "SHIFT_1" | "SHIFT_2" | "SHIFT_3";
   idempotencyKey?: string;
   submittedAt?: string;
   durasiDetik?: number;
@@ -172,17 +173,36 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
     let noOrder = inputData.noOrderBarang || null;
     let noCustomer = inputData.noCustomer || null;
 
-    // Jika parameter material benang atau order kosong, cari dari potongan terakhir yang valid di mesin ini
+    // Jika parameter material benang atau order kosong, cari dari potongan yang sesuai atau potongan terakhir yang valid di mesin ini
     if (supabase && (!benangDasar || !liner || !heavy || !shadow || !pinggiran || !noOrder || !noCustomer)) {
       try {
-        const { data: refH } = await supabase
+        let refQuery = supabase
           .from("production_headers")
           .select("jenis_benang_dasar, liner, heavy, shadow, pinggiran, no_order_barang, no_customer")
           .eq("nomor_mc", inputData.nomorMc)
-          .neq("panel_no", "BERHENTI")
+          .neq("panel_no", "BERHENTI");
+
+        if (inputData.potonganKe && !isNaN(parseInt(String(inputData.potonganKe)))) {
+          refQuery = refQuery.eq("potongan_ke", parseInt(String(inputData.potonganKe)));
+        }
+
+        let { data: refH } = await refQuery
           .order("tanggal_jam", { ascending: false })
           .limit(1)
           .maybeSingle();
+
+        // Fallback ke riwayat mesin terakhir jika potongan tersebut belum memiliki data material
+        if (!refH && inputData.potonganKe) {
+          const { data: fallbackRefH } = await supabase
+            .from("production_headers")
+            .select("jenis_benang_dasar, liner, heavy, shadow, pinggiran, no_order_barang, no_customer")
+            .eq("nomor_mc", inputData.nomorMc)
+            .neq("panel_no", "BERHENTI")
+            .order("tanggal_jam", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          refH = fallbackRefH;
+        }
 
         if (refH) {
           if (!benangDasar) benangDasar = refH.jenis_benang_dasar || null;
@@ -260,17 +280,32 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
         const autoGroupId = currentShiftName === "Shift 2" ? 2 : (currentShiftName === "Shift 3" ? 3 : 1);
         const targetGroupId = inputData.grupId ? parseInt(String(inputData.grupId)) : autoGroupId;
 
-        // Jika pelaporan langsung oleh operator di form mesin mati, gunakan waktu kejadian aktual (WIB)
-        // Jangan fallback ke jam 08:00 pagi jika ini bukan rencana downtime masa depan
-        const isFuturePlan = Boolean(inputData.sampaiTanggalOff) || (inputData.tanggalOff && inputData.tanggalOff > operationalDate);
-        const shiftDefaultTime = targetGroupId === 2 ? "16:00:00" : (targetGroupId === 3 ? "23:30:00" : "08:00:00");
-        const finalTanggalJam = isFuturePlan ? `${d} ${shiftDefaultTime}` : currentWibDateTime;
+        // Tentukan jam default & nama shift berdasarkan pilihan shiftSlot (Pagi / Siang / Malam)
+        let selectedShiftName: "Shift 1" | "Shift 2" | "Shift 3" | null = null;
+        let shiftDefaultTime = targetGroupId === 2 ? "16:00:00" : (targetGroupId === 3 ? "23:30:00" : "08:00:00");
+        if (inputData.shiftSlot === "SHIFT_1") {
+          selectedShiftName = "Shift 1";
+          shiftDefaultTime = "08:00:00";
+        } else if (inputData.shiftSlot === "SHIFT_2") {
+          selectedShiftName = "Shift 2";
+          shiftDefaultTime = "16:00:00";
+        } else if (inputData.shiftSlot === "SHIFT_3") {
+          selectedShiftName = "Shift 3";
+          shiftDefaultTime = "23:30:00";
+        }
+
+        // Gunakan jam real-time HANYA jika tanggal adalah hari ini DAN shift yang dipilih sesuai shift aktif saat ini.
+        // Jika backdate, future date, atau beda shift (misal lapor Shift Malam saat ini masih Pagi),
+        // gunakan tanggal terpilih + jam representatif shift agar penempatan di Laporan Bulanan & Riwayat 100% akurat.
+        const isDifferentDate = Boolean(inputData.sampaiTanggalOff) || (inputData.tanggalOff && inputData.tanggalOff !== operationalDate);
+        const isSameLiveShift = !isDifferentDate && isRealTime && (!selectedShiftName || currentShiftName === selectedShiftName);
+        const finalTanggalJam = isSameLiveShift ? currentWibDateTime : `${d} ${shiftDefaultTime}`;
 
         // Tentukan durasi downtime mesin mati
         let finalDurasiDetik = 28800; // Default 1 shift penuh (8 jam)
         if (inputData.durasiDetik && inputData.durasiDetik > 0) {
           finalDurasiDetik = inputData.durasiDetik;
-        } else if (isRealTime) {
+        } else if (isSameLiveShift) {
           const remSec = getRemainingShiftSeconds(now);
           finalDurasiDetik = remSec > 0 ? remSec : 28800;
         }
@@ -436,16 +471,34 @@ export async function submitStatusMesin(inputData: StatusMesinInput) {
 }
 
 /**
- * Mengambil spesifikasi terakhir mesin (design, rpm, pick, course) sebelum atau pada tanggal yang ditentukan.
+ * Mengambil spesifikasi terakhir mesin (potongan, design, rpm, pick, course, order, benang) sebelum atau pada tanggal yang ditentukan.
  */
 export async function getLastMachineSpec(nomorMc: string, beforeDate?: string) {
   try {
     const supabase = await createClient();
+    const specColumns =
+      "potongan_ke, design_id, rpm, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, tgl, tanggal_jam, panel_no";
+
+    const mapSpecRow = (row: any) => ({
+      potonganKe: row.potongan_ke !== undefined && row.potongan_ke !== null ? String(row.potongan_ke) : "",
+      designId: row.design_id || "",
+      rpm: row.rpm ? String(row.rpm) : "",
+      pick: row.pick || "",
+      course: row.course || "",
+      noOrderBarang: row.no_order_barang || "",
+      noCustomer: row.no_customer || "",
+      jenisBenangDasar: row.jenis_benang_dasar || "",
+      liner: row.liner || "",
+      heavy: row.heavy || "",
+      shadow: row.shadow || "",
+      pinggiran: row.pinggiran || "",
+      sourceDate: row.tgl || "",
+    });
 
     // 1. Coba cari data produksi normal (bukan status BERHENTI / Downtime Mekanik) yang memiliki spesifikasi lengkap
     let query = supabase
       .from("production_headers")
-      .select("design_id, rpm, pick, course, tgl, tanggal_jam, panel_no")
+      .select(specColumns)
       .eq("nomor_mc", nomorMc)
       .not("design_id", "is", null)
       .neq("design_id", "")
@@ -467,23 +520,17 @@ export async function getLastMachineSpec(nomorMc: string, beforeDate?: string) {
       console.error("Error fetching last machine spec (tier 1):", error);
     }
 
-    let resultData: { designId: string; rpm: string; pick: string; course: string; sourceDate: string } | null = null;
+    let resultData: ReturnType<typeof mapSpecRow> | null = null;
 
     if (data && (data.design_id || data.rpm || data.pick || data.course)) {
-      resultData = {
-        designId: data.design_id || "",
-        rpm: data.rpm ? String(data.rpm) : "",
-        pick: data.pick || "",
-        course: data.course || "",
-        sourceDate: data.tgl || "",
-      };
+      resultData = mapSpecRow(data);
     }
 
     // 2. Fallback: jika tier 1 kosong, cari data produksi apa saja (bukan BERHENTI / Downtime)
     if (!resultData) {
       let fallbackQuery = supabase
         .from("production_headers")
-        .select("design_id, rpm, pick, course, tgl, tanggal_jam, panel_no")
+        .select(specColumns)
         .eq("nomor_mc", nomorMc)
         .not("design_id", "is", null)
         .neq("design_id", "")
@@ -501,13 +548,7 @@ export async function getLastMachineSpec(nomorMc: string, beforeDate?: string) {
         .maybeSingle();
 
       if (fbData && (fbData.design_id || fbData.rpm || fbData.pick || fbData.course)) {
-        resultData = {
-          designId: fbData.design_id || "",
-          rpm: fbData.rpm ? String(fbData.rpm) : "",
-          pick: fbData.pick || "",
-          course: fbData.course || "",
-          sourceDate: fbData.tgl || "",
-        };
+        resultData = mapSpecRow(fbData);
       }
     }
 
@@ -515,7 +556,7 @@ export async function getLastMachineSpec(nomorMc: string, beforeDate?: string) {
     if (!resultData) {
       const { data: latestData } = await supabase
         .from("production_headers")
-        .select("design_id, rpm, pick, course, tgl, tanggal_jam, panel_no")
+        .select(specColumns)
         .eq("nomor_mc", nomorMc)
         .not("design_id", "is", null)
         .neq("design_id", "")
@@ -528,13 +569,7 @@ export async function getLastMachineSpec(nomorMc: string, beforeDate?: string) {
         .maybeSingle();
 
       if (latestData && (latestData.design_id || latestData.rpm || latestData.pick || latestData.course)) {
-        resultData = {
-          designId: latestData.design_id || "",
-          rpm: latestData.rpm ? String(latestData.rpm) : "",
-          pick: latestData.pick || "",
-          course: latestData.course || "",
-          sourceDate: latestData.tgl || "",
-        };
+        resultData = mapSpecRow(latestData);
       }
     }
 
@@ -542,12 +577,15 @@ export async function getLastMachineSpec(nomorMc: string, beforeDate?: string) {
       return { success: false, error: "Belum ada data spesifikasi sebelumnya untuk mesin ini." };
     }
 
-    // Jika ada field spesifikasi (rpm, pick, course) yang belum terisi lengkap dari row tersebut,
+    // Jika ada field spesifikasi (rpm, pick, course, material) yang belum terisi lengkap dari row tersebut,
     // lengkapi otomatis dari data riwayat design yang sama
-    if (resultData.designId && (!resultData.rpm || !resultData.pick || !resultData.course)) {
+    if (
+      resultData.designId &&
+      (!resultData.rpm || !resultData.pick || !resultData.course || !resultData.jenisBenangDasar)
+    ) {
       const { data: comp } = await supabase
         .from("production_headers")
-        .select("rpm, pick, course")
+        .select("rpm, pick, course, no_order_barang, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran")
         .eq("design_id", resultData.designId)
         .not("rpm", "is", null)
         .order("tgl", { ascending: false })
@@ -558,6 +596,13 @@ export async function getLastMachineSpec(nomorMc: string, beforeDate?: string) {
         if (!resultData.rpm && comp.rpm) resultData.rpm = String(comp.rpm);
         if (!resultData.pick && comp.pick) resultData.pick = comp.pick;
         if (!resultData.course && comp.course) resultData.course = comp.course;
+        if (!resultData.noOrderBarang && comp.no_order_barang) resultData.noOrderBarang = comp.no_order_barang;
+        if (!resultData.noCustomer && comp.no_customer) resultData.noCustomer = comp.no_customer;
+        if (!resultData.jenisBenangDasar && comp.jenis_benang_dasar) resultData.jenisBenangDasar = comp.jenis_benang_dasar;
+        if (!resultData.liner && comp.liner) resultData.liner = comp.liner;
+        if (!resultData.heavy && comp.heavy) resultData.heavy = comp.heavy;
+        if (!resultData.shadow && comp.shadow) resultData.shadow = comp.shadow;
+        if (!resultData.pinggiran && comp.pinggiran) resultData.pinggiran = comp.pinggiran;
       }
     }
 

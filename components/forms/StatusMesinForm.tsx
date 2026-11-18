@@ -13,12 +13,21 @@ import {
   Settings2,
   AlertTriangle,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Cpu,
   Loader2,
   Sparkles,
   RotateCcw,
+  History,
+  Hash,
+  Sun,
+  Sunset,
+  Moon,
 } from "lucide-react";
 import { submitStatusMesin, StatusMesinInput, getLastMachineSpec } from "@/actions/status-actions";
+import { getRecentPlansByMachine } from "@/actions/plan-actions";
+import { getShiftName } from "@/lib/shift-utils";
 import { useAuth } from "@/lib/auth-context";
 import { REGISTERED_MACHINES } from "@/lib/constants";
 
@@ -47,6 +56,16 @@ const FALLBACK_OPERATORS = [
 
 const STATUS_PRESETS = ["LIBUR", "MAINTENANCE", "RUSAK", "TIDAK ADA ORDER", "MATI LISTRIK", "STAND BY"];
 
+const SHIFT_SLOTS: Array<{
+  id: "SHIFT_1" | "SHIFT_2" | "SHIFT_3";
+  label: string;
+  timeRange: string;
+}> = [
+  { id: "SHIFT_1", label: "Shift 1 (Pagi)", timeRange: "07:10 – 15:10 WIB" },
+  { id: "SHIFT_2", label: "Shift 2 (Siang / Sore)", timeRange: "15:10 – 23:10 WIB" },
+  { id: "SHIFT_3", label: "Shift 3 (Malam)", timeRange: "23:10 – 07:10 WIB" },
+];
+
 function FormSection({ step, title, icon, children }: { step: number; title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
@@ -74,9 +93,17 @@ export default function StatusMesinForm() {
   const [successData, setSuccessData] = useState<any | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("");
   const [cakupan, setCakupan] = useState<"FULL_DAY" | "SHIFT">("FULL_DAY");
+  const [shiftSlot, setShiftSlot] = useState<"SHIFT_1" | "SHIFT_2" | "SHIFT_3">(() => {
+    const cur = getShiftName(new Date());
+    return cur === "Shift 2" ? "SHIFT_2" : cur === "Shift 3" ? "SHIFT_3" : "SHIFT_1";
+  });
   const [isRange, setIsRange] = useState(false);
   const [isLoadingSpec, setIsLoadingSpec] = useState(false);
   const [specSourceDate, setSpecSourceDate] = useState<string | null>(null);
+  const [recentPlans, setRecentPlans] = useState<any[]>([]);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(false);
+  const [selectedHistoryLabel, setSelectedHistoryLabel] = useState<string | null>(null);
+  const [showMaterialDetails, setShowMaterialDetails] = useState(false);
 
   const idempotencyKeyRef = useRef(Math.random().toString(36).substring(2, 15));
 
@@ -85,10 +112,18 @@ export default function StatusMesinForm() {
       nomorMc: "",
       grupId: "",
       operatorId: "",
+      potonganKe: "",
       pick: "",
       course: "",
       rpm: "",
       designId: "",
+      noOrderBarang: "",
+      noCustomer: "",
+      jenisBenangDasar: "",
+      liner: "",
+      heavy: "",
+      shadow: "",
+      pinggiran: "",
       status: "",
       tanggalOff: new Date().toISOString().split("T")[0],
       sampaiTanggalOff: "",
@@ -116,34 +151,82 @@ export default function StatusMesinForm() {
   const selectedGrupId = watch("grupId");
   const selectedMesin = watch("nomorMc");
   const selectedTanggal = watch("tanggalOff");
+  const watchNoOrder = watch("noOrderBarang");
+  const watchBenangDasar = watch("jenisBenangDasar");
   const selectedGroup = FALLBACK_GROUPS.find(g => g.id.toString() === selectedGrupId);
+
+  const applyHistoryPlan = (plan: any) => {
+    if (!plan) return;
+    setValue("potonganKe", plan.potongan_ke !== undefined && plan.potongan_ke !== null ? String(plan.potongan_ke) : "", { shouldValidate: true });
+    setValue("designId", plan.design_id || "", { shouldValidate: true });
+    setValue("rpm", plan.rpm ? String(plan.rpm) : "", { shouldValidate: true });
+    setValue("pick", plan.pick || "", { shouldValidate: true });
+    setValue("course", plan.course || "", { shouldValidate: true });
+    setValue("noOrderBarang", plan.no_order_barang || "");
+    setValue("noCustomer", plan.no_customer || "");
+    setValue("jenisBenangDasar", plan.jenis_benang_dasar || "");
+    setValue("liner", plan.liner || "");
+    setValue("heavy", plan.heavy || "");
+    setValue("shadow", plan.shadow || "");
+    setValue("pinggiran", plan.pinggiran || "");
+    setSpecSourceDate(plan.tgl || null);
+    setSelectedHistoryLabel(
+      `Potongan #${plan.potongan_ke ?? "-"} • ${plan.design_id || "-"}${plan.tgl ? ` (${plan.tgl})` : ""}`
+    );
+  };
 
   const loadLastSpec = async (mc: string, dateStr?: string) => {
     if (!mc) return;
     setIsLoadingSpec(true);
+    setIsLoadingRecent(true);
+    setSelectedHistoryLabel(null);
     try {
-      const res = await getLastMachineSpec(mc, dateStr);
-      if (res.success && res.data) {
-        setValue("designId", res.data.designId, { shouldValidate: true });
-        setValue("rpm", res.data.rpm, { shouldValidate: true });
-        setValue("pick", res.data.pick, { shouldValidate: true });
-        setValue("course", res.data.course, { shouldValidate: true });
-        setSpecSourceDate(res.data.sourceDate);
+      const [specRes, recentRes] = await Promise.all([
+        getLastMachineSpec(mc, dateStr),
+        getRecentPlansByMachine(mc),
+      ]);
+
+      const plans = recentRes.success && recentRes.data ? recentRes.data : [];
+      setRecentPlans(plans);
+
+      if (specRes.success && specRes.data) {
+        const d = specRes.data;
+        setValue("potonganKe", d.potonganKe || "", { shouldValidate: true });
+        setValue("designId", d.designId || "", { shouldValidate: true });
+        setValue("rpm", d.rpm || "", { shouldValidate: true });
+        setValue("pick", d.pick || "", { shouldValidate: true });
+        setValue("course", d.course || "", { shouldValidate: true });
+        setValue("noOrderBarang", d.noOrderBarang || "");
+        setValue("noCustomer", d.noCustomer || "");
+        setValue("jenisBenangDasar", d.jenisBenangDasar || "");
+        setValue("liner", d.liner || "");
+        setValue("heavy", d.heavy || "");
+        setValue("shadow", d.shadow || "");
+        setValue("pinggiran", d.pinggiran || "");
+        setSpecSourceDate(d.sourceDate || null);
+      } else if (plans.length > 0) {
+        applyHistoryPlan(plans[0]);
       } else {
         setSpecSourceDate(null);
       }
     } catch (e) {
       console.error("Gagal mengambil spesifikasi terakhir:", e);
       setSpecSourceDate(null);
+      setRecentPlans([]);
     } finally {
       setIsLoadingSpec(false);
+      setIsLoadingRecent(false);
     }
   };
 
-  // Otomatis tarik spesifikasi terakhir saat mesin atau tanggal dipilih/berubah
+  // Otomatis tarik spesifikasi terakhir & daftar riwayat saat mesin atau tanggal dipilih/berubah
   useEffect(() => {
     if (selectedMesin) {
       loadLastSpec(selectedMesin, selectedTanggal);
+    } else {
+      setRecentPlans([]);
+      setSpecSourceDate(null);
+      setSelectedHistoryLabel(null);
     }
   }, [selectedMesin, selectedTanggal]);
 
@@ -162,12 +245,14 @@ export default function StatusMesinForm() {
     if (cakupan === "SHIFT") {
       const operator = operators.find(o => o.id.toString() === data.operatorId);
       data.pic = operator ? operator.name : (user?.fullName || "");
+      data.shiftSlot = shiftSlot;
     } else {
       data.pic = "-";
       data.operatorId = undefined;
       data.grupId = undefined;
+      data.shiftSlot = undefined;
     }
-    data.status = data.status ? data.status.toUpperCase() : "";
+    data.status = data.status ? data.status.trim() : "";
 
     try {
       const result = await submitStatusMesin(data);
@@ -189,15 +274,26 @@ export default function StatusMesinForm() {
     setSelectedStatus("");
     setIsRange(false);
     setSpecSourceDate(null);
+    setRecentPlans([]);
+    setSelectedHistoryLabel(null);
+    setShowMaterialDetails(false);
     reset({
       nomorMc: "",
       status: "",
       grupId: "",
       operatorId: "",
+      potonganKe: "",
       pick: "",
       course: "",
       rpm: "",
       designId: "",
+      noOrderBarang: "",
+      noCustomer: "",
+      jenisBenangDasar: "",
+      liner: "",
+      heavy: "",
+      shadow: "",
+      pinggiran: "",
       tanggalOff: new Date().toISOString().split("T")[0],
       sampaiTanggalOff: "",
     });
@@ -215,19 +311,36 @@ export default function StatusMesinForm() {
           <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-bold text-xs">
             {successData.status}
           </span>{" "}
-          untuk <strong className="text-slate-700">{successData.cakupan === "FULL_DAY" ? "1 Hari Penuh (Semua Shift)" : "1 Shift Tertentu"}</strong>{" "}
+          untuk{" "}
+          <strong className="text-slate-700">
+            {successData.cakupan === "FULL_DAY"
+              ? "1 Hari Penuh (Semua Shift)"
+              : SHIFT_SLOTS.find((s) => s.id === successData.shiftSlot)?.label || "1 Shift Tertentu"}
+          </strong>{" "}
           pada <strong className="text-slate-700">{successData.tanggalOff}{successData.isRange && successData.sampaiTanggalOff ? ` s/d ${successData.sampaiTanggalOff}` : ""}</strong>.
         </p>
         <div className="w-full p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 grid grid-cols-2 gap-3 text-left">
           <div>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Cakupan / Operator</div>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Shift / Operator</div>
             <div className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">
-              {successData.cakupan === "FULL_DAY" ? "Shift A, B, & C (Semua)" : (successData.pic || "-")}
+              {successData.cakupan === "FULL_DAY"
+                ? "Semua Shift (A, B, C)"
+                : `${SHIFT_SLOTS.find((s) => s.id === successData.shiftSlot)?.label || "-"} • ${successData.pic || "-"}`}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Potongan Ke</div>
+            <div className="text-xs sm:text-sm font-bold text-sky-700 mt-0.5">
+              {successData.potonganKe ? `Ke-${successData.potonganKe}` : "-"}
             </div>
           </div>
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Design</div>
             <div className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">{successData.designId || "-"}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">No. Order</div>
+            <div className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">{successData.noOrderBarang || "-"}</div>
           </div>
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">RPM</div>
@@ -319,6 +432,47 @@ export default function StatusMesinForm() {
             </div>
           </div>
 
+          {/* Pilihan Waktu Shift (Pagi / Siang / Malam) khusus mode Per Shift Tertentu */}
+          {cakupan === "SHIFT" && (
+            <div className="flex flex-col gap-1.5 mb-3 animate-fadeIn">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                Waktu Shift Operasional (Penempatan di Laporan)
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {SHIFT_SLOTS.map((slot) => {
+                  const isActive = shiftSlot === slot.id;
+                  const SlotIcon = slot.id === "SHIFT_1" ? Sun : slot.id === "SHIFT_2" ? Sunset : Moon;
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      onClick={() => setShiftSlot(slot.id)}
+                      className={`flex items-center gap-2.5 p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-sky-50/90 border-sky-600 text-sky-950 shadow-xs"
+                          : "bg-white border-slate-200 text-slate-600 hover:border-sky-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          isActive
+                            ? "bg-sky-600 text-white"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        <SlotIcon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-black truncate">{slot.label}</div>
+                        <div className="text-[10px] font-semibold text-slate-500 truncate">{slot.timeRange}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Tanggal Mulai */}
             <div className="flex flex-col gap-1">
@@ -348,7 +502,7 @@ export default function StatusMesinForm() {
               <>
                 {/* Grup */}
                 <div className="flex flex-col gap-1 animate-fadeIn">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Grup / Shift</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Grup</label>
                   <select
                     {...register("grupId", { required: cakupan === "SHIFT" ? "Grup wajib dipilih" : false })}
                     onChange={(e) => {
@@ -438,11 +592,66 @@ export default function StatusMesinForm() {
           )}
         </FormSection>
 
-        {/* STEP 3 — Spesifikasi */}
-        <FormSection step={3} title="Spesifikasi Terakhir" icon={<Settings2 className="w-4 h-4" />}>
+        {/* STEP 3 — Spesifikasi & Riwayat */}
+        <FormSection step={3} title="Spesifikasi & Parameter Produksi" icon={<Settings2 className="w-4 h-4" />}>
+          {/* Dropdown Salin dari Riwayat Mesin */}
+          {selectedMesin && (
+            <div className="mb-4 p-3.5 sm:p-4 bg-sky-50/80 border border-sky-200 rounded-2xl flex flex-col gap-2 shadow-2xs animate-fadeIn">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-[11px] font-black text-sky-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <History className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                  Pilih dari Riwayat Mesin {selectedMesin} (Potongan & Desain)
+                </label>
+                {isLoadingRecent ? (
+                  <span className="text-[10px] text-sky-600 font-bold flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Memuat riwayat...
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-600 font-semibold bg-white px-2.5 py-0.5 rounded-full border border-sky-200">
+                    {recentPlans.length} riwayat ditemukan
+                  </span>
+                )}
+              </div>
+
+              <select
+                disabled={isLoadingRecent || recentPlans.length === 0}
+                defaultValue=""
+                className="h-11 px-3.5 rounded-xl border border-sky-200 focus:border-[#0070bc] focus:ring-4 focus:ring-sky-400/20 outline-none font-bold text-slate-800 text-xs bg-white shadow-xs transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const selected = recentPlans.find((p) => p.id === e.target.value);
+                  if (selected) {
+                    applyHistoryPlan(selected);
+                  }
+                  e.target.value = "";
+                }}
+              >
+                <option value="">
+                  {isLoadingRecent
+                    ? "-- Sedang memuat riwayat mesin... --"
+                    : recentPlans.length === 0
+                    ? "-- Belum ada riwayat tercatat untuk mesin ini --"
+                    : "-- Pilih Riwayat untuk Mengisi Parameter Lengkap (Potongan, Design, Order, Benang) --"}
+                </option>
+                {recentPlans.map((rp, idx) => (
+                  <option key={rp.id} value={rp.id}>
+                    {idx === 0 ? "★ [Terakhir] " : ""}Potongan #{rp.potongan_ke ?? "-"} | Design: {rp.design_id || "-"} | Order: {rp.no_order_barang || "-"} | RPM: {rp.rpm || "-"}{rp.tgl ? ` (${rp.tgl})` : ""}
+                  </option>
+                ))}
+              </select>
+
+              {selectedHistoryLabel && (
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg animate-fadeIn">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Parameter disalin dari riwayat: {selectedHistoryLabel}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <p className="text-[11px] text-slate-500 font-medium">
-              Spesifikasi teknis terakhir saat mesin beroperasi (dapat diubah jika diperlukan).
+              Parameter teknis & nomor potongan aktif mesin (otomatis terisi dari riwayat terakhir, dapat diubah manual).
             </p>
             {isLoadingSpec && (
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 border border-sky-200 rounded-lg text-sky-700 text-xs font-bold animate-pulse">
@@ -450,7 +659,7 @@ export default function StatusMesinForm() {
                 <span>Mengambil spesifikasi data sebelumnya...</span>
               </div>
             )}
-            {!isLoadingSpec && specSourceDate && (
+            {!isLoadingSpec && specSourceDate && !selectedHistoryLabel && (
               <div className="inline-flex items-center px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs font-semibold animate-fadeIn">
                 <span>Terisi otomatis dari data tgl {specSourceDate}</span>
               </div>
@@ -471,7 +680,20 @@ export default function StatusMesinForm() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black text-sky-700 uppercase tracking-wider flex items-center gap-1">
+                <Hash className="w-3 h-3" /> Potongan Ke
+              </label>
+              <input
+                type="number"
+                inputMode="numeric"
+                {...register("potonganKe", { required: "Potongan ke wajib diisi (atau pilih dari riwayat)" })}
+                placeholder="cth: 596"
+                className="h-11 px-3 rounded-xl bg-sky-50/50 border border-sky-200 text-sm font-bold text-slate-800 focus:bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-400 outline-none transition-all"
+              />
+              {errors.potonganKe && <p className="text-[10px] text-rose-500 font-bold">{errors.potonganKe?.message as string}</p>}
+            </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Design</label>
               <input
@@ -502,7 +724,7 @@ export default function StatusMesinForm() {
               />
               {errors.pick && <p className="text-[10px] text-rose-500 font-bold">{errors.pick?.message as string}</p>}
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Course</label>
               <input
                 type="text"
@@ -512,6 +734,97 @@ export default function StatusMesinForm() {
               />
               {errors.course && <p className="text-[10px] text-rose-500 font-bold">{errors.course?.message as string}</p>}
             </div>
+          </div>
+
+          {/* Toggle Detail Order & Material Benang */}
+          <div className="mt-3 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setShowMaterialDetails((prev) => !prev)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span>Detail Order & Material Benang (Opsional)</span>
+                {(watchNoOrder || watchBenangDasar) && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-extrabold truncate max-w-[200px] sm:max-w-xs">
+                    {watchNoOrder ? `Order: ${watchNoOrder}` : "Material Terisi"}
+                  </span>
+                )}
+              </div>
+              {showMaterialDetails ? (
+                <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+              )}
+            </button>
+
+            {showMaterialDetails && (
+              <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 p-3.5 bg-slate-50/70 border border-slate-200 rounded-2xl animate-fadeIn">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">No. Order Barang</label>
+                  <input
+                    type="text"
+                    {...register("noOrderBarang")}
+                    placeholder="cth: EXR/26/130"
+                    className="h-10 px-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">No. Customer</label>
+                  <input
+                    type="text"
+                    {...register("noCustomer")}
+                    placeholder="Opsional"
+                    className="h-10 px-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Benang Dasar</label>
+                  <input
+                    type="text"
+                    {...register("jenisBenangDasar")}
+                    placeholder="Opsional"
+                    className="h-10 px-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Liner</label>
+                  <input
+                    type="text"
+                    {...register("liner")}
+                    placeholder="Opsional"
+                    className="h-10 px-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Heavy</label>
+                  <input
+                    type="text"
+                    {...register("heavy")}
+                    placeholder="Opsional"
+                    className="h-10 px-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Shadow</label>
+                  <input
+                    type="text"
+                    {...register("shadow")}
+                    placeholder="Opsional"
+                    className="h-10 px-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none"
+                  />
+                </div>
+                <div className="flex flex-col gap-1 col-span-2 md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Pinggiran</label>
+                  <input
+                    type="text"
+                    {...register("pinggiran")}
+                    placeholder="Opsional"
+                    className="h-10 px-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:border-sky-400 focus:ring-1 focus:ring-sky-400 outline-none"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </FormSection>
 
@@ -547,9 +860,9 @@ export default function StatusMesinForm() {
               placeholder="Ketik alasan berhenti..."
               onChange={(e) => {
                 register("status").onChange(e);
-                setSelectedStatus(e.target.value.toUpperCase());
+                setSelectedStatus(e.target.value.trim().toUpperCase());
               }}
-              className="w-full h-11 px-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:bg-white focus:border-rose-400 focus:ring-1 focus:ring-rose-400 outline-none transition-all uppercase"
+              className="w-full h-11 px-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:bg-white focus:border-rose-400 focus:ring-1 focus:ring-rose-400 outline-none transition-all"
             />
             {errors.status && <p className="text-[10px] text-rose-500 font-bold">{errors.status?.message as string}</p>}
           </div>
