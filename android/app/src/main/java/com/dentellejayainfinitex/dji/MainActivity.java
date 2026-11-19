@@ -32,7 +32,7 @@ public class MainActivity extends BridgeActivity {
     private static final String PREF_LOCK = "dji_kiosk_lock_prefs";
     private static final String KEY_PIN = "kiosk_pin";
     private static final String KEY_KIOSK_AUTO = "kiosk_auto_lock";
-    private static final String DEFAULT_PIN = "784562";
+    private static final String DEFAULT_PIN = "454545";
     private boolean isSupervisorExiting = false;
     private long lastBackPressedTime = 0;
     private int secretCornerTapCount = 0;
@@ -56,7 +56,7 @@ public class MainActivity extends BridgeActivity {
     private String getSavedPin() {
         SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
         String pin = prefs.getString(KEY_PIN, DEFAULT_PIN);
-        if ("2608".equals(pin)) {
+        if ("2608".equals(pin) || "784562".equals(pin)) {
             pin = DEFAULT_PIN;
             prefs.edit().putString(KEY_PIN, DEFAULT_PIN).apply();
         }
@@ -94,9 +94,9 @@ public class MainActivity extends BridgeActivity {
         runOnUiThread(() -> {
             try {
                 hideSystemBars();
-                if (!isLockTaskActive()) {
-                    startLockTask();
-                    Toast.makeText(MainActivity.this, "🔒 Mode Kiosk Aktif: Tombol Home & Kotak Terkunci", Toast.LENGTH_SHORT).show();
+                // Pastikan Screen Pinning (Lock Task) dimatikan agar status bar/notifikasi bebas ditarik dari atas
+                if (isLockTaskActive()) {
+                    stopLockTask();
                 }
             } catch (Exception ignored) {}
         });
@@ -107,7 +107,6 @@ public class MainActivity extends BridgeActivity {
             try {
                 if (isLockTaskActive()) {
                     stopLockTask();
-                    Toast.makeText(MainActivity.this, "🔓 Mode Kiosk Dinonaktifkan", Toast.LENGTH_SHORT).show();
                 }
             } catch (Exception ignored) {}
         });
@@ -125,9 +124,9 @@ public class MainActivity extends BridgeActivity {
                 if (controller != null) {
                     // Sembunyikan HANYA tombol navigasi bawah (Home, Recents, Back)
                     controller.hide(android.view.WindowInsets.Type.navigationBars());
-                    // Status bar (atas: baterai, jam, wifi) TETAP MUNCUL agar pengguna bisa melihat status baterai
+                    // Status bar (atas: baterai, jam, wifi, notifikasi) TETAP MUNCUL & BISA DITARIK DARI ATAS
                     controller.show(android.view.WindowInsets.Type.statusBars());
-                    controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                    controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_DEFAULT);
                     controller.setSystemBarsAppearance(
                         android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
                         android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
@@ -201,7 +200,7 @@ public class MainActivity extends BridgeActivity {
                     btnExit.setOnClickListener(v -> {
                         String entered = input.getText().toString().trim();
                         String savedPin = getSavedPin();
-                        if (entered.equals(savedPin) || entered.equals("784562")) {
+                        if (entered.equals(savedPin) || entered.equals("454545")) {
                             dialog.dismiss();
                             isSupervisorExiting = true;
                             stopKioskMode();
@@ -217,7 +216,7 @@ public class MainActivity extends BridgeActivity {
                     btnChange.setOnClickListener(v -> {
                         String entered = input.getText().toString().trim();
                         String savedPin = getSavedPin();
-                        if (entered.equals(savedPin) || entered.equals("784562")) {
+                        if (entered.equals(savedPin) || entered.equals("454545")) {
                             dialog.dismiss();
                             showChangePinDialog();
                         } else {
@@ -301,8 +300,10 @@ public class MainActivity extends BridgeActivity {
         configureWebViewCache();
         configureAppInterface();
 
-        if (isKioskAutoEnabled() && !isLockTaskActive()) {
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 500);
+        if (isLockTaskActive()) {
+            try {
+                stopLockTask();
+            } catch (Exception ignored) {}
         }
 
         // Jika saat layar dinyalakan halaman sedang blank / error, muat ulang otomatis saat online
