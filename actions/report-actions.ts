@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getShiftDate, parseAsWibDate, getShiftName } from "@/lib/shift-utils";
+import { getShiftDate, parseAsWibDate, getShiftName, normalizeGroupName } from "@/lib/shift-utils";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { mapToCanonicalProblem } from "@/lib/canonical-problem-utils";
 
@@ -96,7 +96,7 @@ export async function getMonthlyMachineReport(
           operator_id,
           pic,
           groups ( nama_grup ),
-          operators ( nama_operator )
+          operators ( nama_operator, shift )
         `)
         .eq("nomor_mc", machineId)
         .gte("tgl", prevDate)
@@ -236,8 +236,8 @@ export async function getMonthlyMachineReport(
     });
 
     // Pre-calculate shift assignment with continuation rule for overtime / same operator
-    const headerAssignment = new Map<string, { shiftDateStr: string; day: number; month: number; year: number; groupName: string; operatorName: string }>();
-    let prevAssigned: { shiftDateStr: string; shiftName: string; groupName: string; operatorName: string; timestamp: Date } | null = null;
+    const headerAssignment = new Map<string, { shiftDateStr: string; day: number; month: number; year: number; groupName: "A" | "B" | "C"; operatorName: string }>();
+    let prevAssigned: { shiftDateStr: string; shiftName: string; groupName: "A" | "B" | "C"; operatorName: string; timestamp: Date } | null = null;
 
     sortedHeaders.forEach((h: any) => {
       let ts = h.tanggal_jam || h.tgl;
@@ -254,7 +254,7 @@ export async function getMonthlyMachineReport(
       if (opr.toUpperCase() === "ADMIN" || !opr) {
         opr = "-";
       }
-      const grp = (h.groups?.nama_grup || "A").trim().toUpperCase();
+      const grp = normalizeGroupName(h.groups?.nama_grup || h.group_id, h.operators?.shift, "A");
 
       let assignedShiftDateStr = naturalShiftDateStr;
       let assignedShiftName = naturalShiftName;
@@ -718,7 +718,7 @@ export async function getMonthlyMachineReport(
 
         if (headerMonth !== month || headerYear !== year) return;
 
-        const groupName = header.groups?.nama_grup || "A";
+        const groupName = normalizeGroupName(header.groups?.nama_grup || header.group_id, null, "A");
         const reportDay = reportMap.get(day);
         if (!reportDay) return;
 
@@ -759,7 +759,7 @@ export async function getMonthlyMachineReport(
 
           if (headerMonth !== month || headerYear !== year) return;
 
-          const groupName = h.groups?.nama_grup || "A";
+          const groupName = normalizeGroupName(h.groups?.nama_grup || h.group_id, null, "A");
           const reportDay = reportMap.get(day);
           if (reportDay && reportDay.teamData[groupName]) {
              if (!processedHeaders.has(h.id)) {

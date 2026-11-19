@@ -3,7 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { productionFormSchema, ProductionFormInput } from "@/lib/schemas";
 import { revalidatePath } from "next/cache";
-import { getShiftDate, parseAsWibDate, getJakartaDateTimeString, getRemainingShiftSeconds } from "@/lib/shift-utils";
+import { getShiftDate, parseAsWibDate, getJakartaDateTimeString, getRemainingShiftSeconds, normalizeGroupId } from "@/lib/shift-utils";
 
 // Helper untuk menghasilkan ID acak 8 karakter seperti di Excel (misal: e78cbacd)
 function generateExcelStyleId(): string {
@@ -135,7 +135,7 @@ export async function createProductionReport(
       tgl,
       tanggal_jam: tanggalJam,
       operator_id: operatorIdNum,
-      group_id: parseInt(validated.groupId),
+      group_id: normalizeGroupId(validated.groupId),
       design_id: validated.designId,
       nomor_mc: validated.nomorMc || null,
       status_matching: validated.statusMatching,
@@ -1787,7 +1787,7 @@ export async function updateProductionReport(
             !isNaN(parseInt(data.operatorId))
             ? parseInt(data.operatorId)
             : null,
-        group_id: data.groupId,
+        group_id: normalizeGroupId(data.groupId),
         design_id: data.designId,
         nomor_mc: data.nomorMc || null,
         course: data.course || null,
@@ -1828,7 +1828,7 @@ export async function updateProductionReport(
         .from("production_headers")
         .update({
           operator_id: newOperatorId,
-          group_id: data.groupId,
+          group_id: normalizeGroupId(data.groupId),
           design_id: data.designId,
           pic: data.pic || null,
           created_by_name: data.created_by_name || null,
@@ -2094,7 +2094,7 @@ export async function updateProductionReport(
               data.operatorId && !isNaN(parseInt(data.operatorId))
                 ? parseInt(data.operatorId)
                 : null,
-            group_id: data.groupId ? parseInt(data.groupId) : null,
+            group_id: normalizeGroupId(data.groupId),
             design_id: data.designId,
             nomor_mc: data.nomorMc || null,
             course: data.course || null,
@@ -2292,7 +2292,7 @@ export async function markPotonganAsCut(
         tgl: lastHeader.tgl || targetDate,
         tanggal_jam: lastHeader.tanggal_jam || `${targetDate} 00:00:00`,
         operator_id: lastHeader.operator_id,
-        group_id: lastHeader.group_id,
+        group_id: normalizeGroupId(lastHeader.group_id),
         design_id: lastHeader.design_id,
         nomor_mc: lastHeader.nomor_mc,
         status_matching: lastHeader.status_matching,

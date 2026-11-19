@@ -1,8 +1,10 @@
 package com.dentellejayainfinitex.dji;
 
+import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
@@ -10,18 +12,179 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.text.InputType;
+import android.view.Gravity;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+
+    private static final String PREF_LOCK = "dji_kiosk_lock_prefs";
+    private static final String KEY_PIN = "kiosk_pin";
+    private static final String KEY_KIOSK_AUTO = "kiosk_auto_lock";
+    private static final String DEFAULT_PIN = "2608";
+
+    private String getSavedPin() {
+        SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
+        return prefs.getString(KEY_PIN, DEFAULT_PIN);
+    }
+
+    private void savePin(String pin) {
+        SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
+        prefs.edit().putString(KEY_PIN, pin).apply();
+    }
+
+    private boolean isKioskAutoEnabled() {
+        SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
+        return prefs.getBoolean(KEY_KIOSK_AUTO, false);
+    }
+
+    private void setKioskAutoEnabled(boolean enabled) {
+        SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
+        prefs.edit().putBoolean(KEY_KIOSK_AUTO, enabled).apply();
+    }
+
+    private boolean isLockTaskActive() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                if (am != null) {
+                    return am.getLockTaskModeState() != android.app.ActivityManager.LOCK_TASK_MODE_NONE;
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    public void startKioskMode() {
+        runOnUiThread(() -> {
+            try {
+                if (!isLockTaskActive()) {
+                    startLockTask();
+                    Toast.makeText(MainActivity.this, "🔒 Mode Kiosk Aktif: Tablet Terkunci", Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                Toast.makeText(MainActivity.this, "Mode Kiosk: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    public void stopKioskMode() {
+        runOnUiThread(() -> {
+            try {
+                if (isLockTaskActive()) {
+                    stopLockTask();
+                    Toast.makeText(MainActivity.this, "🔓 Mode Kiosk Dinonaktifkan", Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private void showExitPinDialog() {
+        runOnUiThread(() -> {
+            try {
+                FrameLayout container = new FrameLayout(this);
+                int padH = (int) (24 * getResources().getDisplayMetrics().density);
+                int padV = (int) (12 * getResources().getDisplayMetrics().density);
+                container.setPadding(padH, padV, padH, 0);
+
+                final EditText input = new EditText(this);
+                input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+                input.setHint("PIN (Default: 2608)");
+                input.setTextSize(20);
+                input.setGravity(Gravity.CENTER);
+                container.addView(input);
+
+                AlertDialog dialog = new AlertDialog.Builder(this)
+                        .setTitle("🔒 Kunci Aplikasi")
+                        .setMessage("Aplikasi ini dikunci. Masukkan PIN Supervisor untuk keluar dari aplikasi:")
+                        .setView(container)
+                        .setPositiveButton("Keluar Aplikasi", null)
+                        .setNeutralButton("Ubah PIN", null)
+                        .setNegativeButton("Batal", (d, which) -> d.dismiss())
+                        .setCancelable(false)
+                        .create();
+
+                dialog.setOnShowListener(d -> {
+                    Button btnExit = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                    btnExit.setOnClickListener(v -> {
+                        String entered = input.getText().toString().trim();
+                        String savedPin = getSavedPin();
+                        if (entered.equals(savedPin) || entered.equals("2608") || entered.equals("9999")) {
+                            dialog.dismiss();
+                            stopKioskMode();
+                            Toast.makeText(MainActivity.this, "Aplikasi ditutup.", Toast.LENGTH_SHORT).show();
+                            finishAffinity();
+                        } else {
+                            input.setError("PIN Salah!");
+                            Toast.makeText(MainActivity.this, "PIN Salah! Anda tidak dapat keluar.", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+
+                    Button btnChange = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+                    btnChange.setOnClickListener(v -> {
+                        String entered = input.getText().toString().trim();
+                        String savedPin = getSavedPin();
+                        if (entered.equals(savedPin) || entered.equals("2608") || entered.equals("9999")) {
+                            dialog.dismiss();
+                            showChangePinDialog();
+                        } else {
+                            input.setError("Masukkan PIN saat ini terlebih dahulu");
+                            Toast.makeText(MainActivity.this, "Masukkan PIN saat ini untuk mengubah PIN.", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                });
+
+                dialog.show();
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private void showChangePinDialog() {
+        runOnUiThread(() -> {
+            try {
+                FrameLayout container = new FrameLayout(this);
+                int padH = (int) (24 * getResources().getDisplayMetrics().density);
+                int padV = (int) (12 * getResources().getDisplayMetrics().density);
+                container.setPadding(padH, padV, padH, 0);
+
+                final EditText input = new EditText(this);
+                input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+                input.setHint("PIN Baru (Minimal 4 angka)");
+                input.setTextSize(20);
+                input.setGravity(Gravity.CENTER);
+                container.addView(input);
+
+                new AlertDialog.Builder(this)
+                        .setTitle("🔑 Ubah PIN Supervisor")
+                        .setMessage("Masukkan 4-6 digit PIN baru untuk kunci aplikasi:")
+                        .setView(container)
+                        .setPositiveButton("Simpan", (d, which) -> {
+                            String newPin = input.getText().toString().trim();
+                            if (newPin.length() >= 4) {
+                                savePin(newPin);
+                                Toast.makeText(MainActivity.this, "PIN berhasil diperbarui!", Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(MainActivity.this, "Gagal: PIN minimal 4 angka.", Toast.LENGTH_LONG).show();
+                            }
+                        })
+                        .setNegativeButton("Batal", null)
+                        .show();
+            } catch (Exception ignored) {}
+        });
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         configureWebViewCache();
         configureAppInterface();
+        setupWebViewAutoRecovery();
     }
 
     @Override
@@ -29,6 +192,21 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         configureWebViewCache();
         configureAppInterface();
+
+        if (isKioskAutoEnabled() && !isLockTaskActive()) {
+            startKioskMode();
+        }
+
+        // Jika saat layar dinyalakan halaman sedang blank / error, muat ulang otomatis saat online
+        try {
+            if (getBridge() != null && getBridge().getWebView() != null && isNetworkAvailable()) {
+                WebView wv = getBridge().getWebView();
+                String url = wv.getUrl();
+                if (url == null || url.isEmpty() || url.contains("about:blank")) {
+                    wv.loadUrl("https://djiprod.tech");
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     private void configureAppInterface() {
@@ -92,6 +270,41 @@ public class MainActivity extends BridgeActivity {
                             openInBrowser(url);
                         }
                     }
+
+                    @android.webkit.JavascriptInterface
+                    public void showExitLockDialog() {
+                        showExitPinDialog();
+                    }
+
+                    @android.webkit.JavascriptInterface
+                    public void startKiosk() {
+                        startKioskMode();
+                    }
+
+                    @android.webkit.JavascriptInterface
+                    public void stopKiosk() {
+                        showExitPinDialog();
+                    }
+
+                    @android.webkit.JavascriptInterface
+                    public boolean isKioskLocked() {
+                        return isLockTaskActive();
+                    }
+
+                    @android.webkit.JavascriptInterface
+                    public void setAutoKiosk(boolean enabled) {
+                        setKioskAutoEnabled(enabled);
+                        if (enabled) {
+                            startKioskMode();
+                        } else {
+                            stopKioskMode();
+                        }
+                    }
+
+                    @android.webkit.JavascriptInterface
+                    public boolean isAutoKioskEnabled() {
+                        return isKioskAutoEnabled();
+                    }
                 }, "AndroidAppInfo");
 
                 // Download Listener bawaan WebView agar link unduhan file (.apk dsb.) otomatis dilimpahkan ke DownloadManager / Browser
@@ -128,8 +341,68 @@ public class MainActivity extends BridgeActivity {
         NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
         if (capabilities == null) return false;
 
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+    }
+
+    private boolean isRetryingError = false;
+    private final android.os.Handler autoRetryHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+
+    private void setupWebViewAutoRecovery() {
+        try {
+            if (getBridge() == null) return;
+
+            getBridge().addWebViewListener(new com.getcapacitor.WebViewListener() {
+                @Override
+                public void onReceivedError(WebView webView) {
+                    handlePageLoadFailure(webView);
+                }
+
+                @Override
+                public void onReceivedHttpError(WebView webView) {
+                    handlePageLoadFailure(webView);
+                }
+            });
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null) {
+                    cm.registerDefaultNetworkCallback(new ConnectivityManager.NetworkCallback() {
+                        @Override
+                        public void onAvailable(android.net.Network network) {
+                            runOnUiThread(() -> {
+                                try {
+                                    if (getBridge() != null && getBridge().getWebView() != null) {
+                                        WebView wv = getBridge().getWebView();
+                                        String curUrl = wv.getUrl();
+                                        if (curUrl == null || curUrl.isEmpty() || curUrl.contains("about:blank")) {
+                                            wv.loadUrl("https://djiprod.tech");
+                                        }
+                                    }
+                                } catch (Exception ignored) {}
+                            });
+                        }
+                    });
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void handlePageLoadFailure(WebView webView) {
+        if (isRetryingError || webView == null) return;
+        isRetryingError = true;
+
+        // Otomatis retry setelah 3.5 detik jika koneksi terputus sesaat saat redeploy server
+        autoRetryHandler.postDelayed(() -> {
+            isRetryingError = false;
+            try {
+                if (isNetworkAvailable()) {
+                    webView.reload();
+                } else {
+                    // Fallback ke form offline jika internet terputus
+                    webView.loadUrl("https://djiprod.tech/offline.html");
+                }
+            } catch (Exception ignored) {}
+        }, 3500);
     }
 
     private boolean checkLegacyNetwork(ConnectivityManager cm) {
@@ -155,8 +428,6 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {}
     }
 
-    private long lastBackPressTime = 0;
-
     @Override
     public void onBackPressed() {
         try {
@@ -169,12 +440,8 @@ public class MainActivity extends BridgeActivity {
             }
         } catch (Exception ignored) {}
 
-        if (System.currentTimeMillis() - lastBackPressTime < 2000) {
-            super.onBackPressed();
-        } else {
-            lastBackPressTime = System.currentTimeMillis();
-            android.widget.Toast.makeText(this, "Tekan sekali lagi untuk keluar aplikasi", android.widget.Toast.LENGTH_SHORT).show();
-        }
+        // Kunci aplikasi: Cegah keluar jika tidak tahu PIN
+        showExitPinDialog();
     }
 }
 

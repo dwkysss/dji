@@ -3,7 +3,7 @@
 import { continuousFormSchema, ContinuousFormInput } from "@/lib/schemas";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getShiftDate, getShiftName, parseAsWibDate, getJakartaDateTimeString, getCalendarDateTimeFromShift } from "@/lib/shift-utils";
+import { getShiftDate, getShiftName, parseAsWibDate, getJakartaDateTimeString, getCalendarDateTimeFromShift, normalizeGroupId } from "@/lib/shift-utils";
 
 async function resolveAutomaticMeterStart(input: {
   nomorMc?: string | null;
@@ -384,6 +384,21 @@ export async function submitOperatorHandover(input: {
     } else if (closingEnd > closingStart) {
       // Buat header penutup jika header sebelumnya sudah memiliki meter_akhir
       const closingHeaderId = generateExcelStyleId();
+      let closingGroupId = lastOpLatest.group_id;
+      if (!closingGroupId && lastOpLatest.operator_id) {
+        try {
+          const { data: opInfo } = await supabase
+            .from("operators")
+            .select("shift")
+            .eq("id", lastOpLatest.operator_id)
+            .maybeSingle();
+          if (opInfo?.shift) {
+            const s = opInfo.shift.toUpperCase();
+            closingGroupId = s === "A" ? 1 : s === "B" ? 2 : s === "C" ? 3 : null;
+          }
+        } catch (e) {}
+      }
+
       const { error: insertErr } = await supabase
         .from("production_headers")
         .insert({
@@ -391,7 +406,7 @@ export async function submitOperatorHandover(input: {
           tgl: lastOpLatest.tgl || getShiftDate(new Date()),
           tanggal_jam: new Date().toISOString(),
           operator_id: lastOpLatest.operator_id,
-          group_id: lastOpLatest.group_id,
+          group_id: closingGroupId,
           design_id: lastOpLatest.design_id,
           nomor_mc: nomorMcClean,
           potongan_ke: potonganKeNum,
@@ -661,6 +676,21 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
                   console.log(`[Auto-Finish] Updated header ${lastOpLatest.id} for ${lastPic}: ${closingStart}m -> ${closingEnd}m (${closingTotal}m)`);
                 } else {
                   const closingHeaderId = generateExcelStyleId();
+                  let closingGroupId = lastOpLatest.group_id;
+                  if (!closingGroupId && lastOpLatest.operator_id) {
+                    try {
+                      const { data: opInfo } = await adminSupabase
+                        .from("operators")
+                        .select("shift")
+                        .eq("id", lastOpLatest.operator_id)
+                        .maybeSingle();
+                      if (opInfo?.shift) {
+                        const s = opInfo.shift.toUpperCase();
+                        closingGroupId = s === "A" ? 1 : s === "B" ? 2 : s === "C" ? 3 : null;
+                      }
+                    } catch (e) {}
+                  }
+
                   await adminSupabase
                     .from("production_headers")
                     .insert({
@@ -668,7 +698,7 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
                       tgl: lastOpLatest.tgl || tgl,
                       tanggal_jam: tanggalJam,
                       operator_id: lastOpLatest.operator_id,
-                      group_id: lastOpLatest.group_id,
+                      group_id: closingGroupId,
                       design_id: lastOpLatest.design_id || validated.designId,
                       nomor_mc: validated.nomorMc,
                       potongan_ke: potonganKeNum,
@@ -707,7 +737,7 @@ export async function submitContinuousReport(inputData: ContinuousFormInput) {
       tgl,
       tanggal_jam: tanggalJam,
       operator_id: validated.operatorId && !isNaN(parseInt(validated.operatorId)) ? parseInt(validated.operatorId) : null,
-      group_id: parseInt(validated.groupId),
+      group_id: normalizeGroupId(validated.groupId),
       design_id: validated.designId,
       nomor_mc: validated.nomorMc || null,
       status_matching: validated.statusMatching,
@@ -1200,7 +1230,7 @@ export async function updateContinuousReport(
           data.operatorId && !isNaN(parseInt(data.operatorId))
             ? parseInt(data.operatorId)
             : null,
-        group_id: data.groupId,
+        group_id: normalizeGroupId(data.groupId),
         design_id: data.designId,
         nomor_mc: data.nomorMc || null,
         course: data.course || null,
@@ -2269,7 +2299,7 @@ export async function addMissingFinishReport(params: {
       tgl: newTgl,
       tanggal_jam: newTanggalJam,
       operator_id: refHeader.operator_id,
-      group_id: refHeader.group_id,
+      group_id: normalizeGroupId(refHeader.group_id),
       design_id: refHeader.design_id,
       nomor_mc: nomorMcClean,
       potongan_ke: potonganKeNum,

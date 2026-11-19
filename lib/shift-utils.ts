@@ -7,6 +7,49 @@
  */
 
 /**
+ * Normalizes any group input (number, numeric string, letter, or undefined) into a numeric group_id:
+ * 1 (for A / 1), 2 (for B / 2), 3 (for C / 3).
+ * If undefined or invalid, falls back to operatorShift ("A" -> 1, "B" -> 2, "C" -> 3) or defaultGroup (default: 1).
+ */
+export function normalizeGroupId(
+  rawGroup: any,
+  operatorShift?: string | null,
+  fallback: number = 1
+): number {
+  if (typeof rawGroup === "number" && !isNaN(rawGroup) && rawGroup >= 1 && rawGroup <= 3) {
+    return rawGroup;
+  }
+  const s = String(rawGroup || "").trim().toUpperCase();
+  if (s === "1" || s === "A" || s === "GRUP A" || s === "SHIFT A") return 1;
+  if (s === "2" || s === "B" || s === "GRUP B" || s === "SHIFT B") return 2;
+  if (s === "3" || s === "C" || s === "GRUP C" || s === "SHIFT C") return 3;
+
+  if (operatorShift) {
+    const sh = operatorShift.trim().toUpperCase();
+    if (sh === "1" || sh === "A") return 1;
+    if (sh === "2" || sh === "B") return 2;
+    if (sh === "3" || sh === "C") return 3;
+  }
+
+  const parsed = parseInt(s, 10);
+  if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) return parsed;
+
+  return fallback;
+}
+
+/**
+ * Normalizes any group input into a group letter: "A", "B", or "C".
+ */
+export function normalizeGroupName(
+  rawGroup: any,
+  operatorShift?: string | null,
+  fallback: "A" | "B" | "C" = "A"
+): "A" | "B" | "C" {
+  const id = normalizeGroupId(rawGroup, operatorShift, fallback === "B" ? 2 : fallback === "C" ? 3 : 1);
+  return id === 2 ? "B" : id === 3 ? "C" : "A";
+}
+
+/**
  * Safely parses any date/time string into a Date object correctly evaluated in WIB (Asia/Jakarta +07:00).
  */
 export function parseAsWibDate(dateInput: Date | string | number): Date {
