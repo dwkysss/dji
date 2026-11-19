@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
@@ -19,11 +21,13 @@ import android.os.Environment;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.ViewGroup;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import com.getcapacitor.BridgeActivity;
 
@@ -37,11 +41,15 @@ public class MainActivity extends BridgeActivity {
     private long lastBackPressedTime = 0;
     private int secretCornerTapCount = 0;
     private long lastCornerTapTime = 0;
+    private TextView batteryIndicatorView;
+    private int batteryTapCount = 0;
+    private long lastBatteryTapTime = 0;
 
     private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (Intent.ACTION_BATTERY_LOW.equals(intent.getAction())) {
+            String action = intent != null ? intent.getAction() : null;
+            if (Intent.ACTION_BATTERY_LOW.equals(action)) {
                 runOnUiThread(() -> {
                     new AlertDialog.Builder(MainActivity.this)
                         .setTitle("⚠️ Peringatan: Baterai Lemah")
@@ -50,6 +58,7 @@ public class MainActivity extends BridgeActivity {
                         .show();
                 });
             }
+            updateBatteryDisplay();
         }
     };
 
@@ -94,9 +103,8 @@ public class MainActivity extends BridgeActivity {
         runOnUiThread(() -> {
             try {
                 hideSystemBars();
-                // Pastikan Screen Pinning (Lock Task) dimatikan agar status bar/notifikasi bebas ditarik dari atas
-                if (isLockTaskActive()) {
-                    stopLockTask();
+                if (!isLockTaskActive()) {
+                    startLockTask();
                 }
             } catch (Exception ignored) {}
         });
@@ -107,6 +115,101 @@ public class MainActivity extends BridgeActivity {
             try {
                 if (isLockTaskActive()) {
                     stopLockTask();
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private void setupNativeBatteryIndicator() {
+        runOnUiThread(() -> {
+            try {
+                ViewGroup root = (ViewGroup) findViewById(android.R.id.content);
+                if (root == null) return;
+
+                if (batteryIndicatorView != null && batteryIndicatorView.getParent() != null) {
+                    ((ViewGroup) batteryIndicatorView.getParent()).removeView(batteryIndicatorView);
+                }
+
+                batteryIndicatorView = new TextView(this);
+                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+                params.gravity = Gravity.TOP | Gravity.END;
+                int marginH = (int) (14 * getResources().getDisplayMetrics().density);
+                int marginV = (int) (10 * getResources().getDisplayMetrics().density);
+                params.setMargins(0, marginV, marginH, 0);
+                batteryIndicatorView.setLayoutParams(params);
+
+                int padH = (int) (12 * getResources().getDisplayMetrics().density);
+                int padV = (int) (6 * getResources().getDisplayMetrics().density);
+                batteryIndicatorView.setPadding(padH, padV, padH, padV);
+                batteryIndicatorView.setTextSize(13);
+                batteryIndicatorView.setTypeface(Typeface.DEFAULT_BOLD);
+
+                GradientDrawable bg = new GradientDrawable();
+                bg.setShape(GradientDrawable.RECTANGLE);
+                bg.setCornerRadius(50 * getResources().getDisplayMetrics().density);
+                bg.setColor(Color.parseColor("#F8FAFC"));
+                bg.setStroke((int) (1.5 * getResources().getDisplayMetrics().density), Color.parseColor("#94A3B8"));
+                batteryIndicatorView.setBackground(bg);
+                batteryIndicatorView.setElevation(30 * getResources().getDisplayMetrics().density);
+                batteryIndicatorView.setText("🔋 --%");
+                batteryIndicatorView.setTextColor(Color.parseColor("#0F172A"));
+
+                // Jika diklik 5x cepat: buka dialog keluar PIN!
+                batteryIndicatorView.setOnClickListener(v -> {
+                    long now = System.currentTimeMillis();
+                    if (now - lastBatteryTapTime < 2000) {
+                        batteryTapCount++;
+                    } else {
+                        batteryTapCount = 1;
+                    }
+                    lastBatteryTapTime = now;
+
+                    if (batteryTapCount >= 5) {
+                        batteryTapCount = 0;
+                        showExitPinDialog();
+                    } else {
+                        updateBatteryDisplay();
+                        Toast.makeText(MainActivity.this, "Status: " + batteryIndicatorView.getText(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+
+                root.addView(batteryIndicatorView);
+                updateBatteryDisplay();
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private void updateBatteryDisplay() {
+        if (batteryIndicatorView == null) return;
+        runOnUiThread(() -> {
+            try {
+                IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+                Intent batteryStatus = registerReceiver(null, ifilter);
+                if (batteryStatus != null) {
+                    int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                    int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                    int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                    boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL;
+
+                    if (level >= 0 && scale > 0) {
+                        int pct = Math.round((level / (float) scale) * 100);
+                        if (isCharging) {
+                            batteryIndicatorView.setText("⚡ " + pct + "%");
+                            batteryIndicatorView.setTextColor(Color.parseColor("#15803D")); // Hijau
+                        } else if (pct <= 15) {
+                            batteryIndicatorView.setText("🪫 " + pct + "%");
+                            batteryIndicatorView.setTextColor(Color.parseColor("#DC2626")); // Merah
+                        } else if (pct <= 30) {
+                            batteryIndicatorView.setText("🔋 " + pct + "%");
+                            batteryIndicatorView.setTextColor(Color.parseColor("#D97706")); // Oranye
+                        } else {
+                            batteryIndicatorView.setText("🔋 " + pct + "%");
+                            batteryIndicatorView.setTextColor(Color.parseColor("#0F172A")); // Slate
+                        }
+                    }
                 }
             } catch (Exception ignored) {}
         });
@@ -270,7 +373,9 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         try {
             getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_LOW);
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(Intent.ACTION_BATTERY_LOW);
+            filter.addAction(Intent.ACTION_BATTERY_CHANGED);
             registerReceiver(batteryReceiver, filter);
         } catch (Exception ignored) {}
 
@@ -278,6 +383,7 @@ public class MainActivity extends BridgeActivity {
         configureWebViewCache();
         configureAppInterface();
         setupWebViewAutoRecovery();
+        setupNativeBatteryIndicator();
 
         if (isKioskAutoEnabled()) {
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 800);
@@ -299,11 +405,10 @@ public class MainActivity extends BridgeActivity {
         hideSystemBars();
         configureWebViewCache();
         configureAppInterface();
+        updateBatteryDisplay();
 
-        if (isLockTaskActive()) {
-            try {
-                stopLockTask();
-            } catch (Exception ignored) {}
+        if (isKioskAutoEnabled() && !isLockTaskActive()) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 500);
         }
 
         // Jika saat layar dinyalakan halaman sedang blank / error, muat ulang otomatis saat online
