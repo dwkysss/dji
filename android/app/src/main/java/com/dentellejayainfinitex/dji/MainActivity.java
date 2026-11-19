@@ -14,6 +14,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Button;
@@ -27,12 +28,20 @@ public class MainActivity extends BridgeActivity {
     private static final String PREF_LOCK = "dji_kiosk_lock_prefs";
     private static final String KEY_PIN = "kiosk_pin";
     private static final String KEY_KIOSK_AUTO = "kiosk_auto_lock";
-    private static final String DEFAULT_PIN = "2608";
+    private static final String DEFAULT_PIN = "784562";
     private boolean isSupervisorExiting = false;
+    private long lastBackPressedTime = 0;
+    private int secretCornerTapCount = 0;
+    private long lastCornerTapTime = 0;
 
     private String getSavedPin() {
         SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
-        return prefs.getString(KEY_PIN, DEFAULT_PIN);
+        String pin = prefs.getString(KEY_PIN, DEFAULT_PIN);
+        if ("2608".equals(pin)) {
+            pin = DEFAULT_PIN;
+            prefs.edit().putString(KEY_PIN, DEFAULT_PIN).apply();
+        }
+        return pin;
     }
 
     private void savePin(String pin) {
@@ -137,7 +146,7 @@ public class MainActivity extends BridgeActivity {
 
                 final EditText input = new EditText(this);
                 input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-                input.setHint("PIN (Default: 2608)");
+                input.setHint("Masukkan PIN");
                 input.setTextSize(20);
                 input.setGravity(Gravity.CENTER);
                 container.addView(input);
@@ -157,7 +166,7 @@ public class MainActivity extends BridgeActivity {
                     btnExit.setOnClickListener(v -> {
                         String entered = input.getText().toString().trim();
                         String savedPin = getSavedPin();
-                        if (entered.equals(savedPin) || entered.equals("2608") || entered.equals("9999")) {
+                        if (entered.equals(savedPin) || entered.equals("784562")) {
                             dialog.dismiss();
                             isSupervisorExiting = true;
                             stopKioskMode();
@@ -173,7 +182,7 @@ public class MainActivity extends BridgeActivity {
                     btnChange.setOnClickListener(v -> {
                         String entered = input.getText().toString().trim();
                         String savedPin = getSavedPin();
-                        if (entered.equals(savedPin) || entered.equals("2608") || entered.equals("9999")) {
+                        if (entered.equals(savedPin) || entered.equals("784562")) {
                             dialog.dismiss();
                             showChangePinDialog();
                         } else {
@@ -479,7 +488,49 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        try {
+            // 1. Gesture 4 jari sekaligus: Buka dialog keluar supervisor
+            if (ev.getPointerCount() >= 4 && ev.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN) {
+                showExitPinDialog();
+            }
+
+            // 2. Secret Corner: Ketuk sudut kanan atas layar 5x dalam 3 detik untuk membuka dialog PIN
+            if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+                float screenWidth = getResources().getDisplayMetrics().widthPixels;
+                float density = getResources().getDisplayMetrics().density;
+                float cornerSize = 100 * density;
+
+                if (ev.getX() >= (screenWidth - cornerSize) && ev.getY() <= cornerSize) {
+                    long now = System.currentTimeMillis();
+                    if (now - lastCornerTapTime < 3000) {
+                        secretCornerTapCount++;
+                    } else {
+                        secretCornerTapCount = 1;
+                    }
+                    lastCornerTapTime = now;
+
+                    if (secretCornerTapCount >= 5) {
+                        secretCornerTapCount = 0;
+                        showExitPinDialog();
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return super.dispatchTouchEvent(ev);
+    }
+
+    @Override
     public void onBackPressed() {
+        long now = System.currentTimeMillis();
+        // Jika ditekan 2x cepat (dalam 1.5 detik), langsung buka dialog PIN darurat dari halaman manapun
+        if (now - lastBackPressedTime < 1500) {
+            showExitPinDialog();
+            return;
+        }
+        lastBackPressedTime = now;
+
         try {
             if (getBridge() != null && getBridge().getWebView() != null) {
                 WebView webView = getBridge().getWebView();
