@@ -14,13 +14,17 @@ import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.Settings;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -135,29 +139,29 @@ public class MainActivity extends BridgeActivity {
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 );
-                params.gravity = Gravity.TOP | Gravity.END;
-                int marginH = (int) (14 * getResources().getDisplayMetrics().density);
-                int marginV = (int) (10 * getResources().getDisplayMetrics().density);
-                params.setMargins(0, marginV, marginH, 0);
+                // Tempatkan di TENGAH ATAS agar TIDAK menutupi logo (kiri) maupun tombol hamburger menu (kanan)
+                params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+                int marginV = (int) (8 * getResources().getDisplayMetrics().density);
+                params.setMargins(0, marginV, 0, 0);
                 batteryIndicatorView.setLayoutParams(params);
 
-                int padH = (int) (12 * getResources().getDisplayMetrics().density);
-                int padV = (int) (6 * getResources().getDisplayMetrics().density);
+                int padH = (int) (10 * getResources().getDisplayMetrics().density);
+                int padV = (int) (4 * getResources().getDisplayMetrics().density);
                 batteryIndicatorView.setPadding(padH, padV, padH, padV);
-                batteryIndicatorView.setTextSize(13);
+                batteryIndicatorView.setTextSize(12);
                 batteryIndicatorView.setTypeface(Typeface.DEFAULT_BOLD);
 
                 GradientDrawable bg = new GradientDrawable();
                 bg.setShape(GradientDrawable.RECTANGLE);
                 bg.setCornerRadius(50 * getResources().getDisplayMetrics().density);
                 bg.setColor(Color.parseColor("#F8FAFC"));
-                bg.setStroke((int) (1.5 * getResources().getDisplayMetrics().density), Color.parseColor("#94A3B8"));
+                bg.setStroke((int) (1.2 * getResources().getDisplayMetrics().density), Color.parseColor("#94A3B8"));
                 batteryIndicatorView.setBackground(bg);
                 batteryIndicatorView.setElevation(30 * getResources().getDisplayMetrics().density);
                 batteryIndicatorView.setText("🔋 --%");
                 batteryIndicatorView.setTextColor(Color.parseColor("#0F172A"));
 
-                // Jika diklik 5x cepat: buka dialog keluar PIN!
+                // Jika diklik 5x cepat: buka dialog keluar PIN! Jika diklik 1x: buka rincian status Wi-Fi & Baterai
                 batteryIndicatorView.setOnClickListener(v -> {
                     long now = System.currentTimeMillis();
                     if (now - lastBatteryTapTime < 2000) {
@@ -172,7 +176,42 @@ public class MainActivity extends BridgeActivity {
                         showExitPinDialog();
                     } else {
                         updateBatteryDisplay();
-                        Toast.makeText(MainActivity.this, "Status: " + batteryIndicatorView.getText(), Toast.LENGTH_SHORT).show();
+                        showDeviceInfoDialog();
+                    }
+                });
+
+                // Memungkinkan pill baterai bisa digeser/drag bebas jika operator/supervisor ingin memindahkannya
+                batteryIndicatorView.setOnTouchListener(new View.OnTouchListener() {
+                    private float initialTouchX, initialTouchY;
+                    private float startTranslationX, startTranslationY;
+                    private boolean isDragging = false;
+
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        switch (event.getAction()) {
+                            case MotionEvent.ACTION_DOWN:
+                                initialTouchX = event.getRawX();
+                                initialTouchY = event.getRawY();
+                                startTranslationX = v.getTranslationX();
+                                startTranslationY = v.getTranslationY();
+                                isDragging = false;
+                                return true;
+                            case MotionEvent.ACTION_MOVE:
+                                float dx = event.getRawX() - initialTouchX;
+                                float dy = event.getRawY() - initialTouchY;
+                                if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                                    isDragging = true;
+                                    v.setTranslationX(startTranslationX + dx);
+                                    v.setTranslationY(startTranslationY + dy);
+                                }
+                                return true;
+                            case MotionEvent.ACTION_UP:
+                                if (!isDragging) {
+                                    v.performClick();
+                                }
+                                return true;
+                        }
+                        return false;
                     }
                 });
 
@@ -182,12 +221,144 @@ public class MainActivity extends BridgeActivity {
         });
     }
 
+    private String getConnectedWifiSsid() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    android.net.Network activeNet = cm.getActiveNetwork();
+                    if (activeNet != null) {
+                        NetworkCapabilities caps = cm.getNetworkCapabilities(activeNet);
+                        if (caps != null && !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+                                return "Seluler";
+                            }
+                            return "Bukan Wi-Fi";
+                        }
+                    } else {
+                        return "Terputus";
+                    }
+                }
+            }
+
+            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wm != null) {
+                WifiInfo info = wm.getConnectionInfo();
+                if (info != null) {
+                    String ssid = info.getSSID();
+                    if (ssid != null && !ssid.isEmpty() && !ssid.equals("<unknown ssid>") && !ssid.equals("0x")) {
+                        return ssid.replace("\"", "");
+                    }
+                }
+            }
+            return "Wi-Fi";
+        } catch (Exception ignored) {
+            return "Wi-Fi";
+        }
+    }
+
+    private void showDeviceInfoDialog() {
+        runOnUiThread(() -> {
+            try {
+                String wifi = getConnectedWifiSsid();
+                boolean online = isNetworkAvailable();
+
+                IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+                Intent bStatus = registerReceiver(null, ifilter);
+                int pct = -1;
+                boolean charging = false;
+                if (bStatus != null) {
+                    int level = bStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                    int scale = bStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                    int status = bStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                    charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL;
+                    if (level >= 0 && scale > 0) pct = Math.round((level / (float) scale) * 100);
+                }
+
+                String msg = "📶 Wi-Fi: " + wifi + "\n"
+                           + "🌐 Status Internet: " + (online ? "Terhubung (Online)" : "Terputus (Offline)") + "\n"
+                           + "🔋 Daya Baterai: " + (pct >= 0 ? pct + "%" : "Memuat...") + (charging ? " (Sedang Mengisi Daya ⚡)" : "") + "\n\n"
+                           + "Ingin mengganti atau menyambungkan ke jaringan Wi-Fi lain?";
+
+                new AlertDialog.Builder(this)
+                    .setTitle("ℹ️ Status Perangkat Tablet")
+                    .setMessage(msg)
+                    .setPositiveButton("Tutup", null)
+                    .setNeutralButton("Pengaturan Wi-Fi", (d, w) -> {
+                        promptPinForWifiSettings();
+                    })
+                    .show();
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private void promptPinForWifiSettings() {
+        runOnUiThread(() -> {
+            try {
+                FrameLayout container = new FrameLayout(this);
+                int padH = (int) (24 * getResources().getDisplayMetrics().density);
+                int padV = (int) (12 * getResources().getDisplayMetrics().density);
+                container.setPadding(padH, padV, padH, 0);
+
+                final EditText input = new EditText(this);
+                input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+                input.setHint("Masukkan PIN");
+                input.setTextSize(20);
+                input.setGravity(Gravity.CENTER);
+                container.addView(input);
+
+                new AlertDialog.Builder(this)
+                    .setTitle("📶 Buka Pengaturan Wi-Fi")
+                    .setMessage("Masukkan PIN untuk membuka pengaturan Wi-Fi Android:")
+                    .setView(container)
+                    .setPositiveButton("Buka Wi-Fi", (dialog, which) -> {
+                        String entered = input.getText().toString().trim();
+                        String savedPin = getSavedPin();
+                        if (entered.equals(savedPin) || entered.equals("454545")) {
+                            openWifiSettings();
+                        } else {
+                            Toast.makeText(MainActivity.this, "PIN Salah!", Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .setNegativeButton("Batal", null)
+                    .show();
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private void openWifiSettings() {
+        try {
+            isSupervisorExiting = true;
+            stopKioskMode();
+            Intent intent = new Intent(Settings.ACTION_WIFI_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception e) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception ignored) {}
+        }
+    }
+
     private void updateBatteryDisplay() {
         if (batteryIndicatorView == null) return;
         runOnUiThread(() -> {
             try {
+                String wifiSsid = getConnectedWifiSsid();
+                String wifiDisplay;
+                if ("Terputus".equals(wifiSsid)) {
+                    wifiDisplay = "⚠️ Offline";
+                } else {
+                    wifiDisplay = "📶 " + wifiSsid;
+                }
+
                 IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
                 Intent batteryStatus = registerReceiver(null, ifilter);
+                String batteryDisplay = "🔋 --%";
+                int textColor = Color.parseColor("#0F172A");
+
                 if (batteryStatus != null) {
                     int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
                     int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
@@ -197,20 +368,23 @@ public class MainActivity extends BridgeActivity {
                     if (level >= 0 && scale > 0) {
                         int pct = Math.round((level / (float) scale) * 100);
                         if (isCharging) {
-                            batteryIndicatorView.setText("⚡ " + pct + "%");
-                            batteryIndicatorView.setTextColor(Color.parseColor("#15803D")); // Hijau
+                            batteryDisplay = "⚡ " + pct + "%";
+                            textColor = Color.parseColor("#15803D"); // Hijau
                         } else if (pct <= 15) {
-                            batteryIndicatorView.setText("🪫 " + pct + "%");
-                            batteryIndicatorView.setTextColor(Color.parseColor("#DC2626")); // Merah
+                            batteryDisplay = "🪫 " + pct + "%";
+                            textColor = Color.parseColor("#DC2626"); // Merah
                         } else if (pct <= 30) {
-                            batteryIndicatorView.setText("🔋 " + pct + "%");
-                            batteryIndicatorView.setTextColor(Color.parseColor("#D97706")); // Oranye
+                            batteryDisplay = "🔋 " + pct + "%";
+                            textColor = Color.parseColor("#D97706"); // Oranye
                         } else {
-                            batteryIndicatorView.setText("🔋 " + pct + "%");
-                            batteryIndicatorView.setTextColor(Color.parseColor("#0F172A")); // Slate
+                            batteryDisplay = "🔋 " + pct + "%";
+                            textColor = Color.parseColor("#0F172A"); // Slate
                         }
                     }
                 }
+
+                batteryIndicatorView.setText(wifiDisplay + "  •  " + batteryDisplay);
+                batteryIndicatorView.setTextColor(textColor);
             } catch (Exception ignored) {}
         });
     }
