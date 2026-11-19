@@ -28,6 +28,7 @@ public class MainActivity extends BridgeActivity {
     private static final String KEY_PIN = "kiosk_pin";
     private static final String KEY_KIOSK_AUTO = "kiosk_auto_lock";
     private static final String DEFAULT_PIN = "2608";
+    private boolean isSupervisorExiting = false;
 
     private String getSavedPin() {
         SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
@@ -41,7 +42,7 @@ public class MainActivity extends BridgeActivity {
 
     private boolean isKioskAutoEnabled() {
         SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
-        return prefs.getBoolean(KEY_KIOSK_AUTO, false);
+        return prefs.getBoolean(KEY_KIOSK_AUTO, true);
     }
 
     private void setKioskAutoEnabled(boolean enabled) {
@@ -64,13 +65,12 @@ public class MainActivity extends BridgeActivity {
     public void startKioskMode() {
         runOnUiThread(() -> {
             try {
+                hideSystemBars();
                 if (!isLockTaskActive()) {
                     startLockTask();
-                    Toast.makeText(MainActivity.this, "🔒 Mode Kiosk Aktif: Tablet Terkunci", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "🔒 Mode Kiosk Aktif: Tombol Home & Kotak Terkunci", Toast.LENGTH_SHORT).show();
                 }
-            } catch (Exception e) {
-                Toast.makeText(MainActivity.this, "Mode Kiosk: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
+            } catch (Exception ignored) {}
         });
     }
 
@@ -83,6 +83,48 @@ public class MainActivity extends BridgeActivity {
                 }
             } catch (Exception ignored) {}
         });
+    }
+
+    private void hideSystemBars() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.view.WindowInsetsController controller = getWindow().getInsetsController();
+                if (controller != null) {
+                    controller.hide(android.view.WindowInsets.Type.navigationBars() | android.view.WindowInsets.Type.statusBars());
+                    controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                }
+            } else {
+                getWindow().getDecorView().setSystemUiVisibility(
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                );
+            }
+        } catch (Exception ignored) {}
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            hideSystemBars();
+        }
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (isKioskAutoEnabled() && !isSupervisorExiting) {
+            // Pengguna menekan tombol Home (bulat) atau Recent Apps (kotak) -> Tarik kembali seketika!
+            try {
+                Intent intent = new Intent(this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(intent);
+            } catch (Exception ignored) {}
+        }
     }
 
     private void showExitPinDialog() {
@@ -117,6 +159,7 @@ public class MainActivity extends BridgeActivity {
                         String savedPin = getSavedPin();
                         if (entered.equals(savedPin) || entered.equals("2608") || entered.equals("9999")) {
                             dialog.dismiss();
+                            isSupervisorExiting = true;
                             stopKioskMode();
                             Toast.makeText(MainActivity.this, "Aplikasi ditutup.", Toast.LENGTH_SHORT).show();
                             finishAffinity();
@@ -182,19 +225,26 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        hideSystemBars();
         configureWebViewCache();
         configureAppInterface();
         setupWebViewAutoRecovery();
+
+        if (isKioskAutoEnabled()) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 800);
+        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        isSupervisorExiting = false;
+        hideSystemBars();
         configureWebViewCache();
         configureAppInterface();
 
         if (isKioskAutoEnabled() && !isLockTaskActive()) {
-            startKioskMode();
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 500);
         }
 
         // Jika saat layar dinyalakan halaman sedang blank / error, muat ulang otomatis saat online
