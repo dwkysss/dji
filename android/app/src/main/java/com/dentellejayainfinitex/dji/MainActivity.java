@@ -2,13 +2,17 @@ package com.dentellejayainfinitex.dji;
 
 import android.app.AlertDialog;
 import android.app.DownloadManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -33,6 +37,21 @@ public class MainActivity extends BridgeActivity {
     private long lastBackPressedTime = 0;
     private int secretCornerTapCount = 0;
     private long lastCornerTapTime = 0;
+
+    private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_BATTERY_LOW.equals(intent.getAction())) {
+                runOnUiThread(() -> {
+                    new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("⚠️ Peringatan: Baterai Lemah")
+                        .setMessage("Baterai tablet hampir habis! Segera hubungkan kabel charger ke tablet agar tidak mati saat proses kerja.")
+                        .setPositiveButton("OK, Mengerti", null)
+                        .show();
+                });
+            }
+        }
+    };
 
     private String getSavedPin() {
         SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
@@ -96,19 +115,35 @@ public class MainActivity extends BridgeActivity {
 
     private void hideSystemBars() {
         try {
+            // Berikan warna latar belakang status bar putih dengan ikon kontras
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                getWindow().setStatusBarColor(Color.WHITE);
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 android.view.WindowInsetsController controller = getWindow().getInsetsController();
                 if (controller != null) {
-                    controller.hide(android.view.WindowInsets.Type.navigationBars() | android.view.WindowInsets.Type.statusBars());
+                    // Sembunyikan HANYA tombol navigasi bawah (Home, Recents, Back)
+                    controller.hide(android.view.WindowInsets.Type.navigationBars());
+                    // Status bar (atas: baterai, jam, wifi) TETAP MUNCUL agar pengguna bisa melihat status baterai
+                    controller.show(android.view.WindowInsets.Type.statusBars());
                     controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                    controller.setSystemBarsAppearance(
+                        android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                        android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                    );
                 }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                getWindow().getDecorView().setSystemUiVisibility(
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                );
             } else {
                 getWindow().getDecorView().setSystemUiVisibility(
                     android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                     | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
                     | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 );
             }
@@ -153,7 +188,7 @@ public class MainActivity extends BridgeActivity {
 
                 AlertDialog dialog = new AlertDialog.Builder(this)
                         .setTitle("🔒 Kunci Aplikasi")
-                        .setMessage("Aplikasi ini dikunci. Masukkan PIN Supervisor untuk keluar dari aplikasi:")
+                        .setMessage("Aplikasi ini dikunci. Masukkan PIN untuk keluar dari aplikasi:")
                         .setView(container)
                         .setPositiveButton("Keluar Aplikasi", null)
                         .setNeutralButton("Ubah PIN", null)
@@ -213,7 +248,7 @@ public class MainActivity extends BridgeActivity {
                 container.addView(input);
 
                 new AlertDialog.Builder(this)
-                        .setTitle("🔑 Ubah PIN Supervisor")
+                        .setTitle("🔑 Ubah PIN")
                         .setMessage("Masukkan 4-6 digit PIN baru untuk kunci aplikasi:")
                         .setView(container)
                         .setPositiveButton("Simpan", (d, which) -> {
@@ -234,6 +269,12 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        try {
+            getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_LOW);
+            registerReceiver(batteryReceiver, filter);
+        } catch (Exception ignored) {}
+
         hideSystemBars();
         configureWebViewCache();
         configureAppInterface();
@@ -242,6 +283,14 @@ public class MainActivity extends BridgeActivity {
         if (isKioskAutoEnabled()) {
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 800);
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        try {
+            unregisterReceiver(batteryReceiver);
+        } catch (Exception ignored) {}
+        super.onDestroy();
     }
 
     @Override
@@ -363,6 +412,35 @@ public class MainActivity extends BridgeActivity {
                     @android.webkit.JavascriptInterface
                     public boolean isAutoKioskEnabled() {
                         return isKioskAutoEnabled();
+                    }
+
+                    @android.webkit.JavascriptInterface
+                    public int getBatteryLevel() {
+                        try {
+                            IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+                            Intent batteryStatus = registerReceiver(null, ifilter);
+                            if (batteryStatus != null) {
+                                int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                                int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                                if (level >= 0 && scale > 0) {
+                                    return Math.round((level / (float) scale) * 100);
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                        return -1;
+                    }
+
+                    @android.webkit.JavascriptInterface
+                    public boolean isBatteryCharging() {
+                        try {
+                            IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+                            Intent batteryStatus = registerReceiver(null, ifilter);
+                            if (batteryStatus != null) {
+                                int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                                return status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL;
+                            }
+                        } catch (Exception ignored) {}
+                        return false;
                     }
                 }, "AndroidAppInfo");
 
