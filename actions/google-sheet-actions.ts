@@ -41,7 +41,28 @@ export async function getGoogleSheetConfigs(): Promise<{
       return { success: false, error: error.message };
     }
 
-    return { success: true, data: data as GoogleSheetConfigItem[] };
+    const list = (data || []) as GoogleSheetConfigItem[];
+
+    // Pastikan entri konfigurasi Laporan Per Desain tersedia otomatis di halaman Admin > Integrasi Google Sheets
+    if (!list.some((item) => item.id === "design_report")) {
+      const defaultDesignConfig: GoogleSheetConfigItem = {
+        id: "design_report",
+        report_name: "Laporan Per Desain (Rekap Efisiensi per Mesin)",
+        spreadsheet_id: "13sfmyL16FrzTGormUKUrykUv_OykXoQrT2Kikm_ieBg",
+        web_app_url: "",
+        description:
+          "Sinkronisasi Laporan Per Desain ke tab masing-masing mesin (R1, R2, R11, R12, T2A, dll.) menggunakan blok bertanda per periode agar data historis manual tetap aman.",
+        is_active: true,
+      };
+      const { error: seedErr } = await supabase
+        .from("google_sheet_configs")
+        .upsert(defaultDesignConfig, { onConflict: "id" });
+      if (!seedErr) {
+        list.push(defaultDesignConfig);
+      }
+    }
+
+    return { success: true, data: list };
   } catch (err: any) {
     console.error("Error in getGoogleSheetConfigs:", err);
     return { success: false, error: err.message || "Gagal mengambil konfigurasi Google Sheets" };
@@ -1058,6 +1079,280 @@ export async function syncAllDailyInspectMending(): Promise<{
     };
   }
 }
+
+// ============================================================================
+// LAPORAN PER DESAIN (REKAP EFISIENSI PER MESIN) - GOOGLE SHEETS SYNC
+// ============================================================================
+
+const MONTH_NAMES_ID = [
+  "",
+  "JANUARI",
+  "FEBRUARI",
+  "MARET",
+  "APRIL",
+  "MEI",
+  "JUNI",
+  "JULI",
+  "AGUSTUS",
+  "SEPTEMBER",
+  "OKTOBER",
+  "NOVEMBER",
+  "DESEMBER",
+];
+
+function buildDesignReportPeriodMeta(year: string, months: string[]) {
+  const numericMonths = months
+    .map((m) => parseInt(m, 10))
+    .filter((n) => !isNaN(n) && n >= 1 && n <= 12)
+    .sort((a, b) => a - b);
+
+  if (numericMonths.length === 0 || numericMonths.length === 12) {
+    return {
+      periodKey: `${year}-ALL`,
+      periodLabel: `TAHUN ${year}`,
+    };
+  }
+  if (numericMonths.length === 1) {
+    const m = numericMonths[0];
+    return {
+      periodKey: `${year}-${String(m).padStart(2, "0")}`,
+      periodLabel: `${MONTH_NAMES_ID[m]} ${year}`,
+    };
+  }
+  const keyPart = numericMonths.map((m) => String(m).padStart(2, "0")).join(",");
+  const labelPart = numericMonths.map((m) => MONTH_NAMES_ID[m]).join(" - ");
+  return {
+    periodKey: `${year}-${keyPart}`,
+    periodLabel: `${labelPart} ${year}`,
+  };
+}
+
+/**
+ * Sinkronisasi Laporan Per Desain untuk 1 mesin ke tab mesin terkait di Google Sheets
+ * Menggunakan strategi blok bertanda [SYNC:YYYY-MM] agar data historis manual tetap aman.
+ */
+export async function syncDesignReportToGoogleSheet(params: {
+  machine: string;
+  year: string;
+  months: string[];
+  designFilter?: string;
+  includeCrossMonth?: boolean;
+}): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+  designCount?: number;
+  rowCount?: number;
+}> {
+  try {
+    const { getDesignReportData } = await import("@/actions/design-report-actions");
+    const mc = params.machine.trim().toUpperCase();
+    const res = await getDesignReportData(
+      mc,
+      params.year,
+      params.months,
+      params.designFilter || "ALL",
+      params.includeCrossMonth !== false
+    );
+
+    if (!res.success) {
+      return { success: false, error: res.error || `Gagal mengambil data Laporan Per Desain mesin ${mc}` };
+    }
+
+    const groups = res.data || [];
+    if (groups.length === 0) {
+      return {
+        success: true,
+        message: `Mesin ${mc}: tidak ada data potongan pada periode ini (dilewati).`,
+        designCount: 0,
+        rowCount: 0,
+      };
+    }
+
+    const { periodKey, periodLabel } = buildDesignReportPeriodMeta(params.year, params.months);
+    const totalRows = groups.reduce((acc, g) => acc + g.rows.length, 0);
+
+    const payload = {
+      action: "sync_design_report",
+      machine: mc,
+      year: params.year,
+      months: params.months,
+      periodKey,
+      periodLabel,
+      isMeteran: !!res.isMeteran,
+      isMultiPcs: !!res.isMultiPcs,
+      groups,
+      grandSummary: res.grandSummary || null,
+      syncedAt: new Date().toISOString(),
+    };
+
+    const sendRes = await sendPayloadToGoogleSheet("design_report", payload);
+    if (!sendRes.success) {
+      return { success: false, error: sendRes.error || `Gagal mengirim data mesin ${mc} ke Google Sheets.` };
+    }
+
+    return {
+      success: true,
+      message: sendRes.message || `Mesin ${mc} berhasil disinkronkan (${groups.length} desain, ${totalRows} baris).`,
+      designCount: groups.length,
+      rowCount: totalRows,
+    };
+  } catch (err: any) {
+    console.error("Error in syncDesignReportToGoogleSheet:", err);
+    return {
+      success: false,
+      error: err.message || "Terjadi kesalahan saat sinkronisasi Laporan Per Desain.",
+    };
+  }
+}
+
+/**
+ * Sinkronisasi Laporan Per Desain untuk SELURUH mesin terdaftar secara berurutan
+ */
+export async function syncAllDesignReportMachines(
+  year?: string,
+  months?: string[],
+  includeCrossMonth: boolean = true
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+  syncedMachines?: string[];
+  skippedMachines?: string[];
+  failedMachines?: { machine: string; error: string }[];
+}> {
+  try {
+    const { REGISTERED_MACHINES } = await import("@/lib/constants");
+    const now = new Date();
+    const targetYear = year || now.getFullYear().toString();
+    const targetMonths = months && months.length > 0 ? months : [(now.getMonth() + 1).toString()];
+
+    // Pastikan URL Web App sudah dikonfigurasi sebelum memulai loop semua mesin
+    const endpoint = await getGoogleSheetEndpoint("design_report");
+    if (!endpoint.url) {
+      return {
+        success: false,
+        error:
+          "URL Web App untuk 'Laporan Per Desain' belum diatur di menu Admin > Integrasi Google Sheets.",
+      };
+    }
+
+    const syncedMachines: string[] = [];
+    const skippedMachines: string[] = [];
+    const failedMachines: { machine: string; error: string }[] = [];
+
+    for (const mc of REGISTERED_MACHINES) {
+      const res = await syncDesignReportToGoogleSheet({
+        machine: mc,
+        year: targetYear,
+        months: targetMonths,
+        includeCrossMonth,
+      });
+
+      if (!res.success) {
+        failedMachines.push({ machine: mc, error: res.error || "Unknown error" });
+      } else if ((res.designCount || 0) === 0) {
+        skippedMachines.push(mc);
+      } else {
+        syncedMachines.push(mc);
+      }
+    }
+
+    if (failedMachines.length > 0 && syncedMachines.length === 0) {
+      return {
+        success: false,
+        error: `Gagal sinkronisasi semua mesin. Contoh error (${failedMachines[0].machine}): ${failedMachines[0].error}`,
+        syncedMachines,
+        skippedMachines,
+        failedMachines,
+      };
+    }
+
+    const msgParts: string[] = [];
+    if (syncedMachines.length > 0) msgParts.push(`${syncedMachines.length} mesin tersinkron (${syncedMachines.join(", ")})`);
+    if (skippedMachines.length > 0) msgParts.push(`${skippedMachines.length} mesin kosong dilewati`);
+    if (failedMachines.length > 0) msgParts.push(`${failedMachines.length} gagal (${failedMachines.map((f) => f.machine).join(", ")})`);
+
+    return {
+      success: failedMachines.length === 0,
+      message: msgParts.join(" · "),
+      error: failedMachines.length > 0 ? failedMachines.map((f) => `${f.machine}: ${f.error}`).join("; ") : undefined,
+      syncedMachines,
+      skippedMachines,
+      failedMachines,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || "Gagal sinkronisasi Laporan Per Desain semua mesin.",
+    };
+  }
+}
+
+/**
+ * Mengambil pengaturan jadwal auto-sync Laporan Per Desain
+ */
+export async function getDesignReportScheduleSettings(): Promise<{
+  success: boolean;
+  time: string;
+  enabled: boolean;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("google_sheet_configs")
+      .select("web_app_url, is_active")
+      .eq("id", "schedule_design_report")
+      .single();
+
+    if (error || !data) {
+      return {
+        success: true,
+        time: "18:00",
+        enabled: true,
+      };
+    }
+
+    return {
+      success: true,
+      time: data.web_app_url || "18:00",
+      enabled: data.is_active !== false,
+    };
+  } catch {
+    return {
+      success: true,
+      time: "18:00",
+      enabled: true,
+    };
+  }
+}
+
+/**
+ * Menyimpan pengaturan jadwal auto-sync Laporan Per Desain
+ */
+export async function updateDesignReportScheduleSettings(payload: {
+  time: string;
+  enabled: boolean;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from("google_sheet_configs").upsert({
+      id: "schedule_design_report",
+      report_name: "Jadwal Auto-Sync Laporan Per Desain",
+      web_app_url: payload.time.trim(),
+      is_active: payload.enabled,
+      description: `Waktu auto-sync harian Laporan Per Desain: ${payload.time} WIB`,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) return { success: false, error: error.message };
+    notifySchedulerCacheInvalidation();
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Gagal menyimpan jadwal Laporan Per Desain" };
+  }
+}
+
 
 
 

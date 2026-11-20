@@ -323,7 +323,13 @@ export default function ContinuousHistoryDrawer({
               const seenPanelNo = new Map<string, any>();
 
               deduplicatedPanels.forEach((panel: any) => {
-                if (panel.panel_no === "METERAN") {
+                if (
+                  panel.panel_no === "METERAN" ||
+                  panel.panel_no === "Downtime Mekanik (Direct)" ||
+                  panel.panel_no === "BERHENTI" ||
+                  panel.pcs === 0 ||
+                  panel.pcs === "0"
+                ) {
                   finalPanels.push(panel);
                 } else {
                   const key = panel.panel_no;
@@ -576,7 +582,7 @@ export default function ContinuousHistoryDrawer({
                               timeStr,
                               dateStr,
                               penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
-                              shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
+                              shift: ev.shift || mp.grup || mp.groups?.nama_grup || "-",
                               durasiDisplay: formatDurationNice(durSec),
                               isMachineStop: isStopRow,
                               kategori: p.kategori || ev.kategori || "-",
@@ -686,68 +692,92 @@ export default function ContinuousHistoryDrawer({
                         </span>
                       </div>
 
-                      <div className="bg-slate-50/70 divide-y divide-slate-100">
+                      <div className="bg-white divide-y divide-slate-100">
                         {specialRows.map((row) => (
-                          <div key={row.id} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-slate-50 transition-colors">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-2 shrink-0">
-                                <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${row.isMachineStop ? "bg-rose-500" : "bg-[#0070bc]"}`}
-                                  title={row.isMachineStop ? "Laporan Mesin Mati / Stop" : "Downtime Perbaikan"}
-                                />
-                                <div className="flex flex-col">
-                                  {row.dateStr && row.dateStr !== "-" && (
-                                    <span className="text-[10px] font-bold text-slate-500 leading-tight">
-                                      {row.dateStr}
+                          <div
+                            key={row.id}
+                            className="p-3 sm:p-3.5 flex flex-col gap-2 hover:bg-slate-50/80 transition-colors"
+                          >
+                            {/* Baris 1: Waktu, Operator/Grup, Durasi & Tombol Hapus */}
+                            <div className="flex items-start sm:items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                                {/* Indikator + Tanggal & Jam */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div
+                                    className={`w-2 h-2 rounded-full shrink-0 ${row.isMachineStop ? "bg-rose-500" : "bg-[#0070bc]"}`}
+                                    title={row.isMachineStop ? "Laporan Mesin Mati / Stop" : "Downtime Perbaikan"}
+                                  />
+                                  <div className="flex flex-col">
+                                    {row.dateStr && row.dateStr !== "-" && (
+                                      <span className="text-[10px] font-bold text-slate-500 leading-tight whitespace-nowrap">
+                                        {row.dateStr}
+                                      </span>
+                                    )}
+                                    <span className="text-xs font-black text-slate-800 font-mono leading-tight whitespace-nowrap">
+                                      {row.timeStr} WIB
                                     </span>
-                                  )}
-                                  <span className="text-xs font-black text-slate-800 font-mono leading-tight">
-                                    {row.timeStr} WIB
-                                  </span>
+                                  </div>
+                                </div>
+
+                                <span className="hidden sm:inline-block w-px h-6 bg-slate-200 shrink-0" />
+
+                                {/* Avatar + Nama Operator & Grup */}
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-extrabold text-slate-700 shrink-0">
+                                    {row.penanggungJawab.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-xs font-extrabold text-slate-800 leading-tight truncate">
+                                      {row.penanggungJawab}
+                                    </span>
+                                    <span className="text-[10px] font-semibold text-slate-500 leading-tight">
+                                      Grup {row.shift}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
-                                  {row.penanggungJawab.charAt(0).toUpperCase()}
+
+                              {/* Kanan: Badge Durasi & Tombol Hapus */}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-md border shrink-0 bg-rose-50 text-rose-700 border-rose-200">
+                                  <Clock className="w-3 h-3 shrink-0" />
+                                  <span className="text-[11px] font-black whitespace-nowrap">{row.durasiDisplay}</span>
                                 </div>
-                                <div className="flex flex-col">
-                                  <span className="text-xs font-bold text-slate-800 leading-tight">{row.penanggungJawab}</span>
-                                  <span className="text-[9px] text-slate-400">Grup {row.shift}</span>
-                                </div>
+
+                                {/* Tombol Hapus Khusus Kepala Shift / Admin */}
+                                {isKepalaShiftOrAdmin && row.headerId && (
+                                  <button
+                                    type="button"
+                                    disabled={deletingHeaderId === row.headerId}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteSpecialDowntime(row.headerId, row.timeStr, row.penanggungJawab);
+                                    }}
+                                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-all cursor-pointer shrink-0 disabled:opacity-50 border border-rose-200/80 shadow-2xs"
+                                    title="Hapus Laporan Downtime Khusus (Khusus Kepala Shift / Admin)"
+                                  >
+                                    {deletingHeaderId === row.headerId ? (
+                                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-500" />
+                                    ) : (
+                                      <Trash2 className="w-3.5 h-3.5 text-rose-500 hover:scale-110 transition-transform" />
+                                    )}
+                                  </button>
+                                )}
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2 sm:ml-auto flex-wrap sm:flex-nowrap">
-                              <div className="flex items-center gap-1 px-2 py-0.5 rounded border shrink-0 bg-rose-50 text-rose-700 border-rose-200">
-                                <Clock className="w-3 h-3" />
-                                <span className="text-[11px] font-black">{row.durasiDisplay}</span>
-                              </div>
-                              <span className="px-2 py-0.5 rounded border text-[10px] font-extrabold shrink-0 bg-sky-50 border-sky-200 text-sky-700">
-                                {row.kategori === "-" ? "Problem" : (row.kategori.startsWith("Kategori") ? row.kategori : `Kategori ${row.kategori}`)}
+                            {/* Baris 2: Kategori & Rincian Masalah Lengkap (Tanpa Terpotong) */}
+                            <div className="flex items-start gap-2 pl-4 bg-slate-50/90 border border-slate-100 rounded-lg px-2.5 py-1.5">
+                              <span className="px-2 py-0.5 rounded border text-[10px] font-extrabold shrink-0 bg-sky-50 border-sky-200 text-sky-700 whitespace-nowrap">
+                                {row.kategori === "-"
+                                  ? "Problem"
+                                  : row.kategori.startsWith("Kategori")
+                                  ? row.kategori
+                                  : `Kategori ${row.kategori}`}
                               </span>
-                              <span className="text-[11px] text-slate-600 max-w-[140px] truncate" title={row.detailMasalah}>
+                              <span className="text-[11px] sm:text-xs font-medium text-slate-700 leading-snug break-words min-w-0">
                                 {row.detailMasalah}
                               </span>
-
-                              {/* Tombol Hapus Khusus Kepala Shift / Admin */}
-                              {isKepalaShiftOrAdmin && row.headerId && (
-                                <button
-                                  type="button"
-                                  disabled={deletingHeaderId === row.headerId}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteSpecialDowntime(row.headerId, row.timeStr, row.penanggungJawab);
-                                  }}
-                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-all cursor-pointer shrink-0 disabled:opacity-50 border border-rose-200/80 shadow-2xs ml-1"
-                                  title="Hapus Laporan Downtime Khusus (Khusus Kepala Shift / Admin)"
-                                >
-                                  {deletingHeaderId === row.headerId ? (
-                                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-500" />
-                                  ) : (
-                                    <Trash2 className="w-3.5 h-3.5 text-rose-500 hover:scale-110 transition-transform" />
-                                  )}
-                                </button>
-                              )}
                             </div>
                           </div>
                         ))}

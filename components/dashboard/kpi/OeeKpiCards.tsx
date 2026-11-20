@@ -5,7 +5,6 @@ import DeltaBadge from "./DeltaBadge";
 import { formatDuration } from "./kpiUtils";
 
 export interface OeeKpiCardsProps {
-  gradeLabel: string;
   stats: {
     oee: number;
     availability: number;
@@ -37,7 +36,6 @@ export interface OeeKpiCardsProps {
 }
 
 export default function OeeKpiCards({
-  gradeLabel,
   stats,
   deltas,
   activeFilter,
@@ -55,7 +53,7 @@ export default function OeeKpiCards({
 
         <div className="flex justify-between items-start relative z-10">
           <span className="text-sky-100 text-[10px] font-bold uppercase tracking-wider">
-            Overall OEE Score ({gradeLabel})
+            Overall OEE Score
           </span>
           <span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[10px] font-bold">
             OEE

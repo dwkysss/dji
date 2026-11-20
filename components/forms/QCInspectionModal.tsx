@@ -430,7 +430,7 @@ export default function QCInspectionModal({
             {/* Ambient subtle glow */}
             <div className="absolute -right-8 -bottom-8 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 relative z-10">
+            <div className="grid grid-cols-2 sm:grid-cols-[0.7fr_0.9fr_1fr_1.6fr] gap-3 sm:gap-4 relative z-10 items-center">
               {/* PCS KE */}
               <div className="sm:border-r border-white/10 pr-2">
                 <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
@@ -462,11 +462,11 @@ export default function QCInspectionModal({
               </div>
 
               {/* DESAIN */}
-              <div className="pr-2">
+              <div className="pr-1 min-w-0">
                 <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
                   DESAIN
                 </span>
-                <span className="text-lg sm:text-xl font-black text-[#38bdf8] leading-tight tracking-tight block truncate">
+                <span className="text-base sm:text-xl font-black text-[#38bdf8] leading-snug tracking-tight block break-words">
                   {headerData?.details?.[0]?.production_headers?.design_id || "-"}
                 </span>
               </div>
@@ -626,14 +626,14 @@ export default function QCInspectionModal({
             </div>
 
             {/* Bagian 3: Rincian Grade */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Grade Produksi */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-3">
-                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 pb-2 flex-wrap">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider whitespace-nowrap">
                     Total (Produksi)
                   </h4>
-                  <div className="text-[11px] font-extrabold text-slate-700 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">
+                  <div className="text-[11px] font-extrabold text-slate-700 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-sm whitespace-nowrap">
                     Keseluruhan: <span className="text-slate-900 font-black">
                       {isMeteranBatch 
                         ? `${watchedProdCeklis || totalKeseluruhanMeter || 0} Meter` 
@@ -723,11 +723,11 @@ export default function QCInspectionModal({
 
               {/* Grade QC */}
               <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-4 flex flex-col gap-3">
-                <div className="flex items-center justify-between border-b border-sky-100 pb-2">
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                <div className="flex items-center justify-between gap-2 border-b border-sky-100 pb-2 flex-wrap">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider whitespace-nowrap">
                     Total (Inspeksi QC)
                   </h4>
-                  <div className="text-[11px] font-extrabold text-sky-800 bg-white px-2.5 py-1 rounded-md border border-sky-200 shadow-sm">
+                  <div className="text-[11px] font-extrabold text-sky-800 bg-white px-2.5 py-1 rounded-md border border-sky-200 shadow-sm whitespace-nowrap">
                     Keseluruhan: <span className="text-sky-950 font-black">
                       {isMeteranBatch 
                         ? `${watchedQcCeklis || totalKeseluruhanMeter || 0} Meter` 

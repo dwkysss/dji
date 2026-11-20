@@ -12,7 +12,6 @@ import {
   ArrowRight,
   Copy,
   Check,
-  Sparkles,
   WifiOff,
   Camera,
   Sun,
@@ -134,7 +133,6 @@ export default function DownloadPage() {
         {/* Hero Section */}
         <div className="text-center max-w-3xl mx-auto flex flex-col items-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-100/80 border border-sky-300/60 text-[#0070bc] text-xs font-bold mb-4 shadow-xs">
-            <Sparkles className="w-3.5 h-3.5" />
             <span>Rilis Resmi Aplikasi v{versionInfo.versionName}</span>
           </div>
 

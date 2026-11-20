@@ -18,6 +18,7 @@ export async function updateSession(request: NextRequest) {
     pathname === "/download" ||
     pathname.startsWith("/download") ||
     pathname.startsWith("/downloads") ||
+    pathname.startsWith("/track") ||
     pathname.endsWith(".apk") ||
     pathname.includes("/print") ||
     pathname.startsWith("/_next") ||

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   PowerOff,
   AlertTriangle,
@@ -19,7 +19,11 @@ import {
   AlertOctagon,
   Clock,
 } from "lucide-react";
-import { submitStatusMesin } from "@/actions/status-actions";
+import {
+  submitStatusMesin,
+  getShiftProductionStatusForStop,
+  type ShiftProductionStopStatus,
+} from "@/actions/status-actions";
 import {
   PROBLEM_CATEGORIES,
   GROUPED_PROBLEM_DETAILS,
@@ -47,10 +51,28 @@ export interface MachineStopModalProps {
   pinggiran?: string;
   noOrderBarang?: string;
   noCustomer?: string;
+  allOperators?: { id: string | number; name: string; shift?: string }[];
+  groups?: { id: string | number; name: string }[];
+  onGroupOperatorChange?: (
+    nextGroupId: string,
+    nextOperatorId: string,
+    nextOperatorName: string
+  ) => void;
   onSuccess?: (message?: string) => void;
 }
 
-// Visual theme dinamis per kategori (A - G) agar variatif, proporsional, dan tidak dominan 1 warna saja
+// Tema warna seragam (Corporate DJI Blue) untuk seluruh kategori A - G agar bersih dan konsisten
+const UNIFIED_CATEGORY_THEME = {
+  badgeBg: "bg-sky-100",
+  badgeText: "text-[#0070bc]",
+  borderActive: "border-[#0070bc]",
+  bgActive: "bg-sky-50/70",
+  textActive: "text-[#004777]",
+  chipActive: "bg-[#0070bc] text-white border-[#005a96] shadow-sm shadow-sky-600/25",
+  previewBadgeBg: "bg-[#0070bc] text-white",
+  previewBadgeText: "text-[#004777] bg-sky-50 border-sky-200",
+};
+
 const CATEGORY_STYLES: Record<
   string,
   {
@@ -65,83 +87,13 @@ const CATEGORY_STYLES: Record<
     previewBadgeText: string;
   }
 > = {
-  A: {
-    icon: Scissors,
-    badgeBg: "bg-amber-100",
-    badgeText: "text-amber-800",
-    borderActive: "border-amber-500",
-    bgActive: "bg-amber-50/70",
-    textActive: "text-amber-900",
-    chipActive: "bg-amber-600 text-white border-amber-700 shadow-sm shadow-amber-600/25",
-    previewBadgeBg: "bg-amber-500 text-white",
-    previewBadgeText: "text-amber-900 bg-amber-100/80 border-amber-200",
-  },
-  B: {
-    icon: Wrench,
-    badgeBg: "bg-rose-100",
-    badgeText: "text-rose-800",
-    borderActive: "border-rose-500",
-    bgActive: "bg-rose-50/70",
-    textActive: "text-rose-900",
-    chipActive: "bg-rose-600 text-white border-rose-700 shadow-sm shadow-rose-600/25",
-    previewBadgeBg: "bg-rose-600 text-white",
-    previewBadgeText: "text-rose-900 bg-rose-100/80 border-rose-200",
-  },
-  C: {
-    icon: Settings2,
-    badgeBg: "bg-sky-100",
-    badgeText: "text-sky-800",
-    borderActive: "border-sky-500",
-    bgActive: "bg-sky-50/70",
-    textActive: "text-sky-900",
-    chipActive: "bg-[#0070bc] text-white border-[#005a96] shadow-sm shadow-sky-600/25",
-    previewBadgeBg: "bg-[#0070bc] text-white",
-    previewBadgeText: "text-sky-900 bg-sky-100/80 border-sky-200",
-  },
-  D: {
-    icon: Boxes,
-    badgeBg: "bg-indigo-100",
-    badgeText: "text-indigo-800",
-    borderActive: "border-indigo-500",
-    bgActive: "bg-indigo-50/70",
-    textActive: "text-indigo-900",
-    chipActive: "bg-indigo-600 text-white border-indigo-700 shadow-sm shadow-indigo-600/25",
-    previewBadgeBg: "bg-indigo-600 text-white",
-    previewBadgeText: "text-indigo-900 bg-indigo-100/80 border-indigo-200",
-  },
-  E: {
-    icon: Zap,
-    badgeBg: "bg-amber-100",
-    badgeText: "text-amber-800",
-    borderActive: "border-amber-500",
-    bgActive: "bg-amber-50/70",
-    textActive: "text-amber-900",
-    chipActive: "bg-amber-600 text-white border-amber-700 shadow-sm shadow-amber-600/25",
-    previewBadgeBg: "bg-amber-500 text-white",
-    previewBadgeText: "text-amber-900 bg-amber-100/80 border-amber-200",
-  },
-  F: {
-    icon: Settings,
-    badgeBg: "bg-purple-100",
-    badgeText: "text-purple-800",
-    borderActive: "border-purple-500",
-    bgActive: "bg-purple-50/70",
-    textActive: "text-purple-900",
-    chipActive: "bg-purple-600 text-white border-purple-700 shadow-sm shadow-purple-600/25",
-    previewBadgeBg: "bg-purple-600 text-white",
-    previewBadgeText: "text-purple-900 bg-purple-100/80 border-purple-200",
-  },
-  G: {
-    icon: AlertOctagon,
-    badgeBg: "bg-emerald-100",
-    badgeText: "text-emerald-800",
-    borderActive: "border-emerald-500",
-    bgActive: "bg-emerald-50/70",
-    textActive: "text-emerald-900",
-    chipActive: "bg-emerald-600 text-white border-emerald-700 shadow-sm shadow-emerald-600/25",
-    previewBadgeBg: "bg-emerald-600 text-white",
-    previewBadgeText: "text-emerald-900 bg-emerald-100/80 border-emerald-200",
-  },
+  A: { icon: Scissors, ...UNIFIED_CATEGORY_THEME },
+  B: { icon: Wrench, ...UNIFIED_CATEGORY_THEME },
+  C: { icon: Settings2, ...UNIFIED_CATEGORY_THEME },
+  D: { icon: Boxes, ...UNIFIED_CATEGORY_THEME },
+  E: { icon: Zap, ...UNIFIED_CATEGORY_THEME },
+  F: { icon: Settings, ...UNIFIED_CATEGORY_THEME },
+  G: { icon: AlertOctagon, ...UNIFIED_CATEGORY_THEME },
 };
 
 export default function MachineStopModal({
@@ -164,6 +116,9 @@ export default function MachineStopModal({
   pinggiran,
   noOrderBarang,
   noCustomer,
+  allOperators = [],
+  groups = [],
+  onGroupOperatorChange,
   onSuccess,
 }: MachineStopModalProps) {
   // Default ke Kategori G (Eksternal / Tidak ada order / Mati Listrik) karena paling sering untuk mesin berhenti shift
@@ -176,8 +131,142 @@ export default function MachineStopModal({
   const [customMinutes, setCustomMinutes] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [shiftStopStatus, setShiftStopStatus] = useState<ShiftProductionStopStatus | null>(null);
+  const [isCheckingShiftInput, setIsCheckingShiftInput] = useState<boolean>(false);
+  const [liveRemainingShiftSec, setLiveRemainingShiftSec] = useState<number>(() =>
+    getRemainingShiftSeconds(new Date())
+  );
 
-  const remainingShiftSec = React.useMemo(() => getRemainingShiftSeconds(new Date()), []);
+  // State sinkronisasi 3-arah (Lapor Mesin Mati <-> Header <-> Serah Terima)
+  const [localGroupId, setLocalGroupId] = useState<string>(groupId || "1");
+  const [localOperatorId, setLocalOperatorId] = useState<string>(operatorId || "");
+  const [localOperatorName, setLocalOperatorName] = useState<string>(operatorName || "");
+
+  const resolvedGroups = React.useMemo(() => {
+    if (groups && groups.length > 0) return groups;
+    return [
+      { id: "1", name: "A" },
+      { id: "2", name: "B" },
+      { id: "3", name: "C" },
+    ];
+  }, [groups]);
+
+  const selectedGroupObj = React.useMemo(() => {
+    return (
+      resolvedGroups.find(
+        (g) => String(g.id) === String(localGroupId) || g.name === String(localGroupId)
+      ) || resolvedGroups[0]
+    );
+  }, [resolvedGroups, localGroupId]);
+
+  const effectiveShiftName = selectedGroupObj?.name || shiftName || "A";
+
+  const filteredOperators = React.useMemo(() => {
+    if (!allOperators || allOperators.length === 0) return [];
+    const matched = allOperators.filter(
+      (op) => !op.shift || String(op.shift).toUpperCase() === String(effectiveShiftName).toUpperCase()
+    );
+    return matched.length > 0 ? matched : allOperators;
+  }, [allOperators, effectiveShiftName]);
+
+  // Sinkronkan state lokal saat modal dibuka atau saat Header/Serah Terima mengubah group/operator
+  useEffect(() => {
+    if (!isOpen) return;
+    setLocalGroupId(groupId || "1");
+    setLocalOperatorId(operatorId || "");
+    setLocalOperatorName(operatorName || "");
+  }, [isOpen, groupId, operatorId, operatorName]);
+
+  const syncGroupAndOperator = (nextGrpId: string, nextOpId: string, nextOpName: string) => {
+    setLocalGroupId(nextGrpId);
+    setLocalOperatorId(nextOpId);
+    setLocalOperatorName(nextOpName);
+
+    try {
+      if (nextOpName) localStorage.setItem("dji_active_operator_name", nextOpName);
+      if (nextOpId) localStorage.setItem("dji_active_operator_id", nextOpId);
+      const savedHeaderRaw = localStorage.getItem("dji_form_header");
+      if (savedHeaderRaw) {
+        const parsed = JSON.parse(savedHeaderRaw);
+        parsed.groupId = nextGrpId;
+        if (nextOpId) parsed.operatorId = nextOpId;
+        localStorage.setItem("dji_form_header", JSON.stringify(parsed));
+      }
+    } catch {
+      // ignore localStorage errors
+    }
+
+    onGroupOperatorChange?.(nextGrpId, nextOpId, nextOpName);
+  };
+
+  const handleGroupChange = (newGrpId: string) => {
+    const grpObj = resolvedGroups.find((g) => String(g.id) === String(newGrpId));
+    const grpLetter = grpObj?.name || "A";
+    const groupOps = allOperators.filter(
+      (op) => !op.shift || String(op.shift).toUpperCase() === String(grpLetter).toUpperCase()
+    );
+    const pool = groupOps.length > 0 ? groupOps : allOperators;
+    const stillValid = pool.find((op) => String(op.id) === String(localOperatorId));
+    const targetOp = stillValid || pool[0];
+    syncGroupAndOperator(
+      String(newGrpId),
+      targetOp ? String(targetOp.id) : localOperatorId,
+      targetOp ? targetOp.name : localOperatorName
+    );
+  };
+
+  const handleOperatorChange = (newOpId: string) => {
+    const opObj =
+      filteredOperators.find((op) => String(op.id) === String(newOpId)) ||
+      allOperators.find((op) => String(op.id) === String(newOpId));
+    const nextName = opObj?.name || localOperatorName;
+    syncGroupAndOperator(String(localGroupId), String(newOpId), nextName);
+  };
+
+  // Cek otomatis apakah di shift berjalan sudah ada input produksi pada mesin ini:
+  // - Sudah ada inputan -> default otomatis ke "Sisa Shift" (dari jam input terakhir s.d. jam pulang shift)
+  // - Belum ada inputan dari awal shift -> default otomatis ke "1 Shift Penuh" (8 Jam: awal shift s.d. pulang shift)
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    const freshRem = getRemainingShiftSeconds(new Date());
+    setLiveRemainingShiftSec(freshRem);
+    setErrorMsg(null);
+    setIsCheckingShiftInput(true);
+
+    getShiftProductionStatusForStop(nomorMc)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success && res.data) {
+          setShiftStopStatus(res.data);
+          setLiveRemainingShiftSec(res.data.remainingFromNowSec);
+          setDurasiPreset(res.data.hasProductionInShift ? "REMAINING_SHIFT" : "FULL_SHIFT");
+        } else {
+          setShiftStopStatus(null);
+          setDurasiPreset("FULL_SHIFT");
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setShiftStopStatus(null);
+        setDurasiPreset("FULL_SHIFT");
+      })
+      .finally(() => {
+        if (!cancelled) setIsCheckingShiftInput(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, nomorMc]);
+
+  const effectiveRemainingShiftSec = React.useMemo(() => {
+    if (shiftStopStatus?.hasProductionInShift && shiftStopStatus.remainingFromLastInputSec) {
+      return shiftStopStatus.remainingFromLastInputSec;
+    }
+    return shiftStopStatus?.remainingFromNowSec || liveRemainingShiftSec;
+  }, [shiftStopStatus, liveRemainingShiftSec]);
 
   const formatDurationNice = (totalSec: number) =>
     formatDurationSmart(totalSec, { zeroText: "0 Dtk" });
@@ -185,9 +274,9 @@ export default function MachineStopModal({
   const calculatedDurationSeconds = React.useMemo(() => {
     if (cakupan === "FULL_DAY") return 86400; // 24 jam penuh
     if (durasiPreset === "FULL_SHIFT") return 28800; // 8 jam
-    if (durasiPreset === "REMAINING_SHIFT") return Math.max(60, remainingShiftSec);
+    if (durasiPreset === "REMAINING_SHIFT") return Math.max(60, effectiveRemainingShiftSec);
     return Math.max(60, (Math.max(0, customHours) * 3600) + (Math.max(0, customMinutes) * 60));
-  }, [cakupan, durasiPreset, remainingShiftSec, customHours, customMinutes]);
+  }, [cakupan, durasiPreset, effectiveRemainingShiftSec, customHours, customMinutes]);
 
   if (!isOpen) return null;
 
@@ -220,7 +309,7 @@ export default function MachineStopModal({
       setErrorMsg("Nomor mesin belum ditentukan.");
       return;
     }
-    if (!operatorName) {
+    if (!localOperatorName) {
       setErrorMsg("Nama operator wajib terisi untuk pertanggungjawaban shift.");
       return;
     }
@@ -239,9 +328,9 @@ export default function MachineStopModal({
 
       const res = await submitStatusMesin({
         nomorMc: nomorMc.trim(),
-        pic: operatorName.trim(),
-        operatorId: operatorId || undefined,
-        grupId: groupId || undefined,
+        pic: localOperatorName.trim(),
+        operatorId: localOperatorId || undefined,
+        grupId: localGroupId || undefined,
         status: fullStatus,
         kategoriMasalah: selectedCategory,
         cakupan: cakupan,
@@ -264,7 +353,7 @@ export default function MachineStopModal({
       if (res.success) {
         if (onSuccess) {
           onSuccess(
-            `Mesin ${nomorMc} berhasil dicatat BERHENTI (Kode ${selectedCategory} - ${selectedDetail}) untuk Shift ${shiftName} atas nama ${operatorName}.`
+            `Mesin ${nomorMc} berhasil dicatat BERHENTI (Kode ${selectedCategory} - ${selectedDetail}) untuk Shift ${effectiveShiftName} atas nama ${localOperatorName}.`
           );
         }
         onClose();
@@ -280,27 +369,27 @@ export default function MachineStopModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 animate-fadeIn">
       <div
-        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col my-auto max-h-[92vh]"
+        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal - Tema Corporate DJI Slate & Blue yang adem dan elegan */}
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-[#004777] px-5 sm:px-6 py-4 text-white flex items-center justify-between shadow-sm shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-400/30 flex items-center justify-center text-rose-300 shrink-0 shadow-inner">
-              <PowerOff className="w-5 h-5" />
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-[#004777] px-4 sm:px-6 py-3.5 text-white flex items-center justify-between shadow-sm shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-rose-500/20 border border-rose-400/30 flex items-center justify-center text-rose-300 shrink-0 shadow-inner">
+              <PowerOff className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-black tracking-tight leading-tight">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-lg font-black tracking-tight leading-tight">
                   Lapor Mesin Mati
                 </h3>
-                <span className="text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="text-[9.5px] sm:text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
                   Mesin Mati
                 </span>
               </div>
-              <p className="text-slate-300 text-xs font-medium">
+              <p className="text-slate-300 text-[11px] sm:text-xs font-medium truncate">
                 Pilih kendala resmi (Kode A - G) agar shift tercatat atas nama Anda
               </p>
             </div>
@@ -309,17 +398,18 @@ export default function MachineStopModal({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all cursor-pointer disabled:opacity-50"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all cursor-pointer disabled:opacity-50 shrink-0 ml-2"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Content Body (Scrollable) */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
-          {/* Info Card: Mesin & Penanggung Jawab */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 sm:p-3.5 grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="flex flex-col gap-0.5">
+        {/* Form Wrapper: Scrollable Body + Sticky Bottom Footer */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1 min-h-0">
+          {/* Info Card: Mesin & Penanggung Jawab (Sinkron 3-Arah dengan Header & Serah Terima) */}
+          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 sm:p-3.5 grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+            <div className="flex flex-col justify-center gap-0.5">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                 <Factory className="w-3 h-3 text-slate-400" />
                 Mesin
@@ -329,24 +419,46 @@ export default function MachineStopModal({
               </span>
             </div>
 
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <User className="w-3 h-3 text-slate-400" />
-                Operator
-              </span>
-              <span className="text-sm font-black text-[#0070bc] truncate">
-                {operatorName || "-"}
-              </span>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-[#0070bc]" />
+                Grup / Shift
+              </label>
+              <select
+                value={String(selectedGroupObj?.id || localGroupId)}
+                onChange={(e) => handleGroupChange(e.target.value)}
+                className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 focus:border-[#0070bc] focus:ring-2 focus:ring-[#0070bc]/15 outline-none text-xs font-black text-slate-800 cursor-pointer transition-all"
+              >
+                {resolvedGroups.map((g) => (
+                  <option key={g.id} value={String(g.id)}>
+                    Shift {g.name} (Grup {g.name})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="flex flex-col gap-0.5 col-span-2 sm:col-span-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-slate-400" />
-                Shift Operasional
-              </span>
-              <span className="text-sm font-black text-slate-800">
-                Shift {shiftName || "A"}
-              </span>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                <User className="w-3 h-3 text-[#0070bc]" />
+                Operator
+              </label>
+              {filteredOperators.length > 0 ? (
+                <select
+                  value={String(localOperatorId)}
+                  onChange={(e) => handleOperatorChange(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 focus:border-[#0070bc] focus:ring-2 focus:ring-[#0070bc]/15 outline-none text-xs font-black text-[#0070bc] cursor-pointer transition-all"
+                >
+                  {filteredOperators.map((op) => (
+                    <option key={op.id} value={String(op.id)}>
+                      {op.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-sm font-black text-[#0070bc] truncate py-1">
+                  {localOperatorName || "-"}
+                </span>
+              )}
             </div>
           </div>
 
@@ -503,7 +615,7 @@ export default function MachineStopModal({
           {/* 3. Catatan Tambahan (Opsional) */}
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-              <span>Catatan Tambahan (Opsional)</span>
+              <span>3. Catatan Tambahan (Opsional)</span>
               <span className="text-[10px] text-slate-400 font-normal">bisa dikosongkan</span>
             </label>
             <input
@@ -515,56 +627,39 @@ export default function MachineStopModal({
             />
           </div>
 
-          {/* 4. Pilihan Cakupan Waktu */}
-          <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-100/70 border border-slate-200">
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-slate-800">
-                Cakupan Berhenti:
-              </span>
-              <span className="text-[10px] text-slate-500">
-                {cakupan === "SHIFT"
-                  ? `Hanya shift kerja Anda (Shift ${shiftName})`
-                  : "Mencakup seluruh 3 shift (24 jam penuh)"}
-              </span>
-            </div>
-            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-2xs">
-              <button
-                type="button"
-                onClick={() => setCakupan("SHIFT")}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  cakupan === "SHIFT"
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Shift Ini
-              </button>
-              <button
-                type="button"
-                onClick={() => setCakupan("FULL_DAY")}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  cakupan === "FULL_DAY"
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                1 Hari Penuh
-              </button>
-            </div>
-          </div>
-
-          {/* 5. Durasi Berhenti / Mati */}
-          {cakupan === "SHIFT" && (
-            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-600" />
-                  <span>5. Durasi Mesin Mati Shift Ini</span>
-                </label>
-                <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+          {/* 4. Durasi Berhenti / Mati (Selalu Cakupan Shift Ini) */}
+          <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-[#0070bc]" />
+                <span>4. Durasi Mesin Mati Shift Ini</span>
+              </label>
+                <span className="text-[10px] font-extrabold text-[#004777] bg-sky-100/80 px-2 py-0.5 rounded-md border border-sky-200 whitespace-nowrap">
                   {formatDurationNice(calculatedDurationSeconds)}
                 </span>
               </div>
+
+              {/* Info deteksi otomatis produksi shift berjalan */}
+              {isCheckingShiftInput ? (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-[10.5px] font-semibold text-slate-500">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0070bc] shrink-0" />
+                  <span>Mengecek riwayat input shift ini untuk menyesuaikan durasi...</span>
+                </div>
+              ) : shiftStopStatus?.hasProductionInShift ? (
+                <div className="px-2.5 py-1.5 rounded-xl bg-sky-50 border border-sky-200/80 text-[10.5px] font-semibold text-[#004777] leading-snug">
+                  Terdeteksi sudah ada input di shift ini (terakhir{" "}
+                  <span className="font-black">{shiftStopStatus.lastInputTimeLabel} WIB</span> •{" "}
+                  <span className="font-bold">{shiftStopStatus.lastPanelNo}</span>). Durasi otomatis
+                  disesuaikan ke <span className="font-black">Sisa Shift</span> (
+                  {shiftStopStatus.lastInputTimeLabel} – {shiftStopStatus.shiftEndLabel} WIB).
+                </div>
+              ) : shiftStopStatus ? (
+                <div className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-[10.5px] font-semibold text-slate-600 leading-snug">
+                  Belum ada input produksi sejak awal shift ({shiftStopStatus.shiftStartLabel} WIB).
+                  Durasi otomatis diset <span className="font-black text-slate-800">1 Shift Penuh</span>{" "}
+                  ({shiftStopStatus.shiftStartLabel} – {shiftStopStatus.shiftEndLabel} WIB).
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -572,12 +667,12 @@ export default function MachineStopModal({
                   onClick={() => setDurasiPreset("FULL_SHIFT")}
                   className={`p-2 rounded-xl border text-center transition-all cursor-pointer text-xs font-bold ${
                     durasiPreset === "FULL_SHIFT"
-                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                      ? "bg-[#0070bc] text-white border-[#005a96] shadow-xs"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                   }`}
                 >
                   <div>1 Shift Penuh</div>
-                  <div className={`text-[10px] font-semibold mt-0.5 ${durasiPreset === "FULL_SHIFT" ? "text-slate-300" : "text-slate-400"}`}>
+                  <div className={`text-[10px] font-semibold mt-0.5 ${durasiPreset === "FULL_SHIFT" ? "text-sky-100" : "text-slate-400"}`}>
                     8 Jam
                   </div>
                 </button>
@@ -587,13 +682,13 @@ export default function MachineStopModal({
                   onClick={() => setDurasiPreset("REMAINING_SHIFT")}
                   className={`p-2 rounded-xl border text-center transition-all cursor-pointer text-xs font-bold ${
                     durasiPreset === "REMAINING_SHIFT"
-                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                      ? "bg-[#0070bc] text-white border-[#005a96] shadow-xs"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                   }`}
                 >
                   <div>Sisa Shift</div>
-                  <div className={`text-[10px] font-semibold mt-0.5 ${durasiPreset === "REMAINING_SHIFT" ? "text-slate-300" : "text-slate-400"}`}>
-                    ~{formatDurationNice(remainingShiftSec)}
+                  <div className={`text-[10px] font-semibold mt-0.5 ${durasiPreset === "REMAINING_SHIFT" ? "text-sky-100" : "text-slate-400"}`}>
+                    ~{formatDurationNice(effectiveRemainingShiftSec)}
                   </div>
                 </button>
 
@@ -602,12 +697,12 @@ export default function MachineStopModal({
                   onClick={() => setDurasiPreset("CUSTOM")}
                   className={`p-2 rounded-xl border text-center transition-all cursor-pointer text-xs font-bold ${
                     durasiPreset === "CUSTOM"
-                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                      ? "bg-[#0070bc] text-white border-[#005a96] shadow-xs"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                   }`}
                 >
                   <div>Kustom</div>
-                  <div className={`text-[10px] font-semibold mt-0.5 ${durasiPreset === "CUSTOM" ? "text-slate-300" : "text-slate-400"}`}>
+                  <div className={`text-[10px] font-semibold mt-0.5 ${durasiPreset === "CUSTOM" ? "text-sky-100" : "text-slate-400"}`}>
                     Jam & Mnt
                   </div>
                 </button>
@@ -639,62 +734,73 @@ export default function MachineStopModal({
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Preview Ringkasan Laporan - Menggunakan Clean Slate Card dengan Aksen Dinamis */}
-          <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span
-                className={`w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center shrink-0 shadow-2xs ${currentCategoryStyle.previewBadgeBg}`}
-              >
-                {selectedCategory}
-              </span>
-              <div className="min-w-0">
-                <span className="text-[10px] font-extrabold uppercase text-slate-500 block">
-                  Kendala ({formatDurationNice(calculatedDurationSeconds)}):
-                </span>
-                <span className="text-xs font-black text-slate-800 truncate block">
-                  {selectedDetail}
-                  {detailCatatan.trim() ? ` (${detailCatatan.trim()})` : ""}
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-col items-end gap-1 shrink-0">
-              <span className="text-[10px] font-black bg-rose-50 text-rose-700 px-2.5 py-1 rounded-lg border border-rose-200/80 shadow-2xs flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                0 Produksi
-              </span>
-            </div>
           </div>
 
-          {/* Footer Actions */}
-          <div className="pt-2 flex items-center justify-end gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !selectedDetail}
-              className="px-6 py-2.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-600/20 active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Menyimpan Laporan...</span>
-                </>
-              ) : (
-                <>
-                  <PowerOff className="w-4 h-4" />
-                  <span>Kirim Laporan Mesin Mati</span>
-                </>
-              )}
-            </button>
+          </div>
+
+          {/* Sticky Bottom: Preview Ringkasan & Footer Actions (Selalu terlihat di Tablet/Mobile/Desktop) */}
+          <div className="px-4 sm:px-5 py-3 border-t border-slate-200/80 bg-white shrink-0 space-y-2.5 shadow-[0_-4px_16px_rgba(15,23,42,0.04)]">
+            {/* Preview Ringkasan Laporan */}
+            <div className="p-2.5 sm:p-3 bg-slate-50 border border-slate-200/90 rounded-2xl flex items-center justify-between gap-2.5 shadow-2xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className={`w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center shrink-0 shadow-2xs ${currentCategoryStyle.previewBadgeBg}`}
+                >
+                  {selectedCategory}
+                </span>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-500 block">
+                    Kendala ({formatDurationNice(calculatedDurationSeconds)}):
+                  </span>
+                  <span className="text-xs font-black text-slate-800 truncate block">
+                    {selectedDetail}
+                    {detailCatatan.trim() ? ` (${detailCatatan.trim()})` : ""}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                {cakupan === "SHIFT" && shiftStopStatus?.hasProductionInShift ? (
+                  <span className="text-[10px] font-black bg-sky-50 text-[#0070bc] px-2.5 py-1 rounded-lg border border-sky-200/80 shadow-2xs flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0070bc]" />
+                    Stop Sisa Shift
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black bg-rose-50 text-rose-700 px-2.5 py-1 rounded-lg border border-rose-200/80 shadow-2xs flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                    0 Produksi
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="px-4 sm:px-5 py-2.5 rounded-xl font-bold text-xs text-slate-600 bg-slate-100/80 hover:bg-slate-200/70 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || !selectedDetail}
+                className="flex-1 sm:flex-initial px-5 sm:px-6 py-2.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    <span>Menyimpan Laporan...</span>
+                  </>
+                ) : (
+                  <>
+                    <PowerOff className="w-4 h-4 shrink-0" />
+                    <span>Kirim Laporan Mesin Mati</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>

@@ -612,7 +612,7 @@ export default function DashboardPage() {
   }, [transactions, dateRangeMode, startDate, endDate, selectedOperators, selectedMachines]);
 
   // Main KPI calculations via custom hook
-  const { stats, deltas, gradeLabel } = useDashboardKpis({
+  const { stats, deltas } = useDashboardKpis({
     transactions,
     dateFilteredTransactions,
     dateRangeMode,
@@ -743,7 +743,6 @@ export default function DashboardPage() {
             isLoadingInitial={isLoadingInitial}
             transactionsCount={transactions.length}
             cachedKpiSummary={cachedKpiSummary}
-            gradeLabel={gradeLabel}
             stats={stats}
             deltas={deltas}
             activeFilter={activeFilter}

@@ -32,9 +32,14 @@ import {
   RotateCcw,
   Cpu,
   Scissors,
+  QrCode,
+  Printer,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import QrScannerModal, { ParsedDjiQr } from "@/components/modals/QrScannerModal";
+import ProductionPlanBarcodeModal, { PlanBarcodeData } from "@/components/modals/ProductionPlanBarcodeModal";
+import BatchA4BarcodeModal from "@/components/modals/BatchA4BarcodeModal";
 
 // Helper Fallbacks (if DB fetch fails)
 const FALLBACK_OPERATORS = [
@@ -160,6 +165,12 @@ export default function EmployeeHistoryPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [isTourOpen, setIsTourOpen] = useState(false);
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [barcodeModalPlan, setBarcodeModalPlan] = useState<PlanBarcodeData | null>(null);
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
+  const [selectedBatchKeys, setSelectedBatchKeys] = useState<Set<string>>(new Set());
+  const [batchA4Plans, setBatchA4Plans] = useState<PlanBarcodeData[]>([]);
+  const [isBatchA4Open, setIsBatchA4Open] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [tourRect, setTourRect] = useState<{
     top: number;
@@ -420,6 +431,23 @@ export default function EmployeeHistoryPage() {
     };
   }, [currentPage, perPage, sortBy, sortDir]);
 
+  const handleQrScan = (parsed: ParsedDjiQr) => {
+    const nextFilters = {
+      ...filters,
+      date: "",
+      startDate: "",
+      endDate: "",
+      nomor_mc: parsed.nomor_mc || "",
+      potongan_ke: parsed.potongan_ke || "",
+      design_id: !parsed.potongan_ke && parsed.design_id ? parsed.design_id : "",
+      group_id: "",
+      operator_ids: [] as string[],
+      no_customer: "",
+    };
+    setFilters(nextFilters);
+    handleSearch(undefined, nextFilters);
+  };
+
   const handleRowClick = async (batch: any) => {
     const searchParams = new URLSearchParams({
       mc: batch.nomor_mc || "",
@@ -444,6 +472,75 @@ export default function EmployeeHistoryPage() {
   useEffect(() => setCurrentPage(1), [filters.startDate, filters.endDate, filters.nomor_mc, filters.group_id, filters.design_id, filters.potongan_ke, filters.no_customer, perPage, sortBy, sortDir]);
 
   const pagedData = data;
+
+  const getBatchRowKey = (batch: any) =>
+    batch?.nomor_mc && batch?.potongan_ke
+      ? `${String(batch.nomor_mc).trim().toUpperCase()}__${batch.potongan_ke}`
+      : "";
+
+  const toPlanBarcodeData = (batch: any): PlanBarcodeData => ({
+    nomor_mc: String(batch.nomor_mc || "").trim().toUpperCase(),
+    potongan_ke: Number(batch.potongan_ke) || 0,
+    design_id: batch.design_id || "-",
+    no_customer: batch.no_customer || "-",
+    no_order_barang: batch.no_order_barang || "-",
+    pcs_count: Number(batch.pcs_count) || 1,
+    input_type: batch.is_meter ? "METER" : "PANEL",
+  });
+
+  const selectableKeysInPage = useMemo(() => {
+    const keys: string[] = [];
+    const seen = new Set<string>();
+    pagedData.forEach((b: any) => {
+      const k = getBatchRowKey(b);
+      if (k && !seen.has(k)) {
+        seen.add(k);
+        keys.push(k);
+      }
+    });
+    return keys;
+  }, [pagedData]);
+
+  const allPageSelected =
+    selectableKeysInPage.length > 0 &&
+    selectableKeysInPage.every((k) => selectedBatchKeys.has(k));
+
+  const toggleSelectBatch = (key: string) => {
+    if (!key) return;
+    setSelectedBatchKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleSelectAllPage = () => {
+    setSelectedBatchKeys((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        selectableKeysInPage.forEach((k) => next.delete(k));
+      } else {
+        selectableKeysInPage.forEach((k) => next.add(k));
+      }
+      return next;
+    });
+  };
+
+  const handleOpenBatchA4 = () => {
+    const seen = new Set<string>();
+    const chosen: PlanBarcodeData[] = [];
+    pagedData.forEach((b: any) => {
+      const k = getBatchRowKey(b);
+      if (k && selectedBatchKeys.has(k) && !seen.has(k)) {
+        seen.add(k);
+        chosen.push(toPlanBarcodeData(b));
+      }
+    });
+    if (chosen.length === 0) return;
+    setBatchA4Plans(chosen);
+    setIsBatchA4Open(true);
+  };
 
   return (
     <div className="w-full max-w-6xl mx-auto pb-10">
@@ -472,17 +569,27 @@ export default function EmployeeHistoryPage() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setTourStepIndex(0);
-              setIsTourOpen(true);
-            }}
-            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-1.5 sm:gap-2 self-start sm:self-auto cursor-pointer shrink-0"
-          >
-            <HelpCircle className="w-4 h-4 text-[#0070bc]" />
-            Tutorial
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsQrScannerOpen(true)}
+              className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl bg-[#0070bc] hover:bg-[#005a96] active:scale-[0.98] text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0"
+            >
+              <QrCode className="w-4 h-4" />
+              <span>Scan QR</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTourStepIndex(0);
+                setIsTourOpen(true);
+              }}
+              className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0"
+            >
+              <HelpCircle className="w-4 h-4 text-[#0070bc]" />
+              Tutorial
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSearch} className="flex flex-col gap-4 mt-5">
@@ -641,10 +748,43 @@ export default function EmployeeHistoryPage() {
               </div>
             ) : (
               <div className="overflow-x-auto no-scrollbar">
+                {selectedBatchKeys.size > 0 && (
+                  <div className="px-4 py-2.5 bg-emerald-50/90 border-b border-emerald-200 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold text-emerald-800 tabular-nums">
+                      {selectedBatchKeys.size} potongan dipilih untuk cetak QR A4
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedBatchKeys(new Set())}
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-slate-600 hover:bg-white/80 transition-colors cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenBatchA4}
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Cetak QR A4 ({selectedBatchKeys.size})</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                      <th className="px-2 py-2 pl-3">Tanggal</th>
+                      <th className="px-2 py-2 pl-3 text-center w-9">
+                        <input
+                          type="checkbox"
+                          checked={allPageSelected}
+                          onChange={toggleSelectAllPage}
+                          title="Pilih semua potongan di halaman ini"
+                          className="w-3.5 h-3.5 rounded accent-[#0070bc] cursor-pointer align-middle"
+                        />
+                      </th>
+                      <th className="px-2 py-2">Tanggal</th>
                       <th
                         className="px-4 py-2.5 cursor-pointer"
                         onClick={() => {
@@ -693,6 +833,7 @@ export default function EmployeeHistoryPage() {
                           ) : null}
                         </div>
                       </th>
+                      <th className="px-2 py-2 pr-3 text-right">QR</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-[11px] font-medium text-slate-700">
@@ -714,14 +855,33 @@ export default function EmployeeHistoryPage() {
 
                       const formatDurationNice = (totalSec: number | string) =>
                         formatDurationSmart(totalSec, { zeroText: "-" });
+                      const rowKey = getBatchRowKey(batch);
+                      const isRowSelected = Boolean(rowKey && selectedBatchKeys.has(rowKey));
 
                       return (
                         <tr
                           key={idx}
                           onClick={() => handleRowClick(batch)}
-                          className="hover:bg-sky-50/50 cursor-pointer transition-colors group"
+                          className={`cursor-pointer transition-colors group ${
+                            isRowSelected ? "bg-sky-50/80" : "hover:bg-sky-50/50"
+                          }`}
                         >
-                          <td className="px-2 py-2 pl-3 whitespace-nowrap">
+                          <td
+                            className="px-2 py-2 pl-3 text-center"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {rowKey ? (
+                              <input
+                                type="checkbox"
+                                checked={isRowSelected}
+                                onChange={() => toggleSelectBatch(rowKey)}
+                                className="w-3.5 h-3.5 rounded accent-[#0070bc] cursor-pointer align-middle"
+                              />
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap">
                             <span className="font-bold text-slate-800">
                               {batch.tgl || "-"}
                             </span>
@@ -770,6 +930,27 @@ export default function EmployeeHistoryPage() {
                               </span>
                             ) : (
                               <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+                          <td
+                            className="px-2 py-2 pr-3 text-right whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {rowKey ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBarcodeModalPlan(toPlanBarcodeData(batch));
+                                  setIsBarcodeModalOpen(true);
+                                }}
+                                className="h-7 px-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 text-[10.5px] font-bold transition-colors cursor-pointer"
+                                title="Generate / Cetak QR Potongan"
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                                <span>QR</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-300">-</span>
                             )}
                           </td>
                         </tr>
@@ -838,6 +1019,24 @@ export default function EmployeeHistoryPage() {
         )}
       </div>
 
+      <QrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        onScanSuccess={handleQrScan}
+        title="Scan QR Riwayat Produksi"
+      />
+
+      <ProductionPlanBarcodeModal
+        isOpen={isBarcodeModalOpen}
+        onClose={() => setIsBarcodeModalOpen(false)}
+        plan={barcodeModalPlan}
+      />
+
+      <BatchA4BarcodeModal
+        isOpen={isBatchA4Open}
+        onClose={() => setIsBatchA4Open(false)}
+        plans={batchA4Plans}
+      />
     </div>
   );
 }

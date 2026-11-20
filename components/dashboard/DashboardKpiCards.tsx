@@ -10,7 +10,6 @@ export interface DashboardKpiCardsProps {
   isLoadingInitial: boolean;
   transactionsCount: number;
   cachedKpiSummary: any;
-  gradeLabel: string;
   stats: {
     totalProduksi: number;
     totalProduksiMeter: number;
@@ -52,7 +51,6 @@ export default function DashboardKpiCards({
   isLoadingInitial,
   transactionsCount,
   cachedKpiSummary,
-  gradeLabel,
   stats,
   deltas,
   activeFilter,
@@ -78,7 +76,6 @@ export default function DashboardKpiCards({
       >
         {dashboardViewType === "OEE" ? (
           <OeeKpiCards
-            gradeLabel={gradeLabel}
             stats={stats}
             deltas={deltas}
             activeFilter={activeFilter}
@@ -94,7 +91,6 @@ export default function DashboardKpiCards({
             isLoadingInitial={isLoadingInitial}
             transactionsCount={transactionsCount}
             cachedKpiSummary={cachedKpiSummary}
-            gradeLabel={gradeLabel}
             stats={stats}
             activeFilter={activeFilter}
             setActiveFilter={setActiveFilter}

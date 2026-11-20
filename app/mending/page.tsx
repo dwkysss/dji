@@ -29,8 +29,10 @@ import {
   Calendar,
   Cpu,
   ChevronDown,
+  QrCode,
 } from "lucide-react";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
+import QrScannerModal, { ParsedDjiQr } from "@/components/modals/QrScannerModal";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import MendingModal from "@/components/forms/MendingModal";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
@@ -40,7 +42,7 @@ import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import HeaderSummaryCard from "@/components/forms/HeaderSummaryCard";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
-import { formatHHMM, formatTimerSeconds } from "@/lib/shift-utils";
+import { formatHHMM, formatTimerSeconds, getShiftDate } from "@/lib/shift-utils";
 import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import {
   getPendingMendingDetailsByDate,
@@ -138,9 +140,9 @@ const MENDING_TOUR_STEPS: ProductTourStep[] = [
 ];
 
 export default function MendingPage() {
-  const [searchStartDate, setSearchStartDate] = useState("");
-  const [searchEndDate, setSearchEndDate] = useState("");
-  const [searchTanggal, setSearchTanggal] = useState("");
+  const [searchStartDate, setSearchStartDate] = useState(() => getShiftDate(new Date()));
+  const [searchEndDate, setSearchEndDate] = useState(() => getShiftDate(new Date()));
+  const [searchTanggal, setSearchTanggal] = useState(() => getShiftDate(new Date()));
   const [searchMesin, setSearchMesin] = useState("");
   const [searchPotongan, setSearchPotongan] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
@@ -148,6 +150,7 @@ export default function MendingPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isTourOpen, setIsTourOpen] = useState(false);
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   const [allDetails, setAllDetails] = useState<any[]>([]);
@@ -177,6 +180,14 @@ export default function MendingPage() {
   const [problemCategories, setProblemCategories] = useState(DEFAULT_PROBLEM_CATEGORIES);
   const [problemDetailsMap, setProblemDetailsMap] = useState<Record<string, string[]>>(DEFAULT_PROBLEM_DETAILS);
   const [dynamicGroupMapping, setDynamicGroupMapping] = useState<Record<string, { groupName: string; items: string[] }[]>>(GROUPED_PROBLEM_DETAILS);
+  const [expandedQueueKeys, setExpandedQueueKeys] = useState<Record<string, boolean>>({});
+
+  const toggleQueueRow = (key: string) => {
+    setExpandedQueueKeys((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   useEffect(() => {
     // Parallelize metadata fetching on page load
@@ -2933,27 +2944,35 @@ export default function MendingPage() {
         {/* Header Section inside Card */}
         <div
           data-tour="mending-header"
-          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-100"
+          className="flex flex-wrap items-center justify-between gap-3 pb-4 sm:pb-5 border-b border-slate-100"
         >
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-rose-500 via-rose-600 to-red-600 text-white flex items-center justify-center shadow-lg shadow-rose-500/25 shrink-0 ring-4 ring-rose-50 transition-transform duration-300 hover:scale-105">
-              <Scissors className="w-5 h-5 sm:w-6 sm:h-6" />
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-rose-500 via-rose-600 to-red-600 text-white flex items-center justify-center shadow-lg shadow-rose-500/25 shrink-0 ring-4 ring-rose-50 transition-transform duration-300 hover:scale-105">
+              <Scissors className="w-5 h-5" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Hasil Akhir Pengerjaan Mending
+              <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight whitespace-nowrap">
+                Mending
               </h1>
-              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">
-                Total antrean baris yang belum dimending: <span className="text-rose-500 font-bold">{groupedPcsList.length} Antrean</span>
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5 whitespace-nowrap">
+                Total antrean: <span className="text-rose-500 font-bold">{groupedPcsList.length} PCS Pending</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+          <div className="flex items-center justify-end gap-2 ml-auto shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsQrScannerOpen(true)}
+              className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0"
+            >
+              <QrCode className="w-4 h-4" />
+              <span>Scan QR</span>
+            </button>
             <button
               type="button"
               onClick={() => setIsTourOpen(true)}
-              className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 cursor-pointer shrink-0"
+              className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0"
             >
               <HelpCircle className="w-4 h-4 text-rose-500" />
               Tutorial
@@ -2970,7 +2989,7 @@ export default function MendingPage() {
                   setSearchPotongan("");
                   handleSearch("", "");
                 }}
-                className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 animate-fadeIn"
+                className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 animate-fadeIn"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Reset Filter
@@ -3096,77 +3115,220 @@ export default function MendingPage() {
           </div>
         ) : (
           <div>
-            {/* Mobile & Tablet Card View (< md) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 md:hidden">
-              {currentPcsList.map((g: any) => {
-                const targetPcs = g.start_pcs_index || g.pcs_index;
-                const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${targetPcs}`;
-                const session = activeSessionsMap.get(sessionKey);
-                const isPausedItem = session?.is_paused;
-                const isProcessingItem = session && !session.is_paused;
+            {/* Mobile & Tablet View (< lg): Responsive Collapsible Table / Accordion List (Child Row Expansion) */}
+            <div className="lg:hidden">
+              {/* Table Header Ringkas */}
+              <div className="bg-slate-50 border-b border-slate-200 px-3 sm:px-4 py-2.5 grid grid-cols-12 items-center gap-2 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                <div className="col-span-5 pl-7">Mesin & Potongan</div>
+                <div className="col-span-3 text-center">PCS</div>
+                <div className="col-span-4 text-right pr-1">Aksi</div>
+              </div>
 
-                return (
-                  <div key={sessionKey} className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all ${isPausedItem ? "bg-amber-50/50 border-amber-300" : (isProcessingItem ? "bg-emerald-50/30 border-emerald-300" : "bg-white border-slate-200 shadow-xs hover:shadow-sm")}`}>
-                    {/* Top Section: ONLY Mesin, Potongan & PCS */}
-                    <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <div className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-black text-xs">
-                          {g.header?.nomor_mc}
-                        </div>
-                        <div className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-slate-100 text-slate-800 font-extrabold text-xs border border-slate-200/80">
-                          #{g.header?.potongan_ke || "-"}
-                        </div>
-                      </div>
-                      <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 font-extrabold text-slate-800 text-xs border border-slate-200/60 shadow-xs">
-                        PCS {g.pcs_index} {g.isTricote ? "" : `/ ${g.total_pcs || g.pcs_index}`}
-                      </div>
-                    </div>
+              <div className="divide-y divide-slate-100">
+                {currentPcsList.map((g: any) => {
+                  const targetPcs = g.start_pcs_index || g.pcs_index;
+                  const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${targetPcs}`;
+                  const session = activeSessionsMap.get(sessionKey);
+                  const isPausedItem = session?.is_paused;
+                  const isProcessingItem = session && !session.is_paused;
+                  const isExpanded = !!expandedQueueKeys[sessionKey];
+                  const isMeteran = g.header?.panel_no === "METERAN";
+                  const operatorName =
+                    g.header?.operators?.nama_operator || g.header?.pic || "-";
+                  const groupName = g.header?.groups?.nama_grup || "";
+                  const timeStr = g.header?.tanggal_jam
+                    ? new Date(g.header.tanggal_jam).toLocaleTimeString("id-ID", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "-";
 
-                    {/* Middle Section: Tanggal/Waktu & Desain */}
-                    <div className="flex flex-col gap-1.5 mb-2.5 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Tanggal & Waktu</span>
-                        <span className="font-bold text-slate-800 text-right">
-                          {g.header?.tgl || "-"} {g.header?.tanggal_jam ? `(${new Date(g.header.tanggal_jam).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })})` : ""}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Desain</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-800 whitespace-nowrap">{g.header?.design_id}</span>
-                          {g.header?.panel_no === "METERAN" ? (
-                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider">METERAN</span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">PANEL</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bottom Section: Action Button */}
-                    <button
-                      onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
-                      className={`w-full h-9 sm:h-10 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
-                        isPausedItem 
-                          ? "bg-amber-500 hover:bg-amber-600 text-white" 
-                          : (isProcessingItem ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-rose-600 hover:bg-rose-700 text-white")
+                  return (
+                    <div
+                      key={sessionKey}
+                      className={`transition-colors ${
+                        isPausedItem
+                          ? "bg-amber-50/40"
+                          : isProcessingItem
+                          ? "bg-emerald-50/25"
+                          : isExpanded
+                          ? "bg-rose-50/25"
+                          : "bg-white hover:bg-slate-50/70"
                       }`}
                     >
-                      {isPausedItem ? (
-                        <><Play className="w-3.5 h-3.5 fill-white" /> Lanjut Mending</>
-                      ) : isProcessingItem ? (
-                        <><Play className="w-3.5 h-3.5 fill-white" /> Buka Mending</>
-                      ) : (
-                        <><Scissors className="w-3.5 h-3.5" /> Mulai Mending</>
+                      {/* Baris Utama (Collapsed Summary Row) */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleQueueRow(sessionKey)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleQueueRow(sessionKey);
+                          }
+                        }}
+                        className="px-3 sm:px-4 py-3 grid grid-cols-12 items-center gap-2 cursor-pointer select-none"
+                      >
+                        {/* Kolom 1: Indikator Expand + Connected Split-Badge (Mesin | Pot.) */}
+                        <div className="col-span-5 flex items-center gap-2 min-w-0">
+                          <span
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all duration-200 ${
+                              isExpanded
+                                ? "bg-rose-600 text-white border-rose-600 shadow-2xs"
+                                : "bg-slate-100 text-slate-500 border-slate-200/80"
+                            }`}
+                            title={isExpanded ? "Tutup rincian" : "Buka rincian"}
+                          >
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                isExpanded ? "rotate-180" : ""
+                              }`}
+                            />
+                          </span>
+
+                          <div className="inline-flex items-center rounded-xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden shrink-0">
+                            <span className="h-7 px-2.5 bg-[#0070bc] text-white font-black text-xs flex items-center justify-center">
+                              {g.header?.nomor_mc || g.nomor_mc}
+                            </span>
+                            <span className="h-7 px-2.5 bg-slate-50/90 text-slate-800 flex items-center gap-1 border-l border-slate-200/80">
+                              <Scissors className="w-3 h-3 text-amber-500 shrink-0" />
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                Pot.
+                              </span>
+                              <span className="text-xs font-black text-slate-800">
+                                {g.header?.potongan_ke || g.potongan_ke || "-"}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Kolom 2: PCS & Status Badge */}
+                        <div className="col-span-3 flex flex-col sm:flex-row items-center justify-center gap-1">
+                          <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full bg-slate-100 font-extrabold text-slate-700 text-[11px] border border-slate-200/70 whitespace-nowrap">
+                            PCS {g.pcs_index}
+                            {g.isTricote ? "" : ` / ${g.total_pcs || g.pcs_index}`}
+                          </span>
+                          {isPausedItem && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-black text-[9px]">
+                              DIPAUSE
+                            </span>
+                          )}
+                          {isProcessingItem && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[9px]">
+                              PROSES
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Kolom 3: Tombol Aksi Cepat (Tactile Capsule + Icon Pod) */}
+                        <div
+                          className="col-span-4 flex items-center justify-end"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleStartMending(
+                                g.nomor_mc,
+                                g.design_id,
+                                g.potongan_ke,
+                                targetPcs
+                              )
+                            }
+                            className={`group/btn h-8 sm:h-9 pl-1.5 pr-2 sm:pr-2.5 rounded-xl font-extrabold text-[11px] sm:text-xs transition-all duration-200 flex items-center gap-1.5 sm:gap-2 active:scale-95 border cursor-pointer whitespace-nowrap ${
+                              isPausedItem
+                                ? "bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-white border-amber-300 hover:border-amber-500 shadow-2xs hover:shadow-md hover:shadow-amber-500/20"
+                                : isProcessingItem
+                                ? "bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border-emerald-300 hover:border-emerald-600 shadow-2xs hover:shadow-md hover:shadow-emerald-600/20"
+                                : "bg-rose-50/90 hover:bg-rose-600 text-rose-600 hover:text-white border-rose-200/90 hover:border-rose-600 shadow-2xs hover:shadow-md hover:shadow-rose-600/20"
+                            }`}
+                          >
+                            {isPausedItem ? (
+                              <>
+                                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-amber-500 text-white group-hover/btn:bg-white group-hover/btn:text-amber-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Play className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-current" />
+                                </span>
+                                <span>Lanjut</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0 hidden sm:inline-block" />
+                              </>
+                            ) : isProcessingItem ? (
+                              <>
+                                <span className="relative w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-emerald-600 text-white group-hover/btn:bg-white group-hover/btn:text-emerald-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Play className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-current" />
+                                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
+                                </span>
+                                <span>Buka</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0 hidden sm:inline-block" />
+                              </>
+                            ) : (
+                              <>
+                                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-rose-600 text-white group-hover/btn:bg-white group-hover/btn:text-rose-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Scissors className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                </span>
+                                <span>Mending</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0 hidden sm:inline-block" />
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Panel Detail Bawah (Expanded Child Row - Vertical Row Stack) */}
+                      {isExpanded && (
+                        <div className="px-3 sm:px-4 pb-3.5 pt-2.5 bg-slate-50/90 border-t border-slate-200/70 animate-fadeIn">
+                          <div className="flex flex-col divide-y divide-slate-100 bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden text-xs">
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Desain & Tipe
+                              </span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-extrabold text-slate-800 truncate">
+                                  {g.header?.design_id || g.design_id || "-"}
+                                </span>
+                                {isMeteran ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider shrink-0">
+                                    METERAN
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider shrink-0">
+                                    PANEL
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Tanggal & Jam Input
+                              </span>
+                              <span className="font-bold text-slate-700 whitespace-nowrap">
+                                {g.header?.tgl || "-"} •{" "}
+                                <span className="font-mono font-extrabold text-rose-600">
+                                  {timeStr}
+                                </span>
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Operator Terakhir
+                              </span>
+                              <span className="font-extrabold text-slate-800 truncate">
+                                {operatorName}
+                                {groupName ? ` (Grup ${groupName})` : ""}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       )}
-                    </button>
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Desktop Table View (>= md) */}
-            <div className="hidden md:block overflow-x-auto">
+            {/* Desktop / Laptop Table View (>= lg) */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full min-w-[700px] text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -3204,8 +3366,14 @@ export default function MendingPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-                            #{g.header?.potongan_ke || "-"}
+                          <div className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-slate-100/90 border border-slate-200/80 text-slate-800">
+                            <Scissors className="w-3 h-3 text-amber-500 shrink-0" />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">
+                              Pot.
+                            </span>
+                            <span className="text-xs font-black text-slate-800">
+                              {g.header?.potongan_ke || g.potongan_ke || "-"}
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -3236,22 +3404,51 @@ export default function MendingPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-center whitespace-nowrap">
-                          {isPausedItem ? (
-                            <button
-                              onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
-                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 mx-auto cursor-pointer whitespace-nowrap"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-white" /> Lanjut Mending
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleStartMending(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
-                              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer whitespace-nowrap shadow-sm flex items-center gap-1.5 mx-auto"
-                            >
-                              <Scissors className="w-3.5 h-3.5" />
-                              {isProcessingItem ? "Buka Mending" : "Mulai Mending"}
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleStartMending(
+                                g.nomor_mc,
+                                g.design_id,
+                                g.potongan_ke,
+                                targetPcs
+                              )
+                            }
+                            className={`group/btn h-9 pl-1.5 pr-3 rounded-xl font-extrabold text-xs transition-all duration-200 flex items-center gap-2 mx-auto active:scale-95 border cursor-pointer whitespace-nowrap ${
+                              isPausedItem
+                                ? "bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-white border-amber-300 hover:border-amber-500 shadow-2xs hover:shadow-md hover:shadow-amber-500/20"
+                                : isProcessingItem
+                                ? "bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border-emerald-300 hover:border-emerald-600 shadow-2xs hover:shadow-md hover:shadow-emerald-600/20"
+                                : "bg-rose-50/90 hover:bg-rose-600 text-rose-600 hover:text-white border-rose-200/90 hover:border-rose-600 shadow-2xs hover:shadow-md hover:shadow-rose-600/20"
+                            }`}
+                          >
+                            {isPausedItem ? (
+                              <>
+                                <span className="w-6 h-6 rounded-lg bg-amber-500 text-white group-hover/btn:bg-white group-hover/btn:text-amber-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Play className="w-3 h-3 fill-current" />
+                                </span>
+                                <span>Lanjut Mending</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0" />
+                              </>
+                            ) : isProcessingItem ? (
+                              <>
+                                <span className="relative w-6 h-6 rounded-lg bg-emerald-600 text-white group-hover/btn:bg-white group-hover/btn:text-emerald-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Play className="w-3 h-3 fill-current" />
+                                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
+                                </span>
+                                <span>Buka Mending</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0" />
+                              </>
+                            ) : (
+                              <>
+                                <span className="w-6 h-6 rounded-lg bg-rose-600 text-white group-hover/btn:bg-white group-hover/btn:text-rose-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Scissors className="w-3.5 h-3.5" />
+                                </span>
+                                <span>Mulai Mending</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0" />
+                              </>
+                            )}
+                          </button>
                         </td>
                       </tr>
                     );
@@ -3306,6 +3503,22 @@ export default function MendingPage() {
         problemCategories={problemCategories}
         problemDetailsMap={problemDetailsMap}
         dynamicGroupMapping={dynamicGroupMapping}
+      />
+
+      <QrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        onScanSuccess={(parsed: ParsedDjiQr) => {
+          const mc = parsed.nomor_mc || "";
+          const pot = parsed.potongan_ke || "";
+          setSearchStartDate("");
+          setSearchEndDate("");
+          setSearchTanggal("");
+          setSearchMesin(mc);
+          setSearchPotongan(pot);
+          handleSearch("", "");
+        }}
+        title="Scan QR Pengerjaan Mending"
       />
 
       <ProductTour

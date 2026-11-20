@@ -505,7 +505,13 @@ function ShiftHistoryDetailContent() {
           const seenPanelNo = new Map<string, any>();
 
           deduplicatedPanels.forEach((panel: any) => {
-            if (panel.panel_no === "METERAN") {
+            if (
+              panel.panel_no === "METERAN" ||
+              panel.panel_no === "Downtime Mekanik (Direct)" ||
+              panel.panel_no === "BERHENTI" ||
+              panel.pcs === 0 ||
+              panel.pcs === "0"
+            ) {
               finalPanels.push(panel);
             } else {
               const key = panel.panel_no;
@@ -867,7 +873,7 @@ function ShiftHistoryDetailContent() {
                         timeStr,
                         dateStr,
                         penanggungJawab: cleanPenanggungJawab(ev.dikerjakanOleh || mp.pic || mp.operators?.nama_operator),
-                        shift: mp.grup || mp.groups?.nama_grup || ev.shift || "-",
+                        shift: ev.shift || mp.grup || mp.groups?.nama_grup || "-",
                         durasiDisplay: formatDurationNice(ev.durasiDetik || mp.total_downtime_detik || 0),
                         kategori: p.kategori || ev.kategori || "-",
                         detailMasalah: `${detailText}${blokText}`,

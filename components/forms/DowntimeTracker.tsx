@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useFieldArray, Control, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Play, Square, Timer, AlertTriangle, Plus, X, Trash2, Box, CheckCircle2, RefreshCw, FileText, Lock, User, ClipboardList, Info, Edit3, Link2, Lightbulb, Pin, Layers, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import { ContinuousFormInput } from "@/lib/schemas";
-import { submitMechanicDowntime, cancelMechanicDowntime } from "@/actions/mechanic-actions";
+import { submitMechanicDowntime, cancelMechanicDowntime, getActiveMachineBlock, syncMachineBlockMetadata } from "@/actions/mechanic-actions";
 import { getProblemDetailsGrouped, getModularProblemDefinitions } from "@/actions/problem-detail-actions";
 import { getBlockRequiredDefects } from "@/actions/machine-config-actions";
 import WifiDowntimeTrigger from "./WifiDowntimeTrigger";
@@ -42,6 +42,8 @@ interface DowntimeTrackerProps {
   defaultMeter?: string;
   defaultPcsIndex?: string;
   operators?: { id: number | string; name: string; shift?: string }[];
+  allOperators?: { id: number | string; name: string; shift?: string }[];
+  groups?: { id: number | string; name: string }[];
   currentOperatorName?: string;
   isEdit?: boolean;
   onRegisterTimerControls?: (controls: {
@@ -63,6 +65,8 @@ export default function DowntimeTracker({
   defaultMeter,
   defaultPcsIndex,
   operators = [],
+  allOperators,
+  groups = [],
   currentOperatorName = "",
   isEdit = false,
   onRegisterTimerControls,
@@ -910,7 +914,142 @@ export default function DowntimeTracker({
   const [showHandoffModal, setShowHandoffModal] = useState(false);
   const [handoffNotes, setHandoffNotes] = useState("");
   const [handoffOperatorName, setHandoffOperatorName] = useState("");
+  const [handoffOperatorId, setHandoffOperatorId] = useState("");
+  const [handoffGroupId, setHandoffGroupId] = useState("1");
   const [handoffShift, setHandoffShift] = useState("A");
+  const prevHeaderSyncRef = useRef<{ groupId: string; operatorId: string } | null>(null);
+
+  const resolvedGroups = React.useMemo(() => {
+    if (groups && groups.length > 0) return groups;
+    return [
+      { id: "1", name: "A" },
+      { id: "2", name: "B" },
+      { id: "3", name: "C" },
+    ];
+  }, [groups]);
+
+  const resolvedAllOperators = React.useMemo(() => {
+    if (allOperators && allOperators.length > 0) return allOperators;
+    return operators;
+  }, [allOperators, operators]);
+
+  const handoffSelectedGroupObj = resolvedGroups.find(
+    (g) => String(g.id) === String(handoffGroupId) || g.name === String(handoffGroupId)
+  );
+  const handoffSelectedGroupName = handoffSelectedGroupObj?.name || "A";
+
+  const handoffFilteredOperators = React.useMemo(() => {
+    const filtered = resolvedAllOperators.filter(
+      (op) => !op.shift || op.shift === handoffSelectedGroupName
+    );
+    return filtered.length > 0 ? filtered : resolvedAllOperators;
+  }, [resolvedAllOperators, handoffSelectedGroupName]);
+
+  const watchedHeaderGroupId = watch("groupId");
+  const watchedHeaderOperatorId = watch("operatorId");
+
+  // Sinkronisasi Arah 2: Jika Grup / Operator di Header berubah -> ikut update state Block Mesin & Modal Serah Terima
+  useEffect(() => {
+    // Hanya instance utama (timer_only / all) yang mengelola state Block Mesin agar tidak terjadi double log
+    if (viewMode === "events_only") return;
+
+    const curGroupId = watchedHeaderGroupId ? String(watchedHeaderGroupId) : "";
+    const curOpId = watchedHeaderOperatorId ? String(watchedHeaderOperatorId) : "";
+
+    if (!curGroupId && !curOpId) return;
+
+    const prev = prevHeaderSyncRef.current;
+    prevHeaderSyncRef.current = { groupId: curGroupId, operatorId: curOpId };
+
+    // Selalu sinkronkan default state modal handoff
+    if (curGroupId) setHandoffGroupId(curGroupId);
+    if (curOpId) setHandoffOperatorId(curOpId);
+    if (currentOperatorName) setHandoffOperatorName(currentOperatorName);
+
+    // Hanya catat perubahan ke activeBlock jika user benar-benar mengganti di Header (bukan mount awal)
+    if (!prev || (prev.groupId === curGroupId && prev.operatorId === curOpId)) return;
+    if (!activeBlock || !currentOperatorName) return;
+
+    // Baca versi terbaru dari localStorage untuk menghindari stale React state setelah Serah Terima
+    let latestBlock = activeBlock;
+    if (targetMc) {
+      try {
+        const storedRaw = localStorage.getItem(`dji_machine_block_${targetMc}`);
+        if (storedRaw) latestBlock = JSON.parse(storedRaw);
+      } catch {
+        // fallback ke state
+      }
+    }
+
+    const grpObj = resolvedGroups.find(
+      (g) => String(g.id) === curGroupId || g.name === curGroupId
+    );
+    const grpName = grpObj?.name || curGroupId || "A";
+
+    // Pastikan operator yang sedang terpilih memang sesuai dengan grup yang dipilih
+    // (agar saat user baru mengganti dropdown Grup di Header tapi belum memilih Operator grup baru, tidak tercipta log siluman)
+    const curOpObj = resolvedAllOperators.find(
+      (o) =>
+        (curOpId && String(o.id) === curOpId) ||
+        String(o.name || "").trim().toLowerCase() === String(currentOperatorName || "").trim().toLowerCase()
+    );
+    if (!curOpObj || (curOpObj.shift && String(curOpObj.shift).toUpperCase() !== String(grpName).toUpperCase())) {
+      return;
+    }
+
+    const logs = latestBlock.handoffLogs || [];
+    const lastLog = logs[logs.length - 1];
+
+    // Hindari duplikasi jika log terakhir sudah punya operator & shift yang sama
+    if (
+      lastLog &&
+      lastLog.operatorName === currentOperatorName &&
+      String(lastLog.shift) === String(grpName)
+    ) {
+      return;
+    }
+
+    const now = Date.now();
+    const isoDate = new Date().toISOString().split("T")[0];
+    const syncLog = {
+      id: `log-hdr-${now}`,
+      logType: "HANDOFF",
+      startTime: now,
+      operatorName: currentOperatorName,
+      shift: grpName,
+      timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      dateStr: new Date().toLocaleDateString("id-ID"),
+      dateIso: isoDate,
+      notes: `Serah terima shift ke ${currentOperatorName} (via Header)`,
+    };
+
+    const updated = {
+      ...latestBlock,
+      shift: grpName,
+      handoffLogs: [...logs, syncLog],
+    };
+    setActiveBlock(updated);
+    if (targetMc) {
+      localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(updated));
+      syncMachineBlockMetadata({
+        headerId: updated.draftHeaderId,
+        nomorMc: targetMc,
+        handoffLogs: updated.handoffLogs,
+        shift: grpName,
+        operatorId: curOpId,
+        groupId: curGroupId,
+      }).then((res) => {
+        if (res.alreadyClosed) {
+          localStorage.removeItem(`dji_machine_block_${targetMc}`);
+          setActiveBlock(null);
+        } else if (res.success && res.handoffLogs) {
+          const synced = { ...updated, draftHeaderId: res.headerId || updated.draftHeaderId, handoffLogs: res.handoffLogs };
+          setActiveBlock(synced);
+          localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(synced));
+        }
+      }).catch(() => { });
+    }
+  }, [watchedHeaderGroupId, watchedHeaderOperatorId, currentOperatorName, viewMode]);
   const [blockLiveSeconds, setBlockLiveSeconds] = useState(0);
   const [isUnblockingBlock, setIsUnblockingBlock] = useState(false);
   const [frozenUnblockTimestamp, setFrozenUnblockTimestamp] = useState<number | null>(null);
@@ -920,20 +1059,27 @@ export default function DowntimeTracker({
   const [showConfirmCancelModal, setShowConfirmCancelModal] = useState(false);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [progressNoteText, setProgressNoteText] = useState("");
+  const [showBlockSimPanel, setShowBlockSimPanel] = useState(false);
 
   const AUTO_BLOCK_THRESHOLD_SEC = 3600; // 1 Jam (60 Menit)
   const AUTO_BLOCK_WARNING_SEC = 1800; // 30 Menit (Early Warning)
   const isAutoBlockingRef = useRef(false);
+  const isCreatingBlockRef = useRef(false);
   const isHeartbeatingRef = useRef(false);
 
   const executeAutoBlock = async (startTimeMs: number) => {
-    if (isAutoBlockingRef.current) return;
+    if (isAutoBlockingRef.current || isCreatingBlockRef.current) return;
     isAutoBlockingRef.current = true;
+    isCreatingBlockRef.current = true;
 
     try {
       const now = Date.now();
       const isoDate = new Date().toISOString().split("T")[0];
-      const initialShift = watch("groupId") || "A";
+      const rawGroupId = watch("groupId") || "A";
+      const grpObj = resolvedGroups.find(
+        (g) => String(g.id) === String(rawGroupId) || g.name === String(rawGroupId)
+      );
+      const initialShift = grpObj?.name || (String(rawGroupId) === "2" ? "B" : String(rawGroupId) === "3" ? "C" : "A");
       const targetMachine = targetMc || watch("nomorMc") || "R1";
       const durationSec = Math.max(AUTO_BLOCK_THRESHOLD_SEC, Math.floor((now - startTimeMs) / 1000));
 
@@ -949,28 +1095,34 @@ export default function DowntimeTracker({
         localStorage.removeItem("dji_active_timer_source");
       }
 
+      const startTimeStr = new Date(startTimeMs).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+      const startDateStr = new Date(startTimeMs).toLocaleDateString("id-ID");
+      const initialHandoffLogs = [
+        {
+          id: `log-${startTimeMs}`,
+          startTime: startTimeMs,
+          operatorName: currentOperatorName || "Operator Aktif",
+          shift: initialShift,
+          timestamp: startTimeStr,
+          dateStr: startDateStr,
+          dateIso: isoDate,
+          notes: "Auto-Block: Mesin berhenti > 1 jam tanpa input operator (Dalam Perbaikan)"
+        }
+      ];
+
       // 2. Buat state activeBlock dengan penanda isAutoBlocked
       const newBlock: any = {
-        id: `block-${now}`,
+        id: `block-${startTimeMs}`,
         nomorMc: targetMachine,
         startTime: startTimeMs,
-        startTimeStr: new Date(startTimeMs).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-        startDateStr: new Date(startTimeMs).toLocaleDateString("id-ID"),
+        startTimeStr,
+        startDateStr,
         dateIso: isoDate,
         initialReporter: currentOperatorName || "Operator",
+        shift: initialShift,
         isAutoBlocked: true,
-        handoffLogs: [
-          {
-            id: `log-${now}`,
-            startTime: startTimeMs,
-            operatorName: currentOperatorName || "Operator Aktif",
-            shift: initialShift,
-            timestamp: new Date(startTimeMs).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-            dateStr: new Date(startTimeMs).toLocaleDateString("id-ID"),
-            dateIso: isoDate,
-            notes: "Auto-Block: Mesin berhenti > 1 jam tanpa input operator (Dalam Perbaikan)"
-          }
-        ]
+        lastHeartbeatHour: 1,
+        handoffLogs: initialHandoffLogs,
       };
 
       setActiveBlock(newBlock);
@@ -978,9 +1130,15 @@ export default function DowntimeTracker({
         localStorage.setItem(`dji_machine_block_${targetMachine}`, JSON.stringify(newBlock));
       }
 
-      // 3. Simpan draft laporan otomatis ke database via submitMechanicDowntime
+      // 3. Simpan draft laporan otomatis ke database via submitMechanicDowntime (Server-side anti-duplicate guard)
       const draftEvent = {
-        id: `auto-draft-${now}`,
+        id: `auto-draft-${startTimeMs}`,
+        blockId: newBlock.id,
+        startTime: startTimeMs,
+        startTimeStr,
+        startDateStr,
+        dateIso: isoDate,
+        initialReporter: newBlock.initialReporter,
         durasiDetik: durationSec,
         pcsKe: "Semua",
         dikerjakanOleh: `Perbaikan Khusus (${currentOperatorName || "Operator"})`,
@@ -990,12 +1148,14 @@ export default function DowntimeTracker({
         notes: "Laporan otomatis sistem karena mesin berhenti lebih dari 1 jam.",
         isAutoBlocked: true,
         isDraft: true,
+        lastHeartbeatHour: 1,
+        handoffLogs: initialHandoffLogs,
       };
 
-      const res = await submitMechanicDowntime({
+      const res: any = await submitMechanicDowntime({
         nomorMc: targetMachine,
         operatorId: watch("operatorId") || "",
-        groupId: initialShift,
+        groupId: rawGroupId,
         designId: watch("designId") || "",
         tanggalProduksi: isoDate,
         potonganKe: watch("potonganKe") || "",
@@ -1003,7 +1163,13 @@ export default function DowntimeTracker({
         createdTime: startTimeMs,
       });
 
-      if (res.success && res.headerId) {
+      if (res.alreadyExists && res.existingBlock) {
+        // Perangkat lain sudah lebih dulu membuat draft untuk mesin ini -> ikuti data server
+        setActiveBlock(res.existingBlock);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`dji_machine_block_${targetMachine}`, JSON.stringify(res.existingBlock));
+        }
+      } else if (res.success && res.headerId) {
         newBlock.draftHeaderId = res.headerId;
         newBlock.lastHeartbeatHour = 1;
         setActiveBlock({ ...newBlock });
@@ -1015,6 +1181,7 @@ export default function DowntimeTracker({
       console.error("Gagal melakukan auto-block mesin:", err);
     } finally {
       isAutoBlockingRef.current = false;
+      isCreatingBlockRef.current = false;
     }
   };
 
@@ -1025,31 +1192,61 @@ export default function DowntimeTracker({
 
     try {
       const targetMachine = targetMc || watch("nomorMc") || "R1";
-      const initialShift = watch("groupId") || activeBlock.shift || "A";
+      const rawGroupId = watch("groupId") || activeBlock.shift || "A";
+      const initialShift = activeBlock.shift || (String(rawGroupId) === "2" ? "B" : String(rawGroupId) === "3" ? "C" : "A");
+      const labelPrefix = activeBlock.isAutoBlocked ? "[Auto-Block]" : "[Blok Mesin]";
       const draftEvent = {
         id: `auto-draft-${activeBlock.startTime}`,
+        blockId: activeBlock.id,
+        startTime: activeBlock.startTime,
+        startTimeStr: activeBlock.startTimeStr,
+        startDateStr: activeBlock.startDateStr,
+        dateIso: activeBlock.dateIso,
+        initialReporter: activeBlock.initialReporter,
         durasiDetik: totalSeconds,
         pcsKe: "Semua",
         dikerjakanOleh: `Perbaikan Khusus (${activeBlock.initialReporter || "Operator"})`,
         kategori: "F",
-        detail: `[Auto-Block] Mesin Mati > ${hour} Jam (Menunggu Klasifikasi Lapangan)`,
+        detail: `${labelPrefix} Mesin Mati > ${hour} Jam (Menunggu Klasifikasi Lapangan)`,
         shift: initialShift,
         notes: `Heartbeat Update Jam ke-${hour}: Mesin masih dalam perbaikan.`,
-        isAutoBlocked: true,
+        isAutoBlocked: Boolean(activeBlock.isAutoBlocked),
         isDraft: true,
+        lastHeartbeatHour: hour,
+        handoffLogs: activeBlock.handoffLogs || [],
       };
 
-      await submitMechanicDowntime({
+      const res: any = await submitMechanicDowntime({
         headerId: activeBlock.draftHeaderId,
         nomorMc: targetMachine,
         operatorId: watch("operatorId") || "",
-        groupId: initialShift,
+        groupId: rawGroupId,
         designId: watch("designId") || "",
         tanggalProduksi: activeBlock.dateIso || new Date().toISOString().split("T")[0],
         potonganKe: watch("potonganKe") || "",
         downtimeEvent: draftEvent,
         createdTime: activeBlock.startTime,
+        isHeartbeat: true,
+        heartbeatHour: hour,
       });
+
+      if (res.alreadyClosed) {
+        // Sudah diselesaikan atau dibatalkan dari perangkat lain -> bersihkan state lokal
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(`dji_machine_block_${targetMachine}`);
+        }
+        setActiveBlock(null);
+        setBlockLiveSeconds(0);
+        return;
+      }
+
+      if (res.skipped && res.existingBlock) {
+        setActiveBlock(res.existingBlock);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`dji_machine_block_${targetMachine}`, JSON.stringify(res.existingBlock));
+        }
+        return;
+      }
 
       const updated = { ...activeBlock, lastHeartbeatHour: hour };
       setActiveBlock(updated);
@@ -1063,8 +1260,12 @@ export default function DowntimeTracker({
     }
   };
 
+  // Sinkronisasi Lintas Perangkat (Single Source of Truth dari Supabase)
   useEffect(() => {
     if (!targetMc) return;
+    let isCancelled = false;
+
+    // 1. Muat cache lokal dulu agar tampilan instan & aman saat offline
     try {
       const saved = localStorage.getItem(`dji_machine_block_${targetMc}`);
       if (saved) {
@@ -1073,6 +1274,81 @@ export default function DowntimeTracker({
         setActiveBlock(null);
       }
     } catch (e) { }
+
+    // 2. Fungsi sinkronisasi dari database Supabase
+    const syncFromServer = async () => {
+      if (isCancelled || isCreatingBlockRef.current) return;
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+      try {
+        const res = await getActiveMachineBlock(targetMc);
+        if (isCancelled || isCreatingBlockRef.current || !res.success) return;
+
+        if (res.block) {
+          // Server punya blokir aktif -> gunakan sebagai sumber kebenaran utama
+          setActiveBlock((prev: any) => {
+            // Hindari re-render tak perlu jika data identik
+            if (
+              prev &&
+              prev.draftHeaderId === res.block!.draftHeaderId &&
+              prev.startTime === res.block!.startTime &&
+              prev.shift === res.block!.shift &&
+              prev.lastHeartbeatHour === res.block!.lastHeartbeatHour &&
+              (prev.handoffLogs?.length || 0) === (res.block!.handoffLogs?.length || 0)
+            ) {
+              return prev;
+            }
+            return res.block;
+          });
+          localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(res.block));
+        } else {
+          // Server TIDAK punya blokir aktif -> jika lokal punya draftHeaderId, berarti sudah dibatalkan/diselesaikan perangkat lain!
+          const localRaw = localStorage.getItem(`dji_machine_block_${targetMc}`);
+          if (localRaw) {
+            try {
+              const localParsed = JSON.parse(localRaw);
+              if (localParsed?.draftHeaderId) {
+                localStorage.removeItem(`dji_machine_block_${targetMc}`);
+                setActiveBlock(null);
+                setBlockLiveSeconds(0);
+              }
+            } catch {
+              localStorage.removeItem(`dji_machine_block_${targetMc}`);
+              setActiveBlock(null);
+            }
+          } else {
+            setActiveBlock((prev: any) => (prev?.draftHeaderId ? null : prev));
+          }
+        }
+      } catch (err) {
+        // Biarkan cache lokal tetap aktif jika jaringan sedang bermasalah
+      }
+    };
+
+    syncFromServer();
+
+    const handleVisibilityOrFocus = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        syncFromServer();
+      }
+    };
+
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+
+    // Polling ringan tiap 15 detik saat layar aktif agar sinkron real-time antar Tablet & Laptop
+    const pollInterval = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        syncFromServer();
+      }
+    }, 15000);
+
+    return () => {
+      isCancelled = true;
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      clearInterval(pollInterval);
+    };
   }, [targetMc]);
 
   useEffect(() => {
@@ -1082,10 +1358,10 @@ export default function DowntimeTracker({
         const sec = Math.floor((Date.now() - activeBlock.startTime) / 1000);
         setBlockLiveSeconds(sec);
 
-        // Jika sudah ada draftHeaderId, jalankan Live Heartbeat Update setiap bertambah 1 jam (jam ke-2, 3, dst)
+        // Jika sudah ada draftHeaderId, jalankan Live Heartbeat Update setiap bertambah 1 jam (jam ke-1, 2, 3, dst)
         if (activeBlock.draftHeaderId) {
           const currentHour = Math.floor(sec / 3600);
-          const lastHour = activeBlock.lastHeartbeatHour || 1;
+          const lastHour = typeof activeBlock.lastHeartbeatHour === "number" ? activeBlock.lastHeartbeatHour : 0;
           if (currentHour > lastHour) {
             executeHeartbeatUpdate(currentHour, sec);
           }
@@ -1108,54 +1384,122 @@ export default function DowntimeTracker({
     setShowConfirmBlockModal(true);
   };
 
-  const executeBlockMachine = () => {
-    const now = Date.now();
-    const isoDate = new Date().toISOString().split("T")[0];
-    const initialShift = watch("groupId") || "A";
+  const executeBlockMachine = async () => {
+    if (isCreatingBlockRef.current) return;
+    isCreatingBlockRef.current = true;
 
-    // 1. Ambil waktu mulai stop jika timer downtime normal sedang berjalan (detik dipindahkan ke blok)
-    const savedStartStr = typeof window !== "undefined" ? localStorage.getItem("dji_active_downtime_start") : null;
-    const activeStart = activeTimerStartRef.current || (savedStartStr ? parseInt(savedStartStr) : null);
-    const effectiveStartTime = (activeStart !== null && (now - activeStart) < 24 * 3600 * 1000) ? activeStart : now;
+    try {
+      const now = Date.now();
+      const isoDate = new Date().toISOString().split("T")[0];
+      const rawGroupId = watch("groupId") || "A";
+      const grpObj = resolvedGroups.find(
+        (g) => String(g.id) === String(rawGroupId) || g.name === String(rawGroupId)
+      );
+      const initialShift = grpObj?.name || (String(rawGroupId) === "2" ? "B" : String(rawGroupId) === "3" ? "C" : "A");
 
-    // 2. Hentikan dan bersihkan timer downtime normal agar tidak jalan di background / tidak double
-    activeTimerStartRef.current = null;
-    setIsTimerRunning(false);
-    setTimerStartRef(null);
-    setLiveTimerSeconds(0);
-    accumulatedSecRef.current = 0;
-    setTempDuration(0);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("dji_active_downtime_start");
-      localStorage.removeItem("dji_active_timer_source");
-    }
+      // 1. Ambil waktu mulai stop jika timer downtime normal sedang berjalan (detik dipindahkan ke blok)
+      const savedStartStr = typeof window !== "undefined" ? localStorage.getItem("dji_active_downtime_start") : null;
+      const activeStart = activeTimerStartRef.current || (savedStartStr ? parseInt(savedStartStr) : null);
+      const effectiveStartTime = (activeStart !== null && (now - activeStart) < 24 * 3600 * 1000) ? activeStart : now;
+      const initialDurationSec = Math.max(0, Math.floor((now - effectiveStartTime) / 1000));
 
-    const newBlock = {
-      id: `block-${now}`,
-      nomorMc: targetMc,
-      startTime: effectiveStartTime,
-      startTimeStr: new Date(effectiveStartTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-      startDateStr: new Date(effectiveStartTime).toLocaleDateString("id-ID"),
-      dateIso: isoDate,
-      initialReporter: currentOperatorName || "Operator",
-      handoffLogs: [
+      // 2. Hentikan dan bersihkan timer downtime normal agar tidak jalan di background / tidak double
+      activeTimerStartRef.current = null;
+      setIsTimerRunning(false);
+      setTimerStartRef(null);
+      setLiveTimerSeconds(0);
+      accumulatedSecRef.current = 0;
+      setTempDuration(0);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("dji_active_downtime_start");
+        localStorage.removeItem("dji_active_timer_source");
+      }
+
+      const startTimeStr = new Date(effectiveStartTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+      const startDateStr = new Date(effectiveStartTime).toLocaleDateString("id-ID");
+      const initialHandoffLogs = [
         {
           id: `log-${now}`,
           startTime: effectiveStartTime,
           operatorName: currentOperatorName || "Operator Aktif",
           shift: initialShift,
-          timestamp: new Date(effectiveStartTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-          dateStr: new Date(effectiveStartTime).toLocaleDateString("id-ID"),
+          timestamp: startTimeStr,
+          dateStr: startDateStr,
           dateIso: isoDate,
           notes: "Mulai Memblokir Mesin (Perbaikan Berlangsung)"
         }
-      ]
-    };
-    setActiveBlock(newBlock);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(newBlock));
+      ];
+
+      const newBlock: any = {
+        id: `block-${now}`,
+        nomorMc: targetMc,
+        startTime: effectiveStartTime,
+        startTimeStr,
+        startDateStr,
+        dateIso: isoDate,
+        initialReporter: currentOperatorName || "Operator",
+        shift: initialShift,
+        isAutoBlocked: false,
+        lastHeartbeatHour: 0,
+        handoffLogs: initialHandoffLogs,
+      };
+      setActiveBlock(newBlock);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(newBlock));
+      }
+      setShowConfirmBlockModal(false);
+
+      // 3. Langsung buat draft di Supabase agar langsung sinkron ke Tablet B & Laptop
+      const draftEvent = {
+        id: `block-draft-${effectiveStartTime}`,
+        blockId: newBlock.id,
+        startTime: effectiveStartTime,
+        startTimeStr,
+        startDateStr,
+        dateIso: isoDate,
+        initialReporter: newBlock.initialReporter,
+        durasiDetik: initialDurationSec,
+        pcsKe: "Semua",
+        dikerjakanOleh: `Perbaikan Khusus (${currentOperatorName || "Operator"})`,
+        kategori: "F",
+        detail: "[Blok Mesin] Mesin Sedang Dalam Perbaikan (Menunggu Klasifikasi Lapangan)",
+        shift: initialShift,
+        notes: "Mesin diblokir manual untuk perbaikan khusus.",
+        isAutoBlocked: false,
+        isDraft: true,
+        lastHeartbeatHour: 0,
+        handoffLogs: initialHandoffLogs,
+      };
+
+      const res: any = await submitMechanicDowntime({
+        nomorMc: targetMc,
+        operatorId: watch("operatorId") || "",
+        groupId: rawGroupId,
+        designId: watch("designId") || "",
+        tanggalProduksi: isoDate,
+        potonganKe: watch("potonganKe") || "",
+        downtimeEvent: draftEvent,
+        createdTime: effectiveStartTime,
+      });
+
+      if (res.alreadyExists && res.existingBlock) {
+        // Jika perangkat lain sudah memblokir mesin ini lebih dulu -> ikuti state server
+        setActiveBlock(res.existingBlock);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(res.existingBlock));
+        }
+      } else if (res.success && res.headerId) {
+        newBlock.draftHeaderId = res.headerId;
+        setActiveBlock({ ...newBlock });
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(newBlock));
+        }
+      }
+    } catch (err) {
+      console.error("Gagal menyinkronkan blokir mesin ke database:", err);
+    } finally {
+      isCreatingBlockRef.current = false;
     }
-    setShowConfirmBlockModal(false);
   };
 
   const handleCancelBlock = () => {
@@ -1163,50 +1507,369 @@ export default function DowntimeTracker({
     setShowConfirmCancelModal(true);
   };
 
-  const executeCancelBlock = () => {
-    if (activeBlock?.draftHeaderId) {
-      cancelMechanicDowntime(activeBlock.draftHeaderId).catch(console.error);
-    }
-    localStorage.removeItem(`dji_machine_block_${targetMc}`);
+  const executeCancelBlock = async () => {
+    const headerIdToCancel = activeBlock?.draftHeaderId;
+    const mcToCancel = targetMc || activeBlock?.nomorMc;
+
+    localStorage.removeItem(`dji_machine_block_${mcToCancel}`);
     setActiveBlock(null);
     setBlockLiveSeconds(0);
     setShowConfirmCancelModal(false);
+
+    // Sinkronkan pembatalan ke database agar Tablet B / Laptop juga langsung bersih
+    try {
+      await cancelMechanicDowntime(headerIdToCancel, mcToCancel);
+    } catch (err) {
+      console.error("Gagal membatalkan draft blokir mesin di database:", err);
+    }
   };
 
-  const handleAddHandoffLog = () => {
+  const handleOpenHandoffModal = () => {
+    const curGroupId = watch("groupId") ? String(watch("groupId")) : String(resolvedGroups[0]?.id || "1");
+    const curOpId = watch("operatorId") ? String(watch("operatorId")) : "";
+    setHandoffGroupId(curGroupId);
+    setHandoffOperatorId(curOpId);
+    setHandoffOperatorName(currentOperatorName || "");
+    setShowHandoffModal(true);
+  };
+
+  // Listener global agar tombol peringatan "Buka Serah Terima Shift" (dari guard Lapor Mesin Mati) bisa langsung membuka modal Serah Terima
+  useEffect(() => {
+    if (viewMode === "events_only") return;
+    const onOpenHandoff = () => {
+      handleOpenHandoffModal();
+    };
+    window.addEventListener("dji:open-block-handoff", onOpenHandoff);
+    return () => {
+      window.removeEventListener("dji:open-block-handoff", onOpenHandoff);
+    };
+  }, [viewMode, currentOperatorName, resolvedGroups]);
+
+  const handleAddHandoffLog = async () => {
     if (!activeBlock) return;
     const now = Date.now();
     const isoDate = new Date().toISOString().split("T")[0];
-    const targetOp = handoffOperatorName || currentOperatorName || "Operator Aktif";
+
+    const selectedOp =
+      handoffFilteredOperators.find((op) => String(op.id) === String(handoffOperatorId)) ||
+      handoffFilteredOperators.find((op) => op.name === handoffOperatorName) ||
+      resolvedAllOperators.find((op) => op.name === handoffOperatorName);
+
+    const targetOp = selectedOp?.name || handoffOperatorName || currentOperatorName || "Operator Aktif";
+    const targetShiftName = handoffSelectedGroupName || "A";
+    const targetGroupIdStr = String(handoffSelectedGroupObj?.id || handoffGroupId || "1");
+    const targetOpIdStr = selectedOp ? String(selectedOp.id) : String(watch("operatorId") || "");
+
     const newLog = {
       id: `log-${now}`,
+      logType: "HANDOFF",
       startTime: now,
+      operatorId: targetOpIdStr,
       operatorName: targetOp,
-      shift: watch("groupId") || "A",
+      shift: targetShiftName,
       timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
       dateStr: new Date().toLocaleDateString("id-ID"),
       dateIso: isoDate,
-      notes: `Serah terima shift ke ${targetOp}`
+      notes: `Serah terima shift ke ${targetOp} (Grup ${targetShiftName})`
     };
+
     const updated = {
       ...activeBlock,
+      shift: targetShiftName,
       handoffLogs: [...(activeBlock.handoffLogs || []), newLog]
     };
+
+    // Tandai ref sebelum setValue agar useEffect Header->Block tidak membuat log dobel
+    prevHeaderSyncRef.current = { groupId: targetGroupIdStr, operatorId: targetOpIdStr };
+
     setActiveBlock(updated);
     localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(updated));
+
+    // Sinkronisasi Arah 1: Update Header (React Hook Form + localStorage dji_form_header)
+    if (setValue) {
+      setValue("groupId", targetGroupIdStr, { shouldDirty: true, shouldValidate: true });
+      if (targetOpIdStr) {
+        setValue("operatorId", targetOpIdStr, { shouldDirty: true, shouldValidate: true });
+      }
+    }
+    try {
+      if (targetOp) localStorage.setItem("dji_active_operator_name", targetOp);
+      if (targetOpIdStr) localStorage.setItem("dji_active_operator_id", targetOpIdStr);
+      const savedHeaderRaw = localStorage.getItem("dji_form_header");
+      if (savedHeaderRaw) {
+        const parsedHeader = JSON.parse(savedHeaderRaw);
+        parsedHeader.groupId = targetGroupIdStr;
+        if (targetOpIdStr) parsedHeader.operatorId = targetOpIdStr;
+        localStorage.setItem("dji_form_header", JSON.stringify(parsedHeader));
+      }
+    } catch {
+      // ignore localStorage parse error
+    }
+
     setShowHandoffModal(false);
+
+    // Sinkronkan log serah terima shift ke database Supabase agar Tablet B / Laptop ikut update
+    try {
+      const syncRes = await syncMachineBlockMetadata({
+        headerId: updated.draftHeaderId,
+        nomorMc: targetMc,
+        handoffLogs: updated.handoffLogs,
+        shift: targetShiftName,
+        operatorId: targetOpIdStr,
+        groupId: targetGroupIdStr,
+      });
+      if (syncRes.alreadyClosed) {
+        localStorage.removeItem(`dji_machine_block_${targetMc}`);
+        setActiveBlock(null);
+        alert("Perbaikan mesin ini sudah diselesaikan atau dibatalkan dari perangkat lain.");
+      } else if (syncRes.success && syncRes.handoffLogs) {
+        const merged = { ...updated, draftHeaderId: syncRes.headerId || updated.draftHeaderId, handoffLogs: syncRes.handoffLogs };
+        setActiveBlock(merged);
+        localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(merged));
+      }
+    } catch (err) {
+      console.error("Gagal menyinkronkan log serah terima shift:", err);
+    }
   };
 
-  const handleAddProgressNote = () => {
+  // ── HELPER SIMULASI UJI LINTAS SHIFT BLOCK MESIN ──
+  const handleSimulateShiftBack1Hour = () => {
+    if (!activeBlock) return;
+    const shiftMs = 3600 * 1000;
+    const newStart = (activeBlock.startTime || Date.now()) - shiftMs;
+    const startDt = new Date(newStart);
+    const updatedLogs = (activeBlock.handoffLogs || []).map((log: any) => {
+      const t = (log.startTime || activeBlock.startTime || Date.now()) - shiftMs;
+      const d = new Date(t);
+      return {
+        ...log,
+        startTime: t,
+        timestamp: d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+        dateStr: d.toLocaleDateString("id-ID"),
+        dateIso: d.toISOString().split("T")[0],
+      };
+    });
+    const updated = {
+      ...activeBlock,
+      startTime: newStart,
+      startTimeStr: startDt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      startDateStr: startDt.toLocaleDateString("id-ID"),
+      dateIso: startDt.toISOString().split("T")[0],
+      handoffLogs: updatedLogs,
+    };
+    setActiveBlock(updated);
+    setBlockLiveSeconds(Math.floor((Date.now() - newStart) / 1000));
+    if (targetMc) {
+      localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(updated));
+    }
+  };
+
+  const handleSimulateScenarioHandoffAndProgress = () => {
+    if (!activeBlock) return;
+    const now = Date.now();
+    const t0 = now - 150 * 60 * 1000; // 2 jam 30 menit lalu (Mulai Block - Grup A)
+    const t1 = now - 105 * 60 * 1000; // 1 jam 45 menit lalu (Catat Progres 1 - Grup A)
+    const t2 = now - 60 * 60 * 1000;  // 1 jam lalu (Serah Terima ke Grup B)
+    const t3 = now - 25 * 60 * 1000;  // 25 menit lalu (Catat Progres 2 - Grup B)
+
+    const opA = resolvedAllOperators.find((o) => o.shift === "A")?.name || "Rohmat";
+    const opBObj = resolvedAllOperators.find((o) => o.shift === "B") || { id: "13", name: "Aris W", shift: "B" };
+    const grpBObj = resolvedGroups.find((g) => g.name === "B") || { id: "2", name: "B" };
+
+    const fmtLog = (ms: number, opName: string, shift: string, logType: string, notes: string) => {
+      const d = new Date(ms);
+      return {
+        id: `sim-${logType}-${ms}`,
+        logType,
+        startTime: ms,
+        operatorName: opName,
+        shift,
+        timestamp: d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+        dateStr: d.toLocaleDateString("id-ID"),
+        dateIso: d.toISOString().split("T")[0],
+        notes,
+      };
+    };
+
+    const startDt = new Date(t0);
+    const updated = {
+      ...activeBlock,
+      startTime: t0,
+      startTimeStr: startDt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      startDateStr: startDt.toLocaleDateString("id-ID"),
+      dateIso: startDt.toISOString().split("T")[0],
+      initialReporter: opA,
+      shift: "B",
+      handoffLogs: [
+        fmtLog(t0, opA, "A", "INITIAL", "Mulai Memblokir Mesin (Perbaikan Berlangsung)"),
+        fmtLog(t1, opA, "A", "PROGRESS", "Pembongkaran komponen selesai, menunggu sparepart"),
+        fmtLog(t2, opBObj.name, "B", "HANDOFF", `Serah terima shift ke ${opBObj.name} (Grup B)`),
+        fmtLog(t3, opBObj.name, "B", "PROGRESS", "Pemasangan sparepart baru & tahap setting"),
+      ],
+    };
+
+    prevHeaderSyncRef.current = { groupId: String(grpBObj.id), operatorId: String(opBObj.id) };
+    setActiveBlock(updated);
+    setBlockLiveSeconds(Math.floor((now - t0) / 1000));
+    if (targetMc) {
+      localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(updated));
+    }
+    if (setValue) {
+      setValue("groupId", String(grpBObj.id), { shouldDirty: true });
+      setValue("operatorId", String(opBObj.id), { shouldDirty: true });
+    }
+  };
+
+  const handleSimulateScenarioAutoSplitBoundary = () => {
+    if (!activeBlock) return;
+    const now = Date.now();
+    const wibNow = new Date(now + 7 * 3600 * 1000);
+    const todayStr = wibNow.toISOString().slice(0, 10);
+    const yesterdayStr = new Date(now + 7 * 3600 * 1000 - 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+    const candidateBoundaries = [
+      new Date(`${yesterdayStr}T23:10:00+07:00`).getTime(),
+      new Date(`${todayStr}T07:10:00+07:00`).getTime(),
+      new Date(`${todayStr}T15:10:00+07:00`).getTime(),
+      new Date(`${todayStr}T23:10:00+07:00`).getTime(),
+    ].filter((b) => b < now - 5 * 60 * 1000);
+
+    const lastBoundary = candidateBoundaries.length > 0
+      ? Math.max(...candidateBoundaries)
+      : now - 2 * 3600 * 1000;
+
+    const t0 = lastBoundary - 75 * 60 * 1000;
+    const tProg = lastBoundary - 30 * 60 * 1000;
+    const startDt = new Date(t0);
+    const progDt = new Date(tProg);
+    const prevShiftName = getShiftName(t0);
+    const prevShiftGroup = prevShiftName === "Shift 1" ? "A" : prevShiftName === "Shift 2" ? "B" : "C";
+    const opPrev = resolvedAllOperators.find((o) => o.shift === prevShiftGroup)?.name || activeBlock.initialReporter || "Operator";
+
+    const updated = {
+      ...activeBlock,
+      startTime: t0,
+      startTimeStr: startDt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      startDateStr: startDt.toLocaleDateString("id-ID"),
+      dateIso: startDt.toISOString().split("T")[0],
+      initialReporter: opPrev,
+      shift: prevShiftGroup,
+      handoffLogs: [
+        {
+          id: `sim-init-${t0}`,
+          logType: "INITIAL",
+          startTime: t0,
+          operatorName: opPrev,
+          shift: prevShiftGroup,
+          timestamp: startDt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          dateStr: startDt.toLocaleDateString("id-ID"),
+          dateIso: startDt.toISOString().split("T")[0],
+          notes: "Mulai Memblokir Mesin (Perbaikan Berlangsung)",
+        },
+        {
+          id: `sim-prog-${tProg}`,
+          logType: "PROGRESS",
+          startTime: tProg,
+          operatorName: opPrev,
+          shift: prevShiftGroup,
+          timestamp: progDt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          dateStr: progDt.toLocaleDateString("id-ID"),
+          dateIso: progDt.toISOString().split("T")[0],
+          notes: "Catatan progres di shift sebelumnya (tanpa klik Serah Terima)",
+        },
+      ],
+    };
+
+    setActiveBlock(updated);
+    setBlockLiveSeconds(Math.floor((now - t0) / 1000));
+    if (targetMc) {
+      localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(updated));
+    }
+  };
+
+  const simulatedSegmentsPreview = React.useMemo(() => {
+    if (!activeBlock || !activeBlock.startTime) return { mode: "-", items: [] as any[] };
+    const now = Date.now();
+    const allLogs: any[] = Array.isArray(activeBlock.handoffLogs) ? activeBlock.handoffLogs : [];
+    const isHandoff = (log: any, idx: number) => {
+      if (idx === 0) return true;
+      if (log?.logType === "PROGRESS") return false;
+      if (log?.logType === "HANDOFF") return true;
+      return String(log?.notes || "").toLowerCase().includes("serah terima");
+    };
+    const sLogs = allLogs.filter((l, i) => isHandoff(l, i));
+    const pLogs = allLogs.filter((l, i) => !isHandoff(l, i));
+
+    if (sLogs.length > 1) {
+      const items = sLogs.map((curLog, i) => {
+        const lStart = curLog.startTime || activeBlock.startTime;
+        const nTime = i < sLogs.length - 1 && sLogs[i + 1]?.startTime ? sLogs[i + 1].startTime : now;
+        const durSec = Math.max(1, Math.floor((nTime - lStart) / 1000));
+        const segProgs = pLogs
+          .filter((p) => {
+            const pt = p.startTime || 0;
+            return pt >= lStart && (i === sLogs.length - 1 ? pt <= nTime : pt < nTime);
+          })
+          .map((p) => p.notes);
+        return {
+          label: `Segmen #${i + 1} • Grup ${curLog.shift || "A"} (${curLog.operatorName || "Operator"})`,
+          duration: formatDurationSmart(durSec),
+          notes: segProgs.length > 0 ? `Progres: ${segProgs.join("; ")}` : curLog.notes,
+        };
+      });
+      return { mode: "Split via Serah Terima Shift", items };
+    }
+
+    const boundarySegs = getShiftBoundarySegments(activeBlock.startTime, now);
+    if (boundarySegs.length > 1) {
+      const items = boundarySegs.map((seg, i) => {
+        const isLast = i === boundarySegs.length - 1;
+        const opName = isLast
+          ? currentOperatorName || activeBlock.initialReporter || "Operator"
+          : activeBlock.initialReporter || "Operator";
+        return {
+          label: `Segmen #${i + 1} • ${seg.shiftName} / Grup ${seg.shiftGroup} (${opName})`,
+          duration: formatDurationSmart(seg.durationSec),
+          notes: "Auto-Split Batas Jam Shift (07:10 / 15:10 / 23:10)",
+        };
+      });
+      return { mode: "Auto-Split Batas Jam Shift Pabrik", items };
+    }
+
+    const totalSec = Math.max(1, Math.floor((now - activeBlock.startTime) / 1000));
+    const allProgNotes = pLogs.map((p) => p.notes);
+    return {
+      mode: "1 Laporan Utuh (Masih di Shift yang Sama)",
+      items: [
+        {
+          label: `Segmen #1 • Grup ${activeBlock.shift || "A"} (${currentOperatorName || activeBlock.initialReporter || "Operator"})`,
+          duration: formatDurationSmart(totalSec),
+          notes:
+            allProgNotes.length > 0
+              ? `${allProgNotes.length} catatan progres digabung (tidak memecah laporan)`
+              : "Perbaikan dalam 1 shift",
+        },
+      ],
+    };
+  }, [activeBlock, blockLiveSeconds, currentOperatorName]);
+
+  const handleAddProgressNote = async () => {
     if (!activeBlock || !progressNoteText.trim()) return;
     const now = Date.now();
     const isoDate = new Date().toISOString().split("T")[0];
     const currentOp = handoffOperatorName || currentOperatorName || activeBlock.initialReporter || "Operator";
+    const rawGroupId = watch("groupId") || activeBlock.shift || "A";
+    const grpObj = resolvedGroups.find(
+      (g) => String(g.id) === String(rawGroupId) || g.name === String(rawGroupId)
+    );
+    const shiftName = grpObj?.name || activeBlock.shift || "A";
+
     const newLog = {
       id: `log-${now}`,
+      logType: "PROGRESS",
       startTime: now,
       operatorName: currentOp,
-      shift: watch("groupId") || "A",
+      shift: shiftName,
       timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
       dateStr: new Date().toLocaleDateString("id-ID"),
       dateIso: isoDate,
@@ -1220,6 +1883,27 @@ export default function DowntimeTracker({
     localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(updated));
     setProgressNoteText("");
     setShowAddNoteModal(false);
+
+    // Sinkronkan catatan progres ke database Supabase
+    try {
+      const syncRes = await syncMachineBlockMetadata({
+        headerId: updated.draftHeaderId,
+        nomorMc: targetMc,
+        handoffLogs: updated.handoffLogs,
+        shift: shiftName,
+      });
+      if (syncRes.alreadyClosed) {
+        localStorage.removeItem(`dji_machine_block_${targetMc}`);
+        setActiveBlock(null);
+        alert("Perbaikan mesin ini sudah diselesaikan atau dibatalkan dari perangkat lain.");
+      } else if (syncRes.success && syncRes.handoffLogs) {
+        const merged = { ...updated, draftHeaderId: syncRes.headerId || updated.draftHeaderId, handoffLogs: syncRes.handoffLogs };
+        setActiveBlock(merged);
+        localStorage.setItem(`dji_machine_block_${targetMc}`, JSON.stringify(merged));
+      }
+    } catch (err) {
+      console.error("Gagal menyinkronkan catatan progres:", err);
+    }
   };
 
   const handleUnblockMachine = () => {
@@ -1231,10 +1915,29 @@ export default function DowntimeTracker({
     setDikerjakanOleh("Perbaikan Khusus");
     setIsUnblockingBlock(true);
 
+    const logs: any[] = Array.isArray(activeBlock.handoffLogs) ? activeBlock.handoffLogs : [];
+    const lastHandoffLog = [...logs].reverse().find((l, idx) => l?.logType === "HANDOFF" || idx === logs.length - 1);
+    const rawGroupId = watch("groupId") ? String(watch("groupId")) : "";
+    const curGrpObj = resolvedGroups.find(
+      (g) => String(g.id) === rawGroupId || g.name === rawGroupId
+    );
     const shiftName = getShiftName(now);
-    const shiftGroup = shiftName === "Shift 1" ? "A" : shiftName === "Shift 2" ? "B" : "C";
-    setUnblockShift(shiftGroup);
-    setUnblockOperatorName(currentOperatorName || (operators && operators[0]?.name) || "Operator");
+    const fallbackShiftGroup = shiftName === "Shift 1" ? "A" : shiftName === "Shift 2" ? "B" : "C";
+    const activeShiftLetter =
+      lastHandoffLog?.shift ||
+      curGrpObj?.name ||
+      activeBlock.shift ||
+      fallbackShiftGroup;
+
+    const activeOpName =
+      lastHandoffLog?.operatorName ||
+      currentOperatorName ||
+      activeBlock.initialReporter ||
+      (resolvedAllOperators && resolvedAllOperators[0]?.name) ||
+      "Operator";
+
+    setUnblockShift(activeShiftLetter);
+    setUnblockOperatorName(activeOpName);
 
     setShowModal(true);
   };
@@ -2518,93 +3221,251 @@ export default function DowntimeTracker({
         try {
           if (activeBlock) {
             const unblockTime = frozenUnblockTimestamp || (activeBlock.startTime ? activeBlock.startTime + (tempDuration * 1000) : Date.now());
-            const foundOp = operators.find((o) => o.name === unblockOperatorName);
+            const foundOp = resolvedAllOperators.find(
+              (o) => String(o.name || "").trim().toLowerCase() === String(unblockOperatorName || "").trim().toLowerCase()
+            );
             const targetOpId = foundOp ? String(foundOp.id) : (watch("operatorId") || "");
+            const matchedGroupObj = resolvedGroups.find(
+              (g) => g.name === unblockShift || String(g.id) === unblockShift
+            );
+            const targetGroupIdForForm = matchedGroupObj ? String(matchedGroupObj.id) : unblockShift;
 
             if (setValue && foundOp) {
-              setValue("operatorId", targetOpId);
-              setValue("groupId", unblockShift);
+              prevHeaderSyncRef.current = { groupId: targetGroupIdForForm, operatorId: targetOpId };
+              setValue("operatorId", targetOpId, { shouldDirty: true });
+              setValue("groupId", targetGroupIdForForm, { shouldDirty: true });
             }
 
-            // Skenario A: Operator sebelumnya mencatat log serah terima manual (handoffLogs > 1)
-            if (activeBlock.handoffLogs && activeBlock.handoffLogs.length > 1) {
-              const logs = activeBlock.handoffLogs;
-              for (let i = 0; i < logs.length; i++) {
-                const currentLog = logs[i];
-                const logStart = currentLog.startTime || activeBlock.startTime || (unblockTime - (tempDuration || 60) * 1000);
-                const nextTime = (i < logs.length - 1 && logs[i + 1]?.startTime) ? logs[i + 1].startTime : unblockTime;
-                const diff = Math.floor((nextTime - logStart) / 1000);
-                const segDurationSec = (isNaN(diff) || diff <= 0) ? (tempDuration || 1) : diff;
+            // Pisahkan log Serah Terima Shift (yang memotong durasi) vs Catat Progres (murni catatan kronologi)
+            const allBlockLogs: any[] = Array.isArray(activeBlock.handoffLogs) ? activeBlock.handoffLogs : [];
+            const isShiftHandoffEntry = (log: any, idx: number) => {
+              if (idx === 0) return true;
+              if (log?.logType === "PROGRESS") return false;
+              if (log?.logType === "HANDOFF") return true;
+              return String(log?.notes || "").toLowerCase().includes("serah terima");
+            };
 
+            const rawShiftLogs = allBlockLogs.filter((log, idx) => isShiftHandoffEntry(log, idx));
+            const progressLogs = allBlockLogs.filter((log, idx) => !isShiftHandoffEntry(log, idx));
+
+            // Gabungkan log serah terima berurutan dengan operator & shift yang sama agar tidak menjadi laporan ganda
+            const shiftLogs: any[] = [];
+            for (const log of rawShiftLogs) {
+              const prevLog = shiftLogs[shiftLogs.length - 1];
+              if (
+                prevLog &&
+                String(prevLog.operatorName || "").trim().toLowerCase() === String(log.operatorName || "").trim().toLowerCase() &&
+                String(prevLog.shift || "").trim().toUpperCase() === String(log.shift || "").trim().toUpperCase()
+              ) {
+                continue;
+              }
+              shiftLogs.push(log);
+            }
+
+            // Hybrid Shift-Boundary + Handoff Split:
+            // Selalu potong durasi mengikuti batas resmi jam shift pabrik (07:10, 15:10, 23:10 WIB),
+            // lalu cocokkan penanggung jawab (operator & grup) dari shiftLogs pada slot shift masing-masing.
+            // Jadi jika operator shift berikutnya telat menekan Serah Terima Shift (misal baru klik jam 22:00),
+            // porsi 15:10 - 22:00 tetap adil masuk ke Shift 2, bukan membebani Shift 1.
+            const shiftSegments = getShiftBoundarySegments(activeBlock.startTime, unblockTime);
+
+            const resolveShiftCode = (rawShift?: string, fallback: "A" | "B" | "C" = "A"): "A" | "B" | "C" => {
+              if (!rawShift) return fallback;
+              const s = String(rawShift).toUpperCase();
+              if (s === "2" || s.includes("B")) return "B";
+              if (s === "3" || s.includes("C")) return "C";
+              if (s === "1" || s.includes("A")) return "A";
+              return fallback;
+            };
+
+            if (shiftSegments.length > 1) {
+              // Skenario Lintas Shift: Potong presisi di batas 07:10 / 15:10 / 23:10 WIB
+              for (let i = 0; i < shiftSegments.length; i++) {
+                const seg = shiftSegments[i];
+                const isFirst = i === 0;
+                const isLast = i === shiftSegments.length - 1;
+
+                // Cari log serah terima shift yang terjadi di dalam rentang slot shift ini
+                const shiftLogsInSeg = shiftLogs.filter(
+                  (l) => typeof l.startTime === "number" && l.startTime >= seg.startTime && l.startTime <= seg.endTime
+                );
+                const matchedLog = shiftLogsInSeg.length > 0 ? shiftLogsInSeg[shiftLogsInSeg.length - 1] : null;
+
+                let opName = activeBlock.initialReporter || "Operator";
+                let opShift = seg.shiftGroup;
+                let logOperatorId = "";
+
+                if (matchedLog) {
+                  opName = matchedLog.operatorName || opName;
+                  opShift = resolveShiftCode(matchedLog.shift, seg.shiftGroup);
+                  logOperatorId = matchedLog.operatorId ? String(matchedLog.operatorId) : "";
+                } else if (isLast) {
+                  opName = unblockOperatorName || currentOperatorName || opName;
+                  opShift = resolveShiftCode(unblockShift, seg.shiftGroup);
+                } else if (isFirst && shiftLogs[0]) {
+                  opName = shiftLogs[0].operatorName || opName;
+                  opShift = resolveShiftCode(shiftLogs[0].shift, seg.shiftGroup);
+                  logOperatorId = shiftLogs[0].operatorId ? String(shiftLogs[0].operatorId) : "";
+                }
+
+                // Gabungkan catatan progres yang terjadi di dalam rentang slot shift ini
+                const segProgressNotes = progressLogs
+                  .filter((p) => {
+                    const pt = p.startTime || 0;
+                    return pt >= seg.startTime && (isLast ? pt <= seg.endTime : pt < seg.endTime);
+                  })
+                  .map((p) => `[${p.timestamp || ""}] ${p.notes}`)
+                  .filter(Boolean);
+
+                const baseSegNote = matchedLog?.notes
+                  ? matchedLog.notes
+                  : isLast
+                  ? `Selesai diperbaiki oleh ${opName} pada Shift ${opShift}`
+                  : `Porsi perbaikan pada Shift ${opShift} (Auto-Split Jadwal Shift)`;
+
+                const combinedNotes = [
+                  baseSegNote,
+                  segProgressNotes.length > 0 ? `Progres: ${segProgressNotes.join("; ")}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" | ");
+
+                const splitEvent = {
+                  id: `split-shift-${Date.now()}-${i}`,
+                  durasiDetik: seg.durationSec,
+                  pcsKe: "Semua",
+                  dikerjakanOleh: `Perbaikan Khusus (${opName})`,
+                  problems: problems,
+                  shift: opShift,
+                  notes: combinedNotes,
+                  isResolved: true,
+                  handoffLogs: allBlockLogs,
+                };
+
+                const segOpObj = resolvedAllOperators.find(
+                  (op) =>
+                    String(op.name || "").trim().toLowerCase() ===
+                    String(opName || "").trim().toLowerCase()
+                );
+                const segOperatorId = segOpObj
+                  ? String(segOpObj.id)
+                  : logOperatorId
+                  ? logOperatorId
+                  : isLast
+                  ? targetOpId
+                  : watch("operatorId") || "";
+
+                const res: any = await submitMechanicDowntime({
+                  nomorMc: watch("nomorMc") || "",
+                  operatorId: segOperatorId,
+                  groupId: opShift,
+                  designId: watch("designId") || "",
+                  course: watch("course") || "",
+                  pick: watch("pick") || "",
+                  rpm: watch("rpm") || "",
+                  tanggalProduksi: seg.shiftDate,
+                  potonganKe: watch("potonganKe") || "",
+                  downtimeEvent: splitEvent,
+                  createdTime: seg.startTime,
+                  headerId: (isFirst && activeBlock?.draftHeaderId) ? activeBlock.draftHeaderId : undefined,
+                  isFinalizingBlock: isFirst && Boolean(activeBlock?.draftHeaderId),
+                });
+
+                if (res.alreadyClosed) {
+                  alert(res.error || "Perbaikan mesin ini sudah diselesaikan atau dibatalkan dari perangkat lain.");
+                  break;
+                }
+                if (!res.success) {
+                  console.error("Error submitting shift-boundary downtime segment:", res.error);
+                }
+              }
+            } else if (shiftLogs.length > 1) {
+              // Skenario Dalam 1 Shift yang Sama tapi ada Serah Terima Operator Berbeda
+              for (let i = 0; i < shiftLogs.length; i++) {
+                const currentLog = shiftLogs[i];
+                const logStart = currentLog.startTime || activeBlock.startTime || (unblockTime - (tempDuration || 60) * 1000);
+                const nextTime = (i < shiftLogs.length - 1 && shiftLogs[i + 1]?.startTime) ? shiftLogs[i + 1].startTime : unblockTime;
+                const diff = Math.floor((nextTime - logStart) / 1000);
+                if (i < shiftLogs.length - 1 && (isNaN(diff) || diff <= 0)) {
+                  continue;
+                }
+                const segDurationSec = (isNaN(diff) || diff <= 0) ? 1 : diff;
+
+                const segProgressNotes = progressLogs
+                  .filter((p) => {
+                    const pt = p.startTime || 0;
+                    return pt >= logStart && (i === shiftLogs.length - 1 ? pt <= nextTime : pt < nextTime);
+                  })
+                  .map((p) => `[${p.timestamp || ""}] ${p.notes}`)
+                  .filter(Boolean);
+
+                const combinedNotes = [
+                  currentLog.notes,
+                  segProgressNotes.length > 0 ? `Progres: ${segProgressNotes.join("; ")}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" | ");
+
+                const opShift = resolveShiftCode(currentLog.shift, resolveShiftCode(unblockShift || watch("groupId"), "A"));
                 const splitEvent = {
                   id: `split-${Date.now()}-${i}`,
                   durasiDetik: segDurationSec,
                   pcsKe: "Semua",
                   dikerjakanOleh: `Perbaikan Khusus (${currentLog.operatorName || "Operator"})`,
                   problems: problems,
-                  shift: currentLog.shift || watch("groupId") || "A",
-                  notes: currentLog.notes
+                  shift: opShift,
+                  notes: combinedNotes,
+                  isResolved: true,
+                  handoffLogs: allBlockLogs,
                 };
 
-                const res = await submitMechanicDowntime({
+                const segOpObj = resolvedAllOperators.find(
+                  (op) =>
+                    String(op.name || "").trim().toLowerCase() ===
+                    String(currentLog.operatorName || "").trim().toLowerCase()
+                );
+                const segOperatorId = segOpObj
+                  ? String(segOpObj.id)
+                  : currentLog.operatorId
+                  ? String(currentLog.operatorId)
+                  : watch("operatorId") || "";
+
+                const res: any = await submitMechanicDowntime({
                   nomorMc: watch("nomorMc") || "",
-                  operatorId: watch("operatorId") || "",
-                  groupId: currentLog.shift || watch("groupId") || "A",
+                  operatorId: segOperatorId,
+                  groupId: opShift,
                   designId: watch("designId") || "",
-                  tanggalProduksi: currentLog.dateIso || new Date().toISOString().split("T")[0],
+                  course: watch("course") || "",
+                  pick: watch("pick") || "",
+                  rpm: watch("rpm") || "",
+                  tanggalProduksi: currentLog.dateIso || getShiftDate(new Date(logStart)),
                   potonganKe: watch("potonganKe") || "",
                   downtimeEvent: splitEvent,
                   createdTime: logStart,
                   headerId: (i === 0 && activeBlock?.draftHeaderId) ? activeBlock.draftHeaderId : undefined,
+                  isFinalizingBlock: i === 0 && Boolean(activeBlock?.draftHeaderId),
                 });
 
+                if (res.alreadyClosed) {
+                  alert(res.error || "Perbaikan mesin ini sudah diselesaikan atau dibatalkan dari perangkat lain.");
+                  break;
+                }
                 if (!res.success) {
                   console.error("Error submitting split downtime segment:", res.error);
                 }
               }
             } else {
-              // Skenario B: Tidak ada serah terima manual, periksa apakah melewati batas jam shift (07:10, 15:10, 23:10)
-              const segments = getShiftBoundarySegments(activeBlock.startTime, unblockTime);
+              // Satu segmen (dalam 1 shift yang sama & 1 operator) — gabungkan catatan progres jika ada tanpa memotong laporan
+                const singleShiftProgressNotes = progressLogs
+                  .map((p) => `[${p.timestamp || ""}] ${p.notes}`)
+                  .filter(Boolean);
+                const baseSingleNote =
+                  (fields[editingIndex!] as any)?.notes || "Perbaikan Khusus / Block Mesin Selesai";
+                const combinedSingleNote =
+                  singleShiftProgressNotes.length > 0
+                    ? `${baseSingleNote} | Progres: ${singleShiftProgressNotes.join("; ")}`
+                    : baseSingleNote;
 
-              if (segments.length > 1) {
-                // Auto-Split antar shift terjadwal
-                for (let i = 0; i < segments.length; i++) {
-                  const seg = segments[i];
-                  const isLast = i === segments.length - 1;
-                  const opName = isLast ? (unblockOperatorName || currentOperatorName || "Operator") : (activeBlock.initialReporter || "Operator");
-                  const opShift = seg.shiftGroup;
-                  const opDate = seg.shiftDate;
-
-                  const splitEvent = {
-                    id: `split-auto-${Date.now()}-${i}`,
-                    durasiDetik: seg.durationSec,
-                    pcsKe: "Semua",
-                    dikerjakanOleh: `Perbaikan Khusus (${opName})`,
-                    problems: problems,
-                    shift: opShift,
-                    notes: isLast
-                      ? `Selesai diperbaiki oleh ${opName} pada Shift ${opShift}`
-                      : `Porsi perbaikan pada Shift ${opShift} (Auto-Split Jadwal Shift)`
-                  };
-
-                  const res = await submitMechanicDowntime({
-                    nomorMc: watch("nomorMc") || "",
-                    operatorId: isLast ? targetOpId : (watch("operatorId") || ""),
-                    groupId: opShift,
-                    designId: watch("designId") || "",
-                    tanggalProduksi: opDate,
-                    potonganKe: watch("potonganKe") || "",
-                    downtimeEvent: splitEvent,
-                    createdTime: seg.startTime,
-                    headerId: (i === 0 && activeBlock?.draftHeaderId) ? activeBlock.draftHeaderId : undefined,
-                  });
-
-                  if (!res.success) {
-                    console.error("Error submitting auto-split downtime segment:", res.error);
-                  }
-                }
-              } else {
-                // Satu segmen (dalam 1 shift yang sama)
                 const finalEvent = {
                   id: (fields[editingIndex!] as any)?.id || `evt-${Date.now()}`,
                   durasiDetik: tempDuration,
@@ -2612,27 +3473,32 @@ export default function DowntimeTracker({
                   dikerjakanOleh: `Perbaikan Khusus (${unblockOperatorName || activeBlock.initialReporter || "Operator"})`,
                   problems: problems,
                   shift: unblockShift || watch("groupId") || "A",
-                  notes: (fields[editingIndex!] as any)?.notes || "Perbaikan Khusus / Block Mesin Selesai",
+                  notes: combinedSingleNote,
                   isResolved: true,
                   handoffLogs: activeBlock?.handoffLogs || undefined,
                 };
 
-                const res = await submitMechanicDowntime({
+                const res: any = await submitMechanicDowntime({
                   nomorMc: watch("nomorMc") || "",
                   operatorId: targetOpId || watch("operatorId") || "",
                   groupId: unblockShift || watch("groupId") || "",
                   designId: watch("designId") || "",
+                  course: watch("course") || "",
+                  pick: watch("pick") || "",
+                  rpm: watch("rpm") || "",
                   tanggalProduksi: watch("tanggalProduksi") || "",
                   potonganKe: watch("potonganKe") || "",
                   downtimeEvent: finalEvent,
                   createdTime: activeBlock?.startTime || undefined,
                   headerId: activeBlock?.draftHeaderId || undefined,
+                  isFinalizingBlock: Boolean(activeBlock?.draftHeaderId),
                 });
 
-                if (!res.success) {
+                if (res.alreadyClosed) {
+                  alert(res.error || "Perbaikan mesin ini sudah diselesaikan atau dibatalkan dari perangkat lain.");
+                } else if (!res.success) {
                   alert("Gagal mengirim downtime khusus: " + res.error);
                 }
-              }
             }
 
             handleCloseModal();
@@ -2864,11 +3730,11 @@ export default function DowntimeTracker({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h4
                           className={cn(
-                            "text-xs font-black uppercase tracking-wide leading-snug transition-colors",
+                            "text-xs font-black uppercase tracking-wide leading-tight transition-colors",
                             isDark ? "text-slate-100" : "text-slate-800"
                           )}
                         >
-                          Mesin Diblok (Dalam Perbaikan)
+                          Mesin Diblok
                         </h4>
                         {activeBlock.isAutoBlocked && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
@@ -2878,11 +3744,11 @@ export default function DowntimeTracker({
                       </div>
                       <p
                         className={cn(
-                          "text-[10px] font-semibold mt-0.5 leading-snug transition-colors",
+                          "text-[10px] font-semibold mt-0.5 leading-tight transition-colors",
                           isDark ? "text-slate-400" : "text-slate-500"
                         )}
                       >
-                        Mulai perbaikan {activeBlock.startDateStr} pkl {activeBlock.startTimeStr} • Pelapor: <strong className={isDark ? "text-slate-200" : "text-slate-700"}>{activeBlock.initialReporter}</strong>
+                        {activeBlock.startDateStr} • {activeBlock.startTimeStr} • <strong className={isDark ? "text-slate-200" : "text-slate-700"}>{activeBlock.initialReporter}</strong>
                       </p>
                     </div>
                   </div>
@@ -2936,71 +3802,82 @@ export default function DowntimeTracker({
                 {activeBlock.handoffLogs && activeBlock.handoffLogs.length > 1 && (
                   <div
                     className={cn(
-                      "rounded-2xl p-3 border space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar transition-colors",
+                      "rounded-2xl p-2.5 border space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar transition-colors",
                       isDark ? "bg-slate-950/80 border-slate-800" : "bg-white border-slate-200"
                     )}
                   >
                     <div
                       className={cn(
-                        "flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider block",
+                        "flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider",
                         isDark ? "text-slate-400" : "text-slate-600"
                       )}
                     >
-                      <ClipboardList className="w-3.5 h-3.5" />
-                      <span>Riwayat Serah Terima ({activeBlock.handoffLogs.length}):</span>
+                      <ClipboardList className="w-3 h-3 shrink-0" />
+                      <span>Riwayat ({activeBlock.handoffLogs.length})</span>
                     </div>
-                    {activeBlock.handoffLogs.map((log: any, lIdx: number) => (
-                      <div
-                        key={log.id || lIdx}
-                        className={cn(
-                          "text-[10px] p-2 rounded-xl border leading-relaxed transition-colors",
-                          isDark
-                            ? "text-slate-300 bg-slate-900 border-slate-800"
-                            : "text-slate-700 bg-slate-50 border-slate-100"
-                        )}
-                      >
-                        <div className="flex justify-between items-center text-[9px] font-extrabold mb-0.5">
-                          <span className="flex items-center gap-1">
-                            <User className="w-3 h-3 text-slate-500" />
-                            {log.operatorName} ({formatShiftLabel(log.shift)})
-                          </span>
-                          <span className={isDark ? "text-slate-500" : "text-slate-500"}>{log.dateStr} • {log.timestamp}</span>
+                    {activeBlock.handoffLogs.map((log: any, lIdx: number) => {
+                      const shortDate = log.dateStr ? String(log.dateStr).replace(/\/\d{4}$/, "") : "";
+                      const compactNote = String(log.notes || "")
+                        .replace("Mulai Memblokir Mesin (Perbaikan Berlangsung)", "Mulai block mesin")
+                        .replace(/^Serah terima shift ke\s+/i, "Serah terima → ")
+                        .replace(/\s*\(via Header\)$/i, "");
+                      return (
+                        <div
+                          key={log.id || lIdx}
+                          className={cn(
+                            "text-[10px] px-2 py-1.5 rounded-xl border leading-snug transition-colors",
+                            isDark
+                              ? "text-slate-300 bg-slate-900 border-slate-800"
+                              : "text-slate-700 bg-slate-50 border-slate-100"
+                          )}
+                        >
+                          <div className="flex justify-between items-center gap-2 text-[9px] font-extrabold">
+                            <span className="flex items-center gap-1 min-w-0 truncate">
+                              <User className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                              <span className="truncate">{log.operatorName} ({formatShiftLabel(log.shift)})</span>
+                            </span>
+                            <span className="text-slate-400 shrink-0 tabular-nums">
+                              {shortDate} • {log.timestamp}
+                            </span>
+                          </div>
+                          <p className={cn("font-medium pl-3.5 mt-0.5 truncate", isDark ? "text-slate-400" : "text-slate-600")} title={log.notes}>
+                            {compactNote}
+                          </p>
                         </div>
-                        <p className={cn("font-medium pl-4", isDark ? "text-slate-400" : "text-slate-600")}>{log.notes}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
                 {/* Action Buttons Container */}
                 <div className="pt-1.5 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                     <button
                       type="button"
                       onClick={() => setShowAddNoteModal(true)}
                       className={cn(
-                        "w-full min-w-0 py-2 px-2 rounded-xl font-extrabold text-[11px] xl:text-xs transition-all border flex items-center justify-center gap-1 shadow-2xs active:scale-95 cursor-pointer",
+                        "w-full min-w-0 py-2 px-1.5 sm:px-2 rounded-xl font-extrabold text-[10px] lg:text-[11px] xl:text-xs transition-all border flex items-center justify-center gap-1 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap",
                         isDark
                           ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
                           : "bg-white hover:bg-slate-100 text-slate-700 border-slate-200/80"
                       )}
                     >
-                      <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span className="truncate">Catat Progres</span>
+                      <FileText className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-slate-500 shrink-0" />
+                      <span>Catat Progres</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => setShowHandoffModal(true)}
+                      onClick={handleOpenHandoffModal}
                       className={cn(
-                        "w-full min-w-0 py-2 px-2 rounded-xl font-extrabold text-[11px] xl:text-xs transition-all border flex items-center justify-center gap-1 active:scale-95 cursor-pointer",
+                        "w-full min-w-0 py-2 px-1.5 sm:px-2 rounded-xl font-extrabold text-[10px] lg:text-[11px] xl:text-xs transition-all border flex items-center justify-center gap-1 active:scale-95 cursor-pointer whitespace-nowrap",
                         isDark
                           ? "bg-sky-950/60 hover:bg-sky-900/70 text-sky-300 border-sky-800"
                           : "bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200/70"
                       )}
                     >
-                      <RefreshCw className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                      <span className="truncate">Serah Terima</span>
+                      <RefreshCw className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-sky-600 shrink-0" />
+                      <span>Serah Terima</span>
                     </button>
                   </div>
 
@@ -3025,7 +3902,72 @@ export default function DowntimeTracker({
                       <X className="w-3.5 h-3.5 shrink-0" />
                       <span>Batalkan Block</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowBlockSimPanel((prev) => !prev)}
+                      className="font-bold text-[11px] text-[#0070bc] hover:underline px-3 py-1 rounded-lg cursor-pointer"
+                    >
+                      {showBlockSimPanel ? "Tutup Simulasi Uji" : "Simulasi Uji Lintas Shift"}
+                    </button>
                   </div>
+
+                  {showBlockSimPanel && (
+                    <div className="mt-2 p-3 rounded-2xl bg-sky-50/90 border border-sky-200 space-y-2.5 text-[10.5px] animate-fadeIn">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="font-black text-[#0070bc] uppercase tracking-wider">
+                          Simulasi Uji Lintas Shift
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-white border border-sky-200 text-[#0070bc] font-bold text-[9.5px]">
+                          {simulatedSegmentsPreview.mode}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleSimulateScenarioHandoffAndProgress}
+                          className="w-full py-1.5 px-2.5 rounded-xl bg-[#0070bc] hover:bg-[#005a96] text-white font-bold text-left flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span>1. Simulasi 2 Shift (Serah Terima + 2 Catat Progres)</span>
+                          <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded shrink-0">2j 30m</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSimulateScenarioAutoSplitBoundary}
+                          className="w-full py-1.5 px-2.5 rounded-xl bg-white hover:bg-sky-100/70 text-slate-800 border border-sky-200 font-bold text-left flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span>2. Simulasi Lupa Serah Terima (Auto-Split Jam Shift)</span>
+                          <span className="text-[9px] bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded shrink-0">Lewat Batas</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSimulateShiftBack1Hour}
+                          className="w-full py-1.5 px-2.5 rounded-xl bg-white hover:bg-sky-100/70 text-slate-800 border border-sky-200 font-bold text-left flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span>3. Mundurkan Waktu Block Saat Ini (+1 Jam)</span>
+                          <span className="text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded shrink-0">+60 mnt</span>
+                        </button>
+                      </div>
+
+                      <div className="bg-white rounded-xl p-2.5 border border-sky-100 space-y-1.5">
+                        <div className="text-[9.5px] font-black text-slate-500 uppercase">
+                          Pratinjau Hasil Pembagian Saat Di-Unblock ({simulatedSegmentsPreview.items.length} Laporan):
+                        </div>
+                        {simulatedSegmentsPreview.items.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 flex flex-col gap-0.5"
+                          >
+                            <div className="flex items-center justify-between font-extrabold text-slate-800">
+                              <span>{item.label}</span>
+                              <span className="text-[#0070bc]">{item.duration}</span>
+                            </div>
+                            <div className="text-[9.5px] text-slate-500 truncate">{item.notes}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3035,37 +3977,37 @@ export default function DowntimeTracker({
           <div
             data-tour="downtime-timer"
             className={cn(
-              "rounded-3xl p-5 border relative overflow-hidden mb-4 transition-colors duration-300",
+              "rounded-3xl p-3.5 xl:p-5 border relative overflow-hidden mb-4 transition-colors duration-300",
               isDark
                 ? "bg-slate-900/95 border-slate-800 text-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
                 : "bg-white border-slate-200 shadow-sm"
             )}
           >
-            <div className="flex flex-col gap-2 mb-4">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-col gap-2 mb-3.5 xl:mb-4">
+              <div className="flex items-center justify-between gap-1.5 flex-nowrap min-w-0">
+                <div className="flex items-center gap-1.5 xl:gap-2 shrink-0">
                   <div
                     className={cn(
-                      "w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors",
+                      "w-7 h-7 xl:w-10 xl:h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors",
                       isDark
                         ? "bg-amber-950/60 text-amber-400 border-amber-800/80"
                         : "bg-amber-50 text-amber-600 border-amber-100"
                     )}
                   >
-                    <Timer className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Timer className="w-3.5 h-3.5 xl:w-5 xl:h-5" />
                   </div>
                   <h3
                     className={cn(
-                      "text-xs sm:text-sm font-black whitespace-nowrap transition-colors",
+                      "text-xs xl:text-sm font-black whitespace-nowrap transition-colors",
                       isDark ? "text-slate-100" : "text-slate-800"
                     )}
                   >
                     Downtime
                   </h3>
                 </div>
-                <div className="text-right min-w-0">
-                  <span className={cn("text-[10px] sm:text-xs font-bold", isDark ? "text-slate-400" : "text-slate-400")}>Total: </span>
-                  <span className={cn("text-xs sm:text-sm font-black font-mono", isDark ? "text-amber-400" : "text-amber-600")}>
+                <div className="text-right shrink-0 whitespace-nowrap">
+                  <span className={cn("text-[10px] xl:text-xs font-bold", isDark ? "text-slate-400" : "text-slate-400")}>Total: </span>
+                  <span className={cn("text-[11px] xl:text-sm font-black font-mono", isDark ? "text-amber-400" : "text-amber-600")}>
                     {formatTimer((watch("downtimeEvents") || fields || []).reduce((acc: number, curr: any) => acc + (curr.durasiDetik || 0), 0))}
                   </span>
                 </div>
@@ -3192,17 +4134,17 @@ export default function DowntimeTracker({
                             : "bg-emerald-50 border-emerald-200/80 text-emerald-700"
                         )}
                       >
-                        <div className="flex items-center gap-1.5 font-extrabold text-xs">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>ESP32 Wi-Fi Terhubung</span>
+                        <div className="flex items-center gap-1.5 font-extrabold text-[11px] sm:text-xs whitespace-nowrap">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <span>ESP32 Terhubung</span>
                         </div>
                         <p
                           className={cn(
-                            "text-[10px] font-medium leading-tight",
+                            "text-[10px] font-medium leading-snug",
                             isDark ? "text-emerald-400/90" : "text-emerald-600/90"
                           )}
                         >
-                          Sensor otomatis standby. Gunakan tombol manual di bawah jika sensor mesin tidak merespons.
+                          Sensor standby • Gunakan Mulai Manual jika perlu.
                         </p>
                       </div>
                       <button
@@ -3273,26 +4215,31 @@ export default function DowntimeTracker({
                           <RefreshCw className={cn("w-3.5 h-3.5 animate-spin", isDark ? "text-amber-400" : "text-amber-700")} />
                           <span>Sensor ESP32 Berjalan</span>
                         </div>
-                        <p className="text-[10px] text-amber-800 font-medium leading-tight">
-                          Timer akan berhenti & membuka form secara otomatis saat mesin nyala kembali.
+                        <p className={cn("text-[10px] font-medium leading-tight", isDark ? "text-amber-200/80" : "text-amber-800")}>
+                          Timer akan berhenti &amp; membuka form secara otomatis saat mesin nyala kembali.
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2">
                         <button
                           type="button"
                           onClick={handleStopTimer}
-                          className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
+                          className="w-full xl:flex-1 h-11 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] cursor-pointer whitespace-nowrap"
                         >
-                          <Play className="w-4 h-4 fill-current" />
-                          <span>Stop & Simpan</span>
+                          <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                          <span>Stop &amp; Simpan</span>
                         </button>
                         <button
                           type="button"
                           onClick={handleCancelTimer}
-                          className="px-3 h-11 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+                          className={cn(
+                            "w-full xl:w-auto px-3 h-9 xl:h-11 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap shrink-0 border",
+                            isDark
+                              ? "bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 border-rose-800/80"
+                              : "bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200"
+                          )}
                           title="Batalkan timer dan reset ke 0"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-3.5 h-3.5 shrink-0" />
                           <span>Batalkan</span>
                         </button>
                       </div>
@@ -3925,18 +4872,20 @@ export default function DowntimeTracker({
                         onChange={(e) => {
                           const newName = e.target.value;
                           setUnblockOperatorName(newName);
-                          const found = operators.find((o) => o.name === newName);
+                          const found = resolvedAllOperators.find((o) => o.name === newName);
                           if (found && setValue) {
-                            setValue("operatorId", String(found.id));
+                            setValue("operatorId", String(found.id), { shouldDirty: true });
                           }
                         }}
                         className="w-full h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                       >
-                        {operators.map((op) => (
-                          <option key={op.id} value={op.name}>
-                            {op.name} {op.name === currentOperatorName ? "(Sedang Aktif)" : ""}
-                          </option>
-                        ))}
+                        {resolvedAllOperators
+                          .filter((op) => !op.shift || op.shift === unblockShift)
+                          .map((op) => (
+                            <option key={op.id} value={op.name}>
+                              {op.name} {op.name === currentOperatorName ? "(Sedang Aktif)" : ""}
+                            </option>
+                          ))}
                       </select>
                     </div>
                     <div>
@@ -3944,8 +4893,23 @@ export default function DowntimeTracker({
                       <select
                         value={unblockShift}
                         onChange={(e) => {
-                          setUnblockShift(e.target.value);
-                          if (setValue) setValue("groupId", e.target.value);
+                          const newShift = e.target.value;
+                          setUnblockShift(newShift);
+                          const matchedGrp = resolvedGroups.find((g) => g.name === newShift);
+                          const nextGrpId = matchedGrp ? String(matchedGrp.id) : newShift;
+                          const shiftOps = resolvedAllOperators.filter((o) => !o.shift || o.shift === newShift);
+                          const firstOp = shiftOps[0];
+                          if (firstOp) {
+                            setUnblockOperatorName(firstOp.name);
+                          }
+                          if (setValue) {
+                            prevHeaderSyncRef.current = {
+                              groupId: nextGrpId,
+                              operatorId: firstOp ? String(firstOp.id) : String(watch("operatorId") || ""),
+                            };
+                            setValue("groupId", nextGrpId, { shouldDirty: true });
+                            if (firstOp) setValue("operatorId", String(firstOp.id), { shouldDirty: true });
+                          }
                         }}
                         className="w-full h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                       >
@@ -4932,35 +5896,99 @@ export default function DowntimeTracker({
       {showHandoffModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-4 sm:p-5 border-b border-indigo-100 flex items-center justify-between bg-indigo-50">
+            <div className="p-4 sm:p-5 border-b border-sky-100 flex items-center justify-between bg-sky-50/80">
               <div className="flex items-center gap-2.5">
-                <RefreshCw className="w-5 h-5 text-indigo-600" />
+                <RefreshCw className="w-5 h-5 text-[#0070bc]" />
                 <div>
-                  <h3 className="font-black text-indigo-950 text-sm sm:text-base">Serah Terima Shift</h3>
-                  <p className="text-[10px] text-indigo-700 font-semibold">Ganti petugas operator untuk shift berikutnya</p>
+                  <h3 className="font-black text-slate-900 text-sm sm:text-base">Serah Terima Shift</h3>
+                  <p className="text-[10px] text-[#0070bc] font-semibold">Ganti petugas operator untuk shift berikutnya</p>
                 </div>
               </div>
-              <button onClick={() => setShowHandoffModal(false)} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded-xl transition-colors">
+              <button onClick={() => setShowHandoffModal(false)} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-4 sm:p-5 space-y-4">
+              {/* Pilihan Grup Shift */}
               <div>
-                <label className="text-[10px] font-extrabold text-slate-600 uppercase mb-1 block">Petugas Shift Baru *</label>
+                <label className="text-[10px] font-extrabold text-slate-600 uppercase mb-1.5 block">
+                  Grup Shift Baru *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {resolvedGroups.map((grp) => {
+                    const grpIdStr = String(grp.id);
+                    const isSelected = String(handoffGroupId) === grpIdStr;
+                    return (
+                      <button
+                        key={grpIdStr}
+                        type="button"
+                        onClick={() => {
+                          setHandoffGroupId(grpIdStr);
+                          const opsInGroup = resolvedAllOperators.filter(
+                            (op) => !op.shift || op.shift === grp.name
+                          );
+                          const currentOpStillInGroup = opsInGroup.find(
+                            (op) => String(op.id) === String(handoffOperatorId)
+                          );
+                          if (currentOpStillInGroup) {
+                            setHandoffOperatorId(String(currentOpStillInGroup.id));
+                            setHandoffOperatorName(currentOpStillInGroup.name);
+                          } else if (opsInGroup.length > 0) {
+                            setHandoffOperatorId(String(opsInGroup[0].id));
+                            setHandoffOperatorName(opsInGroup[0].name);
+                          } else {
+                            setHandoffOperatorId("");
+                            setHandoffOperatorName("");
+                          }
+                        }}
+                        className={cn(
+                          "h-10 rounded-xl border text-xs font-black transition-all cursor-pointer",
+                          isSelected
+                            ? "bg-[#0070bc] text-white border-[#0070bc] shadow-sm shadow-[#0070bc]/20"
+                            : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        )}
+                      >
+                        Grup {grp.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Pilihan Nama Operator sesuai Grup */}
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-600 uppercase mb-1.5 block">
+                  Petugas Shift Baru (Grup {handoffSelectedGroupName}) *
+                </label>
                 <select
-                  value={handoffOperatorName || currentOperatorName}
-                  onChange={(e) => setHandoffOperatorName(e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  value={handoffOperatorId || ""}
+                  onChange={(e) => {
+                    const chosenId = e.target.value;
+                    setHandoffOperatorId(chosenId);
+                    const found = handoffFilteredOperators.find(
+                      (op) => String(op.id) === chosenId
+                    );
+                    setHandoffOperatorName(found ? found.name : "");
+                  }}
+                  className="w-full h-11 px-3 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-white focus:border-[#0070bc] focus:ring-2 focus:ring-[#0070bc]/20 outline-none"
                 >
-                  {currentOperatorName && <option value={currentOperatorName}>{currentOperatorName} (Operator Aktif)</option>}
-                  {operators
-                    .filter(op => op.name !== currentOperatorName)
-                    .map(op => (
-                      <option key={op.id} value={op.name}>{op.name}</option>
-                    ))
-                  }
+                  <option value="">-- Pilih Operator Grup {handoffSelectedGroupName} --</option>
+                  {handoffFilteredOperators.map((op) => {
+                    const isActive =
+                      String(op.id) === String(watchedHeaderOperatorId) &&
+                      op.name === currentOperatorName;
+                    return (
+                      <option key={op.id} value={String(op.id)}>
+                        {op.name}
+                        {isActive ? " (Operator Aktif)" : ""}
+                      </option>
+                    );
+                  })}
                 </select>
+                <p className="text-[10.5px] text-slate-400 font-medium mt-1.5">
+                  Perubahan grup &amp; nama operator di sini otomatis menyinkronkan data di menu Header.
+                </p>
               </div>
             </div>
 
@@ -4975,7 +6003,7 @@ export default function DowntimeTracker({
               <button
                 type="button"
                 onClick={handleAddHandoffLog}
-                className="flex-[2] h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs transition-all shadow-md shadow-indigo-600/20 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                className="flex-[2] h-11 bg-[#0070bc] hover:bg-[#005a96] text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-[#0070bc]/20 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>Simpan Ganti Shift</span>
@@ -4989,15 +6017,15 @@ export default function DowntimeTracker({
       {showAddNoteModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-4 sm:p-5 border-b border-purple-100 flex items-center justify-between bg-purple-50">
+            <div className="p-4 sm:p-5 border-b border-sky-100 flex items-center justify-between bg-sky-50/80">
               <div className="flex items-center gap-2.5">
-                <FileText className="w-5 h-5 text-purple-600" />
+                <FileText className="w-5 h-5 text-[#0070bc]" />
                 <div>
-                  <h3 className="font-black text-purple-950 text-sm sm:text-base">Catat Progres Perbaikan</h3>
-                  <p className="text-[10px] text-purple-700 font-semibold">Tambah catatan perkembang penanganan mesin</p>
+                  <h3 className="font-black text-slate-900 text-sm sm:text-base">Catat Progres Perbaikan</h3>
+                  <p className="text-[10px] text-[#0070bc] font-semibold">Tambah catatan perkembangan penanganan mesin</p>
                 </div>
               </div>
-              <button onClick={() => setShowAddNoteModal(false)} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded-xl transition-colors">
+              <button onClick={() => setShowAddNoteModal(false)} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -5010,7 +6038,7 @@ export default function DowntimeTracker({
                   value={progressNoteText}
                   onChange={(e) => setProgressNoteText(e.target.value)}
                   placeholder="Contoh: Pembongkaran dinamo selesai. Lanjut ganti bearing..."
-                  className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-purple-500 outline-none text-xs font-semibold text-slate-700 placeholder:text-slate-400"
+                  className="w-full p-3 rounded-xl border border-slate-300 focus:border-[#0070bc] focus:ring-2 focus:ring-[#0070bc]/20 outline-none text-xs font-semibold text-slate-700 placeholder:text-slate-400"
                 />
               </div>
             </div>
@@ -5019,7 +6047,7 @@ export default function DowntimeTracker({
               <button
                 type="button"
                 onClick={() => setShowAddNoteModal(false)}
-                className="flex-1 h-11 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-100"
+                className="flex-1 h-11 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-100 cursor-pointer"
               >
                 Batal
               </button>
@@ -5027,7 +6055,7 @@ export default function DowntimeTracker({
                 type="button"
                 onClick={handleAddProgressNote}
                 disabled={!progressNoteText.trim()}
-                className="flex-[2] h-11 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-purple-600/20 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                className="flex-[2] h-11 bg-[#0070bc] hover:bg-[#005a96] text-white font-extrabold text-xs rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-[#0070bc]/20 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <FileText className="w-4 h-4" />
                 <span>Simpan Catatan</span>

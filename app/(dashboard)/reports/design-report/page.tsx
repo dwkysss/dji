@@ -8,6 +8,12 @@ import {
   DesignReportRow,
   DesignReportSummary,
 } from "@/actions/design-report-actions";
+import {
+  syncDesignReportToGoogleSheet,
+  syncAllDesignReportMachines,
+  getDesignReportScheduleSettings,
+  updateDesignReportScheduleSettings,
+} from "@/actions/google-sheet-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
 import {
   FileSpreadsheet,
@@ -30,6 +36,8 @@ import {
   ArrowUpDown,
   Check,
   X,
+  CloudUpload,
+  Clock,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 
@@ -70,6 +78,8 @@ export default function LaporanPerDesignPage() {
 
   const [reportGroups, setReportGroups] = useState<DesignReportGroup[]>([]);
   const [grandSummary, setGrandSummary] = useState<DesignReportSummary | null>(null);
+  const [isMeteran, setIsMeteran] = useState<boolean>(false);
+  const [isMultiPcs, setIsMultiPcs] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -78,7 +88,12 @@ export default function LaporanPerDesignPage() {
   const [cache, setCache] = useState<
     Record<
       string,
-      { groups: DesignReportGroup[]; grandSummary?: DesignReportSummary }
+      {
+        groups: DesignReportGroup[];
+        grandSummary?: DesignReportSummary;
+        isMeteran?: boolean;
+        isMultiPcs?: boolean;
+      }
     >
   >({});
 
@@ -100,7 +115,17 @@ export default function LaporanPerDesignPage() {
   const [isExportingAll, setIsExportingAll] = useState<boolean>(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close export menu when clicking outside
+  // Google Sheets Sync & Auto-Sync Schedule states
+  const [isSyncMenuOpen, setIsSyncMenuOpen] = useState<boolean>(false);
+  const [isSyncingSheet, setIsSyncingSheet] = useState<boolean>(false);
+  const [isSyncingAll, setIsSyncingAll] = useState<boolean>(false);
+  const [syncToast, setSyncToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean>(true);
+  const [autoSyncTime, setAutoSyncTime] = useState<string>("18:00");
+  const [isSavingSchedule, setIsSavingSchedule] = useState<boolean>(false);
+  const syncMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close export & sync menus when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -109,9 +134,25 @@ export default function LaporanPerDesignPage() {
       ) {
         setIsExportMenuOpen(false);
       }
+      if (
+        syncMenuRef.current &&
+        !syncMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsSyncMenuOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Load auto-sync schedule settings on mount
+  useEffect(() => {
+    getDesignReportScheduleSettings().then((res) => {
+      if (res.success) {
+        setAutoSyncTime(res.time || "18:00");
+        setAutoSyncEnabled(res.enabled);
+      }
+    });
   }, []);
 
   // 1. Load Filter Options on Mount
@@ -144,6 +185,8 @@ export default function LaporanPerDesignPage() {
     if (cache[cacheKey]) {
       setReportGroups(cache[cacheKey].groups);
       setGrandSummary(cache[cacheKey].grandSummary || null);
+      setIsMeteran(!!cache[cacheKey].isMeteran);
+      setIsMultiPcs(!!cache[cacheKey].isMultiPcs);
       setIsLoading(false);
       return;
     }
@@ -156,12 +199,16 @@ export default function LaporanPerDesignPage() {
       if (res.success && res.data) {
         setReportGroups(res.data);
         setGrandSummary(res.grandSummary || null);
+        setIsMeteran(!!res.isMeteran);
+        setIsMultiPcs(!!res.isMultiPcs);
 
         setCache((prev) => ({
           ...prev,
           [cacheKey]: {
             groups: res.data || [],
             grandSummary: res.grandSummary,
+            isMeteran: !!res.isMeteran,
+            isMultiPcs: !!res.isMultiPcs,
           },
         }));
       } else {
@@ -292,7 +339,7 @@ export default function LaporanPerDesignPage() {
           ...grp,
           rows: sortedRows,
           summary: {
-            totalPotongan: sortedRows.length,
+            totalPotongan: new Set(sortedRows.map((r) => r.noPot)).size,
             totalProdPanel,
             inspectedCuts,
             inspectedPanels,
@@ -372,70 +419,58 @@ export default function LaporanPerDesignPage() {
 
   const buildWorksheetForGroups = (
     groups: DesignReportGroup[],
-    summaryData?: DesignReportSummary | null
+    summaryData?: DesignReportSummary | null,
+    opts?: { isMeteran?: boolean; isMultiPcs?: boolean }
   ) => {
+    const useMeteran = !!opts?.isMeteran;
+    const useMultiPcs = !!opts?.isMultiPcs;
+    const unitWord = useMeteran ? "METER" : "PANEL";
+    const unitShort = useMeteran ? "JML MTR" : "JML PNL";
+    const dateLabel = useMultiPcs ? "TANGGAL SELESAI MENDING" : "Tanggal potong";
+
+    // Column letters shift right by 1 when Pcs column is inserted at E (index 4)
+    const colTotal = useMultiPcs ? "F" : "E";
+    const colAProd = useMultiPcs ? "G" : "F";
+    const colAInsp = useMultiPcs ? "I" : "H";
+    const colBProd = useMultiPcs ? "K" : "J";
+    const colBInsp = useMultiPcs ? "M" : "L";
+    const offset = useMultiPcs ? 1 : 0;
+
     const wsData: any[][] = [];
     const merges: any[] = [];
 
     // Row 0: Header Level 1 (Excel Row 1)
-    wsData.push([
-      "NO",
-      "Tanggal potong",
-      "KODE",
-      "NO.POT",
-      "TOTAL",
-      "PANEL",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]);
+    wsData.push(
+      useMultiPcs
+        ? ["NO", dateLabel, "KODE", "NO.POT", "Pcs", "TOTAL", unitWord, "", "", "", "", "", "", ""]
+        : ["NO", dateLabel, "KODE", "NO.POT", "TOTAL", unitWord, "", "", "", "", "", "", ""]
+    );
 
     // Row 1: Header Level 2 (Excel Row 2)
-    wsData.push([
-      "",
-      "",
-      "DESIGN",
-      "",
-      "PROD",
-      "GRADE A",
-      "",
-      "",
-      "",
-      "GRADE B",
-      "",
-      "",
-      "",
-    ]);
+    wsData.push(
+      useMultiPcs
+        ? ["", "", "DESIGN", "", "", "PROD", "GRADE A", "", "", "", "GRADE B", "", "", ""]
+        : ["", "", "DESIGN", "", "PROD", "GRADE A", "", "", "", "GRADE B", "", "", ""]
+    );
 
     // Row 2: Sub-Header Level 3 (Excel Row 3)
-    wsData.push([
-      "",
-      "",
-      "",
-      "",
-      "PANEL",
-      "JML PNL",
-      "% PROD",
-      "JML PNL",
-      "%INSPECT",
-      "JML PNL",
-      "% PROD",
-      "JML PNL",
-      "%INSPECT",
-    ]);
+    wsData.push(
+      useMultiPcs
+        ? ["", "", "", "", "", unitWord, unitShort, "% PROD", unitShort, "%INSPECT", unitShort, "% PROD", unitShort, "%INSPECT"]
+        : ["", "", "", "", unitWord, unitShort, "% PROD", unitShort, "%INSPECT", unitShort, "% PROD", unitShort, "%INSPECT"]
+    );
 
     // Header Merges (Persis Layout Sheet Acuan Master)
-    merges.push({ s: { r: 0, c: 0 }, e: { r: 2, c: 0 } }); // NO (A1:A3)
-    merges.push({ s: { r: 0, c: 1 }, e: { r: 2, c: 1 } }); // Tanggal potong (B1:B3)
-    merges.push({ s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }); // KODE DESIGN (C1:C2)
-    merges.push({ s: { r: 0, c: 3 }, e: { r: 2, c: 3 } }); // NO.POT (D1:D3)
-    merges.push({ s: { r: 0, c: 5 }, e: { r: 0, c: 12 } }); // PANEL (F1:M1)
-    merges.push({ s: { r: 1, c: 5 }, e: { r: 1, c: 8 } }); // GRADE A (F2:I2)
-    merges.push({ s: { r: 1, c: 9 }, e: { r: 1, c: 12 } }); // GRADE B (J2:M2)
+    merges.push({ s: { r: 0, c: 0 }, e: { r: 2, c: 0 } }); // NO
+    merges.push({ s: { r: 0, c: 1 }, e: { r: 2, c: 1 } }); // Tanggal
+    merges.push({ s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }); // KODE DESIGN
+    merges.push({ s: { r: 0, c: 3 }, e: { r: 2, c: 3 } }); // NO.POT
+    if (useMultiPcs) {
+      merges.push({ s: { r: 0, c: 4 }, e: { r: 2, c: 4 } }); // Pcs
+    }
+    merges.push({ s: { r: 0, c: 5 + offset }, e: { r: 0, c: 12 + offset } }); // PANEL / METER
+    merges.push({ s: { r: 1, c: 5 + offset }, e: { r: 1, c: 8 + offset } }); // GRADE A
+    merges.push({ s: { r: 1, c: 9 + offset }, e: { r: 1, c: 12 + offset } }); // GRADE B
 
     let currentRow = 3; // Baris data mulai index 3 (Baris 4 di Excel)
 
@@ -444,78 +479,73 @@ export default function LaporanPerDesignPage() {
       const numRows = grp.rows.length;
       const endRow = startRow + numRows - 1;
 
+      let potMergeStart = -1;
+      let potMergeCount = 0;
+
       grp.rows.forEach((r, rIdx) => {
         const excelR = currentRow + 1; // 1-indexed Excel row
         const isUninspected = r.status === "UNINSPECTED" || r.gradeA_inspect === null;
+        const isFirstOfPot = !useMultiPcs || rIdx === 0 || r.noPot !== grp.rows[rIdx - 1].noPot;
 
-        const rowCells: any[] = [
-          // Col 0 (A): NO
+        if (useMultiPcs) {
+          if (isFirstOfPot) {
+            if (potMergeCount > 1 && potMergeStart >= 0) {
+              merges.push({ s: { r: potMergeStart, c: 3 }, e: { r: potMergeStart + potMergeCount - 1, c: 3 } });
+            }
+            potMergeStart = currentRow;
+            potMergeCount = 1;
+          } else {
+            potMergeCount++;
+          }
+        }
+
+        const baseCells: any[] = [
           rIdx === 0 ? { t: "n", v: grp.index } : "",
-          // Col 1 (B): Tanggal potong (murni tanggal, tanpa teks badge bulan)
           { t: "s", v: r.tanggalPotong },
-          // Col 2 (C): KODE DESIGN
           rIdx === 0 ? { t: "s", v: grp.designId } : "",
-          // Col 3 (D): NO.POT (angka murni, tanpa teks keterangan)
-          { t: "n", v: r.noPot },
-          // Col 4 (E): TOTAL PROD PANEL
+          isFirstOfPot ? { t: "n", v: r.noPot } : "",
+        ];
+        if (useMultiPcs) {
+          baseCells.push({ t: "n", v: r.pcsIndex || 1 });
+        }
+
+        const metricCells: any[] = [
+          // TOTAL PROD
           { t: "n", v: r.totalProdPanel },
-          // Col 5 (F): GRADE A JML PNL (PROD)
+          // GRADE A PROD
           { t: "n", v: r.gradeA_prod },
-          // Col 6 (G): GRADE A % PROD (Formula F/E)
           r.totalProdPanel > 0
-            ? {
-                t: "n",
-                f: `F${excelR}/E${excelR}`,
-                v: r.gradeA_prod_pct / 100,
-                z: "0.00%",
-              }
+            ? { t: "n", f: `${colAProd}${excelR}/${colTotal}${excelR}`, v: r.gradeA_prod_pct / 100, z: "0.00%" }
             : { t: "n", v: 0, z: "0.00%" },
-          // Col 7 (H): GRADE A JML PNL (INSPECT)
-          isUninspected
-            ? { t: "s", v: "-" }
-            : { t: "n", v: r.gradeA_inspect },
-          // Col 8 (I): GRADE A % INSPECT (Formula H/E)
+          // GRADE A INSPECT
+          isUninspected ? { t: "s", v: "-" } : { t: "n", v: r.gradeA_inspect },
           isUninspected || r.gradeA_inspect_pct === null
             ? { t: "s", v: "-" }
             : r.totalProdPanel > 0
-            ? {
-                t: "n",
-                f: `H${excelR}/E${excelR}`,
-                v: r.gradeA_inspect_pct / 100,
-                z: "0.00%",
-              }
-            : { t: "n", v: 0, z: "0.00%" },
-          // Col 9 (J): GRADE B JML PNL (PROD)
+              ? { t: "n", f: `${colAInsp}${excelR}/${colTotal}${excelR}`, v: r.gradeA_inspect_pct / 100, z: "0.00%" }
+              : { t: "n", v: 0, z: "0.00%" },
+          // GRADE B PROD
           { t: "n", v: r.gradeB_prod },
-          // Col 10 (K): GRADE B % PROD (Formula J/E)
           r.totalProdPanel > 0
-            ? {
-                t: "n",
-                f: `J${excelR}/E${excelR}`,
-                v: r.gradeB_prod_pct / 100,
-                z: "0.00%",
-              }
+            ? { t: "n", f: `${colBProd}${excelR}/${colTotal}${excelR}`, v: r.gradeB_prod_pct / 100, z: "0.00%" }
             : { t: "n", v: 0, z: "0.00%" },
-          // Col 11 (L): GRADE B JML PNL (INSPECT)
-          isUninspected
-            ? { t: "s", v: "-" }
-            : { t: "n", v: r.gradeB_inspect },
-          // Col 12 (M): GRADE B % INSPECT (Formula L/E)
+          // GRADE B INSPECT
+          isUninspected ? { t: "s", v: "-" } : { t: "n", v: r.gradeB_inspect },
           isUninspected || r.gradeB_inspect_pct === null
             ? { t: "s", v: "-" }
             : r.totalProdPanel > 0
-            ? {
-                t: "n",
-                f: `L${excelR}/E${excelR}`,
-                v: r.gradeB_inspect_pct / 100,
-                z: "0.00%",
-              }
-            : { t: "n", v: 0, z: "0.00%" },
+              ? { t: "n", f: `${colBInsp}${excelR}/${colTotal}${excelR}`, v: r.gradeB_inspect_pct / 100, z: "0.00%" }
+              : { t: "n", v: 0, z: "0.00%" },
         ];
 
-        wsData.push(rowCells);
+        wsData.push([...baseCells, ...metricCells]);
         currentRow++;
       });
+
+      // Tutup merge NO.POT terakhir untuk Multi-PCS
+      if (useMultiPcs && potMergeCount > 1 && potMergeStart >= 0) {
+        merges.push({ s: { r: potMergeStart, c: 3 }, e: { r: potMergeStart + potMergeCount - 1, c: 3 } });
+      }
 
       // Merge NO dan KODE DESIGN jika lebih dari 1 baris
       if (numRows > 1) {
@@ -529,89 +559,32 @@ export default function LaporanPerDesignPage() {
       const startExcelR = startRow + 1;
       const endExcelR = endRow + 1;
 
+      const totalPrefix: any[] = [{ t: "s", v: `TOTAL · ${grp.designId}` }, "", "", ""];
+      if (useMultiPcs) totalPrefix.push("");
+
       const totalRowCells: any[] = [
-        { t: "s", v: `TOTAL · ${grp.designId}` },
-        "",
-        "",
-        "",
-        // Col E: Total Prod Panel
-        {
-          t: "n",
-          f: `SUM(E${startExcelR}:E${endExcelR})`,
-          v: grp.summary.totalProdPanel,
-        },
-        // Col F: Total Grade A Prod
-        {
-          t: "n",
-          f: `SUM(F${startExcelR}:F${endExcelR})`,
-          v: grp.summary.gradeA_prod,
-        },
-        // Col G: % Grade A Prod
+        ...totalPrefix,
+        { t: "n", f: `SUM(${colTotal}${startExcelR}:${colTotal}${endExcelR})`, v: grp.summary.totalProdPanel },
+        { t: "n", f: `SUM(${colAProd}${startExcelR}:${colAProd}${endExcelR})`, v: grp.summary.gradeA_prod },
         grp.summary.totalProdPanel > 0
-          ? {
-              t: "n",
-              f: `F${totalExcelR}/E${totalExcelR}`,
-              v: grp.summary.gradeA_prod_pct / 100,
-              z: "0.00%",
-            }
+          ? { t: "n", f: `${colAProd}${totalExcelR}/${colTotal}${totalExcelR}`, v: grp.summary.gradeA_prod_pct / 100, z: "0.00%" }
           : { t: "n", v: 0, z: "0.00%" },
-        // Col H: Total Grade A Inspect
-        {
-          t: "n",
-          f: `SUM(H${startExcelR}:H${endExcelR})`,
-          v: grp.summary.gradeA_inspect,
-        },
-        // Col I: % Grade A Inspect
-        grp.summary.inspectedCuts === grp.summary.totalPotongan && grp.summary.totalProdPanel > 0
-          ? {
-              t: "n",
-              f: `H${totalExcelR}/E${totalExcelR}`,
-              v: grp.summary.gradeA_inspect_pct / 100,
-              z: "0.00%",
-            }
-          : {
-              t: "n",
-              v: grp.summary.gradeA_inspect_pct / 100,
-              z: "0.00%",
-            },
-        // Col J: Total Grade B Prod
-        {
-          t: "n",
-          f: `SUM(J${startExcelR}:J${endExcelR})`,
-          v: grp.summary.gradeB_prod,
-        },
-        // Col K: % Grade B Prod
+        { t: "n", f: `SUM(${colAInsp}${startExcelR}:${colAInsp}${endExcelR})`, v: grp.summary.gradeA_inspect },
+        grp.summary.inspectedCuts === grp.rows.length && grp.summary.totalProdPanel > 0
+          ? { t: "n", f: `${colAInsp}${totalExcelR}/${colTotal}${totalExcelR}`, v: grp.summary.gradeA_inspect_pct / 100, z: "0.00%" }
+          : { t: "n", v: grp.summary.gradeA_inspect_pct / 100, z: "0.00%" },
+        { t: "n", f: `SUM(${colBProd}${startExcelR}:${colBProd}${endExcelR})`, v: grp.summary.gradeB_prod },
         grp.summary.totalProdPanel > 0
-          ? {
-              t: "n",
-              f: `J${totalExcelR}/E${totalExcelR}`,
-              v: grp.summary.gradeB_prod_pct / 100,
-              z: "0.00%",
-            }
+          ? { t: "n", f: `${colBProd}${totalExcelR}/${colTotal}${totalExcelR}`, v: grp.summary.gradeB_prod_pct / 100, z: "0.00%" }
           : { t: "n", v: 0, z: "0.00%" },
-        // Col L: Total Grade B Inspect
-        {
-          t: "n",
-          f: `SUM(L${startExcelR}:L${endExcelR})`,
-          v: grp.summary.gradeB_inspect,
-        },
-        // Col M: % Grade B Inspect
-        grp.summary.inspectedCuts === grp.summary.totalPotongan && grp.summary.totalProdPanel > 0
-          ? {
-              t: "n",
-              f: `L${totalExcelR}/E${totalExcelR}`,
-              v: grp.summary.gradeB_inspect_pct / 100,
-              z: "0.00%",
-            }
-          : {
-              t: "n",
-              v: grp.summary.gradeB_inspect_pct / 100,
-              z: "0.00%",
-            },
+        { t: "n", f: `SUM(${colBInsp}${startExcelR}:${colBInsp}${endExcelR})`, v: grp.summary.gradeB_inspect },
+        grp.summary.inspectedCuts === grp.rows.length && grp.summary.totalProdPanel > 0
+          ? { t: "n", f: `${colBInsp}${totalExcelR}/${colTotal}${totalExcelR}`, v: grp.summary.gradeB_inspect_pct / 100, z: "0.00%" }
+          : { t: "n", v: grp.summary.gradeB_inspect_pct / 100, z: "0.00%" },
       ];
 
       wsData.push(totalRowCells);
-      merges.push({ s: { r: totalRowIdx, c: 0 }, e: { r: totalRowIdx, c: 3 } });
+      merges.push({ s: { r: totalRowIdx, c: 0 }, e: { r: totalRowIdx, c: 3 + offset } });
       currentRow++;
 
       // Spacer row
@@ -622,11 +595,16 @@ export default function LaporanPerDesignPage() {
     // Grand Total Row (jika lebih dari 1 desain)
     if (groups.length > 1 && summaryData) {
       const grandRowIdx = currentRow;
-      wsData.push([
+      const grandPrefix: any[] = [
         { t: "s", v: `GRAND TOTAL SELURUH DESAIN (${summaryData.totalPotongan} Potongan)` },
         "",
         "",
         "",
+      ];
+      if (useMultiPcs) grandPrefix.push("");
+
+      wsData.push([
+        ...grandPrefix,
         { t: "n", v: summaryData.totalProdPanel },
         { t: "n", v: summaryData.gradeA_prod },
         { t: "n", v: summaryData.gradeA_prod_pct / 100, z: "0.00%" },
@@ -637,30 +615,37 @@ export default function LaporanPerDesignPage() {
         { t: "n", v: summaryData.gradeB_inspect },
         { t: "n", v: summaryData.gradeB_inspect_pct / 100, z: "0.00%" },
       ]);
-      merges.push({ s: { r: grandRowIdx, c: 0 }, e: { r: grandRowIdx, c: 3 } });
+      merges.push({ s: { r: grandRowIdx, c: 0 }, e: { r: grandRowIdx, c: 3 + offset } });
       currentRow++;
     }
 
     const ws = xlsx.utils.aoa_to_sheet(wsData);
     ws["!merges"] = merges;
     ws["!cols"] = [
-      { wch: 6 },  // A: NO
-      { wch: 15 }, // B: Tanggal potong
-      { wch: 18 }, // C: KODE DESIGN
-      { wch: 18 }, // D: NO.POT
-      { wch: 12 }, // E: TOTAL PROD PANEL
-      { wch: 10 }, // F: JML PNL (A PROD)
-      { wch: 10 }, // G: % PROD (A)
-      { wch: 10 }, // H: JML PNL (A INSPECT)
-      { wch: 11 }, // I: %INSPECT (A)
-      { wch: 10 }, // J: JML PNL (B PROD)
-      { wch: 10 }, // K: % PROD (B)
-      { wch: 10 }, // L: JML PNL (B INSPECT)
-      { wch: 11 }, // M: %INSPECT (B)
+      { wch: 6 },  // NO
+      { wch: 15 }, // Tanggal
+      { wch: 18 }, // KODE DESIGN
+      { wch: 12 }, // NO.POT
+      ...(useMultiPcs ? [{ wch: 7 }] : []), // Pcs
+      { wch: 12 }, // TOTAL PROD
+      { wch: 10 }, // A PROD
+      { wch: 10 }, // % A PROD
+      { wch: 10 }, // A INSPECT
+      { wch: 11 }, // % A INSPECT
+      { wch: 10 }, // B PROD
+      { wch: 10 }, // % B PROD
+      { wch: 10 }, // B INSPECT
+      { wch: 11 }, // % B INSPECT
     ];
 
     return ws;
   };
+
+  // Tampilkan kolom PCS hanya jika ada baris yang benar-benar punya PCS > 1
+  const showPcsColumn = useMemo(() => {
+    if (!isMultiPcs) return false;
+    return filteredGroups.some((g) => g.rows.some((r) => Number(r.pcsIndex || 1) > 1));
+  }, [isMultiPcs, filteredGroups]);
 
   const handleExportCurrentMachine = () => {
     if (filteredGroups.length === 0) return;
@@ -669,7 +654,10 @@ export default function LaporanPerDesignPage() {
 
     try {
       const wb = xlsx.utils.book_new();
-      const ws = buildWorksheetForGroups(filteredGroups, grandSummary);
+      const ws = buildWorksheetForGroups(filteredGroups, grandSummary, {
+        isMeteran,
+        isMultiPcs: showPcsColumn,
+      });
 
       xlsx.utils.book_append_sheet(wb, ws, selectedMachine);
 
@@ -715,7 +703,10 @@ export default function LaporanPerDesignPage() {
         const groups = res.success && res.data ? res.data : [];
         const summary = res.grandSummary || null;
 
-        const ws = buildWorksheetForGroups(groups, summary);
+        const ws = buildWorksheetForGroups(groups, summary, {
+          isMeteran: !!res.isMeteran,
+          isMultiPcs: !!res.isMultiPcs,
+        });
         xlsx.utils.book_append_sheet(wb, ws, mc);
       });
 
@@ -736,10 +727,116 @@ export default function LaporanPerDesignPage() {
     }
   };
 
+  const showSyncNotification = (type: "success" | "error", message: string) => {
+    setSyncToast({ type, message });
+    setTimeout(() => {
+      setSyncToast((prev) => (prev?.message === message ? null : prev));
+    }, 8000);
+  };
+
+  const handleSyncCurrentMachine = async () => {
+    if (isSyncingSheet) return;
+    setIsSyncingSheet(true);
+    setIsSyncingAll(false);
+    setIsSyncMenuOpen(false);
+    setSyncToast(null);
+    try {
+      const res = await syncDesignReportToGoogleSheet({
+        machine: selectedMachine,
+        year: selectedYear,
+        months: selectedMonths,
+        designFilter: selectedDesign,
+        includeCrossMonth,
+      });
+      if (res.success) {
+        showSyncNotification("success", res.message || `Mesin ${selectedMachine} berhasil disinkronkan ke Google Sheets.`);
+      } else {
+        showSyncNotification("error", res.error || "Gagal sinkronisasi ke Google Sheets.");
+      }
+    } catch (err: any) {
+      showSyncNotification("error", err.message || "Terjadi kesalahan saat sinkronisasi.");
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
+  const handleSyncAllMachines = async () => {
+    if (isSyncingSheet) return;
+    setIsSyncingSheet(true);
+    setIsSyncingAll(true);
+    setIsSyncMenuOpen(false);
+    setSyncToast(null);
+    try {
+      const res = await syncAllDesignReportMachines(selectedYear, selectedMonths, includeCrossMonth);
+      if (res.success) {
+        showSyncNotification("success", res.message || "Seluruh mesin berhasil disinkronkan ke Google Sheets.");
+      } else {
+        showSyncNotification("error", res.error || res.message || "Sebagian/semua mesin gagal disinkronkan.");
+      }
+    } catch (err: any) {
+      showSyncNotification("error", err.message || "Terjadi kesalahan saat sinkronisasi semua mesin.");
+    } finally {
+      setIsSyncingSheet(false);
+      setIsSyncingAll(false);
+    }
+  };
+
+  const handleSaveAutoSyncSchedule = async () => {
+    setIsSavingSchedule(true);
+    try {
+      const res = await updateDesignReportScheduleSettings({
+        time: autoSyncTime,
+        enabled: autoSyncEnabled,
+      });
+      if (res.success) {
+        showSyncNotification(
+          "success",
+          autoSyncEnabled
+            ? `Jadwal Auto-Sync disimpan: setiap hari pukul ${autoSyncTime} WIB.`
+            : "Auto-Sync harian Laporan Per Desain dinonaktifkan."
+        );
+      } else {
+        showSyncNotification("error", res.error || "Gagal menyimpan jadwal auto-sync.");
+      }
+    } catch (err: any) {
+      showSyncNotification("error", err.message || "Gagal menyimpan jadwal auto-sync.");
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
   return (
     <div className="p-3 sm:p-5 md:p-8 w-full max-w-[1700px] mx-auto space-y-4 sm:space-y-6 overflow-x-hidden">
+      {/* Toast Notifikasi Sync Google Sheets */}
+      {syncToast && (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-xs font-bold flex items-center justify-between gap-3 shadow-sm ${
+            syncToast.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-200"
+              : "bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-200"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {syncToast.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{syncToast.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSyncToast(null)}
+            className="p-1 rounded-lg hover:bg-black/5 cursor-pointer shrink-0"
+            aria-label="Tutup notifikasi"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* 1. Header Banner */}
-      <div className="relative overflow-visible z-40 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-slate-900 via-[#003366] to-[#0070bc] p-4 sm:p-6 shadow-2xl text-white">
+      <div className="relative overflow-visible z-20 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-slate-900 via-[#003366] to-[#0070bc] p-4 sm:p-6 shadow-2xl text-white">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3 sm:gap-4">
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner shrink-0">
@@ -752,6 +849,18 @@ export default function LaporanPerDesignPage() {
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                   Mesin {selectedMachine}
+                </span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${isMeteran
+                  ? "bg-amber-500/20 text-amber-200 border-amber-400/30"
+                  : "bg-sky-500/20 text-sky-200 border-sky-400/30"
+                  }`}>
+                  {isMeteran
+                    ? showPcsColumn
+                      ? "Meteran · Multi-PCS"
+                      : "Meteran"
+                    : showPcsColumn
+                      ? "Panel · Multi-PCS"
+                      : "Panel"}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-500/20 text-sky-200 border border-sky-400/30">
                   {selectedMonthsLabel} {selectedYear}
@@ -775,6 +884,119 @@ export default function LaporanPerDesignPage() {
               <RotateCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-300" : ""}`} />
               <span className="hidden sm:inline">Refresh</span>
             </button>
+
+            {/* Google Sheets Sync Dropdown Menu */}
+            <div className="relative" ref={syncMenuRef}>
+              <div className="inline-flex rounded-xl shadow-lg shadow-sky-950/30 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={handleSyncCurrentMachine}
+                  disabled={isLoading || isSyncingSheet || filteredGroups.length === 0}
+                  className="h-10 px-3.5 bg-sky-500 hover:bg-sky-400 text-white font-black text-xs flex items-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-40"
+                  title={`Sync Mesin ${selectedMachine} ke Google Sheets`}
+                >
+                  {isSyncingSheet && !isSyncingAll ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CloudUpload className="w-4 h-4" />
+                  )}
+                  <span>Sync Sheets ({selectedMachine})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSyncMenuOpen((prev) => !prev)}
+                  disabled={isLoading || isSyncingSheet}
+                  className="h-10 px-2.5 bg-sky-600 hover:bg-sky-500 border-l border-sky-400/40 text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-40"
+                  title="Pilihan Sync & Jadwal Auto-Sync Google Sheets"
+                >
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-150 ${isSyncMenuOpen ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+
+              {isSyncMenuOpen && (
+                <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2.5 z-50 text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-2.5 py-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Sinkronisasi Google Sheets (Blok Bertanda)
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSyncCurrentMachine}
+                    disabled={filteredGroups.length === 0 || isSyncingSheet}
+                    className="w-full text-left px-2.5 py-2.5 rounded-xl hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors flex items-start gap-2.5 group cursor-pointer mt-1 disabled:opacity-40"
+                  >
+                    <CloudUpload className="w-4 h-4 text-[#0070bc] mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-xs font-black text-slate-800 dark:text-slate-100 group-hover:text-[#0070bc]">
+                        Sync Mesin {selectedMachine} ({selectedMonthsLabel} {selectedYear})
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Append/update blok periode ini di tab {selectedMachine} tanpa menghapus data lama
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSyncAllMachines}
+                    disabled={isSyncingSheet}
+                    className="w-full text-left px-2.5 py-2.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors flex items-start gap-2.5 group cursor-pointer mt-1 disabled:opacity-40"
+                  >
+                    {isSyncingAll ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-600 mt-0.5 shrink-0" />
+                    ) : (
+                      <Layers className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                    )}
+                    <div>
+                      <div className="text-xs font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-600">
+                        Sync Semua Mesin ({REGISTERED_MACHINES.length} Tab)
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Sinkronkan seluruh mesin aktif secara berurutan ke tab masing-masing
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Pengaturan Jadwal Auto-Sync Harian */}
+                  <div className="mt-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 px-2.5 pb-1 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#0070bc]" />
+                        Auto-Sync Harian (WIB)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAutoSyncEnabled((v) => !v)}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black transition-colors cursor-pointer ${
+                          autoSyncEnabled
+                            ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                            : "bg-slate-100 text-slate-500 border border-slate-200"
+                        }`}
+                      >
+                        {autoSyncEnabled ? "AKTIF" : "NONAKTIF"}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={autoSyncTime}
+                        onChange={(e) => setAutoSyncTime(e.target.value)}
+                        className="flex-1 h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-[#0070bc]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveAutoSyncSchedule}
+                        disabled={isSavingSchedule}
+                        className="h-8 px-3 rounded-lg bg-[#0070bc] hover:bg-[#005a96] text-white text-[11px] font-black transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingSchedule ? "..." : "Simpan"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Export Dropdown Menu */}
             <div className="relative" ref={exportMenuRef}>
@@ -870,11 +1092,10 @@ export default function LaporanPerDesignPage() {
                   key={mc}
                   type="button"
                   onClick={() => setSelectedMachine(mc)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-                    isActive
-                      ? "bg-white text-[#003366] shadow-md shadow-black/20 scale-105"
-                      : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
-                  }`}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${isActive
+                    ? "bg-white text-[#003366] shadow-md shadow-black/20 scale-105"
+                    : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
+                    }`}
                 >
                   <span>{mc}</span>
                   {isActive && (
@@ -903,9 +1124,8 @@ export default function LaporanPerDesignPage() {
                 {selectedMonthsLabel}
               </span>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
-                  isMonthPickerOpen ? "rotate-180" : ""
-                }`}
+                className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isMonthPickerOpen ? "rotate-180" : ""
+                  }`}
               />
             </button>
 
@@ -963,11 +1183,10 @@ export default function LaporanPerDesignPage() {
                         key={m.value}
                         type="button"
                         onClick={() => toggleMonth(m.value)}
-                        className={`px-2 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-between ${
-                          isSelected
-                            ? "bg-[#0070bc] text-white shadow-sm shadow-[#0070bc]/30 scale-[1.02]"
-                            : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60"
-                        }`}
+                        className={`px-2 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-between ${isSelected
+                          ? "bg-[#0070bc] text-white shadow-sm shadow-[#0070bc]/30 scale-[1.02]"
+                          : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60"
+                          }`}
                       >
                         <span>{m.short}</span>
                         {isSelected && <Check className="w-3.5 h-3.5" />}
@@ -1052,11 +1271,10 @@ export default function LaporanPerDesignPage() {
           <button
             type="button"
             onClick={() => setIncludeCrossMonth((prev) => !prev)}
-            className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer select-none ${
-              includeCrossMonth
-                ? "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 shadow-sm"
-                : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60"
-            }`}
+            className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer select-none ${includeCrossMonth
+              ? "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 shadow-sm"
+              : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60"
+              }`}
             title="Jika aktif, potongan dari bulan sebelumnya untuk desain yang sama akan otomatis disertakan agar riwayat potongan lengkap"
           >
             <span className="text-slate-500 text-[11px]">Bawa Bln Lalu:</span>
@@ -1228,7 +1446,15 @@ export default function LaporanPerDesignPage() {
                     rowSpan={2}
                     className="border border-slate-700 px-3 py-3 text-center min-w-[105px] whitespace-nowrap"
                   >
-                    Tanggal<br />potong
+                    {showPcsColumn ? (
+                      <>
+                        Tanggal<br />Mending
+                      </>
+                    ) : (
+                      <>
+                        Tanggal<br />potong
+                      </>
+                    )}
                   </th>
                   <th
                     rowSpan={2}
@@ -1242,11 +1468,19 @@ export default function LaporanPerDesignPage() {
                   >
                     NO.POT
                   </th>
+                  {showPcsColumn && (
+                    <th
+                      rowSpan={2}
+                      className="border border-slate-700 px-2.5 py-3 w-14 text-center whitespace-nowrap"
+                    >
+                      PCS
+                    </th>
+                  )}
                   <th
                     rowSpan={2}
                     className="border border-slate-700 px-3 py-3 w-20 text-center whitespace-nowrap leading-tight"
                   >
-                    TOTAL<br />PROD<br />PANEL
+                    TOTAL<br />PROD<br />{isMeteran ? "METER" : "PANEL"}
                   </th>
 
                   {/* Header Hijau: GRADE A */}
@@ -1254,7 +1488,7 @@ export default function LaporanPerDesignPage() {
                     colSpan={4}
                     className="border border-slate-700 px-3 py-2 bg-emerald-700 text-white font-black tracking-widest text-center"
                   >
-                    PANEL · GRADE A
+                    {isMeteran ? "METER" : "PANEL"} · GRADE A
                   </th>
 
                   {/* Header Merah: GRADE B */}
@@ -1269,26 +1503,26 @@ export default function LaporanPerDesignPage() {
                 {/* Header Row 2: Sub-headers */}
                 <tr className="text-[10px] font-black uppercase tracking-wider text-slate-800">
                   <th className="border border-slate-700 bg-amber-400 text-slate-900 px-2.5 py-1.5 whitespace-nowrap">
-                    JML PNL
+                    {isMeteran ? "JML MTR" : "JML PNL"}
                   </th>
                   <th className="border border-slate-700 bg-amber-400 text-slate-900 px-2.5 py-1.5 whitespace-nowrap">
                     % PROD
                   </th>
                   <th className="border border-slate-700 bg-amber-300 text-slate-900 px-2.5 py-1.5 whitespace-nowrap">
-                    JML PNL
+                    {isMeteran ? "JML MTR" : "JML PNL"}
                   </th>
                   <th className="border border-slate-700 bg-amber-300 text-slate-900 px-2.5 py-1.5 whitespace-nowrap">
                     %INSPECT
                   </th>
 
                   <th className="border border-slate-700 bg-amber-400 text-slate-900 px-2.5 py-1.5 whitespace-nowrap">
-                    JML PNL
+                    {isMeteran ? "JML MTR" : "JML PNL"}
                   </th>
                   <th className="border border-slate-700 bg-amber-400 text-slate-900 px-2.5 py-1.5 whitespace-nowrap">
                     % PROD
                   </th>
                   <th className="border border-slate-700 bg-amber-300 text-slate-900 px-2.5 py-1.5 whitespace-nowrap">
-                    JML PNL
+                    {isMeteran ? "JML MTR" : "JML PNL"}
                   </th>
                   <th className="border border-slate-700 bg-amber-300 text-slate-900 px-2.5 py-1.5 whitespace-nowrap">
                     %INSPECT
@@ -1304,20 +1538,23 @@ export default function LaporanPerDesignPage() {
                       {grp.rows.map((row, rIdx) => {
                         const isEven = rIdx % 2 === 0;
                         const isFirst = rIdx === 0;
+                        const isNewPotongan = rIdx > 0 && row.noPot !== grp.rows[rIdx - 1].noPot;
                         const isUninspected = row.status === "UNINSPECTED" || row.gradeA_inspect === null;
                         const isImproved = !isUninspected && row.gradeA_inspect !== null && row.gradeA_inspect > row.gradeA_prod;
                         const delta = !isUninspected && row.gradeA_inspect_pct !== null ? row.gradeA_inspect_pct - row.gradeA_prod_pct : 0;
 
                         return (
                           <tr
-                            key={`${row.designId}_${row.noPot}`}
-                            className={`hover:bg-sky-50/70 dark:hover:bg-slate-800/60 transition-colors ${
-                              row.isFromEarlierMonth
+                            key={`${row.designId}_${row.noPot}_${row.pcsIndex || 1}`}
+                            className={`hover:bg-sky-50/70 dark:hover:bg-slate-800/60 transition-colors ${showPcsColumn && isNewPotongan
+                              ? "[&>td]:border-t-2 [&>td]:border-t-slate-300 dark:[&>td]:border-t-slate-600"
+                              : ""
+                              } ${row.isFromEarlierMonth
                                 ? "bg-amber-50/30 dark:bg-amber-950/20"
                                 : isEven
-                                ? "bg-white dark:bg-slate-900"
-                                : "bg-slate-50/50 dark:bg-slate-800/30"
-                            }`}
+                                  ? "bg-white dark:bg-slate-900"
+                                  : "bg-slate-50/50 dark:bg-slate-800/30"
+                              }`}
                           >
                             {/* NO */}
                             {isFirst ? (
@@ -1364,24 +1601,64 @@ export default function LaporanPerDesignPage() {
                               </td>
                             ) : null}
 
-                            {/* NO.POT */}
-                            <td className="border border-slate-200 dark:border-slate-800 px-3 py-2 text-center font-black text-[#003366] dark:text-sky-300">
-                              <div className="flex flex-col items-center justify-center gap-0.5">
-                                <span>{row.noPot}</span>
-                                {row.status === "UNINSPECTED" && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40">
-                                    Belum Inspek
-                                  </span>
-                                )}
-                                {row.status === "QC_ONLY" && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/40">
-                                    Tahap QC
-                                  </span>
-                                )}
-                              </div>
-                            </td>
+                            {/* NO.POT (digabung per potongan jika Multi-PCS) */}
+                            {(() => {
+                              const isFirstOfPot = !showPcsColumn || rIdx === 0 || row.noPot !== grp.rows[rIdx - 1].noPot;
+                              if (!isFirstOfPot) return null;
 
-                            {/* TOTAL PROD PANEL */}
+                              let potRowSpan = 1;
+                              if (showPcsColumn) {
+                                while (
+                                  rIdx + potRowSpan < grp.rows.length &&
+                                  grp.rows[rIdx + potRowSpan].noPot === row.noPot
+                                ) {
+                                  potRowSpan++;
+                                }
+                              }
+
+                              const potSlice = grp.rows.slice(rIdx, rIdx + potRowSpan);
+                              const allUninspected = potSlice.every((p) => p.status === "UNINSPECTED");
+                              const anyQcOnly = !allUninspected && potSlice.some((p) => p.status === "QC_ONLY");
+                              const partialInspected =
+                                !allUninspected &&
+                                potSlice.some((p) => p.status === "UNINSPECTED") &&
+                                potSlice.some((p) => p.status === "INSPECTED" || p.status === "MENDED");
+
+                              return (
+                                <td
+                                  rowSpan={potRowSpan > 1 ? potRowSpan : undefined}
+                                  className="border border-slate-200 dark:border-slate-800 px-3 py-2 text-center font-black text-[#003366] dark:text-sky-300 align-middle bg-white/80 dark:bg-slate-900/60"
+                                >
+                                  <div className="flex flex-col items-center justify-center gap-0.5">
+                                    <span>{row.noPot}</span>
+                                    {allUninspected && (
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40">
+                                        Belum Inspek
+                                      </span>
+                                    )}
+                                    {partialInspected && (
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40">
+                                        Sebagian Inspek
+                                      </span>
+                                    )}
+                                    {anyQcOnly && !partialInspected && (
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/40">
+                                        Tahap QC
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            })()}
+
+                            {/* PCS (khusus mesin Multi-PCS / Meteran) */}
+                            {showPcsColumn && (
+                              <td className="border border-slate-200 dark:border-slate-800 px-2.5 py-2 text-center font-black text-sky-700 dark:text-sky-300 bg-sky-50/30 dark:bg-sky-950/20">
+                                {row.pcsIndex || 1}
+                              </td>
+                            )}
+
+                            {/* TOTAL PROD PANEL / METER */}
                             <td className="border border-slate-200 dark:border-slate-800 px-3 py-2 text-center font-black text-slate-800 dark:text-slate-100">
                               {row.totalProdPanel}
                             </td>
@@ -1436,9 +1713,8 @@ export default function LaporanPerDesignPage() {
 
                             {/* GRADE B: JML PNL (INSPECT) */}
                             <td
-                              className={`border border-slate-200 dark:border-slate-800 px-2.5 py-2 text-center font-black text-rose-700 dark:text-rose-400 bg-rose-50/30 dark:bg-rose-950/20 ${
-                                row.gradeB_inspect !== null && row.gradeB_inspect > 15 ? "bg-amber-100/70 font-black" : ""
-                              }`}
+                              className={`border border-slate-200 dark:border-slate-800 px-2.5 py-2 text-center font-black text-rose-700 dark:text-rose-400 bg-rose-50/30 dark:bg-rose-950/20 ${row.gradeB_inspect !== null && row.gradeB_inspect > 15 ? "bg-amber-100/70 font-black" : ""
+                                }`}
                             >
                               {isUninspected || row.gradeB_inspect === null ? (
                                 <span className="text-slate-400 font-bold">—</span>
@@ -1462,7 +1738,7 @@ export default function LaporanPerDesignPage() {
                       {/* Baris Rekapitulasi / Total Per Desain (Gabungan Seluruh Potongan Desain Ini) */}
                       <tr className="bg-emerald-600/90 text-white font-black text-xs border-y-2 border-emerald-700">
                         <td
-                          colSpan={4}
+                          colSpan={showPcsColumn ? 5 : 4}
                           className="border border-emerald-700 px-4 py-2.5 text-center tracking-wider uppercase text-emerald-100"
                         >
                           TOTAL · {grp.designId} ({grp.summary.totalPotongan} Potongan)
@@ -1511,7 +1787,7 @@ export default function LaporanPerDesignPage() {
                 {filteredGroups.length > 1 && grandSummary && (
                   <tr className="bg-slate-900 text-white font-black text-xs border-t-4 border-slate-950">
                     <td
-                      colSpan={4}
+                      colSpan={showPcsColumn ? 5 : 4}
                       className="border border-slate-800 px-4 py-3 text-center tracking-widest uppercase text-amber-300"
                     >
                       GRAND TOTAL SELURUH DESAIN ({grandSummary.totalPotongan} Potongan)

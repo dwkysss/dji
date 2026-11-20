@@ -13,6 +13,8 @@ import {
   getPotongKainScheduleSettings,
   syncAllDailyInspectMending,
   getDailyInspectMendingScheduleSettings,
+  syncAllDesignReportMachines,
+  getDesignReportScheduleSettings,
 } from "@/actions/google-sheet-actions";
 
 declare global {
@@ -33,11 +35,13 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 let cachedMonthly: CachedItem<Awaited<ReturnType<typeof getAutoSyncScheduleSettings>>> | null = null;
 let cachedPotong: CachedItem<Awaited<ReturnType<typeof getPotongKainScheduleSettings>>> | null = null;
 let cachedDaily: CachedItem<Awaited<ReturnType<typeof getDailyInspectMendingScheduleSettings>>> | null = null;
+let cachedDesignReport: CachedItem<Awaited<ReturnType<typeof getDesignReportScheduleSettings>>> | null = null;
 
 export function invalidateServerSchedulerCache() {
   cachedMonthly = null;
   cachedPotong = null;
   cachedDaily = null;
+  cachedDesignReport = null;
 }
 
 // Simpan fungsi invalidasi di globalThis agar bisa dipanggil saat form setting disimpan
@@ -70,10 +74,20 @@ async function getCachedDailySettings() {
   return cachedDaily.data;
 }
 
+async function getCachedDesignReportSettings() {
+  const now = Date.now();
+  if (!cachedDesignReport || now - cachedDesignReport.cachedAt > CACHE_TTL_MS) {
+    const data = await getDesignReportScheduleSettings();
+    cachedDesignReport = { data, cachedAt: now };
+  }
+  return cachedDesignReport.data;
+}
+
 const lastSyncedKeys = {
   monthly: "",
   potong: "",
   daily: "",
+  designReport: "",
 };
 
 let isSyncing = false;
@@ -232,6 +246,40 @@ export function initServerScheduler() {
         console.error(
           "[Server Scheduler] ❌ Gagal eksekusi sync inspect & mending:",
           errDaily
+        );
+      }
+
+      // 4. Sinkronisasi Laporan Per Desain (Default 18:00 WIB atau sesuai DB)
+      try {
+        const designSettings = await getCachedDesignReportSettings();
+        const targetDesign = (designSettings.time || "18:00").trim();
+        const designKey = `design_${todayDate}_${targetDesign}`;
+
+        if (
+          designSettings.enabled &&
+          currentTime === targetDesign &&
+          lastSyncedKeys.designReport !== designKey
+        ) {
+          lastSyncedKeys.designReport = designKey;
+          isSyncing = true;
+          console.log(
+            `[Server Scheduler] ⏰ [${currentTime} WIB] Menjalankan Sinkronisasi Laporan Per Desain ke Google Sheets...`
+          );
+
+          const res = await syncAllDesignReportMachines();
+
+          console.log(
+            `[Server Scheduler] ✅ [Laporan Per Desain] Selesai: ${
+              res.message || (res.success ? "Sukses" : res.error || "Gagal")
+            }`
+          );
+          isSyncing = false;
+        }
+      } catch (errDesign) {
+        isSyncing = false;
+        console.error(
+          "[Server Scheduler] ❌ Gagal eksekusi sync Laporan Per Desain:",
+          errDesign
         );
       }
     } catch (globalErr) {

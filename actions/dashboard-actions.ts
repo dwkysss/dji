@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getShiftDate, getShiftName } from "@/lib/shift-utils";
+import { getShiftDate, getShiftName, parseAsWibDate } from "@/lib/shift-utils";
 import { isPanelGagalCacat, isPanelGagalCacatAja, hasRealDefect } from "@/lib/mending-grade-utils";
 import { REGISTERED_MACHINES } from "@/lib/constants";
 
@@ -270,7 +270,7 @@ export async function getMachineStatuses(): Promise<{ success: boolean; data?: M
       throw error;
     }
 
-    const today = new Date().toISOString().split("T")[0];
+    const todayShiftDate = getShiftDate(new Date());
     const now = new Date();
     
     // Create a map to store the latest record for each machine from DB
@@ -302,25 +302,30 @@ export async function getMachineStatuses(): Promise<{ success: boolean; data?: M
       let status: "Beroperasi" | "Idle" | "Tidak Aktif" = "Tidak Aktif";
 
       if (row.tanggal_jam) {
-        const dateObj = new Date(row.tanggal_jam);
+        const dateObj = parseAsWibDate(row.tanggal_jam);
         if (!isNaN(dateObj.getTime())) {
-          lastTime = dateObj.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(/:/g, ".");
-          
+          lastTime = dateObj
+            .toLocaleTimeString("id-ID", {
+              timeZone: "Asia/Jakarta",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })
+            .replace(/:/g, ".");
+
           const diffMs = now.getTime() - dateObj.getTime();
           const diffMinutes = Math.floor(diffMs / 60000);
-          
-          if (row.tgl === today) {
-            if (diffMinutes <= 10) {
-              status = "Beroperasi";
-            } else {
-              status = "Idle";
-            }
+
+          if (diffMinutes <= 30) {
+            status = "Beroperasi";
+          } else if (diffMinutes <= 120) {
+            status = "Idle";
           } else {
             status = "Tidak Aktif";
           }
         } else {
           lastTime = row.tanggal_jam.split(/[ T]/)[1]?.slice(0, 5) || "-";
-          status = row.tgl === today ? "Idle" : "Tidak Aktif";
+          status = row.tgl === todayShiftDate ? "Idle" : "Tidak Aktif";
         }
       }
       

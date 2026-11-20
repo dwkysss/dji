@@ -33,8 +33,10 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Cpu,
+  QrCode,
 } from "lucide-react";
 import FinalInspectionModal from "@/components/forms/FinalInspectionModal";
+import QrScannerModal, { ParsedDjiQr } from "@/components/modals/QrScannerModal";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import ProductionDetailModal from "@/components/ProductionDetailModal";
 import DeletePanelModal from "@/components/forms/DeletePanelModal";
@@ -42,7 +44,7 @@ import InsertPanelModal, { InsertPanelPayload } from "@/components/forms/InsertP
 import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
-import { formatHHMM, formatTimerSeconds } from "@/lib/shift-utils";
+import { formatHHMM, formatTimerSeconds, getShiftDate } from "@/lib/shift-utils";
 import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import {
   getPendingFinalInspectionDetailsByDate,
@@ -163,6 +165,7 @@ const getActualMeter = (item: any, h: any) => {
 };
 
 export default function FinalInspectionPage() {
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [searchStartDate, setSearchStartDate] = useState("");
   const [searchEndDate, setSearchEndDate] = useState("");
   const [searchTanggal, setSearchTanggal] = useState("");
@@ -749,6 +752,14 @@ export default function FinalInspectionPage() {
   const [pendingBatches, setPendingBatches] = useState<any[]>([]);
   const [totalData, setTotalData] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
+  const [expandedQueueKeys, setExpandedQueueKeys] = useState<Record<string, boolean>>({});
+
+  const toggleQueueRow = (key: string) => {
+    setExpandedQueueKeys((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   const fetchPendingBatches = async (
     startDate = searchStartDate,
@@ -786,7 +797,11 @@ export default function FinalInspectionPage() {
   };
 
   useEffect(() => {
-    fetchPendingBatches("", "", "", "", 1);
+    const today = getShiftDate(new Date());
+    setSearchStartDate(today);
+    setSearchEndDate(today);
+    setSearchTanggal(today);
+    fetchPendingBatches(today, today, "", "", 1);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -2196,35 +2211,47 @@ export default function FinalInspectionPage() {
       )}
 
       {/* Filter Card with Integrated Header */}
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-4 sm:mb-6">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative z-20 mb-4 sm:mb-6">
         {/* Decorative Top Accent */}
-        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
+        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80 z-10" />
 
         {/* Header Section inside Card */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-100">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
+        <div className="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6 px-4 sm:px-6 pt-4 sm:pt-5 pb-4 mb-4 sm:mb-5 rounded-t-2xl bg-gradient-to-br from-slate-50/90 via-white to-sky-50/40 border-b border-slate-200/70 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-[#004777] text-white flex items-center justify-center shadow-md shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-100/80">
               <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div className="flex flex-col">
-              <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">
+            <div className="flex flex-col min-w-0">
+              <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight leading-tight">
                 Riwayat Mending Siap Final
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 leading-snug">
                 Daftar batch mending yang siap diverifikasi untuk tahap final inspection.
               </p>
             </div>
           </div>
-          {(searchStartDate || searchMesin || searchPotongan) && (
+          <div className="flex items-center justify-end gap-2 w-full lg:w-auto shrink-0 flex-wrap">
             <button
               type="button"
-              onClick={handleResetSearch}
-              className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0 animate-fadeIn"
+              onClick={() => setIsQrScannerOpen(true)}
+              className="group/qr h-9 sm:h-10 pl-2 pr-3.5 rounded-xl bg-gradient-to-r from-[#0070bc] to-[#005a96] hover:from-[#005a96] hover:to-[#004777] active:scale-[0.98] text-white text-xs font-extrabold shadow-sm shadow-[#0070bc]/20 hover:shadow-md hover:shadow-[#0070bc]/30 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset Filter
+              <span className="w-6 h-6 rounded-lg bg-white/15 group-hover/qr:bg-white/25 flex items-center justify-center transition-colors shrink-0">
+                <QrCode className="w-3.5 h-3.5 text-white" />
+              </span>
+              <span>Scan QR</span>
             </button>
-          )}
+            {(searchStartDate || searchMesin || searchPotongan) && (
+              <button
+                type="button"
+                onClick={handleResetSearch}
+                className="h-9 sm:h-10 px-3 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200/80 hover:border-rose-600 text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap animate-fadeIn"
+              >
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                <span>Reset Filter</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filter Form */}
@@ -2339,7 +2366,228 @@ export default function FinalInspectionPage() {
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto no-scrollbar">
+            {/* Mobile & Tablet View (< lg): Responsive Collapsible Table / Accordion List (Child Row Expansion) */}
+            <div className="lg:hidden">
+              <div className="bg-slate-50 border-b border-slate-200 px-3 sm:px-4 py-2.5 grid grid-cols-12 items-center gap-2 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                <div className="col-span-5 pl-7">Mesin & Potongan</div>
+                <div className="col-span-3 text-center">PCS</div>
+                <div className="col-span-4 text-right pr-1">Aksi</div>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {pendingBatches.map((d: any, idx: number) => {
+                  const isMeteran =
+                    d.panel_no === "METERAN" || d.header?.panel_no === "METERAN";
+                  const gradeAVal = d.mending_grade_a ?? 0;
+                  const gradeBVal = d.mending_grade_b ?? 0;
+                  const gradeBSVal = d.mending_grade_bs ?? 0;
+                  const pcsVal = d.pcs_index || 1;
+                  const rowKey = `${d.id || idx}_${d.nomor_mc || "mc"}_${d.potongan_ke || "pot"}_${pcsVal}`;
+                  const isExpanded = !!expandedQueueKeys[rowKey];
+                  const totalQtyLabel = isMeteran
+                    ? `${gradeAVal} Meter`
+                    : `${d.total_panel || 0} Panel`;
+                  const durasiStr = calculateDurationStr(
+                    d.start_mending,
+                    d.finish_mending,
+                    d.pause_seconds || 0,
+                    d.elapsed_seconds
+                  );
+
+                  return (
+                    <div
+                      key={rowKey}
+                      className={`transition-colors ${
+                        isExpanded ? "bg-sky-50/30" : "bg-white hover:bg-slate-50/70"
+                      }`}
+                    >
+                      {/* Baris Utama (Collapsed Summary Row) */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleQueueRow(rowKey)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleQueueRow(rowKey);
+                          }
+                        }}
+                        className="px-3 sm:px-4 py-3 grid grid-cols-12 items-center gap-2 cursor-pointer select-none"
+                      >
+                        {/* Kolom 1: Indikator Expand + Connected Split-Badge (Mesin | Pot.) */}
+                        <div className="col-span-5 flex items-center gap-2 min-w-0">
+                          <span
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all duration-200 ${
+                              isExpanded
+                                ? "bg-[#0070bc] text-white border-[#0070bc] shadow-2xs"
+                                : "bg-slate-100 text-slate-500 border-slate-200/80"
+                            }`}
+                            title={isExpanded ? "Tutup rincian" : "Buka rincian"}
+                          >
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                isExpanded ? "rotate-180" : ""
+                              }`}
+                            />
+                          </span>
+
+                          <div className="inline-flex items-center rounded-xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden shrink-0">
+                            <span className="h-7 px-2.5 bg-[#0070bc] text-white font-black text-xs flex items-center justify-center">
+                              {d.nomor_mc || "-"}
+                            </span>
+                            <span className="h-7 px-2.5 bg-slate-50/90 text-slate-800 flex items-center gap-1 border-l border-slate-200/80">
+                              <Scissors className="w-3 h-3 text-amber-500 shrink-0" />
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                Pot.
+                              </span>
+                              <span className="text-xs font-black text-slate-800">
+                                {d.potongan_ke || "-"}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Kolom 2: PCS & Ringkasan Hasil Mending */}
+                        <div className="col-span-3 flex flex-col sm:flex-row items-center justify-center gap-1 flex-wrap">
+                          <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full bg-slate-100 font-extrabold text-slate-700 text-[11px] border border-slate-200/70 whitespace-nowrap">
+                            PCS {pcsVal}
+                          </span>
+                          {gradeBSVal > 0 ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-black text-[9px] whitespace-nowrap">
+                              BS: {gradeBSVal}
+                            </span>
+                          ) : gradeBVal > 0 ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 font-black text-[9px] whitespace-nowrap">
+                              B: {gradeBVal}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 font-black text-[9px] whitespace-nowrap">
+                              A: {gradeAVal}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Kolom 3: Tombol Aksi Cepat (Tactile Capsule + Icon Pod) */}
+                        <div
+                          className="col-span-4 flex items-center justify-end"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleStartFinal(d)}
+                            className="group/btn h-8 sm:h-9 pl-1.5 pr-2 sm:pr-2.5 rounded-xl font-extrabold text-[11px] sm:text-xs transition-all duration-200 flex items-center gap-1.5 sm:gap-2 active:scale-95 border bg-sky-50/90 hover:bg-[#0070bc] text-[#0070bc] hover:text-white border-sky-200/90 hover:border-[#0070bc] shadow-2xs hover:shadow-md hover:shadow-[#0070bc]/20 cursor-pointer whitespace-nowrap"
+                          >
+                            <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-[#0070bc] text-white group-hover/btn:bg-white group-hover/btn:text-[#0070bc] flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                              <ClipboardCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                            </span>
+                            <span>Final</span>
+                            <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0 hidden sm:inline-block" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Panel Detail Bawah (Expanded Child Row - Vertical Row Stack) */}
+                      {isExpanded && (
+                        <div className="px-3 sm:px-4 pb-3.5 pt-2.5 bg-slate-50/90 border-t border-slate-200/70 animate-fadeIn">
+                          <div className="flex flex-col divide-y divide-slate-100 bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden text-xs">
+                            {/* 1. Desain & Tipe */}
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Desain & Tipe
+                              </span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-extrabold text-slate-800 truncate">
+                                  {d.design_id || "-"}
+                                </span>
+                                {isMeteran ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider shrink-0">
+                                    METERAN
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider shrink-0">
+                                    PANEL
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 2. QTY & Hasil Mending */}
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                QTY & Hasil Mending
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                <span className="font-extrabold text-slate-800">
+                                  {totalQtyLabel}
+                                </span>
+                                {gradeAVal > 0 && (
+                                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-black text-[10px] whitespace-nowrap">
+                                    A: {gradeAVal}
+                                  </span>
+                                )}
+                                {gradeBVal > 0 && (
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-black text-[10px] whitespace-nowrap">
+                                    B: {gradeBVal}
+                                  </span>
+                                )}
+                                {gradeBSVal > 0 && (
+                                  <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-black text-[10px] whitespace-nowrap">
+                                    BS: {gradeBSVal}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 3. Petugas Mending */}
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Petugas Mending
+                              </span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[9px] font-black text-slate-600 shrink-0">
+                                  {(d.petugas_mending || "P")[0]}
+                                </span>
+                                <span className="font-extrabold text-slate-800 truncate">
+                                  {d.petugas_mending || "-"}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* 4. Waktu & Durasi */}
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Waktu & Durasi
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                {d.tanggal_mending && (
+                                  <span className="text-slate-500 font-semibold">
+                                    {d.tanggal_mending} •
+                                  </span>
+                                )}
+                                <span className="font-mono font-bold text-slate-700 text-[11px]">
+                                  {d.start_mending
+                                    ? String(d.start_mending).slice(0, 5)
+                                    : "-"}
+                                  {d.finish_mending
+                                    ? ` - ${String(d.finish_mending).slice(0, 5)}`
+                                    : ""}
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 font-extrabold text-[10px]">
+                                  {durasiStr}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Desktop / Laptop Table View (>= lg) */}
+            <div className="hidden lg:block overflow-x-auto no-scrollbar">
               <table className="w-full min-w-[700px] text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -2482,6 +2730,23 @@ export default function FinalInspectionPage() {
           </div>
         )}
       </div>
+
+      <QrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        onScanSuccess={(parsed: ParsedDjiQr) => {
+          const mc = parsed.nomor_mc || "";
+          const pot = parsed.potongan_ke || "";
+          setSearchStartDate("");
+          setSearchEndDate("");
+          setSearchTanggal("");
+          setSearchMesin(mc);
+          setSearchPotongan(pot);
+          setCurrentPage(1);
+          fetchPendingBatches("", "", mc, pot, 1);
+        }}
+        title="Scan QR Final Inspek Mending"
+      />
     </div>
   );
 }

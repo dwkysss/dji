@@ -28,11 +28,13 @@ import {
   Layers,
   Scissors,
   User,
-  Sparkles,
   ChevronDown,
+  ChevronRight,
+  Eye,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import { PROBLEM_DETAILS, REGISTERED_MACHINES } from "@/lib/constants";
+import { getShiftDate } from "@/lib/shift-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 
 const cleanMeterVal = (val: any) => {
@@ -128,17 +130,28 @@ export default function MendingProductionReportPage() {
     potongans: []
   });
 
-  const [filters, setFilters] = useState({
-    nomor_mc: "",
-    potongan_ke: "",
-    tanggal: "",
-    startDate: "",
-    endDate: "",
-    jenis_kain: "all"
+  const [filters, setFilters] = useState(() => {
+    const today = getShiftDate(new Date());
+    return {
+      nomor_mc: "",
+      potongan_ke: "",
+      tanggal: today,
+      startDate: today,
+      endDate: today,
+      jenis_kain: "all"
+    };
   });
 
   const [selectedPotonganKey, setSelectedPotonganKey] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedPotonganKeys, setExpandedPotonganKeys] = useState<Record<string, boolean>>({});
+
+  const togglePotonganRow = (key: string) => {
+    setExpandedPotonganKeys((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   // Lightweight summary batches for instant queue rendering
   const [summaryBatches, setSummaryBatches] = useState<any[]>([]);
@@ -1247,42 +1260,43 @@ export default function MendingProductionReportPage() {
   return (
     <div className="w-full max-w-[1600px] mx-auto pb-20 animate-fadeIn px-2.5 sm:px-4 md:px-6">
       {/* Integrated Header & Filter Card */}
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-4 sm:mb-6">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative z-20 mb-4 sm:mb-6">
         {/* Decorative Top Accent */}
-        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
+        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80 z-10" />
 
         {/* Header Section inside Card */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
+        <div className="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6 px-4 sm:px-6 pt-4 sm:pt-5 pb-4 mb-4 sm:mb-5 rounded-t-2xl bg-gradient-to-br from-slate-50/90 via-white to-sky-50/40 border-b border-slate-200/70 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-[#004777] text-white flex items-center justify-center shadow-md shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-100/80">
               <FileSpreadsheet className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
             </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight leading-tight">
                   Laporan Kualitas Produksi Mending
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-50 text-[#0070bc] border border-sky-200/80 uppercase tracking-wider">
-                  {groupedPotongans.length} Potongan Ditemukan
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-black bg-[#0070bc]/10 text-[#0070bc] border border-[#0070bc]/20 tracking-tight">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#0070bc]" />
+                  {groupedPotongans.length} Potongan
                 </span>
               </div>
-              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">
-                Lihat dan analisis rincian hasil inspeksi & mending per potongan kain (Panel & Meteran).
+              <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5 leading-snug">
+                Lihat dan analisis rincian hasil inspeksi & mending per potongan kain (Panel & All Over).
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center justify-end gap-2 w-full lg:w-auto shrink-0 flex-wrap">
             {(filters.nomor_mc || filters.potongan_ke || filters.tanggal || filters.startDate || filters.jenis_kain !== "all") && (
               <button
                 type="button"
                 onClick={() => {
                   setFilters({ nomor_mc: "", potongan_ke: "", tanggal: "", startDate: "", endDate: "", jenis_kain: "all" });
                 }}
-                className="h-10 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="h-9 sm:h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200/80 hover:border-rose-600 font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap"
                 title="Reset Semua Filter"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                 <span>Reset Filter</span>
               </button>
             )}
@@ -1291,7 +1305,7 @@ export default function MendingProductionReportPage() {
               <button
                 type="button"
                 onClick={handleExportExcel}
-                className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                className="h-9 sm:h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
               >
                 <Download className="w-4 h-4 stroke-[2.5]" />
                 <span>Export ke Excel</span>
@@ -1421,25 +1435,208 @@ export default function MendingProductionReportPage() {
         const paginatedPotongans = groupedPotongans.slice(startIndex, endIndex);
 
         return (
-          <div className="bg-white rounded-[28px] shadow-sm border border-slate-200 overflow-hidden animate-fadeIn">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-                  Daftar Potongan Produksi
-                </h3>
-                <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                  Pilih salah satu potongan di bawah untuk melihat rincian detail kualitas per PCS / Panel.
-                </p>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fadeIn">
+            {/* Polished Table Card Header */}
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-200/80 bg-gradient-to-r from-slate-900 via-slate-800 to-[#004777] text-white flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+                  <ClipboardCheck className="w-4.5 h-4.5 text-sky-300" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm font-black tracking-tight text-white uppercase">
+                    Daftar Potongan Produksi
+                  </h3>
+                  <p className="text-[11px] text-sky-200/90 font-medium mt-0.5 truncate">
+                    Pilih potongan untuk melihat rincian kualitas per PCS / Panel
+                  </p>
+                </div>
               </div>
-              <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-xl text-xs font-black self-start sm:self-auto border border-slate-200">
-                Total: {groupedPotongans.length} Potongan
+              <span className="px-3 py-1 bg-white/15 border border-white/25 text-white rounded-full text-xs font-black whitespace-nowrap ml-auto">
+                {groupedPotongans.length} Potongan
               </span>
             </div>
 
-            <div className="overflow-x-auto no-scrollbar">
+            {/* Mobile & Tablet View (< lg): Accordion List / Expandable Row (Vertical Stack) */}
+            <div className="lg:hidden">
+              <div className="bg-sky-50/60 border-b border-slate-200 px-3 sm:px-4 py-2.5 grid grid-cols-12 items-center gap-2 text-[10px] font-extrabold text-[#004777]/80 uppercase tracking-wider">
+                <div className="col-span-5 pl-7">Mesin & Potongan</div>
+                <div className="col-span-3 text-center">PCS</div>
+                <div className="col-span-4 text-right pr-1">Aksi</div>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {paginatedPotongans.map((pot) => {
+                  const isExpanded = !!expandedPotonganKeys[pot.key];
+
+                  return (
+                    <div
+                      key={pot.key}
+                      className={`transition-colors ${
+                        isExpanded ? "bg-sky-50/30" : "bg-white hover:bg-slate-50/70"
+                      }`}
+                    >
+                      {/* Baris Utama (Collapsed Summary Row) */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => togglePotonganRow(pot.key)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            togglePotonganRow(pot.key);
+                          }
+                        }}
+                        className="px-3 sm:px-4 py-3 grid grid-cols-12 items-center gap-2 cursor-pointer select-none"
+                      >
+                        {/* Kolom 1: Indikator Expand + Connected Split-Badge */}
+                        <div className="col-span-5 flex items-center gap-2 min-w-0">
+                          <span
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all duration-200 ${
+                              isExpanded
+                                ? "bg-[#0070bc] text-white border-[#0070bc] shadow-2xs"
+                                : "bg-slate-100 text-slate-500 border-slate-200/80"
+                            }`}
+                            title={isExpanded ? "Tutup rincian" : "Buka rincian"}
+                          >
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                isExpanded ? "rotate-180" : ""
+                              }`}
+                            />
+                          </span>
+
+                          <div className="inline-flex items-center rounded-xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden shrink-0">
+                            <span className="h-7 px-2.5 bg-[#0070bc] text-white font-black text-xs flex items-center justify-center">
+                              {pot.nomor_mc}
+                            </span>
+                            <span className="h-7 px-2.5 bg-slate-50/90 text-slate-800 flex items-center gap-1 border-l border-slate-200/80">
+                              <Scissors className="w-3 h-3 text-amber-500 shrink-0" />
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                Pot.
+                              </span>
+                              <span className="text-xs font-black text-slate-800">
+                                {pot.potongan_ke}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Kolom 2: Jumlah PCS & Ringkasan Grade */}
+                        <div className="col-span-3 flex flex-col sm:flex-row items-center justify-center gap-1 flex-wrap">
+                          <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full bg-slate-100 font-extrabold text-slate-700 text-[11px] border border-slate-200/70 whitespace-nowrap">
+                            {pot.pcsList.length} PCS
+                          </span>
+                          {pot.totalBS > 0 ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-black text-[9px] whitespace-nowrap">
+                              BS: {pot.totalBS}
+                            </span>
+                          ) : pot.totalB > 0 ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 font-black text-[9px] whitespace-nowrap">
+                              B: {pot.totalB}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 font-black text-[9px] whitespace-nowrap">
+                              A: {pot.totalA}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Kolom 3: Tombol Aksi Cepat (Tactile Capsule) */}
+                        <div
+                          className="col-span-4 flex items-center justify-end"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleSelectPotongan(pot)}
+                            className="group/btn h-8 sm:h-9 pl-1.5 pr-2 sm:pr-2.5 rounded-xl font-extrabold text-[11px] sm:text-xs transition-all duration-200 flex items-center gap-1.5 sm:gap-2 active:scale-95 border bg-sky-50/90 hover:bg-[#0070bc] text-[#0070bc] hover:text-white border-sky-200/90 hover:border-[#0070bc] shadow-2xs hover:shadow-md hover:shadow-[#0070bc]/20 cursor-pointer whitespace-nowrap"
+                          >
+                            <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-[#0070bc] text-white group-hover/btn:bg-white group-hover/btn:text-[#0070bc] flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                              <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                            </span>
+                            <span>Detail</span>
+                            <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0 hidden sm:inline-block" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Panel Detail Bawah (Vertical Row Stack) */}
+                      {isExpanded && (
+                        <div className="px-3 sm:px-4 pb-3.5 pt-2.5 bg-slate-50/90 border-t border-slate-200/70 animate-fadeIn">
+                          <div className="flex flex-col divide-y divide-slate-100 bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden text-xs">
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Desain & Jenis
+                              </span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-extrabold text-slate-800 truncate">
+                                  {pot.design_id}
+                                </span>
+                                {pot.isMeter ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider shrink-0">
+                                    ALL OVER
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-sky-100 text-[#0070bc] uppercase tracking-wider shrink-0">
+                                    PANEL
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Hasil Mending
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] whitespace-nowrap">
+                                  A: {pot.totalA}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 font-black text-[10px] whitespace-nowrap">
+                                  B: {pot.totalB}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 font-black text-[10px] whitespace-nowrap">
+                                  BS: {pot.totalBS}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Petugas Mending
+                              </span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[9px] font-black text-slate-600 shrink-0">
+                                  {(pot.petugas_mending || "P")[0]}
+                                </span>
+                                <span className="font-extrabold text-slate-800 truncate">
+                                  {pot.petugas_mending || "-"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Tanggal Mending
+                              </span>
+                              <span className="font-bold text-slate-700">
+                                {pot.tanggal_mending || "-"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Desktop / Laptop Table View (>= lg) */}
+            <div className="hidden lg:block overflow-x-auto no-scrollbar">
               <table className="w-full min-w-[750px] text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500">
+                  <tr className="bg-sky-50/60 border-b border-slate-200 text-[#004777]/80">
                     <th className="py-3.5 px-4 font-black text-[11px] uppercase tracking-wider">Mesin</th>
                     <th className="py-3.5 px-4 font-black text-[11px] uppercase tracking-wider">Desain</th>
                     <th className="py-3.5 px-4 font-black text-[11px] uppercase tracking-wider">Potongan</th>
@@ -1455,44 +1652,52 @@ export default function MendingProductionReportPage() {
                     <tr 
                       key={pot.key} 
                       onClick={() => handleSelectPotongan(pot)}
-                      className="hover:bg-emerald-50/30 transition-colors cursor-pointer group"
+                      className="hover:bg-sky-50/40 transition-colors cursor-pointer group"
                     >
-                      <td className="py-4 px-4 font-bold">
-                        <span className="px-3 py-1 bg-slate-900 text-amber-300 font-black rounded-xl text-xs inline-block shadow-2xs">
+                      <td className="py-3.5 px-4 font-bold">
+                        <span className="inline-flex items-center justify-center min-w-[3rem] h-8 px-3 bg-[#0070bc] text-white font-black rounded-lg text-xs shadow-2xs">
                           {pot.nomor_mc}
                         </span>
                       </td>
-                      <td className="py-4 px-4 font-extrabold text-slate-800 text-sm tracking-tight">
+                      <td className="py-3.5 px-4 font-extrabold text-slate-800 text-sm tracking-tight">
                         {pot.design_id}
                       </td>
-                      <td className="py-4 px-4 font-bold">
-                        <span className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 font-black text-xs inline-block shadow-2xs">
-                          Ke-{pot.potongan_ke}
-                        </span>
+                      <td className="py-3.5 px-4 font-bold">
+                        <div className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-slate-100/90 border border-slate-200/80 text-slate-800">
+                          <Scissors className="w-3 h-3 text-amber-500 shrink-0" />
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            Pot.
+                          </span>
+                          <span className="text-xs font-black text-slate-800">
+                            {pot.potongan_ke}
+                          </span>
+                        </div>
                       </td>
-                      <td className="py-4 px-4">
+                      <td className="py-3.5 px-4">
                         {pot.isMeter ? (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-sky-100 text-sky-800 uppercase tracking-wider whitespace-nowrap border border-sky-200">
-                            Meteran (All Over)
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-50 text-purple-700 uppercase tracking-wider whitespace-nowrap border border-purple-200">
+                            All Over
                           </span>
                         ) : (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-800 uppercase tracking-wider whitespace-nowrap border border-indigo-200">
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-sky-50 text-[#0070bc] uppercase tracking-wider whitespace-nowrap border border-sky-200">
                             Panel
                           </span>
                         )}
                       </td>
-                      <td className="py-4 px-4 font-bold text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-slate-400" />
+                      <td className="py-3.5 px-4 font-bold text-slate-700">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-black text-slate-600 shrink-0">
+                            {(pot.petugas_mending || "P")[0]}
+                          </span>
                           <span>{pot.petugas_mending || "-"}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-center">
-                        <span className="px-2.5 py-1 rounded-xl bg-slate-100 font-extrabold text-slate-700 text-xs inline-block">
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200/80 font-extrabold text-slate-700 text-xs inline-block">
                           {pot.pcsList.length} PCS
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-3.5 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           <span className="px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-xs shadow-2xs">
                             A: {pot.totalA}
@@ -1505,17 +1710,20 @@ export default function MendingProductionReportPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleSelectPotongan(pot);
                           }}
-                          className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs shadow-md shadow-sky-200 flex items-center justify-center gap-1.5 mx-auto transition-all active:scale-95 cursor-pointer"
+                          className="group/btn h-9 pl-1.5 pr-3 rounded-xl font-extrabold text-xs transition-all duration-200 flex items-center gap-2 mx-auto active:scale-95 border bg-sky-50/90 hover:bg-[#0070bc] text-[#0070bc] hover:text-white border-sky-200/90 hover:border-[#0070bc] shadow-2xs hover:shadow-md hover:shadow-[#0070bc]/20 cursor-pointer whitespace-nowrap"
                         >
-                          <Search className="w-3.5 h-3.5" />
-                          Lihat Detail
+                          <span className="w-6 h-6 rounded-lg bg-[#0070bc] text-white group-hover/btn:bg-white group-hover/btn:text-[#0070bc] flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                            <Eye className="w-3.5 h-3.5" />
+                          </span>
+                          <span>Lihat Detail</span>
+                          <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0" />
                         </button>
                       </td>
                     </tr>
@@ -1546,7 +1754,7 @@ export default function MendingProductionReportPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`w-8 h-8 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer ${
                         currentPage === page
-                          ? "bg-emerald-600 text-white shadow-emerald-200"
+                          ? "bg-[#0070bc] text-white shadow-[#0070bc]/20"
                           : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
                       }`}
                     >

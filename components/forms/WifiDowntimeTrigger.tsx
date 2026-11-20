@@ -162,16 +162,16 @@ export default function WifiDowntimeTrigger({
   }, [connectionStatus, currentStatus, isTimerRunning, onStartTimer, currentElapsed]);
 
   return (
-    <div className={`w-full rounded-2xl p-2.5 flex flex-col gap-2 overflow-hidden transition-all duration-300 ${
+    <div className={`w-full rounded-2xl p-2 xl:p-2.5 flex flex-col gap-1.5 xl:gap-2 overflow-hidden transition-all duration-300 ${
       isDark
         ? "bg-slate-900 border border-slate-800 text-white shadow-xl"
         : "bg-white border border-slate-200 text-slate-800 shadow-xs"
     }`}>
       {/* Baris 1: Connection Status & Tombol Pengaturan */}
-      <div className="flex items-center justify-between gap-1.5 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+      <div className="flex items-center justify-between gap-1 flex-nowrap min-w-0">
+        <div className="flex items-center gap-1 min-w-0 shrink-0">
           <div
-            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+            className={`w-5 h-5 xl:w-6 xl:h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
               connectionStatus === "terhubung"
                 ? isDark
                   ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800/80"
@@ -186,15 +186,15 @@ export default function WifiDowntimeTrigger({
             }`}
           >
             {connectionStatus === "terhubung" ? (
-              <Wifi className={`w-3.5 h-3.5 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} />
+              <Wifi className={`w-3 h-3 xl:w-3.5 xl:h-3.5 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} />
             ) : connectionStatus === "menghubungkan" ? (
-              <RefreshCw className={`w-3.5 h-3.5 animate-spin ${isDark ? "text-amber-400" : "text-amber-600"}`} />
+              <RefreshCw className={`w-3 h-3 xl:w-3.5 xl:h-3.5 animate-spin ${isDark ? "text-amber-400" : "text-amber-600"}`} />
             ) : (
-              <WifiOff className="w-3.5 h-3.5 text-slate-400" />
+              <WifiOff className="w-3 h-3 xl:w-3.5 xl:h-3.5 text-slate-400" />
             )}
           </div>
 
-          <span className={`text-[11px] font-black shrink-0 ${isDark ? "text-white" : "text-slate-800"}`}>ESP32</span>
+          <span className={`text-[10px] xl:text-[11px] font-black shrink-0 ${isDark ? "text-white" : "text-slate-800"}`}>ESP32</span>
 
           <button
             type="button"
@@ -204,7 +204,7 @@ export default function WifiDowntimeTrigger({
               }
             }}
             disabled={connectionStatus !== "terputus"}
-            className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold truncate max-w-[85px] sm:max-w-[120px] transition-all ${
+            className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[8.5px] xl:text-[9px] font-bold whitespace-nowrap shrink-0 transition-all ${
               connectionStatus === "terhubung"
                 ? isDark
                   ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 cursor-default"
@@ -227,12 +227,12 @@ export default function WifiDowntimeTrigger({
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 shrink-0">
           {/* Badge Screen Wake Lock (Layar Selalu Menyala / Siaga 24 Jam) */}
           <button
             type="button"
             onClick={() => toggleWakeLock()}
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9.5px] font-bold transition-all border shrink-0 cursor-pointer active:scale-95 ${
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 xl:py-1 rounded-lg text-[8.5px] xl:text-[9px] font-bold transition-all border shrink-0 whitespace-nowrap cursor-pointer active:scale-95 ${
               isWakeLockActive
                 ? isDark
                   ? "bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border-amber-800/80 shadow-2xs"
@@ -247,8 +247,8 @@ export default function WifiDowntimeTrigger({
                 : "Screen Wake Lock Nonaktif: Layar tablet akan mati mengikuti batas waktu Samsung (klik untuk mengaktifkan)"
             }
           >
-            <Sun className={`w-3 h-3 ${isWakeLockActive ? (isDark ? "text-amber-400" : "text-amber-600") + " animate-pulse" : isDark ? "text-slate-500" : "text-slate-400"}`} />
-            <span>{isWakeLockActive ? "Layar ON" : "Layar Standby"}</span>
+            <Sun className={`w-2.5 h-2.5 xl:w-3 xl:h-3 shrink-0 ${isWakeLockActive ? (isDark ? "text-amber-400" : "text-amber-600") + " animate-pulse" : isDark ? "text-slate-500" : "text-slate-400"}`} />
+            <span>{isWakeLockActive ? "Layar ON" : "Standby"}</span>
           </button>
 
           {/* Sembunyikan Tombol Simulasi (Ubah false ke true jika ingin mengaktifkan kembali) */}
@@ -269,37 +269,37 @@ export default function WifiDowntimeTrigger({
           <button
             type="button"
             onClick={() => setShowControllerModal(true)}
-            className={`w-7 h-7 p-1 rounded-lg font-bold text-xs transition-colors border flex items-center justify-center shrink-0 cursor-pointer ${
+            className={`w-6 h-6 xl:w-7 xl:h-7 p-1 rounded-lg font-bold text-xs transition-colors border flex items-center justify-center shrink-0 cursor-pointer ${
               isDark
                 ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700"
                 : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
             }`}
             title="Pengaturan Wi-Fi & Terminal Log"
           >
-            <Settings className={`w-3.5 h-3.5 ${isDark ? "text-slate-300" : "text-slate-600"}`} />
+            <Settings className={`w-3 h-3 xl:w-3.5 xl:h-3.5 ${isDark ? "text-slate-300" : "text-slate-600"}`} />
           </button>
         </div>
       </div>
 
       {/* Baris 2: Badge Indikator Mesin Terkunci Sesuai Nomor Mesin di Header */}
-      <div className={`p-1.5 px-2.5 rounded-xl flex items-center justify-between gap-2 border select-none transition-colors ${
+      <div className={`p-1.5 px-2 xl:px-2.5 rounded-xl flex items-center justify-between gap-1 flex-nowrap border select-none transition-colors ${
         isDark
           ? "bg-slate-950/80 border-slate-800"
           : "bg-slate-100/90 border-slate-200/80"
       }`}>
-        <div className="flex items-center gap-2 min-w-0">
-          <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${
+        <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+          <div className={`w-5 h-5 xl:w-6 xl:h-6 rounded-lg flex items-center justify-center shrink-0 border ${
             isDark
               ? "bg-slate-800 text-blue-400 border-slate-700"
               : "bg-sky-100 text-sky-700 border border-sky-200"
           }`}>
-            <Cpu className="w-3.5 h-3.5" />
+            <Cpu className="w-3 h-3 xl:w-3.5 xl:h-3.5" />
           </div>
-          <div className="flex items-center gap-1.5 min-w-0 truncate">
-            <span className={`text-xs font-black tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className={`text-[10.5px] xl:text-xs font-black tracking-tight whitespace-nowrap ${isDark ? "text-white" : "text-slate-800"}`}>
               Mesin {selectedMachineCode ? selectedMachineCode.toUpperCase() : "-"}
             </span>
-            <span className={`px-1.5 py-0.5 rounded-md border text-[10px] font-bold shadow-2xs ${
+            <span className={`px-1 xl:px-1.5 py-0.5 rounded-md border text-[8.5px] xl:text-[10px] font-bold shadow-2xs whitespace-nowrap shrink-0 ${
               isDark
                 ? "bg-slate-800 border-slate-700 text-blue-400"
                 : "bg-white border-slate-200 text-slate-600"
@@ -310,12 +310,12 @@ export default function WifiDowntimeTrigger({
         </div>
 
         {/* Status Sinyal Downtime Real-Time */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {currentIsRunning && (
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping shrink-0" />
           )}
           <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
+            className={`px-1.5 xl:px-2 py-0.5 rounded-full text-[8.5px] xl:text-[10px] font-bold whitespace-nowrap transition-colors ${
               currentStatus === "NYALA"
                 ? isDark
                   ? "bg-rose-950/80 text-rose-300 border border-rose-800/80"

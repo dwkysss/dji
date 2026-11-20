@@ -60,6 +60,8 @@ import HeaderSummaryCard from "./HeaderSummaryCard";
 const ProductionHeaderModal = dynamic(() => import("./ProductionHeaderModal"), {
   ssr: false,
 });
+import { getActiveMachineBlock } from "@/actions/mechanic-actions";
+import MachineBlockGuardModal from "./MachineBlockGuardModal";
 const MachineStopModal = dynamic(() => import("./MachineStopModal"), {
   ssr: false,
 });
@@ -630,6 +632,29 @@ export default function EmployeeForm({
 
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isStopModalOpen, setIsStopModalOpen] = useState(false);
+  const [isBlockGuardOpen, setIsBlockGuardOpen] = useState(false);
+
+  const handleRequestMachineStop = async () => {
+    const mc = String(watch("nomorMc") || "").trim().toUpperCase();
+    if (mc) {
+      try {
+        if (localStorage.getItem(`dji_machine_block_${mc}`)) {
+          setIsBlockGuardOpen(true);
+          return;
+        }
+      } catch {}
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        try {
+          const res = await getActiveMachineBlock(mc);
+          if (res?.success && res.block) {
+            setIsBlockGuardOpen(true);
+            return;
+          }
+        } catch {}
+      }
+    }
+    setIsStopModalOpen(true);
+  };
   const [isIssueReportOpen, setIsIssueReportOpen] = useState(false);
   const [stopModalSuccessMsg, setStopModalSuccessMsg] = useState<string | null>(null);
 
@@ -1693,12 +1718,12 @@ export default function EmployeeForm({
         {/* Segmented Control for Mode Switching */}
         <div
           data-tour="mode-switch"
-          className={`flex w-full p-1.5 rounded-2xl mb-4 sm:mb-8 border shadow-inner transition-colors ${isDark
+          className={`flex w-full p-1 sm:p-1.5 rounded-2xl mb-4 sm:mb-6 border shadow-inner transition-colors ${isDark
               ? "bg-slate-950/80 border-slate-800"
               : "bg-slate-100/80 border-slate-200/60"
             }`}
         >
-          <div className={`flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl shadow-sm border relative overflow-hidden group cursor-default transition-all ${isDark
+          <div className={`flex-1 flex items-center justify-center py-2 sm:py-2.5 rounded-xl shadow-sm border relative overflow-hidden group cursor-default transition-all ${isDark
               ? "bg-slate-800 border-slate-700 text-blue-400"
               : "bg-white border-slate-200 text-[#0070bc]"
             }`}>
@@ -1721,7 +1746,7 @@ export default function EmployeeForm({
             onClick={() => {
               localStorage.setItem("last_input_route", "/input-meter");
             }}
-            className={`flex-1 flex items-center justify-center py-2.5 sm:py-3.5 rounded-xl transition-all cursor-pointer ${isDark
+            className={`flex-1 flex items-center justify-center py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer ${isDark
                 ? "text-slate-400 hover:text-blue-400 hover:bg-slate-800/50"
                 : "text-slate-500 hover:text-emerald-600 hover:bg-white/60"
               }`}
@@ -1740,53 +1765,53 @@ export default function EmployeeForm({
           </a>
         </div>
         {/* Top Header */}
-        <div className={`flex flex-col lg:flex-row lg:items-center justify-between border-b pb-3 sm:pb-4 mb-4 sm:mb-6 gap-3 sm:gap-4 ${isDark ? "border-slate-800" : "border-slate-100"
+        <div className={`flex flex-col md:flex-row md:items-center justify-between border-b pb-3.5 sm:pb-4 mb-4 sm:mb-5 gap-3 sm:gap-4 ${isDark ? "border-slate-800" : "border-slate-100"
           }`}>
           <div className="min-w-0 flex-1">
             <h3 className={`text-base font-bold whitespace-nowrap ${isDark ? "text-white" : "text-slate-900"}`}>
               Form Input Produksi
             </h3>
-            <p className="text-xs text-slate-400 font-normal mt-0.5 sm:mt-1">
+            <p className="text-xs text-slate-400 font-normal mt-0.5">
               Data Header akan otomatis tersimpan untuk panel berikutnya.
             </p>
           </div>
-          <div className="flex flex-row items-center gap-2 w-full lg:w-auto shrink-0 flex-wrap sm:flex-nowrap overflow-x-auto sm:overflow-visible">
+          <div className="grid grid-cols-3 md:flex md:flex-row items-center gap-2 w-full md:w-auto shrink-0">
             <button
               data-tour="stop-machine"
               type="button"
-              onClick={() => setIsStopModalOpen(true)}
-              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${isDark
+              onClick={handleRequestMachineStop}
+              className={`px-2.5 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 min-w-0 whitespace-nowrap group ${isDark
                   ? "bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border border-amber-800/80"
                   : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300"
                 }`}
               title="Lapor jika mesin mati/rusak/standby selama shift ini tanpa ada hasil kain"
             >
               <PowerOff className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-amber-600"} group-hover:scale-110 transition-transform shrink-0`} />
-              <span>Mesin Mati</span>
+              <span className="truncate">Mesin Mati</span>
             </button>
             <button
               data-tour="potongan-history"
               type="button"
               onClick={() => setIsHistoryDrawerOpen(true)}
-              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${isDark
+              className={`px-2.5 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 min-w-0 whitespace-nowrap group ${isDark
                   ? "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-blue-400 border border-slate-700"
                   : "bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200 hover:border-sky-300"
                 }`}
             >
               <History className={`w-4 h-4 ${isDark ? "text-slate-400 group-hover:text-blue-400" : "text-slate-500 group-hover:text-[#0070bc]"} transition-colors shrink-0`} />
-              <span>Riwayat Potongan Ini</span>
+              <span className="truncate">Riwayat Potongan</span>
             </button>
             <button
               type="button"
               onClick={() => setIsIssueReportOpen(true)}
-              className={`px-3 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap group flex-1 sm:flex-initial ${isDark
+              className={`px-2.5 sm:px-3.5 py-2 rounded-xl shadow-2xs text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 min-w-0 whitespace-nowrap group ${isDark
                   ? "bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700"
                   : "bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-600 border border-slate-200 hover:border-amber-300"
                 }`}
               title="Lapor kendala atau kesalahan input data ke tim QC/Admin"
             >
               <MessageSquareWarning className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-amber-600"} group-hover:scale-110 transition-transform shrink-0`} />
-              <span>Lapor Kendala</span>
+              <span className="truncate">Lapor Kendala</span>
             </button>
           </div>
         </div>
@@ -1963,6 +1988,8 @@ export default function EmployeeForm({
                   watch={watch}
                   showBlockInput={true}
                   operators={activeOperators}
+                  allOperators={operators}
+                  groups={groups}
                   currentOperatorName={currentOperatorName}
                   isEdit={isEdit}
                   onRegisterTimerControls={setTimerControls}
@@ -1981,6 +2008,8 @@ export default function EmployeeForm({
               watch={watch}
               showBlockInput={true}
               operators={activeOperators}
+              allOperators={operators}
+              groups={groups}
               currentOperatorName={currentOperatorName}
               isEdit={isEdit}
               isPanelType={true}
@@ -2424,6 +2453,15 @@ export default function EmployeeForm({
       </form>
 
       {/* Modal Lapor Mesin Berhenti / Mati */}
+      <MachineBlockGuardModal
+        isOpen={isBlockGuardOpen}
+        onClose={() => setIsBlockGuardOpen(false)}
+        nomorMc={watchNomorMc || ""}
+        onOpenHandoff={() => {
+          window.dispatchEvent(new CustomEvent("dji:open-block-handoff"));
+        }}
+      />
+
       <MachineStopModal
         isOpen={isStopModalOpen}
         onClose={() => setIsStopModalOpen(false)}
@@ -2444,6 +2482,14 @@ export default function EmployeeForm({
         pinggiran={watch("pinggiran") || ""}
         noOrderBarang={watch("noOrderBarang") || ""}
         noCustomer={watch("noCustomer") || ""}
+        allOperators={operators}
+        groups={groups}
+        onGroupOperatorChange={(nextGroupId, nextOpId) => {
+          setValue("groupId", nextGroupId, { shouldDirty: true, shouldValidate: true });
+          if (nextOpId) {
+            setValue("operatorId", nextOpId, { shouldDirty: true, shouldValidate: true });
+          }
+        }}
         onSuccess={(msg) => {
           setStopModalSuccessMsg(msg || "Laporan mesin berhenti berhasil disimpan!");
           setTimeout(() => setStopModalSuccessMsg(null), 7000);

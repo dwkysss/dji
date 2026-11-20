@@ -52,6 +52,8 @@ export interface ShiftDailyTrend {
   defects: number;
   defectsPanel: number;
   defectsMeter: number;
+  alloverPoints: number;
+  totalPcs: number;
   downtimeMinutes: number;
   activeOperators: number;
   activeMachines: string[];
@@ -136,94 +138,14 @@ export async function getMonthlyShiftPerformance(
     const supabase = await createClient();
 
     // 1. Calculate date boundaries for the given month (with padding for shifts spanning midnight)
-    const startDate = new Date(year, month - 1, 1).toISOString().split("T")[0];
-    const endDate = new Date(year, month, 0).toISOString().split("T")[0];
-    const prevDate = new Date(year, month - 1, 0).toISOString().split("T")[0];
-    const nextDate = new Date(year, month, 2).toISOString().split("T")[0];
+    // Use local calendar parts directly to avoid UTC timezone shifting via toISOString()
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    const formatYMD = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const prevDate = formatYMD(new Date(year, month - 1, 0));
+    const nextDate = formatYMD(new Date(year, month, 2));
     const daysInMonth = new Date(year, month, 0).getDate();
 
-    // 2. Fetch paginated production details joined with headers
-    let rawDetails: any[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
-
-      let query = supabase
-        .from("production_details")
-        .select(`
-          id,
-          meter_kain,
-          jml_hasil_produksi,
-          kategori_masalah,
-          detail_masalah,
-          keterangan_cacat,
-          status_inspeksi,
-          status_mending,
-          final_inspection_id,
-          is_deleted,
-          production_defects (
-            id,
-            kategori,
-            detail,
-            meter,
-            blok
-          ),
-          production_headers!inner (
-            id,
-            nomor_mc,
-            tgl,
-            tanggal_jam,
-            panel_no,
-            potongan_ke,
-            total_produksi_meter,
-            meter_awal,
-            meter_akhir,
-            pcs,
-            design_id,
-            total_downtime_detik,
-            pic,
-            groups ( nama_grup ),
-            operators ( id, nama_operator )
-          )
-        `)
-        .gte("production_headers.tgl", prevDate)
-        .lte("production_headers.tgl", nextDate)
-        .eq("is_deleted", false);
-
-      if (machineFilter && machineFilter !== "all") {
-        query = query.eq("production_headers.nomor_mc", machineFilter);
-      }
-
-      if (fabricType === "meter") {
-        query = query.eq("production_headers.panel_no", "METERAN");
-      } else if (fabricType === "panel") {
-        query = query.neq("production_headers.panel_no", "METERAN");
-      }
-
-      const { data: pageData, error } = await query.range(from, to);
-
-      if (error) {
-        console.error("Error fetching shift performance data:", error);
-        return { success: false, error: "Gagal mengambil data produksi: " + error.message };
-      }
-
-      if (pageData && pageData.length > 0) {
-        rawDetails.push(...pageData);
-        if (pageData.length < pageSize) {
-          hasMore = false;
-        } else {
-          page++;
-        }
-      } else {
-        hasMore = false;
-      }
-    }
-
-    // 3. Helper to determine shift date (Shift 3: 23:10 - 07:10 belongs to start date)
+    // 2. Helper to determine shift date (Shift 3: 23:10 - 07:10 belongs to start date)
     function getShiftInfo(tglStr: string, timestampStr?: string): { day: number; month: number; year: number; shiftDateStr: string } {
       const targetStr = timestampStr || tglStr;
       const shiftDateStr = getShiftDate(targetStr);
@@ -234,6 +156,190 @@ export async function getMonthlyShiftPerformance(
         day: parseInt(parts[2]) || 1,
         shiftDateStr,
       };
+    }
+
+    // 3. Fetch small lookup tables (groups & operators) in parallel to avoid heavy SQL joins
+    const [{ data: groupsList, error: groupsErr }, { data: operatorsList, error: opsErr }] = await Promise.all([
+      supabase.from("groups").select("id, nama_grup"),
+      supabase.from("operators").select("id, nama_operator"),
+    ]);
+
+    if (groupsErr) {
+      console.error("Error fetching groups lookup:", groupsErr);
+      return { success: false, error: "Gagal mengambil data grup: " + groupsErr.message };
+    }
+    if (opsErr) {
+      console.error("Error fetching operators lookup:", opsErr);
+      return { success: false, error: "Gagal mengambil data operator: " + opsErr.message };
+    }
+
+    const groupNameById = new Map<any, string>();
+    (groupsList || []).forEach((g: any) => {
+      groupNameById.set(g.id, String(g.nama_grup || "").trim().toUpperCase());
+    });
+
+    const operatorById = new Map<any, { id: any; nama_operator: string }>();
+    (operatorsList || []).forEach((op: any) => {
+      operatorById.set(op.id, { id: op.id, nama_operator: op.nama_operator });
+    });
+
+    const targetGroupIds =
+      shiftGroup !== "all"
+        ? (groupsList || [])
+            .filter((g: any) => String(g.nama_grup || "").trim().toUpperCase() === shiftGroup.toUpperCase())
+            .map((g: any) => g.id)
+        : null;
+
+    // 4. Parent-first query: fetch production_headers with DB-level filters (avoids child-table !inner join timeout)
+    const filteredHeaderMap = new Map<string, any>();
+
+    if (targetGroupIds === null || targetGroupIds.length > 0) {
+      let headerPage = 0;
+      const headerPageSize = 1000;
+      let hasMoreHeaders = true;
+
+      while (hasMoreHeaders) {
+        const from = headerPage * headerPageSize;
+        const to = from + headerPageSize - 1;
+
+        let headerQuery = supabase
+          .from("production_headers")
+          .select(
+            "id, nomor_mc, tgl, tanggal_jam, panel_no, potongan_ke, total_produksi_meter, meter_awal, meter_akhir, pcs, design_id, total_downtime_detik, pic, group_id, operator_id"
+          )
+          .gte("tgl", prevDate)
+          .lte("tgl", nextDate)
+          .order("id", { ascending: true });
+
+        if (targetGroupIds !== null) {
+          headerQuery = headerQuery.in("group_id", targetGroupIds);
+        }
+
+        if (machineFilter && machineFilter !== "all") {
+          headerQuery = headerQuery.eq("nomor_mc", machineFilter);
+        }
+
+        if (fabricType === "meter") {
+          headerQuery = headerQuery.eq("panel_no", "METERAN");
+        } else if (fabricType === "panel") {
+          headerQuery = headerQuery.neq("panel_no", "METERAN");
+        }
+
+        const { data: headerRows, error: headerErr } = await headerQuery.range(from, to);
+
+        if (headerErr) {
+          console.error("Error fetching production headers for shift performance:", headerErr);
+          return { success: false, error: "Gagal mengambil data produksi: " + headerErr.message };
+        }
+
+        if (headerRows && headerRows.length > 0) {
+          for (const h of headerRows) {
+            if (!h.tgl) continue;
+            const shiftInfo = getShiftInfo(h.tgl, h.tanggal_jam);
+            if (shiftInfo.month !== month || shiftInfo.year !== year) continue;
+
+            const groupName = groupNameById.get(h.group_id) || "";
+            if (shiftGroup !== "all" && groupName !== shiftGroup.toUpperCase()) continue;
+
+            filteredHeaderMap.set(h.id, {
+              ...h,
+              groups: groupName ? { nama_grup: groupName } : null,
+              operators: operatorById.get(h.operator_id) || null,
+            });
+          }
+
+          if (headerRows.length < headerPageSize) {
+            hasMoreHeaders = false;
+          } else {
+            headerPage++;
+          }
+        } else {
+          hasMoreHeaders = false;
+        }
+      }
+    }
+
+    // 5. Fetch production_details (+ embedded production_defects) for matched header IDs
+    // in safe URL-length chunks (60 UUIDs) with concurrency control to avoid Nginx 502 Bad Gateway
+    const matchedHeaderIds = Array.from(filteredHeaderMap.keys());
+    const rawDetails: any[] = [];
+
+    const HEADER_CHUNK_SIZE = 60;
+    const CONCURRENCY = 4;
+    const headerChunks: string[][] = [];
+    for (let i = 0; i < matchedHeaderIds.length; i += HEADER_CHUNK_SIZE) {
+      headerChunks.push(matchedHeaderIds.slice(i, i + HEADER_CHUNK_SIZE));
+    }
+
+    for (let i = 0; i < headerChunks.length; i += CONCURRENCY) {
+      const batch = headerChunks.slice(i, i + CONCURRENCY);
+      const batchResults = await Promise.all(
+        batch.map(async (chunk) => {
+          const chunkRows: any[] = [];
+          let page = 0;
+          const pageSize = 1000;
+          let hasMore = true;
+
+          while (hasMore) {
+            const from = page * pageSize;
+            const to = from + pageSize - 1;
+
+            const { data, error } = await supabase
+              .from("production_details")
+              .select(`
+                id,
+                header_id,
+                meter_kain,
+                jml_hasil_produksi,
+                kategori_masalah,
+                detail_masalah,
+                keterangan_cacat,
+                status_inspeksi,
+                status_mending,
+                final_inspection_id,
+                is_deleted,
+                production_defects (
+                  id,
+                  kategori,
+                  detail,
+                  meter,
+                  blok
+                )
+              `)
+              .in("header_id", chunk)
+              .eq("is_deleted", false)
+              .order("id", { ascending: true })
+              .range(from, to);
+
+            if (error) {
+              throw error;
+            }
+
+            if (data && data.length > 0) {
+              chunkRows.push(...data);
+              if (data.length < pageSize) {
+                hasMore = false;
+              } else {
+                page++;
+              }
+            } else {
+              hasMore = false;
+            }
+          }
+
+          return chunkRows;
+        })
+      );
+
+      for (const rows of batchResults) {
+        for (const row of rows) {
+          rawDetails.push({
+            ...row,
+            production_defects: Array.isArray(row.production_defects) ? row.production_defects : [],
+            production_headers: filteredHeaderMap.get(row.header_id) || null,
+          });
+        }
+      }
     }
 
     // 4. Initialize Data Aggregators
@@ -249,6 +355,8 @@ export async function getMonthlyShiftPerformance(
         defects: 0,
         defectsPanel: 0,
         defectsMeter: 0,
+        alloverPoints: 0,
+        totalPcs: 0,
         downtimeMinutes: 0,
         activeOperators: 0,
         activeMachines: [],
@@ -518,8 +626,12 @@ export async function getMonthlyShiftPerformance(
         dailyItem.output += rowOutput;
         dailyItem.panelCount += rowPanel;
         dailyItem.meterCount += rowMeter;
+        if (isMeteran) dailyItem.totalPcs += Math.max(0, Number(header.pcs) || 0);
         dailyItem.defects += defectCountForRow;
-        if (isMeteran) dailyItem.defectsMeter += defectCountForRow;
+        if (isMeteran) {
+          dailyItem.defectsMeter += defectCountForRow;
+          dailyItem.alloverPoints += defectCountForRow;
+        }
         else dailyItem.defectsPanel += defectCountForRow;
       }
 

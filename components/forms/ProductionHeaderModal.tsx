@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { X, Save, Settings2, Trash2, Plus, Minus, Lock, Sparkles, RefreshCw, CheckCircle2 } from "lucide-react";
+import { X, Save, Settings2, Trash2, Plus, Minus, Lock, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { UseFormRegister, FieldErrors, UseFormWatch, UseFormSetValue } from "react-hook-form";
 import { ProductionFormInput } from "@/lib/schemas";
@@ -253,7 +253,6 @@ export default function ProductionHeaderModal({
             <div className="mb-6 p-4 bg-sky-50/80 border border-sky-200 rounded-2xl flex flex-col gap-2.5 shadow-2xs">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-black text-[#0070bc] uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-sky-600" />
                   Salin dari Riwayat Mesin {currentNomorMc} (Pilih Potongan / Desain)
                 </label>
                 {isLoadingRecent ? (

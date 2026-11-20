@@ -17,7 +17,6 @@ import {
   ChevronUp,
   Cpu,
   Loader2,
-  Sparkles,
   RotateCcw,
   History,
   Hash,
@@ -642,7 +641,6 @@ export default function StatusMesinForm() {
 
               {selectedHistoryLabel && (
                 <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg animate-fadeIn">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span>Parameter disalin dari riwayat: {selectedHistoryLabel}</span>
                 </div>
               )}

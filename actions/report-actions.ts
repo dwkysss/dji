@@ -691,18 +691,28 @@ export async function getMonthlyMachineReport(
         kategori,
         detail,
         durasi_detik,
+        dikerjakan_oleh,
         header_id,
         production_headers!inner (
           id,
           tgl,
+          tanggal_jam,
           panel_no,
-          groups ( nama_grup )
+          design_id,
+          course,
+          pick,
+          rpm,
+          group_id,
+          operator_id,
+          pic,
+          groups ( nama_grup ),
+          operators ( nama_operator, shift )
         )
       `)
       .eq("production_headers.nomor_mc", machineId)
       .eq("production_headers.panel_no", "Downtime Mekanik (Direct)")
-      .gte("production_headers.tgl", startDate)
-      .lte("production_headers.tgl", endDate);
+      .gte("production_headers.tgl", prevDate)
+      .lte("production_headers.tgl", nextDate);
 
     if (!dtError && dtData) {
       dtData.forEach((row: any) => {
@@ -718,7 +728,11 @@ export async function getMonthlyMachineReport(
 
         if (headerMonth !== month || headerYear !== year) return;
 
-        const groupName = normalizeGroupName(header.groups?.nama_grup || header.group_id, null, "A");
+        const groupName = normalizeGroupName(
+          header.groups?.nama_grup || header.group_id,
+          header.operators?.shift,
+          "A"
+        );
         const reportDay = reportMap.get(day);
         if (!reportDay) return;
 
@@ -727,49 +741,184 @@ export async function getMonthlyMachineReport(
         }
         const team = reportDay.teamData[groupName];
 
-        // Add Keterangan for Mechanic
+        // Add Keterangan & Kode Tindakan for Mechanic / Block Mesin
         if (row.kategori && row.kategori !== "Unknown") {
-          if (!team.keterangan_per_kategori) team.keterangan_per_kategori = {};
-          if (!team.keterangan_per_kategori[row.kategori]) team.keterangan_per_kategori[row.kategori] = [];
-          const d = (row.detail || "").trim();
-          if (d) {
-            team.keterangan_per_kategori[row.kategori].push(d);
+          const code = String(row.kategori).replace("KODE ", "").trim().toUpperCase();
+          if (code && code !== "BS") {
+            if (!team.keterangan_per_kategori) team.keterangan_per_kategori = {};
+            if (!team.keterangan_per_kategori[code]) team.keterangan_per_kategori[code] = [];
+            const d = (row.detail || "").trim();
+            if (d && !team.keterangan_per_kategori[code].includes(d)) {
+              team.keterangan_per_kategori[code].push(d);
+            }
+            team.kode_tindakan[code] = (team.kode_tindakan[code] || 0) + 1;
           }
         }
       });
-      
-      // Fetch the headers directly to get total_downtime_detik safely.
-      const { data: mechHeaders } = await supabase
-        .from("production_headers")
-        .select("id, tgl, tanggal_jam, total_downtime_detik, groups(nama_grup)")
-        .eq("nomor_mc", machineId)
-        .eq("panel_no", "Downtime Mekanik (Direct)")
-        .gte("tgl", startDate)
-        .lte("tgl", endDate);
-        
-      if (mechHeaders) {
-        mechHeaders.forEach((h: any) => {
-          if (!h.tgl && !h.tanggal_jam) return;
-          const ts = h.tanggal_jam || h.tgl;
-          const shiftDateStr = getShiftDate(ts);
-          const [yStr, mStr, dStr] = shiftDateStr.split("-");
-          const headerYear = parseInt(yStr);
-          const headerMonth = parseInt(mStr);
-          const day = parseInt(dStr);
-
-          if (headerMonth !== month || headerYear !== year) return;
-
-          const groupName = normalizeGroupName(h.groups?.nama_grup || h.group_id, null, "A");
-          const reportDay = reportMap.get(day);
-          if (reportDay && reportDay.teamData[groupName]) {
-             if (!processedHeaders.has(h.id)) {
-               processedHeaders.add(h.id);
-               reportDay.teamData[groupName].downtime_detik += (h.total_downtime_detik || 0);
-             }
-          }
-        });
-      }
     }
+
+    // Fetch mechanic headers directly to populate downtime_detik, operator_name, design, course, rpm, and eff_100
+    const { data: mechHeaders } = await supabase
+      .from("production_headers")
+      .select(`
+        id,
+        tgl,
+        tanggal_jam,
+        design_id,
+        course,
+        pick,
+        rpm,
+        total_downtime_detik,
+        group_id,
+        operator_id,
+        pic,
+        downtime_events,
+        groups ( nama_grup ),
+        operators ( nama_operator, shift )
+      `)
+      .eq("nomor_mc", machineId)
+      .eq("panel_no", "Downtime Mekanik (Direct)")
+      .gte("tgl", prevDate)
+      .lte("tgl", nextDate);
+
+    if (mechHeaders) {
+      mechHeaders.forEach((h: any) => {
+        if (!h.tgl && !h.tanggal_jam) return;
+        const ts = h.tanggal_jam || h.tgl;
+        const shiftDateStr = getShiftDate(ts);
+        const [yStr, mStr, dStr] = shiftDateStr.split("-");
+        const headerYear = parseInt(yStr);
+        const headerMonth = parseInt(mStr);
+        const day = parseInt(dStr);
+
+        if (headerMonth !== month || headerYear !== year) return;
+
+        const groupName = normalizeGroupName(
+          h.groups?.nama_grup || h.group_id,
+          h.operators?.shift,
+          "A"
+        );
+        const reportDay = reportMap.get(day);
+        if (!reportDay) return;
+
+        if (!reportDay.teamData[groupName]) {
+          reportDay.teamData[groupName] = createEmptyTeamData();
+        }
+        const team = reportDay.teamData[groupName];
+
+        const timeStamp = h.tanggal_jam || String(h.id);
+        if (timeStamp && (!team.earliestTimestamp || timeStamp < team.earliestTimestamp)) {
+          team.earliestTimestamp = timeStamp;
+        }
+
+        // Resolve operator name from relation, pic, or dikerjakanOleh in downtime_events
+        let opFromEvent = "";
+        try {
+          const evts =
+            typeof h.downtime_events === "string"
+              ? JSON.parse(h.downtime_events)
+              : Array.isArray(h.downtime_events)
+              ? h.downtime_events
+              : [];
+          const rawBy = String(evts?.[0]?.dikerjakanOleh || "");
+          const matchParen = rawBy.match(/\(([^)]+)\)/);
+          if (matchParen && matchParen[1]) {
+            opFromEvent = matchParen[1].trim();
+          } else if (rawBy && !rawBy.toLowerCase().includes("perbaikan khusus")) {
+            opFromEvent = rawBy.trim();
+          }
+        } catch {
+          // ignore JSON parse errors
+        }
+
+        let opName = (opFromEvent || h.operators?.nama_operator || h.pic || "").trim();
+        if (opName.toUpperCase() === "ADMIN" || opName.toUpperCase() === "OPERATOR") {
+          opName = (h.operators?.nama_operator || "").trim();
+        }
+        if (opName && opName !== "-" && (!team.operator_name || team.operator_name === "-")) {
+          team.operator_name = opName;
+        }
+
+        if (h.design_id) {
+          if (!reportDay.desain) reportDay.desain = h.design_id;
+          if (!team.desain) team.desain = h.design_id;
+        }
+
+        const isRecordMeter = isConfiguredMeter || isMeterMachine;
+        if (isRecordMeter) {
+          if (h.pick && !team.courses) team.courses = String(h.pick);
+          else if (h.course && !team.courses) team.courses = String(h.course);
+        } else {
+          if (h.course && !team.courses) team.courses = String(h.course);
+          else if (h.pick && !team.courses) team.courses = String(h.pick);
+        }
+
+        if (h.rpm && !team.rpm) team.rpm = Number(h.rpm) || 0;
+
+        if (team.rpm > 0 && team.courses) {
+          const courseNum = parseFloat(team.courses);
+          if (!isNaN(courseNum) && courseNum > 0) {
+            team.eff_100 = isRecordMeter
+              ? Math.round((team.rpm * 8 * 60) / (courseNum * 100))
+              : Math.round((team.rpm * 8 * 60) / courseNum);
+          }
+        }
+
+        if (!processedHeaders.has(h.id)) {
+          processedHeaders.add(h.id);
+          team.downtime_detik += h.total_downtime_detik || 0;
+        }
+      });
+    }
+
+    // Sinkronkan spesifikasi (desain, courses, rpm, eff_100) untuk shift yang aktif (misal karena Serah Terima Block Mesin)
+    // tetapi belum memiliki record panel produksi sendiri di shift tersebut
+    let runningSpec: { desain: string; courses: string; rpm: number; eff_100: number } | null = null;
+    const sortedDaysForSpec = Array.from(reportMap.values()).sort((a, b) => a.tanggal - b.tanggal);
+    sortedDaysForSpec.forEach((dayData) => {
+      // Cari shift di hari yang sama yang sudah punya spesifikasi lengkap
+      let daySpec: { desain: string; courses: string; rpm: number; eff_100: number } | null = null;
+      ["A", "B", "C"].forEach((grp) => {
+        const td = dayData.teamData[grp];
+        if (td && td.courses && td.rpm > 0) {
+          daySpec = {
+            desain: td.desain || dayData.desain || "",
+            courses: td.courses,
+            rpm: td.rpm,
+            eff_100: td.eff_100,
+          };
+          runningSpec = daySpec;
+        }
+      });
+
+      const fallbackSpec = daySpec || runningSpec;
+      if (!fallbackSpec) return;
+
+      ["A", "B", "C"].forEach((grp) => {
+        const td = dayData.teamData[grp];
+        if (!td) return;
+        const hasActivity =
+          Boolean(td.operator_name && td.operator_name !== "-") ||
+          td.downtime_detik > 0 ||
+          td.hasil_produksi > 0 ||
+          Boolean(td.keterangan_per_kategori && Object.keys(td.keterangan_per_kategori).length > 0);
+
+        if (hasActivity) {
+          if (!td.desain && (dayData.desain || fallbackSpec.desain)) {
+            td.desain = dayData.desain || fallbackSpec.desain;
+          }
+          if (!td.courses && fallbackSpec.courses) {
+            td.courses = fallbackSpec.courses;
+          }
+          if (!td.rpm && fallbackSpec.rpm > 0) {
+            td.rpm = fallbackSpec.rpm;
+          }
+          if (!td.eff_100 && fallbackSpec.eff_100 > 0) {
+            td.eff_100 = fallbackSpec.eff_100;
+          }
+        }
+      });
+    });
     // --- END FETCH MECHANIC DOWNTIME ---
 
     // Helper to determine shift 1 team and cyclic rotation (A -> B -> C -> A)

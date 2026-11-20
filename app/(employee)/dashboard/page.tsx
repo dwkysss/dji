@@ -1278,10 +1278,10 @@ export default function DashboardPage() {
       {/* Slicers Container */}
       <div
         data-tour="employee-dashboard-slicers"
-        className="grid grid-cols-2 lg:flex lg:flex-row lg:flex-wrap xl:flex-nowrap gap-2.5 sm:gap-4"
+        className="grid grid-cols-2 md:flex md:flex-row md:items-center md:flex-wrap xl:flex-nowrap gap-2.5 sm:gap-4"
       >
         {/* Date Range Slicer Component (Vercel-style minimal capsule) */}
-        <div className="col-span-2 lg:flex-1 flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-2.5 sm:gap-4 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
+        <div className="col-span-2 md:w-auto md:flex-1 flex flex-col sm:flex-row sm:flex-wrap md:flex-nowrap items-start sm:items-center justify-between gap-2.5 sm:gap-4 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)]">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
             <div className="flex items-center gap-1.5 sm:gap-2">
               <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
@@ -1294,7 +1294,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-4 sm:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full sm:w-auto">
               <button
                 onClick={() => setDateRangeMode("TODAY")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "TODAY"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${dateRangeMode === "TODAY"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -1303,7 +1303,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("7DAYS")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "7DAYS"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${dateRangeMode === "7DAYS"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -1312,7 +1312,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("30DAYS")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "30DAYS"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${dateRangeMode === "30DAYS"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -1321,7 +1321,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => setDateRangeMode("CUSTOM")}
-                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${dateRangeMode === "CUSTOM"
+                className={`px-1.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-center text-[10px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${dateRangeMode === "CUSTOM"
                     ? "bg-white text-slate-800 shadow-xs border border-slate-150"
                     : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -1333,7 +1333,7 @@ export default function DashboardPage() {
 
           {/* Custom Calendar Inputs (Only visible when CUSTOM is active) */}
           {dateRangeMode === "CUSTOM" && (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto animate-fadeIn mt-1 sm:mt-0">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto animate-fadeIn mt-1 sm:mt-0 shrink-0">
               <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
                 <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">
                   Mulai:
@@ -1361,7 +1361,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Metric Mode Slicer */}
-        <div className="col-span-1 flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:w-auto lg:shrink-0 lg:flex-row lg:items-center">
+        <div className="col-span-1 flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full md:w-auto md:shrink-0 md:flex-row md:items-center">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
               <SlidersHorizontal className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1370,7 +1370,7 @@ export default function DashboardPage() {
               Kategori:
             </span>
           </div>
-          <div className="grid grid-cols-2 lg:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full lg:w-auto">
+          <div className="grid grid-cols-2 md:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-150 w-full md:w-auto">
             <button
               onClick={() => {
                 setMetricMode("PCS");
@@ -1399,7 +1399,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Machine Slicer */}
-        <div className="col-span-1 flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full lg:w-auto lg:shrink-0 lg:flex-row lg:items-center">
+        <div className="col-span-1 flex flex-col justify-between gap-2 bg-white border border-[#e9ecef] rounded-2xl sm:rounded-[24px] p-3 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.015)] w-full md:w-auto md:shrink-0 md:flex-row md:items-center">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <div className="p-1 sm:p-1.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-400 shrink-0">
               <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />

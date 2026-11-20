@@ -237,7 +237,7 @@ export default function Sidebar() {
       groupIcon: Wrench,
       items: [
         {
-          name: "Hasil Akhir Pengerjaan Mending",
+          name: "Mending",
           href: "/mending",
           icon: Scissors,
           roles: ["admin", "mending", "inspeksi"],
@@ -479,6 +479,7 @@ function SidebarInner({
       const next = !prev;
       try {
         localStorage.setItem("dji_sidebar_pinned", String(next));
+        window.dispatchEvent(new CustomEvent("dji:sidebar-pin-change", { detail: next }));
       } catch (e) {}
       return next;
     });
@@ -571,6 +572,7 @@ function SidebarInner({
                   setIsPinned(false);
                   try {
                     localStorage.setItem("dji_sidebar_pinned", "false");
+                    window.dispatchEvent(new CustomEvent("dji:sidebar-pin-change", { detail: false }));
                   } catch (err) {}
                 }}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"

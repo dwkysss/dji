@@ -9,6 +9,9 @@ import {
   AlertTriangle,
   AlertCircle,
   RefreshCw,
+  Gauge,
+  Boxes,
+  ShieldAlert,
 } from "lucide-react";
 import { formatDuration } from "./kpiUtils";
 
@@ -17,7 +20,6 @@ export interface ClassicKpiCardsProps {
   isLoadingInitial: boolean;
   transactionsCount: number;
   cachedKpiSummary: any;
-  gradeLabel: string;
   stats: {
     totalProduksi: number;
     totalProduksiMeter: number;
@@ -43,7 +45,6 @@ export default function ClassicKpiCards({
   isLoadingInitial,
   transactionsCount,
   cachedKpiSummary,
-  gradeLabel,
   stats,
   activeFilter,
   setActiveFilter,
@@ -56,15 +57,15 @@ export default function ClassicKpiCards({
     <>
       {/* Card 1: Hasil Produksi (Slider Slicer) */}
       <div
-        className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[7.25rem] sm:min-h-[8.5rem] group transition-all duration-300 flex flex-col ${
+        className={`relative overflow-hidden rounded-2xl h-full min-h-[8rem] sm:min-h-[9.25rem] group transition-all duration-300 flex flex-col border ${
           activeFilter === "ALL"
-            ? "bg-[#004777] shadow-xl scale-[1.02] sm:scale-[1.03] ring-2 ring-[#0070bc] ring-offset-2 text-white"
-            : "bg-[#0070bc] shadow-md hover:scale-[1.01] text-white"
+            ? "bg-[#064e7b] border-sky-300 shadow-[0_14px_32px_rgba(3,74,118,0.28)] scale-[1.02] sm:scale-[1.03] text-white"
+            : "bg-[#0877b9] border-sky-400/50 shadow-[0_8px_20px_rgba(3,105,161,0.20)] hover:-translate-y-0.5 text-white"
         }`}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEndMetric}
       >
-        <div className="absolute -right-8 -bottom-8 w-24 h-24 rounded-full bg-sky-400/20 blur-xl group-hover:scale-125 transition-all duration-300 pointer-events-none" />
+        <div className="absolute -right-8 -bottom-8 w-28 h-28 rounded-full bg-sky-300/20 blur-xl group-hover:scale-125 transition-all duration-300 pointer-events-none" />
         {isRefreshing && (
           <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
             <div className="w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-cardShimmer" />
@@ -81,14 +82,14 @@ export default function ClassicKpiCards({
               setActiveFilter("ALL");
               setMetricMode("PCS");
             }}
-            className="w-1/2 cursor-pointer p-3 sm:p-4 flex flex-col justify-between h-full relative"
+            className="w-1/2 cursor-pointer p-3.5 sm:p-5 flex flex-col justify-between h-full relative"
           >
             <div className="flex justify-between items-start relative z-10 gap-1">
               <span className="text-sky-100 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
-                Total Produksi ({gradeLabel})
+                Total Produksi
               </span>
-              <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[9px] sm:text-[10px] font-bold shrink-0">
-                {isRefreshing ? <RefreshCw className="w-2.5 h-2.5 sm:w-3 sm:h-3 animate-spin text-white" /> : "All"}
+              <span className="w-7 h-7 rounded-xl bg-white/15 ring-1 ring-white/15 flex items-center justify-center text-white shrink-0">
+                {isRefreshing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Boxes className="w-3.5 h-3.5" />}
               </span>
             </div>
             <div className="mt-1 sm:mt-2 relative z-10">
@@ -114,14 +115,14 @@ export default function ClassicKpiCards({
               setActiveFilter("ALL");
               setMetricMode("METER");
             }}
-            className="w-1/2 cursor-pointer p-3 sm:p-4 flex flex-col justify-between h-full relative"
+            className="w-1/2 cursor-pointer p-3.5 sm:p-5 flex flex-col justify-between h-full relative"
           >
             <div className="flex justify-between items-start relative z-10 gap-1">
               <span className="text-sky-100 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
-                Total Produksi ({gradeLabel})
+                Total Produksi
               </span>
-              <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 flex items-center justify-center text-white text-[9px] sm:text-[10px] font-bold shrink-0">
-                {isRefreshing ? <RefreshCw className="w-2.5 h-2.5 sm:w-3 sm:h-3 animate-spin text-white" /> : "All"}
+              <span className="w-7 h-7 rounded-xl bg-white/15 ring-1 ring-white/15 flex items-center justify-center text-white shrink-0">
+                {isRefreshing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Layers className="w-3.5 h-3.5" />}
               </span>
             </div>
             <div className="mt-1 sm:mt-2 relative z-10">
@@ -170,10 +171,10 @@ export default function ClassicKpiCards({
 
       {/* Card 2: Cacat Panel / Cacat Meter */}
       <div
-        className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[7.25rem] sm:min-h-[8.5rem] group border transition-all duration-300 flex flex-col ${
+        className={`relative overflow-hidden rounded-2xl h-full min-h-[8rem] sm:min-h-[9.25rem] group border transition-all duration-300 flex flex-col ${
           activeFilter === "LOLOS"
-            ? "bg-sky-50/50 border-sky-500 text-slate-800 shadow-md scale-[1.02] sm:scale-[1.03] ring-2 ring-sky-500"
-            : "bg-white border-[#e9ecef] text-slate-800 hover:scale-[1.01] hover:shadow-xs"
+            ? "bg-amber-50/70 border-amber-400 text-slate-800 shadow-[0_12px_28px_rgba(245,158,11,0.16)] scale-[1.02] sm:scale-[1.03] ring-2 ring-amber-400/70"
+            : "bg-white border-slate-200 text-slate-800 shadow-sm hover:-translate-y-0.5 hover:shadow-md"
         }`}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEndMetric}
@@ -194,27 +195,27 @@ export default function ClassicKpiCards({
               setActiveFilter("LOLOS");
               setMetricMode("PCS");
             }}
-            className="w-1/2 cursor-pointer p-3 sm:p-4 flex flex-col justify-between h-full relative"
+            className="w-1/2 cursor-pointer p-3.5 sm:p-5 flex flex-col justify-between h-full relative"
           >
             <div className="flex justify-between items-start relative z-10 gap-1">
               <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
-                Cacat Panel ({gradeLabel})
+                Cacat Panel
               </span>
               <span
                 className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${
                   activeFilter === "LOLOS"
-                    ? "bg-sky-100 text-[#0070bc]"
+                    ? "bg-amber-100 text-amber-700"
                     : "bg-slate-100 text-slate-500"
                 }`}
               >
-                {isRefreshing ? <RefreshCw className="w-2.5 h-2.5 sm:w-3 sm:h-3 animate-spin text-[#0070bc]" /> : "QC"}
+                {isRefreshing ? <RefreshCw className="w-3 h-3 animate-spin text-amber-700" /> : <ShieldAlert className="w-3.5 h-3.5" />}
               </span>
             </div>
             <div className="mt-1 sm:mt-2 relative z-10">
               <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800">
                 {stats.persentaseCacatPanel.toFixed(1)}%
               </div>
-              <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-[#0070bc] font-bold truncate">
+              <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-amber-700 font-bold truncate">
                 <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
                 <span className="truncate">
                   {stats.countMasalahPanel} cacat / {stats.totalPanelValid} panel
@@ -228,27 +229,27 @@ export default function ClassicKpiCards({
               setActiveFilter("LOLOS");
               setMetricMode("METER");
             }}
-            className="w-1/2 cursor-pointer p-3 sm:p-4 flex flex-col justify-between h-full relative"
+            className="w-1/2 cursor-pointer p-3.5 sm:p-5 flex flex-col justify-between h-full relative"
           >
             <div className="flex justify-between items-start relative z-10 gap-1">
               <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
-                Cacat Meter ({gradeLabel})
+                Cacat Meter
               </span>
               <span
                 className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${
                   activeFilter === "LOLOS"
-                    ? "bg-sky-100 text-[#0070bc]"
+                    ? "bg-amber-100 text-amber-700"
                     : "bg-slate-100 text-slate-500"
                 }`}
               >
-                {isRefreshing ? <RefreshCw className="w-2.5 h-2.5 sm:w-3 sm:h-3 animate-spin text-[#0070bc]" /> : "QC"}
+                {isRefreshing ? <RefreshCw className="w-3 h-3 animate-spin text-amber-700" /> : <ShieldAlert className="w-3.5 h-3.5" />}
               </span>
             </div>
             <div className="mt-1 sm:mt-2 relative z-10">
               <div className="text-xl sm:text-3xl font-black tracking-tight text-slate-800">
                 {stats.persentaseCacatMeteran.toFixed(1)}%
               </div>
-              <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-[#0070bc] font-bold truncate">
+              <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-amber-700 font-bold truncate">
                 <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
                 <span className="truncate">{stats.countMasalahMeteran} titik</span>
               </div>
@@ -272,7 +273,7 @@ export default function ClassicKpiCards({
               className={`h-1.5 rounded-full transition-all duration-300 ${
                 metricMode === "PCS"
                   ? activeFilter === "LOLOS"
-                    ? "w-3.5 sm:w-4 bg-sky-500"
+                    ? "w-3.5 sm:w-4 bg-amber-500"
                     : "w-3.5 sm:w-4 bg-slate-800"
                   : "w-1.5 bg-slate-300 hover:bg-slate-400"
               }`}
@@ -290,7 +291,7 @@ export default function ClassicKpiCards({
               className={`h-1.5 rounded-full transition-all duration-300 ${
                 metricMode === "METER"
                   ? activeFilter === "LOLOS"
-                    ? "w-3.5 sm:w-4 bg-sky-500"
+                    ? "w-3.5 sm:w-4 bg-amber-500"
                     : "w-3.5 sm:w-4 bg-slate-800"
                   : "w-1.5 bg-slate-300 hover:bg-slate-400"
               }`}
@@ -302,14 +303,14 @@ export default function ClassicKpiCards({
       {/* Card 3: Efisiensi Kerja & Downtime */}
       <div
         onClick={() => setActiveFilter("EFISIENSI")}
-        className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[7.25rem] sm:min-h-[8.5rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-4 flex flex-col justify-between transition-all duration-300 ${
+        className={`relative overflow-hidden rounded-2xl h-full min-h-[8rem] sm:min-h-[9.25rem] border cursor-pointer p-3.5 sm:p-5 flex flex-col justify-between transition-all duration-300 ${
           activeFilter === "EFISIENSI"
             ? "bg-emerald-50/40 shadow-[0_8px_30px_rgba(16,185,129,0.12)] text-slate-800 scale-[1.02] sm:scale-[1.03]"
-            : "bg-white hover:shadow-xs text-slate-800"
+            : "bg-white border-slate-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md text-slate-800"
         }`}
       >
         {activeFilter === "EFISIENSI" && (
-          <div className="absolute inset-0 ring-2 ring-emerald-500 rounded-xl sm:rounded-2xl pointer-events-none" />
+          <div className="absolute inset-0 ring-2 ring-emerald-500 rounded-2xl pointer-events-none" />
         )}
         {isRefreshing && (
           <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
@@ -318,7 +319,7 @@ export default function ClassicKpiCards({
         )}
         <div className="flex justify-between items-start relative z-10 gap-1">
           <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
-            Efisiensi Kerja ({gradeLabel})
+            Efisiensi Kerja
           </span>
           <span
             className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${
@@ -327,7 +328,7 @@ export default function ClassicKpiCards({
                 : "bg-slate-100 text-slate-500"
             }`}
           >
-            {isRefreshing ? <RefreshCw className="w-2.5 h-2.5 sm:w-3 sm:h-3 animate-spin text-emerald-600" /> : "%"}
+            {isRefreshing ? <RefreshCw className="w-3 h-3 animate-spin text-emerald-600" /> : <Gauge className="w-3.5 h-3.5" />}
           </span>
         </div>
         <div className="mt-1 sm:mt-2 relative z-10">
@@ -362,14 +363,14 @@ export default function ClassicKpiCards({
           setActiveFilter("PROBLEMS");
           setMetricMode("PCS");
         }}
-        className={`relative overflow-hidden rounded-xl sm:rounded-2xl h-full min-h-[7.25rem] sm:min-h-[8.5rem] border border-[#e9ecef] cursor-pointer p-3 sm:p-4 flex flex-col justify-between transition-all duration-300 ${
+        className={`relative overflow-hidden rounded-2xl h-full min-h-[8rem] sm:min-h-[9.25rem] border cursor-pointer p-3.5 sm:p-5 flex flex-col justify-between transition-all duration-300 ${
           activeFilter === "PROBLEMS"
             ? "bg-red-50/40 shadow-[0_8px_30px_rgba(239,68,68,0.12)] text-slate-800 scale-[1.02] sm:scale-[1.03]"
-            : "bg-white hover:shadow-xs text-slate-800"
+            : "bg-white border-slate-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md text-slate-800"
         }`}
       >
         {activeFilter === "PROBLEMS" && (
-          <div className="absolute inset-0 ring-2 ring-red-500 rounded-xl sm:rounded-2xl pointer-events-none" />
+          <div className="absolute inset-0 ring-2 ring-red-500 rounded-2xl pointer-events-none" />
         )}
         {isRefreshing && (
           <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
@@ -378,7 +379,7 @@ export default function ClassicKpiCards({
         )}
         <div className="flex justify-between items-start relative z-10 gap-1">
           <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider line-clamp-1">
-            Masalah ({gradeLabel})
+            Masalah
           </span>
           <span
             className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${

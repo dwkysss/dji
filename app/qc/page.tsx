@@ -29,6 +29,7 @@ import {
   ChevronDown,
   Cpu,
   Scissors,
+  QrCode,
 } from "lucide-react";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import QCInspectionModal from "@/components/forms/QCInspectionModal";
@@ -38,6 +39,7 @@ import ProductionDetailModal from "@/components/ProductionDetailModal";
 import DeletePanelModal from "@/components/forms/DeletePanelModal";
 import InsertPanelModal, { InsertPanelPayload } from "@/components/forms/InsertPanelModal";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
+import QrScannerModal, { ParsedDjiQr } from "@/components/modals/QrScannerModal";
 import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import {
   addQCDefectDetail,
@@ -58,7 +60,7 @@ import PanelQCTable from "./components/PanelQCTable";
 import MeterQCTable from "./components/MeterQCTable";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
-import { formatHHMM, formatTimerSeconds } from "@/lib/shift-utils";
+import { formatHHMM, formatTimerSeconds, getShiftDate } from "@/lib/shift-utils";
 import { isPanelGagalCacatAja } from "@/lib/mending-grade-utils";
 
 // Problem categories matching ContinuousForm
@@ -142,10 +144,10 @@ const getActualMeter = (item: any, h: any) => {
     }
   }
 
-  const isIstirahat = (!!item.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || 
-                       !!item.kategori_masalah?.toUpperCase().includes("ISTIRAHAT")) && 
-                      !item.kategori_masalah && !item.detail_masalah &&
-                      h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
+  const isIstirahat = (!!item.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") ||
+    !!item.kategori_masalah?.toUpperCase().includes("ISTIRAHAT")) &&
+    !item.kategori_masalah && !item.detail_masalah &&
+    h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
   const isFinishReport = h.meter_akhir !== null && h.meter_akhir !== undefined && String(h.meter_akhir).trim() !== "";
   if ((isIstirahat || isFinishReport) && (h.meter_akhir || h.meter_awal)) {
     const clean = cleanMeterVal(h.meter_akhir || h.meter_awal);
@@ -197,7 +199,8 @@ export default function QCPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isTourOpen, setIsTourOpen] = useState(false);
-  
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+
   const [allDetails, setAllDetails] = useState<any[]>([]);
   const [activeQcPcs, setActiveQcPcs] = useState<{ nomor_mc: string, design_id: string, potongan_ke: string, pcs_index: string } | null>(null);
   const [fullActiveQcDetails, setFullActiveQcDetails] = useState<any[]>([]);
@@ -209,6 +212,14 @@ export default function QCPage() {
   const [pauseSeconds, setPauseSeconds] = useState(0);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [activeSessionsMap, setActiveSessionsMap] = useState<Map<string, any>>(new Map());
+  const [expandedQueueKeys, setExpandedQueueKeys] = useState<Record<string, boolean>>({});
+
+  const toggleQueueRow = (key: string) => {
+    setExpandedQueueKeys((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   const fetchActiveSessions = async () => {
     const res = await getActiveTimerSessions("qc");
@@ -254,7 +265,7 @@ export default function QCPage() {
         const clean = u.pathname + (u.search ? u.search : "");
         window.history.replaceState({}, "", clean);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Parallelize metadata fetching on page load
     Promise.all([
@@ -370,7 +381,7 @@ export default function QCPage() {
       try {
         localStorage.removeItem(`dji_qc_draft_${activeQcPcs.nomor_mc}_${activeQcPcs.potongan_ke}_${activeQcPcs.pcs_index}`);
         localStorage.removeItem("dji_qc_active_session");
-      } catch (e) {}
+      } catch (e) { }
     }
     setActiveQcPcs(null);
     setFullActiveQcDetails([]);
@@ -391,7 +402,7 @@ export default function QCPage() {
       try {
         const key = `dji_qc_draft_${activeQcPcs.nomor_mc}_${activeQcPcs.potongan_ke}_${activeQcPcs.pcs_index}`;
         localStorage.setItem(key, JSON.stringify(selections));
-      } catch (e) {}
+      } catch (e) { }
     }
   }, [selections, activeQcPcs]);
 
@@ -400,7 +411,7 @@ export default function QCPage() {
     if (activeQcPcs) {
       try {
         localStorage.setItem("dji_qc_active_session", JSON.stringify(activeQcPcs));
-      } catch (e) {}
+      } catch (e) { }
     }
   }, [activeQcPcs]);
 
@@ -435,14 +446,14 @@ export default function QCPage() {
       if (saved) {
         try {
           setRequiredBlockDefects(JSON.parse(saved));
-        } catch (e) {}
+        } catch (e) { }
       }
       const res = await getBlockRequiredDefects();
       if (res.success && res.data) {
         setRequiredBlockDefects(res.data);
         try {
           localStorage.setItem("dji_required_block_defects", JSON.stringify(res.data));
-        } catch (e) {}
+        } catch (e) { }
       }
     };
     loadRequiredDefects();
@@ -474,7 +485,7 @@ export default function QCPage() {
     setQcDefectManualInput((prev) => ({ ...prev, [catId]: "" }));
     try {
       createProblemDetail({ kategori: catId, nama_detail: text });
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const saveQCFilters = (sDate: string, eDate: string, m: string, p: string, s: "desc" | "asc") => {
@@ -482,12 +493,17 @@ export default function QCPage() {
       const payload = { startDate: sDate, endDate: eDate, tanggal: sDate, mesin: m, potongan: p, sortOrder: s };
       sessionStorage.setItem("dji_qc_filters", JSON.stringify(payload));
       localStorage.setItem("dji_qc_filters", JSON.stringify(payload));
-    } catch (e) {}
+    } catch (e) { }
   };
 
   useEffect(() => {
-    let initStart = "";
-    let initEnd = "";
+    // Default filter Inspeksi QC: tanggal operasional KEMARIN (hasil produksi kemarin yang diinspek hari ini)
+    const todayShift = getShiftDate(new Date());
+    const [yy, mm, dd] = todayShift.split("-").map(Number);
+    const yesterdayUtc = new Date(Date.UTC(yy, mm - 1, dd - 1));
+    const defaultDate = yesterdayUtc.toISOString().slice(0, 10);
+    let initStart = defaultDate;
+    let initEnd = defaultDate;
     let initM = "";
     let initP = "";
     let initS: "desc" | "asc" = "desc";
@@ -498,22 +514,30 @@ export default function QCPage() {
       if (savedActive) {
         activeSessionToRestore = JSON.parse(savedActive);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     try {
-      const saved = sessionStorage.getItem("dji_qc_filters") || localStorage.getItem("dji_qc_filters");
+      const sessionSaved = sessionStorage.getItem("dji_qc_filters");
+      const saved = sessionSaved || localStorage.getItem("dji_qc_filters");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.startDate !== undefined) { initStart = parsed.startDate; setSearchStartDate(parsed.startDate); }
-        else if (parsed.tanggal !== undefined) { initStart = parsed.tanggal; setSearchStartDate(parsed.tanggal); }
-        if (parsed.endDate !== undefined) { initEnd = parsed.endDate; setSearchEndDate(parsed.endDate); }
-        else if (initStart) { initEnd = initStart; setSearchEndDate(initStart); }
-        if (initStart) setSearchTanggal(initStart);
+        // Tanggal hanya dipulihkan dari sessionStorage (navigasi dalam tab yang sama).
+        // Saat aplikasi dibuka ulang, tanggal selalu kembali ke default (kemarin).
+        if (sessionSaved) {
+          if (parsed.startDate) { initStart = parsed.startDate; }
+          else if (parsed.tanggal) { initStart = parsed.tanggal; }
+          if (parsed.endDate) { initEnd = parsed.endDate; }
+          else if (initStart) { initEnd = initStart; }
+        }
         if (parsed.mesin !== undefined) { initM = parsed.mesin; setSearchMesin(parsed.mesin); }
         if (parsed.potongan !== undefined) { initP = parsed.potongan; setSearchPotongan(parsed.potongan); }
         if (parsed.sortOrder === "asc" || parsed.sortOrder === "desc") { initS = parsed.sortOrder; setSortOrder(parsed.sortOrder); }
       }
-    } catch (e) {}
+    } catch (e) { }
+
+    setSearchStartDate(initStart);
+    setSearchEndDate(initEnd);
+    setSearchTanggal(initStart);
 
     handleSearch(initStart, initEnd, initM, initP, !!activeSessionToRestore).then(() => {
       if (activeSessionToRestore?.nomor_mc && activeSessionToRestore?.design_id && activeSessionToRestore?.potongan_ke) {
@@ -550,7 +574,7 @@ export default function QCPage() {
       mesin: m || undefined,
       potongan: p || undefined,
     });
-    
+
     if (res.success && res.data) {
       setAllDetails(res.data);
     } else {
@@ -654,7 +678,7 @@ export default function QCPage() {
     setActiveQcPcs(activeObj);
     try {
       localStorage.setItem("dji_qc_active_session", JSON.stringify(activeObj));
-    } catch (e) {}
+    } catch (e) { }
 
     // Periksa apakah ada draft inspeksi yang tersimpan sebelumnya di localStorage
     let savedDraft: Record<string, number> = {};
@@ -663,7 +687,7 @@ export default function QCPage() {
       if (raw) {
         savedDraft = JSON.parse(raw);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     if (Object.keys(savedDraft).length > 0) {
       setSelections(savedDraft);
@@ -728,7 +752,7 @@ export default function QCPage() {
 
   const detailsToDisplay = React.useMemo(() => {
     if (!fullActiveQcDetails) return [];
-    
+
     return [...fullActiveQcDetails].sort((a: any, b: any) => {
       const hA = a.production_headers || {};
       const hB = b.production_headers || {};
@@ -746,16 +770,16 @@ export default function QCPage() {
         }
 
         const isSpecialA = ((!!a.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || !!a.kategori_masalah?.toUpperCase().includes("ISTIRAHAT"))
-              && !a.kategori_masalah && !a.detail_masalah)
+          && !a.kategori_masalah && !a.detail_masalah)
           || (hA.meter_akhir !== null && hA.meter_akhir !== undefined
-              && String(hA.meter_akhir).trim() !== ""
-              && (a.meter_kain === null || a.meter_kain === undefined));
+            && String(hA.meter_akhir).trim() !== ""
+            && (a.meter_kain === null || a.meter_kain === undefined));
 
         const isSpecialB = ((!!b.keterangan_cacat?.toUpperCase().includes("ISTIRAHAT") || !!b.kategori_masalah?.toUpperCase().includes("ISTIRAHAT"))
-              && !b.kategori_masalah && !b.detail_masalah)
+          && !b.kategori_masalah && !b.detail_masalah)
           || (hB.meter_akhir !== null && hB.meter_akhir !== undefined
-              && String(hB.meter_akhir).trim() !== ""
-              && (b.meter_kain === null || b.meter_kain === undefined));
+            && String(hB.meter_akhir).trim() !== ""
+            && (b.meter_kain === null || b.meter_kain === undefined));
 
         if (isSpecialA && !isSpecialB) return 1;
         if (!isSpecialA && isSpecialB) return -1;
@@ -846,7 +870,7 @@ export default function QCPage() {
         try {
           const raw = localStorage.getItem(`dji_qc_draft_${activeQcPcs.nomor_mc}_${activeQcPcs.potongan_ke}_${activeQcPcs.pcs_index}`);
           if (raw) currentDraft = JSON.parse(raw);
-        } catch (e) {}
+        } catch (e) { }
       }
 
       setSelections((prev) => {
@@ -940,7 +964,7 @@ export default function QCPage() {
       if (d.is_deleted || d.status_inspeksi === "Dihapus") return true;
       return !!selections[d.id];
     });
-  
+
   const handleDefectToggleKategori = (catId: string) => {
     setDefectKategori((prev) => {
       const isChecking = !prev.includes(catId);
@@ -987,7 +1011,7 @@ export default function QCPage() {
     if (defectKategori.length === 0) { setDefectError("Pilih minimal 1 Kategori Masalah."); return; }
     const missingDetails = defectKategori.some((cat) => !defectDetailMap[cat] || defectDetailMap[cat].length === 0);
     if (missingDetails) { setDefectError("Wajib memilih Detail Masalah untuk setiap Kategori yang dicentang."); return; }
-    
+
     const meteranHeaderId = detailsToDisplay.length > 0 ? (detailsToDisplay[0]?.header_id || detailsToDisplay[0]?.production_headers?.id) : null;
     if (!meteranHeaderId) { setDefectError("Tidak ditemukan header ID untuk batch ini."); return; }
 
@@ -1052,7 +1076,7 @@ export default function QCPage() {
     }
 
     if (!targetHeaderId) { setDefectError("Tidak ditemukan header ID untuk batch ini."); return; }
-    
+
     setIsSubmittingDefect(true);
     setDefectError(null);
     try {
@@ -1062,7 +1086,7 @@ export default function QCPage() {
         const manual = (qcDefectManualInput[cat] || "").trim();
         if (manual && !details.includes(manual)) {
           details.push(manual);
-          try { createProblemDetail({ kategori: cat, nama_detail: manual }); } catch (e) {}
+          try { createProblemDetail({ kategori: cat, nama_detail: manual }); } catch (e) { }
         }
         if (details.length > 0) {
           combinedDetailsList.push(details.join(", "));
@@ -1085,7 +1109,7 @@ export default function QCPage() {
       if (res.success && activeQcPcs) {
         setIsDefectModalOpen(false);
         setDefectMeterKain(""); setDefectMeterAwal(""); setDefectMeterAkhir(""); setDefectKategori([]); setDefectDetailMap({}); setDefectKeterangan(""); setQcDefectManualInput({});
-        
+
         // Refresh active table data
         const refreshRes = await getPendingQCDetailsByBatch(activeQcPcs.nomor_mc, activeQcPcs.design_id, activeQcPcs.potongan_ke);
         if (refreshRes.success && refreshRes.data) {
@@ -1312,7 +1336,7 @@ export default function QCPage() {
               });
               try {
                 localStorage.removeItem("dji_qc_active_session");
-              } catch (e) {}
+              } catch (e) { }
             }
             setActiveQcPcs(null);
             setFullActiveQcDetails([]);
@@ -1579,14 +1603,13 @@ export default function QCPage() {
                   </div>
                 </div>
               )}
-              
+
               <div data-tour="qc-inspection-submit" className="p-3.5 sm:p-5 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-end">
                 <button
                   disabled={!isAllSelected}
                   onClick={() => setIsModalOpen(true)}
-                  className={`w-full sm:w-auto h-12 px-6 sm:px-8 rounded-xl font-bold text-xs sm:text-sm text-white flex items-center justify-center gap-2 transition-all duration-300 ${
-                    isAllSelected ? "bg-[#0070bc] hover:bg-[#004777] shadow-lg shadow-[#0070bc]/30 active:scale-95" : "bg-slate-300 cursor-not-allowed"
-                  }`}
+                  className={`w-full sm:w-auto h-12 px-6 sm:px-8 rounded-xl font-bold text-xs sm:text-sm text-white flex items-center justify-center gap-2 transition-all duration-300 ${isAllSelected ? "bg-[#0070bc] hover:bg-[#004777] shadow-lg shadow-[#0070bc]/30 active:scale-95" : "bg-slate-300 cursor-not-allowed"
+                    }`}
                 >
                   <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                   Isi Rangkuman & Kirim Inspeksi
@@ -1642,7 +1665,7 @@ export default function QCPage() {
                 try {
                   localStorage.removeItem(`dji_qc_draft_${activeQcPcs.nomor_mc}_${activeQcPcs.potongan_ke}_${activeQcPcs.pcs_index}`);
                   localStorage.removeItem("dji_qc_active_session");
-                } catch (e) {}
+                } catch (e) { }
               }
               setActiveQcPcs(null);
               setFullActiveQcDetails([]);
@@ -1698,7 +1721,7 @@ export default function QCPage() {
             onSuccess={handleBulkSuccess}
           />
         )}
-        
+
         {/* Same Modals for Defect & Detail as before */}
         <ProductionDetailModal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} detailData={detailData} isLoading={isDetailLoading} hideEdit={true} />
         {isDefectModalOpen && (
@@ -1730,11 +1753,10 @@ export default function QCPage() {
                       setDefectInputMode("single");
                       setDefectError(null);
                     }}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      defectInputMode === "single"
-                        ? "bg-white text-slate-800 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${defectInputMode === "single"
+                      ? "bg-white text-slate-800 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                      }`}
                   >
                     <MapPin className="w-3.5 h-3.5 text-rose-500" />
                     Titik Tunggal (1 Meter)
@@ -1745,11 +1767,10 @@ export default function QCPage() {
                       setDefectInputMode("range");
                       setDefectError(null);
                     }}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      defectInputMode === "range"
-                        ? "bg-white text-rose-600 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${defectInputMode === "range"
+                      ? "bg-white text-rose-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                      }`}
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5 text-rose-500" />
                     Rentang Panjang (Meter Awal - Akhir)
@@ -1859,7 +1880,7 @@ export default function QCPage() {
                             <div className="pl-4 pr-2 py-2 border-l-2 border-rose-200 ml-2 animate-fadeIn mt-1 flex flex-col gap-1.5">
                               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Pilih Detail Masalah</label>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                 {(problemDetailsMap[c.id] || []).map((p) => {
+                                {(problemDetailsMap[c.id] || []).map((p) => {
                                   const currentList = defectDetailMap[c.id] || [];
                                   const isDetailChecked = currentList.includes(p);
                                   return (
@@ -2027,58 +2048,77 @@ export default function QCPage() {
       {/* Filter Card with Integrated Header */}
       <div
         data-tour="qc-inspection-filter"
-        className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative mb-4 sm:mb-6"
+        className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-200/80 relative z-20 mb-4 sm:mb-6"
       >
         {/* Decorative Top Accent */}
-        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80" />
+        <div className="absolute top-0 left-6 right-6 h-[3px] bg-gradient-to-r from-sky-400 via-[#0070bc] to-indigo-500 rounded-full opacity-80 z-10" />
 
         {/* Header Section inside Card */}
         <div
           data-tour="qc-header"
-          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-100"
+          className="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6 px-4 sm:px-6 pt-4 sm:pt-5 pb-4 mb-4 sm:mb-5 rounded-t-2xl bg-gradient-to-br from-slate-50/90 via-white to-sky-50/40 border-b border-slate-200/70 flex flex-wrap items-center justify-between gap-2.5"
         >
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-lg shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-50 transition-transform duration-300 hover:scale-105">
-              <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6" />
+          {/* Left: Clean Brand Identity */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-[#0070bc] via-sky-600 to-[#004777] text-white flex items-center justify-center shadow-md shadow-[#0070bc]/25 shrink-0 ring-4 ring-sky-100/80">
+              <ClipboardCheck className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight leading-tight whitespace-nowrap">
                 Inspeksi QC
               </h1>
-              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5 whitespace-nowrap">
                 Total antrean: <span className="text-[#0070bc] font-bold">{groupedPcsList.length} PCS Pending</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
-            <button
-            type="button"
-            onClick={() => setIsTourOpen(true)}
-            className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center gap-2 cursor-pointer shrink-0"
-          >
-            <HelpCircle className="w-4 h-4 text-[#0070bc]" />
-            Tutorial
-          </button>
-          {(searchStartDate || searchMesin || searchPotongan) && (
+          {/* Right: Unified Command Toolbar (Always right-aligned) */}
+          <div className="flex items-center justify-end gap-2 ml-auto shrink-0 flex-wrap">
+            {/* Primary Hero Action: Scan QR */}
             <button
               type="button"
-              onClick={() => {
-                setSearchStartDate("");
-                setSearchEndDate("");
-                setSearchTanggal("");
-                setSearchMesin("");
-                setSearchPotongan("");
-                saveQCFilters("", "", "", "", sortOrder);
-                handleSearch("", "", "", "");
-              }}
-              className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 animate-fadeIn"
+              onClick={() => setIsQrScannerOpen(true)}
+              className="group/qr h-9 sm:h-10 pl-2 pr-3.5 rounded-xl bg-gradient-to-r from-[#0070bc] to-[#005a96] hover:from-[#005a96] hover:to-[#004777] active:scale-[0.98] text-white text-xs font-extrabold shadow-sm shadow-[#0070bc]/20 hover:shadow-md hover:shadow-[#0070bc]/30 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset Filter
+              <span className="w-6 h-6 rounded-lg bg-white/15 group-hover/qr:bg-white/25 flex items-center justify-center transition-colors shrink-0">
+                <QrCode className="w-3.5 h-3.5 text-white" />
+              </span>
+              <span>Scan QR</span>
             </button>
-          )}
-        </div>
+
+            {/* Secondary Utility Dock: Tutorial & Reset Filter */}
+            <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => setIsTourOpen(true)}
+                className="h-7 sm:h-8 px-2.5 sm:px-3 rounded-lg bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0070bc] border border-slate-200/70 hover:border-sky-200 text-xs font-bold shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-[#0070bc] shrink-0" />
+                <span>Tutorial</span>
+              </button>
+
+              {(searchStartDate || searchMesin || searchPotongan) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchStartDate("");
+                    setSearchEndDate("");
+                    setSearchTanggal("");
+                    setSearchMesin("");
+                    setSearchPotongan("");
+                    saveQCFilters("", "", "", "", sortOrder);
+                    handleSearch("", "", "", "");
+                  }}
+                  className="h-7 sm:h-8 px-2.5 sm:px-3 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200/80 hover:border-rose-600 text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap animate-fadeIn"
+                  title="Bersihkan semua filter pencarian"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                  <span>Reset Filter</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Filter Controls */}
@@ -2212,77 +2252,210 @@ export default function QCPage() {
           </div>
         ) : (
           <div>
-            {/* Mobile & Tablet Card View (< md) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 p-3 sm:p-4 md:hidden">
-              {currentPcsList.map((g: any) => {
-                const targetPcs = g.start_pcs_index || g.pcs_index;
-                const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${targetPcs}`;
-                const session = activeSessionsMap.get(sessionKey);
-                const isPausedItem = session?.is_paused;
-                const isProcessingItem = session && !session.is_paused;
+            {/* Mobile & Tablet View (< lg): Responsive Collapsible Table / Accordion List (Child Row Expansion) */}
+            <div className="lg:hidden">
+              {/* Table Header Ringkas */}
+              <div className="bg-slate-50 border-b border-slate-200 px-3 sm:px-4 py-2.5 grid grid-cols-12 items-center gap-2 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                <div className="col-span-5 sm:col-span-5 pl-7">Mesin & Potongan</div>
+                <div className="col-span-3 sm:col-span-3 text-center">PCS</div>
+                <div className="col-span-4 sm:col-span-4 text-right pr-1">Aksi</div>
+              </div>
 
-                return (
-                  <div key={sessionKey} className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all ${isPausedItem ? "bg-amber-50/50 border-amber-300" : (isProcessingItem ? "bg-emerald-50/30 border-emerald-300" : "bg-white border-slate-200 shadow-xs hover:shadow-sm")}`}>
-                    {/* Top Section: ONLY Mesin, Potongan & PCS */}
-                    <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <div className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-[#0070bc]/10 text-[#0070bc] font-black text-xs">
-                          {g.header?.nomor_mc}
-                        </div>
-                        <div className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-slate-100 text-slate-800 font-extrabold text-xs border border-slate-200/80">
-                          #{g.header?.potongan_ke || "-"}
-                        </div>
-                      </div>
-                      <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 font-extrabold text-slate-800 text-xs border border-slate-200/60 shadow-xs">
-                        PCS {g.pcs_index} {g.isTricote ? "" : `/ ${g.total_pcs || g.pcs_index}`}
-                      </div>
-                    </div>
+              <div className="divide-y divide-slate-100">
+                {currentPcsList.map((g: any) => {
+                  const targetPcs = g.start_pcs_index || g.pcs_index;
+                  const sessionKey = `${g.nomor_mc}_${g.potongan_ke}_${targetPcs}`;
+                  const session = activeSessionsMap.get(sessionKey);
+                  const isPausedItem = session?.is_paused;
+                  const isProcessingItem = session && !session.is_paused;
+                  const isExpanded = !!expandedQueueKeys[sessionKey];
+                  const isMeteran = g.header?.panel_no === "METERAN";
+                  const operatorName =
+                    g.header?.operators?.nama_operator || g.header?.pic || "-";
+                  const groupName = g.header?.groups?.nama_grup || "";
 
-                    {/* Middle Section: Tanggal/Waktu & Desain */}
-                    <div className="flex flex-col gap-1.5 mb-2.5 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Tanggal & Waktu</span>
-                        <span className="font-bold text-slate-800 text-right">
-                          {formatLastInputDate(g.lastInputTime)} ({formatLastInputTime(g.lastInputTime)})
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Desain</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-800 whitespace-nowrap">{g.header?.design_id}</span>
-                          {g.header?.panel_no === "METERAN" ? (
-                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider">METERAN</span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">PANEL</span>
+                  return (
+                    <div
+                      key={sessionKey}
+                      className={`transition-colors ${isPausedItem
+                        ? "bg-amber-50/40"
+                        : isProcessingItem
+                          ? "bg-emerald-50/25"
+                          : isExpanded
+                            ? "bg-sky-50/30"
+                            : "bg-white hover:bg-slate-50/70"
+                        }`}
+                    >
+                      {/* Baris Utama (Collapsed Summary Row) */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleQueueRow(sessionKey)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleQueueRow(sessionKey);
+                          }
+                        }}
+                        className="px-3 sm:px-4 py-3 grid grid-cols-12 items-center gap-2 cursor-pointer select-none"
+                      >
+                        {/* Kolom 1: Indikator Expand + Mesin + Potongan */}
+                        <div className="col-span-5 sm:col-span-5 flex items-center gap-2 min-w-0">
+                          <span
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all duration-200 ${isExpanded
+                              ? "bg-[#0070bc] text-white border-[#0070bc] shadow-2xs"
+                              : "bg-slate-100 text-slate-500 border-slate-200/80"
+                              }`}
+                            title={isExpanded ? "Tutup rincian" : "Buka rincian"}
+                          >
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""
+                                }`}
+                            />
+                          </span>
+
+                          <div className="inline-flex items-center rounded-xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden shrink-0">
+                            <span className="h-7 px-2.5 bg-[#0070bc] text-white font-black text-xs flex items-center justify-center">
+                              {g.header?.nomor_mc || g.nomor_mc}
+                            </span>
+                            <span className="h-7 px-2.5 bg-slate-50/90 text-slate-800 flex items-center gap-1 border-l border-slate-200/80">
+                              <Scissors className="w-3 h-3 text-amber-500 shrink-0" />
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                Pot.
+                              </span>
+                              <span className="text-xs font-black text-slate-800">
+                                {g.header?.potongan_ke || g.potongan_ke || "-"}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Kolom 2: PCS & Status Badge */}
+                        <div className="col-span-3 sm:col-span-3 flex flex-col sm:flex-row items-center justify-center gap-1">
+                          <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full bg-slate-100 font-extrabold text-slate-700 text-[11px] border border-slate-200/70 whitespace-nowrap">
+                            PCS {g.pcs_index}
+                            {g.isTricote ? "" : ` / ${g.total_pcs || g.pcs_index}`}
+                          </span>
+                          {isPausedItem && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-black text-[9px]">
+                              DIPAUSE
+                            </span>
+                          )}
+                          {isProcessingItem && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[9px]">
+                              PROSES
+                            </span>
                           )}
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Bottom Section: Action Button */}
-                    <button
-                      onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
-                      className={`w-full h-9 sm:h-10 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
-                        isPausedItem 
-                          ? "bg-amber-500 hover:bg-amber-600 text-white" 
-                          : (isProcessingItem ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-[#0070bc] hover:bg-[#004777] text-white")
-                      }`}
-                    >
-                      {isPausedItem ? (
-                        <><Play className="w-3.5 h-3.5 fill-white" /> Lanjut Inspeksi</>
-                      ) : isProcessingItem ? (
-                        <><Play className="w-3.5 h-3.5 fill-white" /> Buka Inspeksi</>
-                      ) : (
-                        <><CheckCircle2 className="w-3.5 h-3.5" /> Mulai Inspeksi</>
+                        {/* Kolom 3: Tombol Aksi Cepat (Tactile Capsule + Icon Pod) */}
+                        <div
+                          className="col-span-4 sm:col-span-4 flex items-center justify-end"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleStartQC(
+                                g.nomor_mc,
+                                g.design_id,
+                                g.potongan_ke,
+                                targetPcs
+                              )
+                            }
+                            className={`group/btn h-8 sm:h-9 pl-1.5 pr-2 sm:pr-2.5 rounded-xl font-extrabold text-[11px] sm:text-xs transition-all duration-200 flex items-center gap-1.5 sm:gap-2 active:scale-95 border cursor-pointer whitespace-nowrap ${isPausedItem
+                              ? "bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-white border-amber-300 hover:border-amber-500 shadow-2xs hover:shadow-md hover:shadow-amber-500/20"
+                              : isProcessingItem
+                                ? "bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border-emerald-300 hover:border-emerald-600 shadow-2xs hover:shadow-md hover:shadow-emerald-600/20"
+                                : "bg-sky-50/90 hover:bg-[#0070bc] text-[#0070bc] hover:text-white border-sky-200/90 hover:border-[#0070bc] shadow-2xs hover:shadow-md hover:shadow-[#0070bc]/20"
+                              }`}
+                          >
+                            {isPausedItem ? (
+                              <>
+                                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-amber-500 text-white group-hover/btn:bg-white group-hover/btn:text-amber-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Play className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-current" />
+                                </span>
+                                <span>Lanjut</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0 hidden sm:inline-block" />
+                              </>
+                            ) : isProcessingItem ? (
+                              <>
+                                <span className="relative w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-emerald-600 text-white group-hover/btn:bg-white group-hover/btn:text-emerald-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Play className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-current" />
+                                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
+                                </span>
+                                <span>Buka</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0 hidden sm:inline-block" />
+                              </>
+                            ) : (
+                              <>
+                                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-[#0070bc] text-white group-hover/btn:bg-white group-hover/btn:text-[#0070bc] flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <ClipboardCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                </span>
+                                <span>Inspeksi</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0 hidden sm:inline-block" />
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Panel Detail Bawah (Expanded Child Row - Vertical Row Stack) */}
+                      {isExpanded && (
+                        <div className="px-3 sm:px-4 pb-3.5 pt-2.5 bg-slate-50/90 border-t border-slate-200/70 animate-fadeIn">
+                          <div className="flex flex-col divide-y divide-slate-100 bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden text-xs">
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Desain & Tipe
+                              </span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-extrabold text-slate-800 truncate">
+                                  {g.header?.design_id || g.design_id || "-"}
+                                </span>
+                                {isMeteran ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 text-purple-700 uppercase tracking-wider shrink-0">
+                                    METERAN
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider shrink-0">
+                                    PANEL
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Tanggal & Jam Input
+                              </span>
+                              <span className="font-bold text-slate-700 whitespace-nowrap">
+                                {formatLastInputDate(g.lastInputTime)} •{" "}
+                                <span className="font-mono font-extrabold text-[#0070bc]">
+                                  {formatLastInputTime(g.lastInputTime)}
+                                </span>
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">
+                                Operator Terakhir
+                              </span>
+                              <span className="font-extrabold text-slate-800 truncate">
+                                {operatorName}
+                                {groupName ? ` (Grup ${groupName})` : ""}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       )}
-                    </button>
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Desktop Table View (>= md) */}
-            <div className="hidden md:block overflow-x-auto">
+            {/* Desktop / Laptop Table View (>= lg) */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full min-w-[650px] text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -2311,8 +2484,14 @@ export default function QCPage() {
                           </div>
                         </td>
                         <td className="px-2 py-2">
-                          <div className="text-[11px] text-slate-800 font-bold uppercase tracking-wider">
-                            #{g.header?.potongan_ke || "-"}
+                          <div className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-slate-100/90 border border-slate-200/80 text-slate-800">
+                            <Scissors className="w-3 h-3 text-amber-500 shrink-0" />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">
+                              Pot.
+                            </span>
+                            <span className="text-xs font-black text-slate-800">
+                              {g.header?.potongan_ke || g.potongan_ke || "-"}
+                            </span>
                           </div>
                         </td>
                         <td className="px-2 py-2">
@@ -2349,22 +2528,50 @@ export default function QCPage() {
                           </div>
                         </td>
                         <td className="px-2 py-2 text-center whitespace-nowrap">
-                          {isPausedItem ? (
-                            <button
-                              onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
-                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 mx-auto cursor-pointer whitespace-nowrap"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-white" /> Lanjut Inspeksi
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleStartQC(g.nomor_mc, g.design_id, g.potongan_ke, targetPcs)}
-                              className="px-4 py-2 bg-[#0070bc] hover:bg-[#004777] active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer whitespace-nowrap shadow-sm flex items-center gap-1.5 mx-auto"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              {isProcessingItem ? "Buka Inspeksi" : "Mulai Inspeksi"}
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleStartQC(
+                                g.nomor_mc,
+                                g.design_id,
+                                g.potongan_ke,
+                                targetPcs
+                              )
+                            }
+                            className={`group/btn h-9 pl-1.5 pr-3 rounded-xl font-extrabold text-xs transition-all duration-200 flex items-center gap-2 mx-auto active:scale-95 border cursor-pointer whitespace-nowrap ${isPausedItem
+                              ? "bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-white border-amber-300 hover:border-amber-500 shadow-2xs hover:shadow-md hover:shadow-amber-500/20"
+                              : isProcessingItem
+                                ? "bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border-emerald-300 hover:border-emerald-600 shadow-2xs hover:shadow-md hover:shadow-emerald-600/20"
+                                : "bg-sky-50/90 hover:bg-[#0070bc] text-[#0070bc] hover:text-white border-sky-200/90 hover:border-[#0070bc] shadow-2xs hover:shadow-md hover:shadow-[#0070bc]/20"
+                              }`}
+                          >
+                            {isPausedItem ? (
+                              <>
+                                <span className="w-6 h-6 rounded-lg bg-amber-500 text-white group-hover/btn:bg-white group-hover/btn:text-amber-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Play className="w-3 h-3 fill-current" />
+                                </span>
+                                <span>Lanjut Inspeksi</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0" />
+                              </>
+                            ) : isProcessingItem ? (
+                              <>
+                                <span className="relative w-6 h-6 rounded-lg bg-emerald-600 text-white group-hover/btn:bg-white group-hover/btn:text-emerald-600 flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <Play className="w-3 h-3 fill-current" />
+                                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
+                                </span>
+                                <span>Buka Inspeksi</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0" />
+                              </>
+                            ) : (
+                              <>
+                                <span className="w-6 h-6 rounded-lg bg-[#0070bc] text-white group-hover/btn:bg-white group-hover/btn:text-[#0070bc] flex items-center justify-center transition-colors shadow-2xs shrink-0">
+                                  <ClipboardCheck className="w-3.5 h-3.5" />
+                                </span>
+                                <span>Mulai Inspeksi</span>
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100 group-hover/btn:translate-x-0.5 transition-all shrink-0" />
+                              </>
+                            )}
+                          </button>
                         </td>
                       </tr>
                     );
@@ -2372,7 +2579,7 @@ export default function QCPage() {
                 </tbody>
               </table>
             </div>
-            
+
             {totalPages > 1 && (
               <div className="p-4 border-t border-slate-200 flex items-center justify-between bg-slate-50">
                 <span className="text-xs font-medium text-slate-500">
@@ -2402,6 +2609,23 @@ export default function QCPage() {
           </div>
         )}
       </div>
+
+      <QrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        onScanSuccess={(parsed: ParsedDjiQr) => {
+          const mc = parsed.nomor_mc || "";
+          const pot = parsed.potongan_ke || "";
+          setSearchStartDate("");
+          setSearchEndDate("");
+          setSearchTanggal("");
+          setSearchMesin(mc);
+          setSearchPotongan(pot);
+          saveQCFilters("", "", mc, pot, sortOrder);
+          handleSearch("", "", mc, pot);
+        }}
+        title="Scan QR Inspeksi QC"
+      />
 
       <ProductTour steps={QC_INSPECTION_TOUR_STEPS} isOpen={isTourOpen} onClose={() => setIsTourOpen(false)} />
     </div>

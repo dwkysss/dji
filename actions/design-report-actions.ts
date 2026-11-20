@@ -2,6 +2,33 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { REGISTERED_MACHINES } from "@/lib/constants";
+import { getDefectMeterLength } from "@/lib/defect-format-utils";
+
+const KNOWN_METERAN_MACHINES = new Set(["R11", "R12", "R13", "R16", "T1C", "T2A"]);
+const KNOWN_MULTI_PCS_MACHINES = new Set(["R11", "R12", "R13", "R16", "R3B", "T1C", "T2A"]);
+
+function isKnownMeteranMachine(mc: string): boolean {
+  const upper = mc.trim().toUpperCase();
+  return KNOWN_METERAN_MACHINES.has(upper) || upper.startsWith("T");
+}
+
+function isKnownMultiPcsMachine(mc: string): boolean {
+  const upper = mc.trim().toUpperCase();
+  return KNOWN_MULTI_PCS_MACHINES.has(upper) || upper.startsWith("T");
+}
+
+function isNonPanelHeader(panelNo: string): boolean {
+  const upper = panelNo.trim().toUpperCase();
+  if (!upper) return true;
+  return (
+    upper === "METERAN" ||
+    upper.includes("BERHENTI") ||
+    upper.includes("DOWNTIME") ||
+    upper.includes("MESIN MATI") ||
+    upper.includes("BLOCK MESIN") ||
+    upper.startsWith("STOP")
+  );
+}
 
 export interface DesignReportRow {
   no: number;
@@ -11,6 +38,7 @@ export interface DesignReportRow {
   monthBadge?: string;
   designId: string;
   noPot: number;
+  pcsIndex?: number;
   totalProdPanel: number;
   gradeA_prod: number;
   gradeA_prod_pct: number;
@@ -104,12 +132,16 @@ export async function getDesignReportData(
   success: boolean;
   data?: DesignReportGroup[];
   grandSummary?: DesignReportSummary;
+  isMeteran?: boolean;
+  isMultiPcs?: boolean;
   error?: string;
 }> {
   try {
     const supabase = await createClient();
     const mc = machine.trim();
     const targetYear = year || new Date().getFullYear().toString();
+    const knownMeteran = isKnownMeteranMachine(mc);
+    const knownMultiPcs = isKnownMultiPcsMachine(mc);
 
     // 1. Parsing & Normalisasi Multi-Bulan
     let selectedMonths: number[] = [];
@@ -174,6 +206,8 @@ export async function getDesignReportData(
         return {
           success: true,
           data: [],
+          isMeteran: knownMeteran,
+          isMultiPcs: knownMultiPcs,
           grandSummary: {
             totalPotongan: 0,
             totalProdPanel: 0,
@@ -209,6 +243,8 @@ export async function getDesignReportData(
           hasil_final,
           detail:production_details (
             id,
+            pcs_index,
+            meter_kain,
             jml_hasil_produksi,
             kategori_masalah,
             detail_masalah,
@@ -221,7 +257,11 @@ export async function getDesignReportData(
               panel_no,
               nomor_mc,
               tanggal_potong,
-              tgl
+              tgl,
+              total_produksi_meter,
+              meter_awal,
+              meter_akhir,
+              pcs
             )
           )
         )
@@ -243,12 +283,12 @@ export async function getDesignReportData(
     // 4. Ambil mending_batches & qc_inspection_batches sebagai fallback
     const { data: mendingBatches } = await supabase
       .from("mending_batches")
-      .select("potongan_ke, design_id, mending_grade_a, mending_grade_b, mending_grade_bs, total_panel, tanggal_mending")
+      .select("potongan_ke, design_id, pcs_index, mending_grade_a, mending_grade_b, mending_grade_bs, total_panel, tanggal_mending")
       .eq("nomor_mc", mc);
 
     const { data: qcBatches } = await supabase
       .from("qc_inspection_batches")
-      .select("potongan_ke, design_id, inspeksi_ceklis, inspeksi_silang, berat_kain, tanggal_inspeksi")
+      .select("potongan_ke, design_id, pcs_index, inspeksi_ceklis, inspeksi_silang, berat_kain, tanggal_inspeksi")
       .eq("nomor_mc", mc);
 
     // 5. Ambil production_headers dengan PAGINATION
@@ -267,7 +307,7 @@ export async function getDesignReportData(
 
       let hQuery = supabase
         .from("production_headers")
-        .select("id, nomor_mc, design_id, potongan_ke, panel_no, tanggal_potong, tgl")
+        .select("id, nomor_mc, design_id, potongan_ke, panel_no, tanggal_potong, tgl, total_produksi_meter, meter_awal, meter_akhir, pcs")
         .eq("nomor_mc", mc)
         .not("potongan_ke", "is", null)
         .gte("tgl", queryStartDate)
@@ -298,20 +338,296 @@ export async function getDesignReportData(
       }
     }
 
+    const isMeteranData =
+      knownMeteran ||
+      allHeaders.some((h: any) => String(h.panel_no || "").trim().toUpperCase() === "METERAN");
+    const isMultiPcsData =
+      knownMultiPcs ||
+      isMeteranData ||
+      allHeaders.some((h: any) => Number(h.pcs || 1) > 1) ||
+      (finalBatches || []).some((b: any) => Number(b.pcs_index || 1) > 1) ||
+      (mendingBatches || []).some((b: any) => Number(b.pcs_index || 1) > 1);
+
     const coveredPotMap = new Set<string>();
     const rowList: DesignReportRow[] = [];
 
-    // 6. Proses data dari final_inspection_batches
-    (finalBatches || []).forEach((batch: any) => {
+    if (isMeteranData) {
+      // === CABANG KHUSUS MESIN METERAN / MULTI-PCS (R11, R12, R13, R16, T1C, T2A) ===
+      // 1. Kelompokkan semua production_headers berdasarkan (design_id, potongan_ke)
+      const meterPotMap = new Map<
+        string,
+        {
+          designId: string;
+          noPot: number;
+          headers: any[];
+          tanggalPotong: string;
+          isFromEarlierMonth: boolean;
+          monthBadge: string;
+        }
+      >();
+
+      allHeaders.forEach((h: any) => {
+        const pNum = Number(h.potongan_ke);
+        const dId = String(h.design_id || "").trim().toUpperCase();
+        if (!pNum || !dId) return;
+        if (designFilter && designFilter !== "ALL" && dId !== designFilter.toUpperCase()) return;
+
+        const tgl = h.tanggal_potong || h.tgl || "";
+        let isFromEarlier = false;
+        let mBadge = "";
+        if (tgl) {
+          const parts = tgl.split("-");
+          const rowYear = parts[0];
+          const rowMonth = parseInt(parts[1], 10);
+          if (rowYear !== targetYear) return;
+          if (rowMonth > maxMonth) return;
+          if (!selectedMonthsSet.has(rowMonth)) {
+            if (!includeCrossMonth) return;
+            isFromEarlier = true;
+            mBadge = MONTH_ABBR[rowMonth] || "";
+          }
+        }
+
+        const key = `${dId}__${pNum}`;
+        if (!meterPotMap.has(key)) {
+          meterPotMap.set(key, {
+            designId: dId,
+            noPot: pNum,
+            headers: [],
+            tanggalPotong: tgl,
+            isFromEarlierMonth: isFromEarlier,
+            monthBadge: mBadge,
+          });
+        }
+        const entry = meterPotMap.get(key)!;
+        entry.headers.push(h);
+        if (h.tanggal_potong) {
+          entry.tanggalPotong = h.tanggal_potong;
+        } else if (tgl && (!entry.tanggalPotong || tgl > entry.tanggalPotong)) {
+          entry.tanggalPotong = tgl;
+        }
+        if (!isFromEarlier) {
+          entry.isFromEarlierMonth = false;
+          entry.monthBadge = "";
+        }
+      });
+
+      // 2. Ambil production_details untuk semua header meteran (chunk size aman 60 UUID)
+      const allMeterHeaderIds: string[] = [];
+      meterPotMap.forEach((entry) => {
+        entry.headers.forEach((h) => allMeterHeaderIds.push(h.id));
+      });
+
+      const meterDetailsByHeader = new Map<string, any[]>();
+      const safeChunkSize = 60;
+      const concurrency = 4;
+      const chunks: string[][] = [];
+      for (let i = 0; i < allMeterHeaderIds.length; i += safeChunkSize) {
+        chunks.push(allMeterHeaderIds.slice(i, i + safeChunkSize));
+      }
+
+      for (let i = 0; i < chunks.length; i += concurrency) {
+        const batch = chunks.slice(i, i + concurrency);
+        const results = await Promise.all(
+          batch.map((chunkIds) =>
+            supabase
+              .from("production_details")
+              .select("id, header_id, pcs_index, meter_kain, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, is_deleted")
+              .in("header_id", chunkIds)
+              .eq("is_deleted", false)
+          )
+        );
+        results.forEach(({ data }) => {
+          (data || []).forEach((d: any) => {
+            if (!meterDetailsByHeader.has(d.header_id)) {
+              meterDetailsByHeader.set(d.header_id, []);
+            }
+            meterDetailsByHeader.get(d.header_id)!.push(d);
+          });
+        });
+      }
+
+      // 3. Index batches berdasarkan (design_id, potongan_ke, pcs_index)
+      const finalByKey = new Map<string, any>();
+      (finalBatches || []).forEach((b: any) => {
+        const dId = String(b.design_id || "").trim().toUpperCase();
+        const pNum = Number(b.potongan_ke);
+        const pcsIdx = Number(b.pcs_index || 1);
+        if (dId && pNum) finalByKey.set(`${dId}__${pNum}__${pcsIdx}`, b);
+      });
+
+      const mendingByKey = new Map<string, any>();
+      (mendingBatches || []).forEach((b: any) => {
+        const dId = String(b.design_id || "").trim().toUpperCase();
+        const pNum = Number(b.potongan_ke);
+        const pcsIdx = Number(b.pcs_index || 1);
+        if (dId && pNum) mendingByKey.set(`${dId}__${pNum}__${pcsIdx}`, b);
+      });
+
+      const qcByKey = new Map<string, any>();
+      (qcBatches || []).forEach((b: any) => {
+        const dId = String(b.design_id || "").trim().toUpperCase();
+        const pNum = Number(b.potongan_ke);
+        const pcsIdx = Number(b.pcs_index || 1);
+        if (dId && pNum) qcByKey.set(`${dId}__${pNum}__${pcsIdx}`, b);
+      });
+
+      // 4. Susun baris per (designId, noPot, pcsIndex)
+      meterPotMap.forEach((entry) => {
+        const { designId: dId, noPot: pNum, headers: hdrs } = entry;
+
+        // Hitung panjang roll (meter) dari headers
+        let sumProdMeter = 0;
+        let maxMeterAkhir = 0;
+        let maxMeterAwal = 0;
+        let maxPcsFromHeader = 1;
+
+        hdrs.forEach((h: any) => {
+          const pm = Number(h.total_produksi_meter || 0);
+          const ma = Number(h.meter_akhir || 0);
+          const mw = Number(h.meter_awal || 0);
+          const p = Number(h.pcs || 1);
+          if (pm > 0) sumProdMeter += pm;
+          if (ma > maxMeterAkhir) maxMeterAkhir = ma;
+          if (mw > maxMeterAwal) maxMeterAwal = mw;
+          if (p > maxPcsFromHeader) maxPcsFromHeader = p;
+        });
+
+        const baseRollMeter =
+          mc.toUpperCase() === "T2A"
+            ? Math.round(sumProdMeter > 0 ? sumProdMeter : maxMeterAwal)
+            : Math.round(maxMeterAkhir > 0 ? maxMeterAkhir : sumProdMeter);
+
+        // Kumpulkan semua details per pcs_index
+        const detailsByPcs = new Map<number, any[]>();
+        const pcsSet = new Set<number>();
+        for (let p = 1; p <= maxPcsFromHeader; p++) pcsSet.add(p);
+
+        hdrs.forEach((h: any) => {
+          const dList = meterDetailsByHeader.get(h.id) || [];
+          dList.forEach((d: any) => {
+            const pcsIdx = Number(d.pcs_index || 1);
+            pcsSet.add(pcsIdx);
+            if (!detailsByPcs.has(pcsIdx)) detailsByPcs.set(pcsIdx, []);
+            detailsByPcs.get(pcsIdx)!.push(d);
+          });
+        });
+
+        // Juga sertakan pcs_index dari batch final/mending/qc jika ada
+        [finalBatches || [], mendingBatches || [], qcBatches || []].forEach((bList) => {
+          bList.forEach((b: any) => {
+            if (String(b.design_id || "").trim().toUpperCase() === dId && Number(b.potongan_ke) === pNum) {
+              pcsSet.add(Number(b.pcs_index || 1));
+            }
+          });
+        });
+
+        const sortedPcs = Array.from(pcsSet).sort((a, b) => a - b);
+
+        sortedPcs.forEach((pcsIdx) => {
+          const batchKey = `${dId}__${pNum}__${pcsIdx}`;
+          const fBatch = finalByKey.get(batchKey);
+          const mBatch = mendingByKey.get(batchKey);
+          const qBatch = qcByKey.get(batchKey);
+
+          let totalProd = baseRollMeter;
+          if (totalProd <= 0) {
+            if (fBatch && Number(fBatch.final_grade_a || 0) > 0) totalProd = Number(fBatch.final_grade_a);
+            else if (mBatch && Number(mBatch.mending_grade_a || 0) > 0) totalProd = Number(mBatch.mending_grade_a);
+            else if (fBatch && Number(fBatch.total_panel || 0) > 0) totalProd = Number(fBatch.total_panel);
+            else if (mBatch && Number(mBatch.total_panel || 0) > 0) totalProd = Number(mBatch.total_panel);
+          }
+
+          // Hitung cacat produksi operator untuk PCS ini (satuan meter/titik)
+          const pcsDetails = detailsByPcs.get(pcsIdx) || [];
+          let rawProdDefects = 0;
+          pcsDetails.forEach((d: any) => {
+            const kat = String(d.kategori_masalah || "").toUpperCase().trim();
+            const det = String(d.detail_masalah || "").toUpperCase().trim();
+            const ket = String(d.keterangan_cacat || "").toUpperCase().trim();
+            const isQcExtra = ket.includes("[TAMBAHAN QC]") || ket.includes("QC:");
+            const isIstirahat = kat.includes("ISTIRAHAT") && !det;
+            const isGagalCacat = kat.includes("GAGAL CACAT") || det.includes("GAGAL CACAT");
+            if (isQcExtra || isIstirahat || isGagalCacat) return;
+
+            const hasDefect = (kat !== "" && kat !== "G") || det !== "";
+            if (hasDefect) {
+              rawProdDefects += getDefectMeterLength(d);
+            }
+          });
+
+          const prodB = totalProd > 0 ? Math.min(totalProd, Math.round(rawProdDefects)) : Math.round(rawProdDefects);
+          const prodA = Math.max(0, totalProd - prodB);
+
+          let status: "INSPECTED" | "MENDED" | "QC_ONLY" | "UNINSPECTED" = "UNINSPECTED";
+          let inspA: number | null = null;
+          let inspB: number | null = null;
+          let displayDate = entry.tanggalPotong;
+
+          if (fBatch) {
+            status = "INSPECTED";
+            const bPts = Number(fBatch.final_grade_b || 0) + Number(fBatch.final_grade_bs || 0);
+            inspB = totalProd > 0 ? Math.min(totalProd, bPts) : bPts;
+            inspA = Math.max(0, totalProd - inspB);
+            if (fBatch.tanggal_final) displayDate = fBatch.tanggal_final;
+          } else if (mBatch) {
+            status = "MENDED";
+            const bPts = Number(mBatch.mending_grade_b || 0) + Number(mBatch.mending_grade_bs || 0);
+            inspB = totalProd > 0 ? Math.min(totalProd, bPts) : bPts;
+            inspA = Math.max(0, totalProd - inspB);
+            if (mBatch.tanggal_mending) displayDate = mBatch.tanggal_mending;
+          } else if (qBatch) {
+            status = "QC_ONLY";
+            const bPts = Number(qBatch.inspeksi_silang || 0);
+            inspB = totalProd > 0 ? Math.min(totalProd, bPts) : bPts;
+            inspA = Math.max(0, totalProd - inspB);
+          }
+
+          const gradeA_prod_pct = totalProd > 0 ? (prodA / totalProd) * 100 : 0;
+          const gradeB_prod_pct = totalProd > 0 ? (prodB / totalProd) * 100 : 0;
+          const gradeA_inspect_pct =
+            inspA !== null && totalProd > 0 ? Number(((inspA / totalProd) * 100).toFixed(2)) : inspA !== null ? 0 : null;
+          const gradeB_inspect_pct =
+            inspB !== null && totalProd > 0 ? Number(((inspB / totalProd) * 100).toFixed(2)) : inspB !== null ? 0 : null;
+
+          rowList.push({
+            no: 0,
+            tanggalPotong: formatDateDisplay(displayDate),
+            rawDate: displayDate,
+            isFromEarlierMonth: entry.isFromEarlierMonth,
+            monthBadge: entry.monthBadge,
+            designId: dId,
+            noPot: pNum,
+            pcsIndex: pcsIdx,
+            totalProdPanel: totalProd,
+            gradeA_prod: prodA,
+            gradeA_prod_pct: Number(gradeA_prod_pct.toFixed(2)),
+            gradeA_inspect: inspA,
+            gradeA_inspect_pct,
+            gradeB_prod: prodB,
+            gradeB_prod_pct: Number(gradeB_prod_pct.toFixed(2)),
+            gradeB_inspect: inspB,
+            gradeB_inspect_pct,
+            status,
+          });
+        });
+      });
+    } else {
+      // === CABANG MESIN PANEL (R1, R2, R1C, R2C, R3B, dll.) ===
+      // 6. Proses data dari final_inspection_batches
+      (finalBatches || []).forEach((batch: any) => {
       const pNum = Number(batch.potongan_ke);
       const dId = (batch.design_id || "").trim().toUpperCase();
       if (!pNum || !dId) return;
 
       let tanggalPotong = batch.tanggal_final || "";
 
-      // Ambil items yang valid (tidak dihapus)
+      // Ambil items yang valid (tidak dihapus & bukan header non-panel seperti BERHENTI/DOWNTIME)
       const validItems = (batch.items || []).filter((it: any) => {
         const d = it.detail || {};
+        const h = d.header || {};
+        const pNo = String(h.panel_no || "").trim().toUpperCase();
+        if (isNonPanelHeader(pNo)) return false;
         const isDel =
           !!d.is_deleted ||
           (d.keterangan_cacat || "").includes("[DIHAPUS]") ||
@@ -480,12 +796,12 @@ export async function getDesignReportData(
     });
 
     const unfinalizedDetailsMap = new Map<string, any[]>();
-    const chunkSize = 150;
+    const chunkSize = 60;
     for (let i = 0; i < unfinalizedHeaderIds.length; i += chunkSize) {
       const chunk = unfinalizedHeaderIds.slice(i, i + chunkSize);
       const { data: chunkDetails } = await supabase
         .from("production_details")
-        .select("id, header_id, jml_hasil_produksi, kategori_masalah, detail_masalah, is_deleted")
+        .select("id, header_id, jml_hasil_produksi, kategori_masalah, detail_masalah, keterangan_cacat, is_deleted")
         .in("header_id", chunk)
         .eq("is_deleted", false);
 
@@ -502,19 +818,34 @@ export async function getDesignReportData(
       const hdrs = entry.headers;
       const [dId, pNumStr] = potKey.split("__");
       const pNum = Number(pNumStr);
-      const firstHdr = hdrs[0];
-      const tanggalPotong = firstHdr.tanggal_potong || firstHdr.tgl || "";
 
+      let tanggalPotong = "";
       let prodA = 0;
       let prodB = 0;
 
       hdrs.forEach((h: any) => {
         const pNo = String(h.panel_no || "").trim().toUpperCase();
-        if (pNo === "METERAN") return;
+        if (isNonPanelHeader(pNo)) return;
+
+        const rawDetails = unfinalizedDetailsMap.get(h.id) || [];
+        const dList = rawDetails.filter(
+          (d: any) =>
+            !d.is_deleted &&
+            !(d.keterangan_cacat || "").includes("[DIHAPUS]") &&
+            !(d.detail_masalah || "").includes("PANEL DIHAPUS")
+        );
+
+        // Lewati header yang tidak memiliki detail produksi aktif (misal panel dihapus / downtime langsung)
+        if (dList.length === 0) return;
+
+        if (h.tanggal_potong) {
+          tanggalPotong = h.tanggal_potong;
+        } else if (h.tgl && (!tanggalPotong || h.tgl > tanggalPotong)) {
+          tanggalPotong = h.tgl;
+        }
 
         const isBs = pNo.includes("BS") || pNo.includes("AWAL") || pNo.includes("AKHIR");
 
-        const dList = unfinalizedDetailsMap.get(h.id) || [];
         let hasDefect = false;
         dList.forEach((d: any) => {
           const kat = String(d.kategori_masalah || "").toUpperCase().trim();
@@ -537,6 +868,11 @@ export async function getDesignReportData(
       });
 
       const totalProdPanel = prodA + prodB;
+      if (totalProdPanel === 0) return;
+
+      if (!tanggalPotong && hdrs[0]) {
+        tanggalPotong = hdrs[0].tanggal_potong || hdrs[0].tgl || "";
+      }
 
       let inspA = 0;
       let inspB = 0;
@@ -603,6 +939,7 @@ export async function getDesignReportData(
         status,
       });
     });
+    } // end else (Mesin Panel)
 
     // 7. Kelompokkan rowList per Design (Menyatukan potongan dari berbagai bulan ke desain yang sama!)
     const groupsMap = new Map<string, DesignReportRow[]>();
@@ -631,8 +968,8 @@ export async function getDesignReportData(
         return;
       }
 
-      // Urutkan nomor potongan menaik (ascending)
-      rows.sort((a, b) => a.noPot - b.noPot);
+      // Urutkan nomor potongan menaik (ascending), lalu PCS menaik
+      rows.sort((a, b) => (a.noPot !== b.noPot ? a.noPot - b.noPot : (a.pcsIndex || 1) - (b.pcsIndex || 1)));
 
       let totalProdPanel = 0;
       let totalProdA = 0;
@@ -664,8 +1001,10 @@ export async function getDesignReportData(
       const gradeA_inspect_pct = inspectedPanels > 0 ? (totalInspA / inspectedPanels) * 100 : 0;
       const gradeB_inspect_pct = inspectedPanels > 0 ? (totalInspB / inspectedPanels) * 100 : 0;
 
+      const uniquePotonganCount = new Set(rows.map((r) => r.noPot)).size;
+
       const summary: DesignReportSummary = {
-        totalPotongan: rows.length,
+        totalPotongan: uniquePotonganCount,
         totalProdPanel,
         inspectedCuts,
         inspectedPanels,
@@ -685,7 +1024,7 @@ export async function getDesignReportData(
       grandInspA += totalInspA;
       grandInspB += totalInspB;
       grandInspectedPanels += inspectedPanels;
-      grandPotCount += rows.length;
+      grandPotCount += uniquePotonganCount;
 
       groups.push({
         designId: dId,
@@ -726,10 +1065,16 @@ export async function getDesignReportData(
       gradeB_inspect_pct: grandInspectedPanels > 0 ? Number(((grandInspB / grandInspectedPanels) * 100).toFixed(2)) : 0,
     };
 
+    const finalIsMultiPcs = groups.some((g) =>
+      g.rows.some((r) => Number(r.pcsIndex || 1) > 1)
+    );
+
     return {
       success: true,
       data: groups,
       grandSummary,
+      isMeteran: isMeteranData,
+      isMultiPcs: finalIsMultiPcs,
     };
   } catch (err: any) {
     return {

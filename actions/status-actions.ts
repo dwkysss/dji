@@ -693,3 +693,158 @@ export async function updateMachineStopDuration(input: {
   }
 }
 
+export interface ShiftProductionStopStatus {
+  hasProductionInShift: boolean;
+  lastInputTimeLabel?: string;
+  lastPanelNo?: string;
+  remainingFromLastInputSec?: number;
+  remainingFromNowSec: number;
+  shiftStartLabel: string;
+  shiftEndLabel: string;
+  shiftName: "Shift 1" | "Shift 2" | "Shift 3";
+}
+
+/**
+ * Mengecek apakah mesin sudah memiliki input produksi pada shift berjalan saat ini.
+ * - Jika sudah ada inputan produksi di shift ini (misal sampai jam 10:00 WIB), mengembalikan
+ *   sisa durasi dari jam input terakhir hingga jam pulang shift (15:10 / 23:10 / 07:10 WIB).
+ * - Jika belum ada inputan produksi dari awal shift, modal Lapor Mesin Mati dapat otomatis memilih 1 Shift Penuh (8 Jam).
+ */
+export async function getShiftProductionStatusForStop(
+  nomorMc: string
+): Promise<{ success: boolean; data?: ShiftProductionStopStatus; error?: string }> {
+  try {
+    const now = new Date();
+    const opDate = getShiftDate(now);
+    const currentShift = getShiftName(now);
+
+    const baseDateMs = new Date(`${opDate}T00:00:00+07:00`).getTime();
+    const nextDateStr = new Date(baseDateMs + 24 * 3600 * 1000 + 7 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+    let shiftStartMs: number;
+    let shiftEndMs: number;
+    let shiftStartLabel: string;
+    let shiftEndLabel: string;
+
+    if (currentShift === "Shift 1") {
+      shiftStartMs = new Date(`${opDate}T07:10:00+07:00`).getTime();
+      shiftEndMs = new Date(`${opDate}T15:10:00+07:00`).getTime();
+      shiftStartLabel = "07:10";
+      shiftEndLabel = "15:10";
+    } else if (currentShift === "Shift 2") {
+      shiftStartMs = new Date(`${opDate}T15:10:00+07:00`).getTime();
+      shiftEndMs = new Date(`${opDate}T23:10:00+07:00`).getTime();
+      shiftStartLabel = "15:10";
+      shiftEndLabel = "23:10";
+    } else {
+      shiftStartMs = new Date(`${opDate}T23:10:00+07:00`).getTime();
+      shiftEndMs = new Date(`${nextDateStr}T07:10:00+07:00`).getTime();
+      shiftStartLabel = "23:10";
+      shiftEndLabel = "07:10";
+    }
+
+    const remainingFromNowSec = Math.max(
+      60,
+      Math.min(28800, getRemainingShiftSeconds(now) || Math.floor((shiftEndMs - now.getTime()) / 1000))
+    );
+
+    const mcTrimmed = String(nomorMc || "").trim();
+    if (!mcTrimmed) {
+      return {
+        success: true,
+        data: {
+          hasProductionInShift: false,
+          remainingFromNowSec,
+          shiftStartLabel,
+          shiftEndLabel,
+          shiftName: currentShift,
+        },
+      };
+    }
+
+    const supabase = await createClient();
+    const { data: rows, error } = await supabase
+      .from("production_headers")
+      .select("id, panel_no, tanggal_jam, tgl")
+      .eq("nomor_mc", mcTrimmed)
+      .eq("tgl", opDate)
+      .neq("panel_no", "BERHENTI")
+      .neq("panel_no", "Downtime Mekanik (Direct)")
+      .order("tanggal_jam", { ascending: false })
+      .limit(30);
+
+    if (error) {
+      console.error("Error checking shift production status for stop:", error);
+      return {
+        success: true,
+        data: {
+          hasProductionInShift: false,
+          remainingFromNowSec,
+          shiftStartLabel,
+          shiftEndLabel,
+          shiftName: currentShift,
+        },
+      };
+    }
+
+    // Saring baris yang benar-benar terjadi dalam jendela waktu shift aktif saat ini
+    const inShiftRows = (rows || [])
+      .map((r: any) => {
+        const ms = r.tanggal_jam ? parseAsWibDate(r.tanggal_jam).getTime() : NaN;
+        return { ...r, _ms: ms };
+      })
+      .filter((r: any) => !isNaN(r._ms) && r._ms >= shiftStartMs && r._ms <= shiftEndMs)
+      .sort((a: any, b: any) => b._ms - a._ms);
+
+    if (inShiftRows.length > 0) {
+      const latest = inShiftRows[0];
+      const refStartMs = Math.max(shiftStartMs, Math.min(latest._ms, now.getTime()));
+      const remainingFromLastInputSec = Math.max(
+        60,
+        Math.min(28800, Math.floor((shiftEndMs - refStartMs) / 1000))
+      );
+      const lastInputTimeLabel = getJakartaDateTimeString(latest._ms).slice(11, 16);
+      const rawPanel = String(latest.panel_no || "").trim();
+      const lastPanelNo =
+        rawPanel === "METERAN"
+          ? "Meteran"
+          : /^\d+$/.test(rawPanel)
+          ? `Panel ${rawPanel}`
+          : rawPanel || "Produksi";
+
+      return {
+        success: true,
+        data: {
+          hasProductionInShift: true,
+          lastInputTimeLabel,
+          lastPanelNo,
+          remainingFromLastInputSec,
+          remainingFromNowSec,
+          shiftStartLabel,
+          shiftEndLabel,
+          shiftName: currentShift,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        hasProductionInShift: false,
+        remainingFromNowSec,
+        shiftStartLabel,
+        shiftEndLabel,
+        shiftName: currentShift,
+      },
+    };
+  } catch (err: any) {
+    console.error("Error in getShiftProductionStatusForStop:", err);
+    return {
+      success: false,
+      error: err?.message || "Gagal mengecek status produksi shift saat ini.",
+    };
+  }
+}
+

@@ -246,41 +246,137 @@ export async function upsertBatchProductionPlans(data: any, fromPot: number, toP
   }
 }
 
-export async function getAllProductionPlans(page: number = 1, limit: number = 20, search: string = "") {
+export type PlanWorkflowStatus = "PLANNED" | "IN_PRODUCTION" | "INSPECTED" | "COMPLETED";
+
+export interface GetProductionPlansOptions {
+  statusFilter?: "ACTIVE" | "COMPLETED" | "ALL";
+  machineGroup?: "ALL" | "RASCHEL" | "TRICOTE";
+  machineNo?: string;
+}
+
+export async function getAllProductionPlans(
+  page: number = 1,
+  limit: number = 20,
+  search: string = "",
+  options: GetProductionPlansOptions = {}
+) {
   try {
     const supabase = await createClient();
-    
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
-    
+    const {
+      statusFilter = "ACTIVE",
+      machineGroup = "ALL",
+      machineNo = "",
+    } = options;
+
     let query = supabase
       .from("production_plans")
-      .select("*", { count: "exact" });
-      
-    if (search) {
-      query = query.ilike("nomor_mc", `%${search}%`);
+      .select("*");
+
+    if (machineNo && machineNo !== "ALL") {
+      query = query.ilike("nomor_mc", machineNo.trim());
+    } else if (machineGroup === "RASCHEL") {
+      query = query.ilike("nomor_mc", "R%");
+    } else if (machineGroup === "TRICOTE") {
+      query = query.ilike("nomor_mc", "T%");
     }
 
-    const { data, error, count } = await query
-      .order("created_at", { ascending: false })
-      .range(from, to);
+    if (search.trim()) {
+      const q = search.trim();
+      query = query.or(
+        `nomor_mc.ilike.%${q}%,design_id.ilike.%${q}%,no_order_barang.ilike.%${q}%,no_customer.ilike.%${q}%`
+      );
+    }
+
+    const { data: allMatchingPlans, error } = await query.order("created_at", {
+      ascending: false,
+    });
 
     if (error) throw error;
 
-    const maxPanelRes = await getAllMaxPanelConfigs();
-    const maxPanelMap = maxPanelRes.data || {};
+    const rows: any[] = allMatchingPlans || [];
 
-    const enhancedData = (data || []).map((p: any) => {
+    // Fetch live progress status for matching machines in parallel
+    const uniqueMachines = Array.from(
+      new Set(rows.map((r) => String(r.nomor_mc || "").trim().toUpperCase()).filter(Boolean))
+    );
+
+    const [maxPanelRes, prodRes, qcRes, mendingRes] = await Promise.all([
+      getAllMaxPanelConfigs(),
+      uniqueMachines.length > 0
+        ? supabase
+            .from("production_headers")
+            .select("nomor_mc, potongan_ke")
+            .in("nomor_mc", uniqueMachines)
+        : Promise.resolve({ data: [] }),
+      uniqueMachines.length > 0
+        ? supabase
+            .from("qc_inspection_batches")
+            .select("nomor_mc, potongan_ke")
+            .in("nomor_mc", uniqueMachines)
+        : Promise.resolve({ data: [] }),
+      uniqueMachines.length > 0
+        ? supabase
+            .from("mending_batches")
+            .select("nomor_mc, potongan_ke")
+            .in("nomor_mc", uniqueMachines)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const maxPanelMap = maxPanelRes.data || {};
+    const toKey = (mc: any, pot: any) =>
+      `${String(mc || "").trim().toUpperCase()}::${Number(pot)}`;
+
+    const prodSet = new Set((prodRes.data || []).map((r: any) => toKey(r.nomor_mc, r.potongan_ke)));
+    const qcSet = new Set((qcRes.data || []).map((r: any) => toKey(r.nomor_mc, r.potongan_ke)));
+    const mendingSet = new Set(
+      (mendingRes.data || []).map((r: any) => toKey(r.nomor_mc, r.potongan_ke))
+    );
+
+    const enhancedAll = rows.map((p: any) => {
       const mcUpper = String(p.nomor_mc || "").toUpperCase().trim();
       const specKey = `${mcUpper}:${p.potongan_ke}`;
       const maxPanel = maxPanelMap[specKey] || maxPanelMap[mcUpper] || p.max_panel || null;
+      const key = toKey(mcUpper, p.potongan_ke);
+
+      let workflow_status: PlanWorkflowStatus = "PLANNED";
+      if (mendingSet.has(key)) {
+        workflow_status = "COMPLETED";
+      } else if (qcSet.has(key)) {
+        workflow_status = "INSPECTED";
+      } else if (prodSet.has(key)) {
+        workflow_status = "IN_PRODUCTION";
+      }
+
       return {
         ...p,
         max_panel: maxPanel,
+        workflow_status,
       };
     });
 
-    return { success: true, data: enhancedData, total: count || 0 };
+    const activeCount = enhancedAll.filter((p) => p.workflow_status !== "COMPLETED").length;
+    const completedCount = enhancedAll.length - activeCount;
+
+    const filteredByStatus = enhancedAll.filter((p) => {
+      if (statusFilter === "ACTIVE") return p.workflow_status !== "COMPLETED";
+      if (statusFilter === "COMPLETED") return p.workflow_status === "COMPLETED";
+      return true;
+    });
+
+    const total = filteredByStatus.length;
+    const from = (page - 1) * limit;
+    const pagedData = filteredByStatus.slice(from, from + limit);
+
+    return {
+      success: true,
+      data: pagedData,
+      total,
+      counts: {
+        active: activeCount,
+        completed: completedCount,
+        all: enhancedAll.length,
+      },
+    };
   } catch (err: any) {
     console.error("Error fetching all production plans:", err);
     return { success: false, error: err.message };

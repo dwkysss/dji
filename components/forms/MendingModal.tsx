@@ -353,11 +353,11 @@ export default function MendingModal({
               </div>
 
               {/* DESAIN */}
-              <div className="sm:border-r border-white/10 pr-2">
+              <div className="sm:border-r border-white/10 pr-2 min-w-0">
                 <span className="text-slate-300/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest block mb-1">
                   DESAIN
                 </span>
-                <span className="text-lg sm:text-xl font-black text-[#38bdf8] leading-tight tracking-tight block truncate">
+                <span className="text-base sm:text-xl font-black text-[#38bdf8] leading-snug tracking-tight block break-words">
                   {headerData?.details?.[0]?.production_headers?.design_id || "-"}
                 </span>
               </div>

@@ -46,58 +46,58 @@ function HeaderSummaryCard({
       }`}>
         <div className="grid grid-cols-2 grow">
           <div className={`p-2.5 sm:p-3 lg:p-4 ${isDark ? "bg-slate-950/70" : "bg-sky-50/80"}`}>
-            <div className="flex items-center gap-1 mb-0.5">
+            <div className="flex items-center gap-1 mb-0.5 min-w-0">
               <Factory className={`w-3 h-3 lg:w-3.5 lg:h-3.5 shrink-0 ${isDark ? "text-blue-400" : "text-sky-600"}`} />
-              <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-sky-600"}`}>
-                Mesin & Desain
+              <span className={`text-[9px] sm:text-[9.5px] font-bold uppercase tracking-normal whitespace-nowrap ${isDark ? "text-slate-400" : "text-sky-600"}`}>
+                Mesin &amp; Desain
               </span>
             </div>
-            <p className={`text-xs sm:text-sm font-black leading-tight break-words ${isDark ? "text-white" : "text-slate-900"}`}>
-              {nomorMc || "Belum dipilih"} / {design || "-"}
+            <p className={`text-xs sm:text-[13px] font-black leading-snug break-words ${isDark ? "text-white" : "text-slate-900"}`}>
+              {nomorMc || "Belum dipilih"} <span className={`font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}>/</span> {design || "-"}
             </p>
           </div>
 
           <div className={`p-2.5 sm:p-3 lg:p-4 ${isDark ? "bg-slate-900/90" : "bg-slate-50/80"}`}>
-            <div className="flex items-center gap-1 mb-0.5">
+            <div className="flex items-center gap-1 mb-0.5 min-w-0">
               <CheckCircle2 className={`w-3 h-3 lg:w-3.5 lg:h-3.5 shrink-0 ${isDark ? "text-emerald-400" : "text-slate-600"}`} />
-              <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-700"}`}>
+              <span className={`text-[9px] sm:text-[9.5px] font-bold uppercase tracking-normal whitespace-nowrap ${isDark ? "text-slate-400" : "text-slate-700"}`}>
                 Status Matching
               </span>
             </div>
-            <p className={`text-xs sm:text-sm font-black leading-tight break-words ${isDark ? "text-emerald-400" : "text-slate-900"}`}>
+            <p className={`text-xs sm:text-[13px] font-black leading-snug break-words ${isDark ? "text-emerald-400" : "text-slate-900"}`}>
               {statusMatching || "-"}
             </p>
           </div>
 
           <div className={`p-2.5 sm:p-3 lg:p-4 ${isDark ? "bg-slate-900/90" : "bg-slate-50/80"}`}>
-            <div className="flex items-center gap-1 mb-0.5">
+            <div className="flex items-center gap-1 mb-0.5 min-w-0">
               <User className={`w-3 h-3 lg:w-3.5 lg:h-3.5 shrink-0 ${isDark ? "text-slate-400" : "text-slate-600"}`} />
-              <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-700"}`}>
+              <span className={`text-[9px] sm:text-[9.5px] font-bold uppercase tracking-normal whitespace-nowrap ${isDark ? "text-slate-400" : "text-slate-700"}`}>
                 Operator ({shiftName})
               </span>
             </div>
-            <p className={`text-xs sm:text-sm font-black leading-tight break-words ${isDark ? "text-white" : "text-slate-900"}`}>
+            <p className={`text-xs sm:text-[13px] font-black leading-snug break-words ${isDark ? "text-white" : "text-slate-900"}`}>
               {operatorName || "Belum dipilih"}
             </p>
           </div>
 
           <div className={`p-2.5 sm:p-3 lg:p-4 ${isDark ? "bg-slate-950/70" : "bg-sky-50/80"}`}>
-            <div className="flex items-center justify-between gap-1 mb-0.5">
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between gap-1 mb-0.5 min-w-0">
+              <div className="flex items-center gap-1 min-w-0">
                 <Box className={`w-3 h-3 lg:w-3.5 lg:h-3.5 shrink-0 ${isDark ? "text-blue-400" : "text-sky-600"}`} />
-                <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${isDark ? "text-blue-300" : "text-sky-600"}`}>
+                <span className={`text-[9px] sm:text-[9.5px] font-bold uppercase tracking-normal whitespace-nowrap ${isDark ? "text-blue-300" : "text-sky-600"}`}>
                   Potongan Ke
                 </span>
               </div>
               {maxPanel ? (
-                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${
                   isDark ? "bg-blue-600 text-white" : "bg-emerald-100 text-emerald-800 border border-emerald-200"
                 }`}>
                   Max: {maxPanel}
                 </span>
               ) : null}
             </div>
-            <p className={`text-xs sm:text-sm font-black leading-tight break-words ${isDark ? "text-white" : "text-slate-900"}`}>
+            <p className={`text-xs sm:text-[13px] font-black leading-snug break-words ${isDark ? "text-white" : "text-slate-900"}`}>
               {potonganKe || "-"}
             </p>
           </div>
@@ -122,17 +122,17 @@ function HeaderSummaryCard({
         </div>
 
         {showEditButton && (
-          <div className={`px-4 py-3 flex justify-center ${isDark ? "bg-slate-900 border-t border-slate-800" : "bg-white"}`}>
+          <div className={`px-3 sm:px-4 py-2.5 sm:py-3 flex justify-center ${isDark ? "bg-slate-900 border-t border-slate-800" : "bg-white"}`}>
             <button
               type="button"
               onClick={onEdit}
-              className={`flex min-w-56 items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-sm cursor-pointer active:scale-95 ${
+              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-sm cursor-pointer active:scale-95 ${
                 isDark
                   ? "bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 hover:border-blue-500/50"
                   : "bg-white hover:bg-sky-50 text-sky-600 border border-sky-200 hover:border-sky-300"
               }`}
             >
-              <Settings2 className="w-5 h-5" />
+              <Settings2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
               Ubah Header
             </button>
           </div>

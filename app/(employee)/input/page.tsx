@@ -58,7 +58,7 @@ function InputContent() {
       {/* Title Header Card */}
       <div
         className={cn(
-          "w-full border rounded-2xl sm:rounded-[24px] p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 sm:gap-5 relative z-10 mb-4 sm:mb-6 transition-colors duration-300",
+          "w-full border rounded-2xl sm:rounded-[24px] p-3.5 sm:p-5 lg:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 relative z-10 mb-4 sm:mb-5 transition-colors duration-300",
           isDark
             ? "bg-slate-900/95 border-slate-800 text-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
             : "bg-white border-[#e9ecef] shadow-[0_8px_30px_rgba(0,0,0,0.015)]"
@@ -81,7 +81,7 @@ function InputContent() {
             >
               <Info className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
-            <h1 className="text-xl sm:text-3xl font-black tracking-tight leading-tight truncate">
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight leading-tight truncate">
               <span
                 className={cn(
                   "bg-clip-text text-transparent drop-shadow-sm",
@@ -112,13 +112,13 @@ function InputContent() {
           )}
         </div>
 
-        <div className="relative z-10 flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+        <div className="relative z-10 flex flex-wrap items-center justify-end gap-2 shrink-0 w-full sm:w-auto">
           {/* Theme Mode Toggle Button */}
           <button
             type="button"
             onClick={toggleTheme}
             className={cn(
-              "h-9 sm:h-11 px-3 sm:px-4 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 border active:scale-95",
+              "h-9 sm:h-10 px-3 sm:px-3.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border active:scale-95",
               isDark
                 ? "bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700 shadow-sm shadow-slate-950/40"
                 : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 shadow-xs"
@@ -128,12 +128,12 @@ function InputContent() {
             {isDark ? (
               <>
                 <Sun className="w-4 h-4 text-amber-400" />
-                <span className="hidden sm:inline">Mode Siang</span>
+                <span className="hidden md:inline">Mode Siang</span>
               </>
             ) : (
               <>
                 <Moon className="w-4 h-4 text-indigo-600" />
-                <span className="hidden sm:inline">Mode Malam</span>
+                <span className="hidden md:inline">Mode Malam</span>
               </>
             )}
           </button>
@@ -145,7 +145,7 @@ function InputContent() {
               window.dispatchEvent(new CustomEvent("dji:start-panel-tour"))
             }
             className={cn(
-              "h-9 sm:h-11 px-3.5 sm:px-4 rounded-full text-white text-xs font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0",
+              "h-9 sm:h-10 px-3.5 sm:px-4 rounded-full text-white text-xs font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0",
               isDark
                 ? "bg-blue-600 hover:bg-blue-500 shadow-blue-900/30"
                 : "bg-[#0070bc] hover:bg-[#004777]"
@@ -158,7 +158,7 @@ function InputContent() {
           {/* Active Session Pill */}
           <div
             className={cn(
-              "flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 border rounded-full text-xs font-medium shrink-0 transition-colors",
+              "h-9 sm:h-10 flex items-center gap-2 px-3 sm:px-3.5 border rounded-full text-xs font-medium shrink-0 transition-colors",
               isDark
                 ? "bg-slate-800/90 border-slate-700 text-slate-300"
                 : "bg-white border-slate-200 text-slate-600 shadow-sm"

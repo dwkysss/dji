@@ -19,7 +19,6 @@ import {
   SlidersHorizontal,
   ArrowUpRight,
   ArrowDownRight,
-  Sparkles,
   BarChart3,
   Layers,
   PieChart,
@@ -282,9 +281,9 @@ export default function ShiftPerformancePage() {
   return (
     <div className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-20 sm:pb-24 animate-fadeIn space-y-4 sm:space-y-6">
       {/* Top Header Card */}
-      <div className="bg-white/90 backdrop-blur-md rounded-2xl sm:rounded-[32px] p-4 sm:p-7 border border-[#e9ecef] shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-5">
+      <div className="bg-white/90 backdrop-blur-md rounded-2xl sm:rounded-[32px] p-4 sm:p-6 lg:p-7 border border-[#e9ecef] shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-5">
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2.5 sm:gap-3">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2.5 sm:gap-3">
             <div className="p-2 rounded-xl sm:rounded-2xl bg-amber-50 border border-amber-200/80 shadow-xs shrink-0">
               <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
             </div>
@@ -296,30 +295,30 @@ export default function ShiftPerformancePage() {
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto pb-0.5 sm:pb-0 shrink-0">
+        <div className="grid grid-cols-3 lg:flex items-center gap-2 w-full lg:w-auto shrink-0">
           <button
             onClick={fetchData}
             disabled={isLoading}
-            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl sm:rounded-full border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 whitespace-nowrap"
+            className="h-9 sm:h-10 px-2.5 sm:px-4 rounded-xl lg:rounded-full border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
             title="Muat Ulang Data"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-[#0070bc]" : "text-slate-500"}`} />
+            <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isLoading ? "animate-spin text-[#0070bc]" : "text-slate-500"}`} />
             <span>Refresh</span>
           </button>
           <button
             onClick={handleExportExcel}
             disabled={isLoading || !data}
-            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl sm:rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 whitespace-nowrap"
+            className="h-9 sm:h-10 px-2.5 sm:px-4 rounded-xl lg:rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
           >
-            <FileSpreadsheet className="w-4 h-4" />
+            <FileSpreadsheet className="w-4 h-4 shrink-0" />
             <span>Export Excel</span>
           </button>
           <button
             onClick={handlePrint}
             disabled={isLoading || !data}
-            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl sm:rounded-full bg-[#0070bc] hover:bg-[#005a96] text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 whitespace-nowrap"
+            className="h-9 sm:h-10 px-2.5 sm:px-4 rounded-xl lg:rounded-full bg-[#0070bc] hover:bg-[#005a96] text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="w-4 h-4 shrink-0" />
             <span>Cetak Rekap</span>
           </button>
         </div>
@@ -327,58 +326,60 @@ export default function ShiftPerformancePage() {
 
       {/* Filter Toolbar & Switchers */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 sm:p-5 shadow-xs space-y-3.5 sm:space-y-4">
-        {/* Row 1: Team Selector */}
+        {/* Row 1: Team Selector & Period/Machine */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 w-full lg:w-auto">
-            <span className="text-xs font-black text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1.5 shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full lg:w-auto">
+            <span className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
               <Users className="w-4 h-4 text-slate-400" /> Tim:
             </span>
-            {[
-              { id: "A", label: "Tim A" },
-              { id: "B", label: "Tim B" },
-              { id: "C", label: "Tim C" },
-              { id: "all", label: "Semua Tim" },
-            ].map((s) => {
-              const isSelected = selectedShift === s.id;
-              const theme = SHIFT_THEMES[s.id.toUpperCase()] || SHIFT_THEMES.A;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setSelectedShift(s.id)}
-                  className={`h-9 sm:h-10 px-3 sm:px-4 rounded-xl font-extrabold text-xs sm:text-sm transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer active:scale-98 shrink-0 ${
-                    isSelected
-                      ? `${theme.activeBg} shadow-md`
-                      : "bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700"
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:flex items-center gap-1.5 sm:gap-2 flex-1 lg:flex-none">
+              {[
+                { id: "A", label: "Tim A" },
+                { id: "B", label: "Tim B" },
+                { id: "C", label: "Tim C" },
+                { id: "all", label: "Semua Tim" },
+              ].map((s) => {
+                const isSelected = selectedShift === s.id;
+                const theme = SHIFT_THEMES[s.id.toUpperCase()] || SHIFT_THEMES.A;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedShift(s.id)}
+                    className={`h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-98 whitespace-nowrap ${
                       isSelected
-                        ? "bg-white animate-pulse"
-                        : s.id === "A"
-                        ? "bg-sky-500"
-                        : s.id === "B"
-                        ? "bg-amber-500"
-                        : s.id === "C"
-                        ? "bg-purple-500"
-                        : "bg-slate-400"
+                        ? `${theme.activeBg} shadow-md`
+                        : "bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700"
                     }`}
-                  />
-                  <span>{s.label}</span>
-                </button>
-              );
-            })}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        isSelected
+                          ? "bg-white animate-pulse"
+                          : s.id === "A"
+                          ? "bg-sky-500"
+                          : s.id === "B"
+                          ? "bg-amber-500"
+                          : s.id === "C"
+                          ? "bg-purple-500"
+                          : "bg-slate-400"
+                      }`}
+                    />
+                    <span>{s.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Period & Machine Selectors */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 w-full lg:w-auto">
+          <div className="grid grid-cols-3 lg:flex items-center gap-2 w-full lg:w-auto">
             {/* Bulan Selector */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 h-9 sm:h-10 min-w-0">
               <Calendar className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-slate-400 shrink-0" />
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="bg-transparent text-xs sm:text-sm font-bold text-slate-800 outline-none cursor-pointer pr-1"
+                className="w-full bg-transparent text-xs sm:text-sm font-bold text-slate-800 outline-none cursor-pointer truncate"
               >
                 {MONTH_NAMES.map((m, idx) => (
                   <option key={idx + 1} value={idx + 1}>
@@ -389,11 +390,11 @@ export default function ShiftPerformancePage() {
             </div>
 
             {/* Tahun Selector */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 shrink-0">
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 h-9 sm:h-10 min-w-0">
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="bg-transparent text-xs sm:text-sm font-bold text-slate-800 outline-none cursor-pointer"
+                className="w-full bg-transparent text-xs sm:text-sm font-bold text-slate-800 outline-none cursor-pointer"
               >
                 {[currentDate.getFullYear() + 1, currentDate.getFullYear(), currentDate.getFullYear() - 1, currentDate.getFullYear() - 2].map((y) => (
                   <option key={y} value={y}>
@@ -404,12 +405,12 @@ export default function ShiftPerformancePage() {
             </div>
 
             {/* Mesin Filter */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 h-9 sm:h-10 min-w-0">
               <Factory className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-slate-400 shrink-0" />
               <select
                 value={selectedMachine}
                 onChange={(e) => setSelectedMachine(e.target.value)}
-                className="bg-transparent text-xs sm:text-sm font-bold text-slate-800 outline-none cursor-pointer"
+                className="w-full bg-transparent text-xs sm:text-sm font-bold text-slate-800 outline-none cursor-pointer truncate"
               >
                 <option value="all">Semua Mesin</option>
                 {machinesList.map((mc) => (
@@ -423,49 +424,54 @@ export default function ShiftPerformancePage() {
         </div>
 
         {/* Row 2: Jenis Kain Switcher (Panel vs Meteran vs Semua) */}
-        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 w-full sm:w-auto">
-            <span className="text-xs font-black text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1.5 shrink-0">
+        <div className="pt-3 border-t border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full lg:w-auto">
+            <span className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
               <Layers className="w-4 h-4 text-slate-400" /> Jenis Kain:
             </span>
-            <button
-              onClick={() => setSelectedFabricType("all")}
-              className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
-                selectedFabricType === "all"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-              }`}
-            >
-              <Grid className="w-3.5 h-3.5" />
-              <span>Semua Jenis</span>
-            </button>
-            <button
-              onClick={() => setSelectedFabricType("panel")}
-              className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
-                selectedFabricType === "panel"
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200"
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Khusus Panel</span>
-            </button>
-            <button
-              onClick={() => setSelectedFabricType("meter")}
-              className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
-                selectedFabricType === "meter"
-                  ? "bg-teal-600 text-white shadow-xs"
-                  : "bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200"
-              }`}
-            >
-              <Ruler className="w-3.5 h-3.5 text-teal-500" />
-              <span>Khusus Meteran</span>
-            </button>
+            <div className="grid grid-cols-3 lg:flex items-center gap-1.5 sm:gap-2 flex-1 lg:flex-none">
+              <button
+                onClick={() => setSelectedFabricType("all")}
+                className={`h-8 sm:h-9 px-2 sm:px-3.5 rounded-xl font-extrabold text-[11px] sm:text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  selectedFabricType === "all"
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                }`}
+              >
+                <Grid className="w-3.5 h-3.5 shrink-0" />
+                <span>Semua Jenis</span>
+              </button>
+              <button
+                onClick={() => setSelectedFabricType("panel")}
+                className={`h-8 sm:h-9 px-2 sm:px-3.5 rounded-xl font-extrabold text-[11px] sm:text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  selectedFabricType === "panel"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200"
+                }`}
+              >
+                <Layers className={`w-3.5 h-3.5 shrink-0 ${selectedFabricType === "panel" ? "text-white" : "text-indigo-500"}`} />
+                <span>Khusus Panel</span>
+              </button>
+              <button
+                onClick={() => setSelectedFabricType("meter")}
+                className={`h-8 sm:h-9 px-2 sm:px-3.5 rounded-xl font-extrabold text-[11px] sm:text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  selectedFabricType === "meter"
+                    ? "bg-teal-600 text-white shadow-xs"
+                    : "bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200"
+                }`}
+              >
+                <Ruler className={`w-3.5 h-3.5 shrink-0 ${selectedFabricType === "meter" ? "text-white" : "text-teal-500"}`} />
+                <span>Khusus Meteran</span>
+              </button>
+            </div>
           </div>
 
-          <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            Mode: <span className="text-slate-700 uppercase">{selectedFabricType === "all" ? "Gabungan Panel & Meter" : selectedFabricType === "panel" ? "Satuan Panel (Pcs)" : "Satuan Meter (m)"}</span>
+          <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 whitespace-nowrap shrink-0 self-start sm:self-end lg:self-auto">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span>Mode:</span>
+            <span className="text-slate-700 uppercase">
+              {selectedFabricType === "all" ? "Gabungan Panel & Meter" : selectedFabricType === "panel" ? "Satuan Panel (Pcs)" : "Satuan Meter (m)"}
+            </span>
           </div>
         </div>
       </div>
@@ -576,7 +582,11 @@ export default function ShiftPerformancePage() {
             )}
 
             {/* Card 3: Total Downtime */}
-            <div className="bg-white rounded-2xl border border-amber-100 p-4 sm:p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between">
+            <div
+              className={`bg-white rounded-2xl border border-amber-100 p-4 sm:p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between ${
+                selectedFabricType === "all" ? "sm:col-span-2 lg:col-span-1" : ""
+              }`}
+            >
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-black uppercase text-amber-700 tracking-wider flex items-center gap-1.5">
@@ -602,7 +612,7 @@ export default function ShiftPerformancePage() {
           </div>
 
           {/* Navigation Tabs for Views */}
-          <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto no-scrollbar pb-px">
+          <div className="grid grid-cols-2 lg:flex items-center gap-1.5 lg:gap-2 lg:border-b border-slate-200 pb-px">
             {[
               { id: "overview", label: "Tren & Grafik Harian", icon: BarChart3 },
               { id: "operators", label: `Kinerja Operator (${data.operators.length})`, icon: Trophy },
@@ -615,14 +625,14 @@ export default function ShiftPerformancePage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-3.5 sm:px-5 py-2.5 sm:py-3 font-extrabold text-xs sm:text-sm transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer shrink-0 ${
+                  className={`px-3 sm:px-4 lg:px-5 py-2.5 sm:py-3 font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center lg:justify-start gap-1.5 sm:gap-2 whitespace-nowrap cursor-pointer shrink-0 rounded-xl lg:rounded-none lg:rounded-t-xl border lg:border-0 lg:border-b-2 ${
                     isCurrent
-                      ? "border-[#0070bc] text-[#0070bc] bg-sky-50/50 rounded-t-xl"
-                      : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+                      ? "border-[#0070bc] text-[#0070bc] bg-sky-50/70 lg:bg-sky-50/50 shadow-2xs lg:shadow-none"
+                      : "border-slate-200/80 lg:border-transparent bg-white lg:bg-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isCurrent ? "text-[#0070bc]" : "text-slate-400"}`} />
-                  <span>{tab.label}</span>
+                  <Icon className={`w-4 h-4 shrink-0 ${isCurrent ? "text-[#0070bc]" : "text-slate-400"}`} />
+                  <span className="truncate">{tab.label}</span>
                 </button>
               );
             })}
@@ -708,7 +718,7 @@ export default function ShiftPerformancePage() {
                         </div>
                       </>
                     ) : (
-                      <div className="text-slate-500 text-[11px] font-medium hidden sm:flex items-center gap-1.5 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+                      <div className="text-slate-500 text-[11px] font-medium hidden lg:flex items-center gap-1.5 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
                         <Info className="w-3.5 h-3.5 text-slate-400" />
                         <span>Arahkan kursor ke grafik batang untuk melihat data detail</span>
                       </div>
@@ -716,65 +726,33 @@ export default function ShiftPerformancePage() {
                   </div>
                 </div>
 
-                {/* Custom Responsive Bar Chart with Headroom so Tooltip is never clipped */}
+                {/* Daily production chart with aligned output, defect, and downtime tracks */}
                 <div className="overflow-x-auto pt-2 pb-2 no-scrollbar">
-                  <div className="min-w-[760px] h-72 flex items-end gap-2 px-3 pt-32 pb-2 border-b border-slate-200 relative">
+                  <div className="min-w-[760px] px-3 py-3">
+                    <div className="grid items-end gap-1 border-b border-slate-200" style={{ gridTemplateColumns: `repeat(${data.dailyTrends.length}, minmax(0, 1fr))` }}>
                     {data.dailyTrends.map((trend) => {
                       const heightPercent = maxDailyOutput > 0 ? Math.round((trend.output / maxDailyOutput) * 100) : 0;
-                      const hasActivity = trend.output > 0 || trend.defects > 0 || trend.downtimeMinutes > 0;
+                      const mixedMode = selectedFabricType === "all";
+                      const series = mixedMode
+                        ? [trend.panelCount, trend.defectsPanel, trend.meterCount, trend.totalPcs > 0 ? trend.alloverPoints / trend.totalPcs : 0]
+                        : selectedFabricType === "panel"
+                          ? [trend.panelCount, trend.defectsPanel]
+                          : [trend.meterCount, trend.totalPcs > 0 ? trend.alloverPoints / trend.totalPcs : 0];
+                      const maxima = mixedMode
+                        ? [Math.max(...data.dailyTrends.map((d) => d.panelCount), 0), Math.max(...data.dailyTrends.map((d) => d.defectsPanel), 0), Math.max(...data.dailyTrends.map((d) => d.meterCount), 0), Math.max(...data.dailyTrends.map((d) => d.totalPcs > 0 ? d.alloverPoints / d.totalPcs : 0), 0)]
+                        : selectedFabricType === "panel"
+                          ? [Math.max(...data.dailyTrends.map((d) => d.panelCount), 0), Math.max(...data.dailyTrends.map((d) => d.defectsPanel), 0)]
+                          : [Math.max(...data.dailyTrends.map((d) => d.meterCount), 0), Math.max(...data.dailyTrends.map((d) => d.totalPcs > 0 ? d.alloverPoints / d.totalPcs : 0), 0)];
                       const isHovered = hoveredTrend?.day === trend.day;
 
                       return (
                         <div
                           key={trend.day}
-                          className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer"
+                          className="flex h-48 flex-col justify-end gap-1 group relative cursor-pointer"
                           onMouseEnter={() => setHoveredTrend(trend)}
                           onMouseLeave={() => setHoveredTrend(null)}
                           onClick={() => setHoveredTrend(trend)}
                         >
-                          {/* Floating Tooltip inside container (top-2) - Clean Light Theme */}
-                          <div
-                            className={`absolute top-2 ${
-                              trend.day <= 3
-                                ? "left-0"
-                                : trend.day >= 28
-                                ? "right-0"
-                                : "left-1/2 -translate-x-1/2"
-                            } hidden group-hover:flex flex-col bg-white text-slate-800 text-[10px] font-bold p-3 rounded-2xl shadow-xl z-30 pointer-events-none whitespace-nowrap min-w-[145px] border border-slate-200 ring-4 ring-slate-900/5`}
-                          >
-                            <div className="text-[#0070bc] font-black border-b border-slate-100 pb-1.5 mb-1.5 flex items-center justify-between gap-2">
-                              <span>Tgl {trend.day} {MONTH_NAMES[selectedMonth - 1]}</span>
-                              <span className="text-[9px] text-slate-500 font-bold px-1.5 py-0.5 bg-slate-100 rounded-md">
-                                Hari ke-{trend.day}
-                              </span>
-                            </div>
-                            <div className="space-y-1">
-                              {trend.panelCount > 0 && (
-                                <div className="text-indigo-700 font-extrabold flex items-center gap-1.5">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                                  <span>Panel: {trend.panelCount.toLocaleString("id-ID")} pcs</span>
-                                </div>
-                              )}
-                              {trend.meterCount > 0 && (
-                                <div className="text-teal-700 font-extrabold flex items-center gap-1.5">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0" />
-                                  <span>Meter: {trend.meterCount.toLocaleString("id-ID")} m</span>
-                                </div>
-                              )}
-                              <div className="text-rose-600 font-bold flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
-                                <span>Cacat: {trend.defects} temuan</span>
-                              </div>
-                              <div className="text-amber-700 font-bold flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                                <span>Downtime: {trend.downtimeMinutes} mnt</span>
-                              </div>
-                            </div>
-                            <div className="text-slate-400 font-medium text-[9px] mt-1.5 pt-1.5 border-t border-slate-100 flex items-center gap-1.5">
-                              <Users className="w-3 h-3 text-slate-400" />
-                              <span>{trend.activeOperators} Operator bertugas</span>
-                            </div>
-                          </div>
 
                           {/* Column hover background glow */}
                           <div
@@ -783,39 +761,14 @@ export default function ShiftPerformancePage() {
                             }`}
                           />
 
-                          {/* Defect Tiny Bar on Top if any */}
-                          {trend.defects > 0 && (
-                            <div
-                              className="w-full bg-rose-500 rounded-t-sm mb-0.5 transition-all shadow-xs"
-                              style={{ height: `${Math.min(18, Math.max(4, trend.defects * 3))}px` }}
-                            />
-                          )}
-
-                          {/* Main Production Bar - capped at 52% to ensure clean headroom */}
-                          <div
-                            className={`w-full rounded-t-lg transition-all duration-200 ${
-                              hasActivity
-                                ? "bg-gradient-to-t from-[#0070bc] to-sky-400 group-hover:from-sky-600 group-hover:to-sky-300 shadow-xs group-hover:brightness-110"
-                                : "bg-slate-100 h-1"
-                            } ${isHovered ? "ring-2 ring-sky-400" : ""}`}
-                            style={{ height: hasActivity ? `${Math.max(8, Math.round(heightPercent * 0.52))}%` : "4px" }}
-                          />
-
-                          {/* Day Number Label */}
-                          <span
-                            className={`text-[10px] font-bold mt-2 transition-colors ${
-                              isHovered
-                                ? "text-sky-600 font-black scale-110"
-                                : hasActivity
-                                ? "text-slate-800 group-hover:text-sky-600"
-                                : "text-slate-300"
-                            }`}
-                          >
-                            {trend.day}
-                          </span>
+                          <div className="flex h-40 items-end justify-center gap-0.5 border-b border-slate-100">
+                          {series.map((value, index) => <div key={index} className={`flex-1 max-w-3 rounded-t ${index === 0 ? "bg-sky-500" : index === 1 ? "bg-rose-500" : index === 2 ? "bg-teal-500" : "bg-amber-500"}`} style={{ height: `${maxima[index] ? value / maxima[index] * 100 : 0}%` }} title={`${["Panel", "Cacat Panel", "Meter", "Rasio Allover/PCS"][index]}: ${value}`} />)}
+                          </div>
+                          <span className={`text-center text-[10px] font-bold ${isHovered ? "text-sky-600" : "text-slate-500"}`}>{trend.day}</span>
                         </div>
                       );
                     })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -832,7 +785,7 @@ export default function ShiftPerformancePage() {
                 </div>
                 <div className="overflow-x-auto max-h-96 overflow-y-auto no-scrollbar">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="sticky top-0 bg-slate-100 border-b border-slate-200 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider z-10">
+                    <thead className="sticky top-0 bg-slate-100 border-b border-slate-200 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider z-10 whitespace-nowrap">
                       <tr>
                         <th className="py-3 px-4">Tanggal</th>
                         <th className="py-3 px-4 text-right">Panel (Pcs)</th>
@@ -970,7 +923,7 @@ export default function ShiftPerformancePage() {
 
                 <div className="overflow-x-auto no-scrollbar">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider">
+                    <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider whitespace-nowrap">
                       <tr>
                         <th className="py-3 px-4 text-center">Rank</th>
                         <th className="py-3 px-4">Nama Operator</th>
@@ -1160,7 +1113,7 @@ export default function ShiftPerformancePage() {
 
                 <div className="overflow-x-auto no-scrollbar">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider">
+                    <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider whitespace-nowrap">
                       <tr>
                         <th className="py-3 px-4">Nomor Mesin</th>
                         <th className="py-3 px-4">Tipe Mesin</th>

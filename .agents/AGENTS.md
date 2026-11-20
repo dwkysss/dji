@@ -21,6 +21,7 @@
 - selalu responsive dengan ukuran layar berapapun (desktop, mobile, tablet)
 - ketika membuat sebuah layout, selalu pikirkan bagaimana user akan berinteraksi dengan layout tersebut
 - selalu pikirkan tentang user experience agar user tidak kesulitan saat menggunakan aplikasi
+- DILARANG menggunakan icon Spark / Sparkles (`Sparkles`, `Sparkle` dari `lucide-react` maupun SVG bintang-bintang AI sejenis) di seluruh antarmuka aplikasi.
 
 # Cara Perhitungan Panel
 - di halaman riwayat input, untuk perhitungan tidak menyertakan panel BS (sudah benar)
