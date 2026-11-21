@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, QrCode, Camera, AlertCircle, Keyboard, CheckCircle2, RefreshCw, ImagePlus } from "lucide-react";
+import { X, QrCode, Camera, AlertCircle, Keyboard, CheckCircle2, RefreshCw, ImagePlus, Settings } from "lucide-react";
 
 export interface ParsedDjiQr {
   raw: string;
@@ -96,6 +96,7 @@ export default function QrScannerModal({
   title = "Scan QR Potongan Kain",
 }: QrScannerModalProps) {
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isPermissionPermanentlyDenied, setIsPermissionPermanentlyDenied] = useState<boolean>(false);
   const [isStarting, setIsStarting] = useState<boolean>(false);
   const [isScanningFile, setIsScanningFile] = useState<boolean>(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -154,6 +155,7 @@ export default function QrScannerModal({
 
   const startCamera = async () => {
     setCameraError(null);
+    setIsPermissionPermanentlyDenied(false);
     setScanSuccessMsg(null);
     setIsStarting(true);
     hasScannedRef.current = false;
@@ -165,29 +167,39 @@ export default function QrScannerModal({
       const androidBridge = typeof window !== "undefined" ? (window as any).AndroidAppInfo : null;
       if (androidBridge && typeof androidBridge.hasCameraPermission === "function" && typeof androidBridge.requestCameraPermission === "function") {
         if (!androidBridge.hasCameraPermission()) {
-          const granted = await new Promise<boolean>((resolve) => {
+          const permResult = await new Promise<{ granted: boolean; permanentlyDenied: boolean }>((resolve) => {
             let settled = false;
             const timer = setTimeout(() => {
               if (!settled) {
                 settled = true;
                 window.removeEventListener("dji-camera-permission-result", handler as EventListener);
-                resolve(false);
+                resolve({ granted: false, permanentlyDenied: false });
               }
             }, 30000);
-            const handler = (ev: CustomEvent<{ granted: boolean }>) => {
+            const handler = (ev: CustomEvent<{ granted?: boolean; permanentlyDenied?: boolean }>) => {
               if (!settled) {
                 settled = true;
                 clearTimeout(timer);
                 window.removeEventListener("dji-camera-permission-result", handler as EventListener);
-                resolve(Boolean(ev.detail?.granted));
+                resolve({
+                  granted: Boolean(ev.detail?.granted),
+                  permanentlyDenied: Boolean(ev.detail?.permanentlyDenied),
+                });
               }
             };
             window.addEventListener("dji-camera-permission-result", handler as EventListener);
             androidBridge.requestCameraPermission();
           });
 
-          if (!granted) {
-            setCameraError("Izin kamera ditolak. Ketuk 'Coba Lagi' lalu pilih 'Izinkan' saat popup muncul.");
+          if (!permResult.granted) {
+            if (permResult.permanentlyDenied) {
+              setIsPermissionPermanentlyDenied(true);
+              setCameraError(
+                "Izin kamera diblokir di perangkat ini. Ketuk 'Buka Izin Aplikasi' lalu aktifkan izin Kamera."
+              );
+            } else {
+              setCameraError("Izin kamera ditolak. Ketuk 'Coba Lagi' lalu pilih 'Izinkan' saat popup muncul.");
+            }
             setIsStarting(false);
             return;
           }
@@ -272,6 +284,27 @@ export default function QrScannerModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !cameraError) return;
+    const handleReturnFromSettings = () => {
+      try {
+        const androidBridge = typeof window !== "undefined" ? (window as any).AndroidAppInfo : null;
+        if (androidBridge && typeof androidBridge.hasCameraPermission === "function" && androidBridge.hasCameraPermission()) {
+          startCamera();
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener("dji-app-resumed", handleReturnFromSettings);
+    window.addEventListener("focus", handleReturnFromSettings);
+    return () => {
+      window.removeEventListener("dji-app-resumed", handleReturnFromSettings);
+      window.removeEventListener("focus", handleReturnFromSettings);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, cameraError]);
 
   if (!isOpen) return null;
 
@@ -392,14 +425,27 @@ export default function QrScannerModal({
                   {cameraError}
                 </p>
                 <div className="flex items-center gap-2 flex-wrap justify-center">
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>Coba Lagi</span>
-                  </button>
+                  {isPermissionPermanentlyDenied &&
+                  typeof window !== "undefined" &&
+                  typeof (window as any).AndroidAppInfo?.openAppPermissionSettings === "function" ? (
+                    <button
+                      type="button"
+                      onClick={() => (window as any).AndroidAppInfo.openAppPermissionSettings()}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      <span>Buka Izin Aplikasi</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Coba Lagi</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}

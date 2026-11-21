@@ -46,9 +46,13 @@ public class MainActivity extends BridgeActivity {
     private static final String PREF_LOCK = "dji_kiosk_lock_prefs";
     private static final String KEY_PIN = "kiosk_pin";
     private static final String KEY_KIOSK_AUTO = "kiosk_auto_lock";
+    private static final String KEY_CAMERA_ASKED = "camera_permission_asked";
     private static final String DEFAULT_PIN = "454545";
     private static final int REQ_CAMERA_PERMISSION = 2001;
     private PermissionRequest pendingWebPermissionRequest = null;
+    private boolean isRequestingSystemPermission = false;
+    private long lastPermissionRequestTime = 0;
+    private boolean isAppInterfaceConfigured = false;
     private boolean isSupervisorExiting = false;
     private long lastBackPressedTime = 0;
     private int secretCornerTapCount = 0;
@@ -445,7 +449,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (isKioskAutoEnabled() && !isSupervisorExiting) {
+        if (isKioskAutoEnabled() && !isSupervisorExiting && !isRequestingSystemPermission) {
             // Pengguna menekan tombol Home (bulat) atau Recent Apps (kotak) -> Tarik kembali seketika!
             try {
                 Intent intent = new Intent(this, MainActivity.class);
@@ -589,9 +593,19 @@ public class MainActivity extends BridgeActivity {
         configureAppInterface();
         updateBatteryDisplay();
 
-        if (isKioskAutoEnabled() && !isLockTaskActive()) {
+        if (isKioskAutoEnabled() && !isLockTaskActive() && !isRequestingSystemPermission) {
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 500);
         }
+
+        // Beri tahu halaman web bahwa aplikasi kembali aktif (misal setelah user kembali dari Pengaturan Izin Android)
+        try {
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('dji-app-resumed'));",
+                    null
+                );
+            }
+        } catch (Exception ignored) {}
 
         // Jika saat layar dinyalakan halaman sedang blank / error, muat ulang otomatis saat online
         try {
@@ -606,9 +620,11 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void configureAppInterface() {
+        if (isAppInterfaceConfigured) return;
         try {
             if (getBridge() != null && getBridge().getWebView() != null) {
                 WebView webView = getBridge().getWebView();
+                isAppInterfaceConfigured = true;
                 webView.addJavascriptInterface(new Object() {
                     @android.webkit.JavascriptInterface
                     public int getVersionCode() {
@@ -739,16 +755,25 @@ public class MainActivity extends BridgeActivity {
 
                     @android.webkit.JavascriptInterface
                     public void requestCameraPermission() {
+                        requestNativeCameraPermission();
+                    }
+
+                    @android.webkit.JavascriptInterface
+                    public void openAppPermissionSettings() {
                         runOnUiThread(() -> {
-                            if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
-                                == PackageManager.PERMISSION_GRANTED) {
-                                notifyCameraPermissionResult(true);
-                            } else {
-                                ActivityCompat.requestPermissions(
-                                    MainActivity.this,
-                                    new String[]{Manifest.permission.CAMERA},
-                                    REQ_CAMERA_PERMISSION
-                                );
+                            try {
+                                isSupervisorExiting = true;
+                                stopKioskMode();
+                                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                intent.setData(Uri.fromParts("package", getPackageName(), null));
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                startActivity(intent);
+                            } catch (Exception e) {
+                                try {
+                                    Intent fallback = new Intent(Settings.ACTION_SETTINGS);
+                                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    startActivity(fallback);
+                                } catch (Exception ignored) {}
                             }
                         });
                     }
@@ -775,11 +800,7 @@ public class MainActivity extends BridgeActivity {
                                     request.grant(resources);
                                 } else {
                                     pendingWebPermissionRequest = request;
-                                    ActivityCompat.requestPermissions(
-                                        MainActivity.this,
-                                        new String[]{Manifest.permission.CAMERA},
-                                        REQ_CAMERA_PERMISSION
-                                    );
+                                    requestNativeCameraPermission();
                                 }
                             } else {
                                 super.onPermissionRequest(request);
@@ -967,12 +988,45 @@ public class MainActivity extends BridgeActivity {
         showExitPinDialog();
     }
 
-    private void notifyCameraPermissionResult(boolean granted) {
+    private void requestNativeCameraPermission() {
+        runOnUiThread(() -> {
+            if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED) {
+                notifyCameraPermissionResult(true, false);
+                return;
+            }
+
+            isRequestingSystemPermission = true;
+            boolean wasLocked = isLockTaskActive();
+            if (wasLocked) {
+                try {
+                    stopLockTask();
+                } catch (Exception ignored) {}
+            }
+
+            Runnable launchDialog = () -> {
+                lastPermissionRequestTime = System.currentTimeMillis();
+                ActivityCompat.requestPermissions(
+                    MainActivity.this,
+                    new String[]{Manifest.permission.CAMERA},
+                    REQ_CAMERA_PERMISSION
+                );
+            };
+
+            if (wasLocked) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(launchDialog, 200);
+            } else {
+                launchDialog.run();
+            }
+        });
+    }
+
+    private void notifyCameraPermissionResult(boolean granted, boolean permanentlyDenied) {
         runOnUiThread(() -> {
             try {
                 if (getBridge() != null && getBridge().getWebView() != null) {
                     getBridge().getWebView().evaluateJavascript(
-                        "window.dispatchEvent(new CustomEvent('dji-camera-permission-result', { detail: { granted: " + granted + " } }));",
+                        "window.dispatchEvent(new CustomEvent('dji-camera-permission-result', { detail: { granted: " + granted + ", permanentlyDenied: " + permanentlyDenied + " } }));",
                         null
                     );
                 }
@@ -984,9 +1038,18 @@ public class MainActivity extends BridgeActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_CAMERA_PERMISSION) {
+            isRequestingSystemPermission = false;
             boolean granted = grantResults != null
                 && grantResults.length > 0
                 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+
+            SharedPreferences prefs = getSharedPreferences(PREF_LOCK, Context.MODE_PRIVATE);
+            boolean askedBefore = prefs.getBoolean(KEY_CAMERA_ASKED, false);
+            prefs.edit().putBoolean(KEY_CAMERA_ASKED, true).apply();
+
+            boolean canShowRationale = ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA);
+            long elapsed = System.currentTimeMillis() - lastPermissionRequestTime;
+            boolean permanentlyDenied = !granted && !canShowRationale && (askedBefore || elapsed < 450);
 
             if (pendingWebPermissionRequest != null) {
                 final PermissionRequest req = pendingWebPermissionRequest;
@@ -1001,7 +1064,11 @@ public class MainActivity extends BridgeActivity {
                     } catch (Exception ignored) {}
                 });
             }
-            notifyCameraPermissionResult(granted);
+            notifyCameraPermissionResult(granted, permanentlyDenied);
+
+            if (isKioskAutoEnabled() && !isLockTaskActive()) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 400);
+            }
         }
     }
 }
