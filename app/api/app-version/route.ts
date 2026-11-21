@@ -29,16 +29,15 @@ export async function GET() {
   }
 
   const versionInfo: AppVersionResponse = {
-    latestVersionName: "1.1.1",
-    latestVersionCode: 3,
+    latestVersionName: "1.1.2",
+    latestVersionCode: 4,
     apkUrl: "/downloads/dji-app.apk",
     apkSize: apkSizeStr,
     releaseNotes: [
-      "Optimasi drastis ukuran APK dari 75 MB menjadi 10.2 MB (hemat memori dan penyimpanan tablet)",
-      "Pencegahan freeze dan crash WebView Android ('This page couldn't load')",
-      "Pembaruan manajemen heartbeat WebSocket ESP32 multi-tab",
-      "Penyempurnaan sinkronisasi otomatis offline tanpa data dobel",
-      "Perbaikan akurasi laporan bulanan mesin rajut meteran"
+      "Permintaan izin kamera native otomatis saat membuka Scan QR (tanpa perlu buka Pengaturan manual)",
+      "Peningkatan responsivitas tampilan tablet untuk QC, Mending, Final Inspection, dan Dashboard",
+      "Integrasi sinkronisasi otomatis Laporan Per Desain ke Google Sheets",
+      "Pembersihan tombol simulasi internal pada panel Block Mesin"
     ],
     mandatory: false,
     publishedAt: new Date().toISOString(),

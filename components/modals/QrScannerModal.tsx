@@ -160,6 +160,43 @@ export default function QrScannerModal({
 
     await stopScanner();
 
+    // Jika berjalan di dalam APK Android DJI dan izin kamera belum diberikan, minta popup izin native OS dulu
+    try {
+      const androidBridge = typeof window !== "undefined" ? (window as any).AndroidAppInfo : null;
+      if (androidBridge && typeof androidBridge.hasCameraPermission === "function" && typeof androidBridge.requestCameraPermission === "function") {
+        if (!androidBridge.hasCameraPermission()) {
+          const granted = await new Promise<boolean>((resolve) => {
+            let settled = false;
+            const timer = setTimeout(() => {
+              if (!settled) {
+                settled = true;
+                window.removeEventListener("dji-camera-permission-result", handler as EventListener);
+                resolve(false);
+              }
+            }, 30000);
+            const handler = (ev: CustomEvent<{ granted: boolean }>) => {
+              if (!settled) {
+                settled = true;
+                clearTimeout(timer);
+                window.removeEventListener("dji-camera-permission-result", handler as EventListener);
+                resolve(Boolean(ev.detail?.granted));
+              }
+            };
+            window.addEventListener("dji-camera-permission-result", handler as EventListener);
+            androidBridge.requestCameraPermission();
+          });
+
+          if (!granted) {
+            setCameraError("Izin kamera ditolak. Ketuk 'Coba Lagi' lalu pilih 'Izinkan' saat popup muncul.");
+            setIsStarting(false);
+            return;
+          }
+        }
+      }
+    } catch {
+      // Lanjutkan ke alur standar browser jika bridge tidak tersedia
+    }
+
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
       const containerEl = document.getElementById(readerId);

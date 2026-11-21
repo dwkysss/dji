@@ -3902,72 +3902,7 @@ export default function DowntimeTracker({
                       <X className="w-3.5 h-3.5 shrink-0" />
                       <span>Batalkan Block</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowBlockSimPanel((prev) => !prev)}
-                      className="font-bold text-[11px] text-[#0070bc] hover:underline px-3 py-1 rounded-lg cursor-pointer"
-                    >
-                      {showBlockSimPanel ? "Tutup Simulasi Uji" : "Simulasi Uji Lintas Shift"}
-                    </button>
                   </div>
-
-                  {showBlockSimPanel && (
-                    <div className="mt-2 p-3 rounded-2xl bg-sky-50/90 border border-sky-200 space-y-2.5 text-[10.5px] animate-fadeIn">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="font-black text-[#0070bc] uppercase tracking-wider">
-                          Simulasi Uji Lintas Shift
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-white border border-sky-200 text-[#0070bc] font-bold text-[9.5px]">
-                          {simulatedSegmentsPreview.mode}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-1.5">
-                        <button
-                          type="button"
-                          onClick={handleSimulateScenarioHandoffAndProgress}
-                          className="w-full py-1.5 px-2.5 rounded-xl bg-[#0070bc] hover:bg-[#005a96] text-white font-bold text-left flex items-center justify-between cursor-pointer transition-colors"
-                        >
-                          <span>1. Simulasi 2 Shift (Serah Terima + 2 Catat Progres)</span>
-                          <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded shrink-0">2j 30m</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleSimulateScenarioAutoSplitBoundary}
-                          className="w-full py-1.5 px-2.5 rounded-xl bg-white hover:bg-sky-100/70 text-slate-800 border border-sky-200 font-bold text-left flex items-center justify-between cursor-pointer transition-colors"
-                        >
-                          <span>2. Simulasi Lupa Serah Terima (Auto-Split Jam Shift)</span>
-                          <span className="text-[9px] bg-sky-100 text-[#0070bc] px-1.5 py-0.5 rounded shrink-0">Lewat Batas</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleSimulateShiftBack1Hour}
-                          className="w-full py-1.5 px-2.5 rounded-xl bg-white hover:bg-sky-100/70 text-slate-800 border border-sky-200 font-bold text-left flex items-center justify-between cursor-pointer transition-colors"
-                        >
-                          <span>3. Mundurkan Waktu Block Saat Ini (+1 Jam)</span>
-                          <span className="text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded shrink-0">+60 mnt</span>
-                        </button>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-2.5 border border-sky-100 space-y-1.5">
-                        <div className="text-[9.5px] font-black text-slate-500 uppercase">
-                          Pratinjau Hasil Pembagian Saat Di-Unblock ({simulatedSegmentsPreview.items.length} Laporan):
-                        </div>
-                        {simulatedSegmentsPreview.items.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 flex flex-col gap-0.5"
-                          >
-                            <div className="flex items-center justify-between font-extrabold text-slate-800">
-                              <span>{item.label}</span>
-                              <span className="text-[#0070bc]">{item.duration}</span>
-                            </div>
-                            <div className="text-[9.5px] text-slate-500 truncate">{item.notes}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}

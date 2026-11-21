@@ -1,5 +1,6 @@
 package com.dentellejayainfinitex.dji;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
@@ -7,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -26,6 +28,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.PermissionRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Button;
@@ -33,7 +36,10 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebChromeClient;
 
 public class MainActivity extends BridgeActivity {
 
@@ -41,6 +47,8 @@ public class MainActivity extends BridgeActivity {
     private static final String KEY_PIN = "kiosk_pin";
     private static final String KEY_KIOSK_AUTO = "kiosk_auto_lock";
     private static final String DEFAULT_PIN = "454545";
+    private static final int REQ_CAMERA_PERMISSION = 2001;
+    private PermissionRequest pendingWebPermissionRequest = null;
     private boolean isSupervisorExiting = false;
     private long lastBackPressedTime = 0;
     private int secretCornerTapCount = 0;
@@ -722,7 +730,63 @@ public class MainActivity extends BridgeActivity {
                         } catch (Exception ignored) {}
                         return false;
                     }
+
+                    @android.webkit.JavascriptInterface
+                    public boolean hasCameraPermission() {
+                        return ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                            == PackageManager.PERMISSION_GRANTED;
+                    }
+
+                    @android.webkit.JavascriptInterface
+                    public void requestCameraPermission() {
+                        runOnUiThread(() -> {
+                            if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                                == PackageManager.PERMISSION_GRANTED) {
+                                notifyCameraPermissionResult(true);
+                            } else {
+                                ActivityCompat.requestPermissions(
+                                    MainActivity.this,
+                                    new String[]{Manifest.permission.CAMERA},
+                                    REQ_CAMERA_PERMISSION
+                                );
+                            }
+                        });
+                    }
                 }, "AndroidAppInfo");
+
+                // Tangani permintaan kamera dari WebView (getUserMedia / Scan QR) secara otomatis dengan popup izin native Android
+                webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
+                    @Override
+                    public void onPermissionRequest(final PermissionRequest request) {
+                        runOnUiThread(() -> {
+                            String[] resources = request.getResources();
+                            boolean needsCamera = false;
+                            if (resources != null) {
+                                for (String res : resources) {
+                                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(res)) {
+                                        needsCamera = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (needsCamera) {
+                                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                                    == PackageManager.PERMISSION_GRANTED) {
+                                    request.grant(resources);
+                                } else {
+                                    pendingWebPermissionRequest = request;
+                                    ActivityCompat.requestPermissions(
+                                        MainActivity.this,
+                                        new String[]{Manifest.permission.CAMERA},
+                                        REQ_CAMERA_PERMISSION
+                                    );
+                                }
+                            } else {
+                                super.onPermissionRequest(request);
+                            }
+                        });
+                    }
+                });
 
                 // Download Listener bawaan WebView agar link unduhan file (.apk dsb.) otomatis dilimpahkan ke DownloadManager / Browser
                 webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
@@ -901,6 +965,44 @@ public class MainActivity extends BridgeActivity {
 
         // Kunci aplikasi: Cegah keluar jika tidak tahu PIN
         showExitPinDialog();
+    }
+
+    private void notifyCameraPermissionResult(boolean granted) {
+        runOnUiThread(() -> {
+            try {
+                if (getBridge() != null && getBridge().getWebView() != null) {
+                    getBridge().getWebView().evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('dji-camera-permission-result', { detail: { granted: " + granted + " } }));",
+                        null
+                    );
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_CAMERA_PERMISSION) {
+            boolean granted = grantResults != null
+                && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+
+            if (pendingWebPermissionRequest != null) {
+                final PermissionRequest req = pendingWebPermissionRequest;
+                pendingWebPermissionRequest = null;
+                runOnUiThread(() -> {
+                    try {
+                        if (granted) {
+                            req.grant(req.getResources());
+                        } else {
+                            req.deny();
+                        }
+                    } catch (Exception ignored) {}
+                });
+            }
+            notifyCameraPermissionResult(granted);
+        }
     }
 }
 
