@@ -140,9 +140,9 @@ const MENDING_TOUR_STEPS: ProductTourStep[] = [
 ];
 
 export default function MendingPage() {
-  const [searchStartDate, setSearchStartDate] = useState(() => getShiftDate(new Date()));
-  const [searchEndDate, setSearchEndDate] = useState(() => getShiftDate(new Date()));
-  const [searchTanggal, setSearchTanggal] = useState(() => getShiftDate(new Date()));
+  const [searchStartDate, setSearchStartDate] = useState("");
+  const [searchEndDate, setSearchEndDate] = useState("");
+  const [searchTanggal, setSearchTanggal] = useState("");
   const [searchMesin, setSearchMesin] = useState("");
   const [searchPotongan, setSearchPotongan] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");

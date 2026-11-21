@@ -569,70 +569,92 @@ export async function getAllPendingQCDetails(
     const sDate = startDate || tanggal;
     const eDate = endDate || startDate || tanggal;
 
-    // Gunakan inner join ke production_headers untuk menghindari query .in() dengan ribuan ID yang memicu buffer limit Nginx 502
-    let query = supabase
-      .from("production_details")
-      .select(`
-        id,
-        pcs_index,
-        jml_hasil_produksi,
-        kategori_masalah,
-        detail_masalah,
-        keterangan_cacat,
-        keterangan_qc,
-        meter_kain,
-        roll_no,
-        indikator_stop,
-        final_inspection_id,
-        header_id,
-        production_headers!inner (
-          id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, groups(nama_grup), operators(nama_operator), tanggal_jam
-        )
-      `)
-      .is("status_inspeksi", null)
-      .neq("is_deleted", true);
+    // Gunakan inner join ke production_headers dengan pagination 1000/halaman agar aman dari batas max-rows PostgREST & Nginx 502
+    const maxTotal = (!sDate && !mesin && !potongan) ? 1000 : 3000;
+    const pageSize = 1000;
+    const details: any[] = [];
+    let page = 0;
 
-    if (sDate && eDate) {
-      if (sDate === eDate) {
+    while (details.length < maxTotal) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = supabase
+        .from("production_details")
+        .select(`
+          id,
+          pcs_index,
+          jml_hasil_produksi,
+          kategori_masalah,
+          detail_masalah,
+          keterangan_cacat,
+          keterangan_qc,
+          meter_kain,
+          roll_no,
+          indikator_stop,
+          final_inspection_id,
+          header_id,
+          production_headers!inner (
+            id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, groups(nama_grup), operators(nama_operator), tanggal_jam
+          )
+        `)
+        .is("status_inspeksi", null)
+        .or("is_deleted.is.null,is_deleted.eq.false");
+
+      if (sDate && eDate) {
+        if (sDate === eDate) {
+          query = query.eq("production_headers.tgl", sDate);
+        } else {
+          query = query.gte("production_headers.tgl", sDate).lte("production_headers.tgl", eDate);
+        }
+      } else if (sDate) {
         query = query.eq("production_headers.tgl", sDate);
-      } else {
-        query = query.gte("production_headers.tgl", sDate).lte("production_headers.tgl", eDate);
       }
-    } else if (sDate) {
-      query = query.eq("production_headers.tgl", sDate);
-    }
 
-    if (mesin) {
-      query = query.eq("production_headers.nomor_mc", mesin);
-    }
-    if (potongan) {
-      const parsedPotongan = typeof potongan === "number" ? potongan : parseInt(String(potongan), 10);
-      if (!isNaN(parsedPotongan)) {
-        query = query.eq("production_headers.potongan_ke", parsedPotongan);
+      if (mesin) {
+        query = query.eq("production_headers.nomor_mc", mesin);
       }
+      if (potongan) {
+        const parsedPotongan = typeof potongan === "number" ? potongan : parseInt(String(potongan), 10);
+        if (!isNaN(parsedPotongan)) {
+          query = query.eq("production_headers.potongan_ke", parsedPotongan);
+        }
+      }
+
+      const { data: pageRows, error: detailsError } = await query
+        .order("id", { ascending: false })
+        .range(from, to);
+
+      if (detailsError) return { success: false, error: detailsError.message };
+      if (!pageRows || pageRows.length === 0) break;
+
+      details.push(...pageRows);
+      if (pageRows.length < pageSize) break;
+      page++;
     }
 
-    const limit = (!sDate && !mesin && !potongan) ? 1000 : 2500;
-    query = query.order("id", { ascending: false }).limit(limit);
+    if (details.length === 0) return { success: true, data: [] };
 
-    const { data: details, error: detailsError } = await query;
-
-    if (detailsError) return { success: false, error: detailsError.message };
-    if (!details || details.length === 0) return { success: true, data: [] };
-
-    // Validasi double-check dengan qc_inspection_items secara chunked (maks 50 id per request)
+    // Validasi double-check dengan qc_inspection_items secara chunked paralel (maks 50 id per request, 5 paralel)
     const detailIds = details.map((d: any) => d.id).filter(Boolean);
     const submittedIds = new Set<string>();
     const chunks = chunkArray(detailIds, 50);
 
-    for (const chunk of chunks) {
-      const { data: submittedItems } = await supabase
-        .from("qc_inspection_items")
-        .select("production_detail_id")
-        .in("production_detail_id", chunk);
-      if (submittedItems && submittedItems.length > 0) {
-        submittedItems.forEach((it: any) => submittedIds.add(it.production_detail_id));
-      }
+    for (let i = 0; i < chunks.length; i += 5) {
+      const batch = chunks.slice(i, i + 5);
+      const results = await Promise.all(
+        batch.map((chunk) =>
+          supabase
+            .from("qc_inspection_items")
+            .select("production_detail_id")
+            .in("production_detail_id", chunk)
+        )
+      );
+      results.forEach(({ data: submittedItems }) => {
+        if (submittedItems && submittedItems.length > 0) {
+          submittedItems.forEach((it: any) => submittedIds.add(it.production_detail_id));
+        }
+      });
     }
 
     const pendingDetails = submittedIds.size > 0

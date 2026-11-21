@@ -104,6 +104,7 @@ export default function ShiftPerformancePage() {
   const [selectedFabricType, setSelectedFabricType] = useState<"all" | "panel" | "meter">("all");
   
   const [activeTab, setActiveTab] = useState<"overview" | "operators" | "problems" | "machines">("overview");
+  const [chartFocus, setChartFocus] = useState<"output_defect" | "downtime">("output_defect");
   const [operatorSearchQuery, setOperatorSearchQuery] = useState<string>("");
   const [hoveredTrend, setHoveredTrend] = useState<ShiftDailyTrend | null>(null);
 
@@ -641,27 +642,94 @@ export default function ShiftPerformancePage() {
           {/* TAB 1: OVERVIEW & DAILY TREND CHART */}
           {activeTab === "overview" && (
             <div className="space-y-4 sm:space-y-6">
-              {/* Daily Bar Chart Card */}
+              {/* Daily Composed Chart Card (Opsi 1: Output & Cacat | Downtime) */}
               <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                   <div>
                     <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-[#0070bc]" />
-                      Grafik Produksi Harian Shift (Tanggal 1 - {data.dailyTrends.length})
+                      <TrendingUp className="w-5 h-5 text-[#0070bc] shrink-0" />
+                      <span>Grafik Produksi Harian Shift (Tanggal 1 - {data.dailyTrends.length})</span>
                     </h3>
                     <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      Visualisasi tinggi batang menunjukkan output produksi per hari, bar merah kecil menunjukkan jumlah cacat.
+                      {chartFocus === "output_defect"
+                        ? "Batang menunjukkan volume output harian (sumbu kiri), garis merah menunjukkan tren temuan cacat (sumbu kanan)."
+                        : "Batang oranye menunjukkan total durasi downtime per hari dalam satuan menit."}
                     </p>
                   </div>
-                  <div className="flex items-center gap-4 text-xs font-bold text-slate-600 flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-md bg-[#0070bc]" />
-                      <span>Output Produksi</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-md bg-rose-500" />
-                      <span>Temuan Cacat</span>
-                    </div>
+
+                  {/* Focus Switcher: Output & Cacat | Downtime */}
+                  <div className="inline-flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 self-start lg:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setChartFocus("output_defect")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                        chartFocus === "output_defect"
+                          ? "bg-[#0070bc] text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Output &amp; Cacat</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChartFocus("downtime")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                        chartFocus === "downtime"
+                          ? "bg-amber-500 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <span>Downtime (Menit)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Honest & Accurate Legend Strip */}
+                <div className="flex items-center justify-between gap-3 flex-wrap text-[11px] font-bold text-slate-600">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {chartFocus === "output_defect" ? (
+                      <>
+                        {(selectedFabricType === "all" || selectedFabricType === "panel") && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-3 h-3 rounded-sm bg-[#0070bc]" />
+                            <span>Output Panel (Pcs)</span>
+                          </div>
+                        )}
+                        {(selectedFabricType === "all" || selectedFabricType === "meter") && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-3 h-3 rounded-sm bg-teal-500" />
+                            <span>Output Meteran (m)</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-4 h-0.5 bg-rose-500 rounded-full relative inline-flex items-center justify-center">
+                            <span className="w-2 h-2 rounded-full bg-rose-500 border border-white" />
+                          </span>
+                          <span className="text-rose-600">Temuan Cacat (Sumbu Kanan)</span>
+                        </div>
+                        {data.avgDailyOutput > 0 && (
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <span className="w-4 border-t-2 border-dashed border-sky-400" />
+                            <span>Rata-rata: {data.avgDailyOutput.toLocaleString("id-ID")}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-3 h-3 rounded-sm bg-amber-500" />
+                          <span>Downtime Harian (Menit)</span>
+                        </div>
+                        {data.avgDailyDowntimeMinutes > 0 && (
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <span className="w-4 border-t-2 border-dashed border-amber-400" />
+                            <span>Rata-rata: {data.avgDailyDowntimeMinutes} mnt/hari</span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -672,7 +740,7 @@ export default function ShiftPerformancePage() {
                       <Calendar className="w-5 h-5 text-[#0070bc]" />
                     </div>
                     <div>
-                      <div className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
+                      <div className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2 flex-wrap">
                         {hoveredTrend ? (
                           <>
                             <span>Tanggal {hoveredTrend.day} {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</span>
@@ -685,7 +753,7 @@ export default function ShiftPerformancePage() {
                             </span>
                           </>
                         ) : (
-                          <span className="text-slate-700">Arahkan kursor atau sentuh grafik batang untuk rincian harian</span>
+                          <span className="text-slate-700">Arahkan kursor atau sentuh grafik untuk rincian harian</span>
                         )}
                       </div>
                       <div className="text-[11px] text-slate-500 font-medium mt-0.5">
@@ -696,10 +764,10 @@ export default function ShiftPerformancePage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5 text-xs font-bold flex-wrap">
+                  <div className="flex items-center gap-2 text-xs font-bold flex-wrap">
                     {hoveredTrend ? (
                       <>
-                        <div className="bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1.5">
+                        <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1.5">
                           <span className="text-slate-400 text-[10px] uppercase font-extrabold">Output:</span>
                           <span className="text-slate-900 font-black">
                             {hoveredTrend.panelCount > 0 && `${hoveredTrend.panelCount.toLocaleString("id-ID")} Panel`}
@@ -708,11 +776,11 @@ export default function ShiftPerformancePage() {
                             {!hoveredTrend.panelCount && !hoveredTrend.meterCount && "-"}
                           </span>
                         </div>
-                        <div className="bg-rose-50 px-3.5 py-1.5 rounded-xl border border-rose-200 shadow-2xs flex items-center gap-1.5">
+                        <div className="bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 shadow-2xs flex items-center gap-1.5">
                           <span className="text-rose-500 text-[10px] uppercase font-extrabold">Cacat:</span>
                           <span className="text-rose-700 font-black">{hoveredTrend.defects} temuan</span>
                         </div>
-                        <div className="bg-amber-50 px-3.5 py-1.5 rounded-xl border border-amber-200 shadow-2xs flex items-center gap-1.5">
+                        <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 shadow-2xs flex items-center gap-1.5">
                           <span className="text-amber-600 text-[10px] uppercase font-extrabold">Downtime:</span>
                           <span className="text-amber-800 font-black">{hoveredTrend.downtimeMinutes} mnt</span>
                         </div>
@@ -720,57 +788,273 @@ export default function ShiftPerformancePage() {
                     ) : (
                       <div className="text-slate-500 text-[11px] font-medium hidden lg:flex items-center gap-1.5 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
                         <Info className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Arahkan kursor ke grafik batang untuk melihat data detail</span>
+                        <span>Hover / tap tanggal pada grafik untuk melihat detail</span>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Daily production chart with aligned output, defect, and downtime tracks */}
-                <div className="overflow-x-auto pt-2 pb-2 no-scrollbar">
-                  <div className="min-w-[760px] px-3 py-3">
-                    <div className="grid items-end gap-1 border-b border-slate-200" style={{ gridTemplateColumns: `repeat(${data.dailyTrends.length}, minmax(0, 1fr))` }}>
-                    {data.dailyTrends.map((trend) => {
-                      const heightPercent = maxDailyOutput > 0 ? Math.round((trend.output / maxDailyOutput) * 100) : 0;
-                      const mixedMode = selectedFabricType === "all";
-                      const series = mixedMode
-                        ? [trend.panelCount, trend.defectsPanel, trend.meterCount, trend.totalPcs > 0 ? trend.alloverPoints / trend.totalPcs : 0]
-                        : selectedFabricType === "panel"
-                          ? [trend.panelCount, trend.defectsPanel]
-                          : [trend.meterCount, trend.totalPcs > 0 ? trend.alloverPoints / trend.totalPcs : 0];
-                      const maxima = mixedMode
-                        ? [Math.max(...data.dailyTrends.map((d) => d.panelCount), 0), Math.max(...data.dailyTrends.map((d) => d.defectsPanel), 0), Math.max(...data.dailyTrends.map((d) => d.meterCount), 0), Math.max(...data.dailyTrends.map((d) => d.totalPcs > 0 ? d.alloverPoints / d.totalPcs : 0), 0)]
-                        : selectedFabricType === "panel"
-                          ? [Math.max(...data.dailyTrends.map((d) => d.panelCount), 0), Math.max(...data.dailyTrends.map((d) => d.defectsPanel), 0)]
-                          : [Math.max(...data.dailyTrends.map((d) => d.meterCount), 0), Math.max(...data.dailyTrends.map((d) => d.totalPcs > 0 ? d.alloverPoints / d.totalPcs : 0), 0)];
-                      const isHovered = hoveredTrend?.day === trend.day;
+                {/* Pure SVG Composed Chart (Zero external chart dependency, crisp dual Y-axis) */}
+                {(() => {
+                  const trends = data.dailyTrends;
+                  const count = Math.max(trends.length, 1);
+                  const chartW = Math.max(720, count * 28);
+                  const chartH = 260;
+                  const padL = 46;
+                  const padR = chartFocus === "output_defect" ? 42 : 18;
+                  const padT = 18;
+                  const padB = 28;
+                  const plotW = chartW - padL - padR;
+                  const plotH = chartH - padT - padB;
+                  const stepX = plotW / count;
 
-                      return (
-                        <div
-                          key={trend.day}
-                          className="flex h-48 flex-col justify-end gap-1 group relative cursor-pointer"
-                          onMouseEnter={() => setHoveredTrend(trend)}
+                  const niceMax = (raw: number) => {
+                    if (raw <= 0) return 10;
+                    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+                    const norm = raw / mag;
+                    const nice = norm <= 1.2 ? 1.2 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+                    return Math.ceil(nice * mag);
+                  };
+
+                  const rawMaxOutput = Math.max(
+                    ...trends.map((d) =>
+                      selectedFabricType === "panel"
+                        ? d.panelCount
+                        : selectedFabricType === "meter"
+                        ? d.meterCount
+                        : Math.max(d.panelCount, d.meterCount)
+                    ),
+                    0
+                  );
+                  const rawMaxDefect = Math.max(...trends.map((d) => d.defects), 0);
+                  const rawMaxDowntime = Math.max(...trends.map((d) => d.downtimeMinutes), 0);
+
+                  const leftMax = niceMax(chartFocus === "output_defect" ? rawMaxOutput : rawMaxDowntime);
+                  const rightMax = niceMax(rawMaxDefect);
+                  const gridTicks = [0, 0.25, 0.5, 0.75, 1];
+
+                  const yLeft = (val: number) => padT + plotH - (leftMax > 0 ? (val / leftMax) * plotH : 0);
+                  const yRight = (val: number) => padT + plotH - (rightMax > 0 ? (val / rightMax) * plotH : 0);
+
+                  const defectPoints = trends
+                    .map((d, idx) => `${(padL + idx * stepX + stepX / 2).toFixed(1)},${yRight(d.defects).toFixed(1)}`)
+                    .join(" ");
+
+                  const avgVal = chartFocus === "output_defect" ? data.avgDailyOutput : data.avgDailyDowntimeMinutes;
+                  const avgY = avgVal > 0 && avgVal <= leftMax ? yLeft(avgVal) : null;
+
+                  return (
+                    <div className="w-full overflow-x-auto no-scrollbar pt-1">
+                      <div style={{ minWidth: `${chartW}px` }}>
+                        <svg
+                          viewBox={`0 0 ${chartW} ${chartH}`}
+                          className="w-full h-[260px] sm:h-[290px] select-none overflow-visible"
                           onMouseLeave={() => setHoveredTrend(null)}
-                          onClick={() => setHoveredTrend(trend)}
                         >
+                          {/* Horizontal Gridlines & Y-Axis Labels */}
+                          {gridTicks.map((ratio) => {
+                            const y = padT + plotH - ratio * plotH;
+                            const leftTick = Math.round(leftMax * ratio);
+                            const rightTick = Math.round(rightMax * ratio);
+                            return (
+                              <g key={ratio}>
+                                <line
+                                  x1={padL}
+                                  y1={y}
+                                  x2={chartW - padR}
+                                  y2={y}
+                                  stroke={ratio === 0 ? "#cbd5e1" : "#e2e8f0"}
+                                  strokeDasharray={ratio === 0 ? undefined : "3 3"}
+                                  strokeWidth={1}
+                                />
+                                <text
+                                  x={padL - 8}
+                                  y={y + 3.5}
+                                  textAnchor="end"
+                                  className="fill-slate-500 text-[10px] font-semibold"
+                                >
+                                  {chartFocus === "downtime" ? `${leftTick}m` : leftTick}
+                                </text>
+                                {chartFocus === "output_defect" && (
+                                  <text
+                                    x={chartW - padR + 8}
+                                    y={y + 3.5}
+                                    textAnchor="start"
+                                    className="fill-rose-500 text-[10px] font-bold"
+                                  >
+                                    {rightTick}
+                                  </text>
+                                )}
+                              </g>
+                            );
+                          })}
 
-                          {/* Column hover background glow */}
-                          <div
-                            className={`absolute inset-y-0 -inset-x-0.5 rounded-lg pointer-events-none -z-10 transition-opacity ${
-                              isHovered ? "bg-sky-500/15 opacity-100" : "bg-sky-500/10 opacity-0 group-hover:opacity-100"
-                            }`}
-                          />
+                          {/* Dashed Average Reference Line */}
+                          {avgY !== null && (
+                            <g>
+                              <line
+                                x1={padL}
+                                y1={avgY}
+                                x2={chartW - padR}
+                                y2={avgY}
+                                stroke={chartFocus === "output_defect" ? "#38bdf8" : "#f59e0b"}
+                                strokeDasharray="5 4"
+                                strokeWidth={1.5}
+                              />
+                              <text
+                                x={chartW - padR - 4}
+                                y={avgY - 5}
+                                textAnchor="end"
+                                className={
+                                  chartFocus === "output_defect"
+                                    ? "fill-sky-600 text-[9.5px] font-bold"
+                                    : "fill-amber-600 text-[9.5px] font-bold"
+                                }
+                              >
+                                Rata-rata: {chartFocus === "downtime" ? `${avgVal} mnt` : avgVal.toLocaleString("id-ID")}
+                              </text>
+                            </g>
+                          )}
 
-                          <div className="flex h-40 items-end justify-center gap-0.5 border-b border-slate-100">
-                          {series.map((value, index) => <div key={index} className={`flex-1 max-w-3 rounded-t ${index === 0 ? "bg-sky-500" : index === 1 ? "bg-rose-500" : index === 2 ? "bg-teal-500" : "bg-amber-500"}`} style={{ height: `${maxima[index] ? value / maxima[index] * 100 : 0}%` }} title={`${["Panel", "Cacat Panel", "Meter", "Rasio Allover/PCS"][index]}: ${value}`} />)}
-                          </div>
-                          <span className={`text-center text-[10px] font-bold ${isHovered ? "text-sky-600" : "text-slate-500"}`}>{trend.day}</span>
-                        </div>
-                      );
-                    })}
+                          {/* Bars & Interactive Hit Columns */}
+                          {trends.map((d, idx) => {
+                            const colX = padL + idx * stepX;
+                            const centerX = colX + stepX / 2;
+                            const isHovered = hoveredTrend?.day === d.day;
+
+                            return (
+                              <g
+                                key={d.day}
+                                className="cursor-pointer"
+                                onMouseEnter={() => setHoveredTrend(d)}
+                                onClick={() => setHoveredTrend(d)}
+                              >
+                                {/* Hover Highlight Column */}
+                                <rect
+                                  x={colX + 1}
+                                  y={padT}
+                                  width={Math.max(stepX - 2, 4)}
+                                  height={plotH}
+                                  rx={6}
+                                  fill={
+                                    isHovered
+                                      ? chartFocus === "output_defect"
+                                        ? "rgba(0, 112, 188, 0.08)"
+                                        : "rgba(245, 158, 11, 0.10)"
+                                      : "transparent"
+                                  }
+                                />
+
+                                {chartFocus === "output_defect" ? (
+                                  selectedFabricType === "all" ? (
+                                    <>
+                                      {/* Panel Bar (Blue) */}
+                                      {d.panelCount > 0 && (
+                                        <rect
+                                          x={centerX - 9}
+                                          y={yLeft(d.panelCount)}
+                                          width={8}
+                                          height={Math.max(padT + plotH - yLeft(d.panelCount), 2)}
+                                          rx={3}
+                                          fill="#0070bc"
+                                          opacity={isHovered ? 1 : 0.88}
+                                        />
+                                      )}
+                                      {/* Meter Bar (Teal) */}
+                                      {d.meterCount > 0 && (
+                                        <rect
+                                          x={centerX + 1}
+                                          y={yLeft(d.meterCount)}
+                                          width={8}
+                                          height={Math.max(padT + plotH - yLeft(d.meterCount), 2)}
+                                          rx={3}
+                                          fill="#14b8a6"
+                                          opacity={isHovered ? 1 : 0.88}
+                                        />
+                                      )}
+                                    </>
+                                  ) : (
+                                    (() => {
+                                      const val = selectedFabricType === "panel" ? d.panelCount : d.meterCount;
+                                      if (val <= 0) return null;
+                                      const barW = Math.min(16, Math.max(stepX * 0.55, 8));
+                                      return (
+                                        <rect
+                                          x={centerX - barW / 2}
+                                          y={yLeft(val)}
+                                          width={barW}
+                                          height={Math.max(padT + plotH - yLeft(val), 2)}
+                                          rx={4}
+                                          fill={selectedFabricType === "panel" ? "#0070bc" : "#14b8a6"}
+                                          opacity={isHovered ? 1 : 0.9}
+                                        />
+                                      );
+                                    })()
+                                  )
+                                ) : (
+                                  d.downtimeMinutes > 0 && (
+                                    <rect
+                                      x={centerX - Math.min(16, Math.max(stepX * 0.55, 8)) / 2}
+                                      y={yLeft(d.downtimeMinutes)}
+                                      width={Math.min(16, Math.max(stepX * 0.55, 8))}
+                                      height={Math.max(padT + plotH - yLeft(d.downtimeMinutes), 2)}
+                                      rx={4}
+                                      fill="#f59e0b"
+                                      opacity={isHovered ? 1 : 0.9}
+                                    />
+                                  )
+                                )}
+
+                                {/* X-Axis Day Label */}
+                                <text
+                                  x={centerX}
+                                  y={chartH - 8}
+                                  textAnchor="middle"
+                                  className={`text-[10px] font-bold ${
+                                    isHovered ? "fill-[#0070bc]" : "fill-slate-500"
+                                  }`}
+                                >
+                                  {d.day}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {/* Defect Trend Line + Dots Overlay (Output & Cacat mode) */}
+                          {chartFocus === "output_defect" && rawMaxDefect > 0 && (
+                            <g className="pointer-events-none">
+                              <polyline
+                                fill="none"
+                                stroke="#e11d48"
+                                strokeWidth={2.25}
+                                strokeLinejoin="round"
+                                strokeLinecap="round"
+                                points={defectPoints}
+                              />
+                              {trends.map((d, idx) => {
+                                if (d.defects <= 0 && hoveredTrend?.day !== d.day) return null;
+                                const cx = padL + idx * stepX + stepX / 2;
+                                const cy = yRight(d.defects);
+                                const isHovered = hoveredTrend?.day === d.day;
+                                return (
+                                  <circle
+                                    key={`dot-${d.day}`}
+                                    cx={cx}
+                                    cy={cy}
+                                    r={isHovered ? 4.5 : 3}
+                                    fill="#e11d48"
+                                    stroke="#ffffff"
+                                    strokeWidth={1.5}
+                                  />
+                                );
+                              })}
+                            </g>
+                          )}
+                        </svg>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
 
               {/* Daily Table Details */}

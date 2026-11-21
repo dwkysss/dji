@@ -797,11 +797,10 @@ export default function FinalInspectionPage() {
   };
 
   useEffect(() => {
-    const today = getShiftDate(new Date());
-    setSearchStartDate(today);
-    setSearchEndDate(today);
-    setSearchTanggal(today);
-    fetchPendingBatches(today, today, "", "", 1);
+    setSearchStartDate("");
+    setSearchEndDate("");
+    setSearchTanggal("");
+    fetchPendingBatches("", "", "", "", 1);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {

@@ -117,7 +117,6 @@ const calculateDurationStr = (start?: string | null, finish?: string | null, pau
 
 export default function QCHistoryPage() {
   const router = useRouter();
-  const todayDefault = React.useMemo(() => getShiftDate(new Date()), []);
 
   const [filters, setFilters] = useState<{
     date: string;
@@ -128,18 +127,15 @@ export default function QCHistoryPage() {
     design_id: string;
     potongan_ke: string;
     no_customer: string;
-  }>(() => {
-    const today = getShiftDate(new Date());
-    return {
-      date: today,
-      startDate: today,
-      endDate: today,
-      nomor_mc: "",
-      petugas_ids: [],
-      design_id: "",
-      potongan_ke: "",
-      no_customer: "",
-    };
+  }>({
+    date: "",
+    startDate: "",
+    endDate: "",
+    nomor_mc: "",
+    petugas_ids: [],
+    design_id: "",
+    potongan_ke: "",
+    no_customer: "",
   });
 
   const filtersRef = React.useRef(filters);
@@ -183,11 +179,10 @@ export default function QCHistoryPage() {
   };
 
   useEffect(() => {
-    const today = getShiftDate(new Date());
     const initialFilters = {
-      date: today,
-      startDate: today,
-      endDate: today,
+      date: "",
+      startDate: "",
+      endDate: "",
       nomor_mc: "",
       petugas_ids: [],
       design_id: "",

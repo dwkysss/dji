@@ -126,18 +126,15 @@ export default function MendingHistoryPage() {
     design_id: string;
     potongan_ke: string;
     no_customer: string;
-  }>(() => {
-    const today = getShiftDate(new Date());
-    return {
-      date: today,
-      startDate: today,
-      endDate: today,
-      nomor_mc: "",
-      petugas_ids: [],
-      design_id: "",
-      potongan_ke: "",
-      no_customer: "",
-    };
+  }>({
+    date: "",
+    startDate: "",
+    endDate: "",
+    nomor_mc: "",
+    petugas_ids: [],
+    design_id: "",
+    potongan_ke: "",
+    no_customer: "",
   });
 
   const filtersRef = React.useRef(filters);
@@ -186,11 +183,10 @@ export default function MendingHistoryPage() {
   };
 
   useEffect(() => {
-    const today = getShiftDate(new Date());
     let initialFilters = {
-      date: today,
-      startDate: today,
-      endDate: today,
+      date: "",
+      startDate: "",
+      endDate: "",
       nomor_mc: "",
       petugas_ids: [] as string[],
       design_id: "",
@@ -205,11 +201,6 @@ export default function MendingHistoryPage() {
           if (!parsed.petugas_ids) parsed.petugas_ids = [];
           if (!parsed.startDate && parsed.date) parsed.startDate = parsed.date;
           if (!parsed.endDate && parsed.startDate) parsed.endDate = parsed.startDate;
-          if (!parsed.startDate) {
-            parsed.date = today;
-            parsed.startDate = today;
-            parsed.endDate = today;
-          }
           initialFilters = parsed;
         } catch (e) { }
       }

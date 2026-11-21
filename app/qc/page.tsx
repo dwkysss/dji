@@ -497,13 +497,8 @@ export default function QCPage() {
   };
 
   useEffect(() => {
-    // Default filter Inspeksi QC: tanggal operasional KEMARIN (hasil produksi kemarin yang diinspek hari ini)
-    const todayShift = getShiftDate(new Date());
-    const [yy, mm, dd] = todayShift.split("-").map(Number);
-    const yesterdayUtc = new Date(Date.UTC(yy, mm - 1, dd - 1));
-    const defaultDate = yesterdayUtc.toISOString().slice(0, 10);
-    let initStart = defaultDate;
-    let initEnd = defaultDate;
+    let initStart = "";
+    let initEnd = "";
     let initM = "";
     let initP = "";
     let initS: "desc" | "asc" = "desc";
@@ -521,16 +516,29 @@ export default function QCPage() {
       const saved = sessionSaved || localStorage.getItem("dji_qc_filters");
       if (saved) {
         const parsed = JSON.parse(saved);
+        const isIsoDate = (v: any) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
         // Tanggal hanya dipulihkan dari sessionStorage (navigasi dalam tab yang sama).
-        // Saat aplikasi dibuka ulang, tanggal selalu kembali ke default (kemarin).
+        // Saat aplikasi dibuka ulang, tampilkan semua antrean pending (sama seperti production).
         if (sessionSaved) {
-          if (parsed.startDate) { initStart = parsed.startDate; }
-          else if (parsed.tanggal) { initStart = parsed.tanggal; }
-          if (parsed.endDate) { initEnd = parsed.endDate; }
+          if (isIsoDate(parsed.startDate)) { initStart = parsed.startDate.trim(); }
+          else if (isIsoDate(parsed.tanggal)) { initStart = parsed.tanggal.trim(); }
+          if (isIsoDate(parsed.endDate)) { initEnd = parsed.endDate.trim(); }
           else if (initStart) { initEnd = initStart; }
         }
-        if (parsed.mesin !== undefined) { initM = parsed.mesin; setSearchMesin(parsed.mesin); }
-        if (parsed.potongan !== undefined) { initP = parsed.potongan; setSearchPotongan(parsed.potongan); }
+        // Validasi mesin agar nilai corrupt di localStorage tidak membuat dropdown terlihat "Semua Mesin" padahal memfilter mesin tak valid
+        const rawMesin = typeof parsed.mesin === "string" ? parsed.mesin.trim() : "";
+        if (rawMesin && REGISTERED_MACHINES.includes(rawMesin)) {
+          initM = rawMesin;
+          setSearchMesin(rawMesin);
+        } else {
+          initM = "";
+          setSearchMesin("");
+        }
+        const rawPot = typeof parsed.potongan === "string" ? parsed.potongan.trim() : "";
+        if (rawPot) {
+          initP = rawPot;
+          setSearchPotongan(rawPot);
+        }
         if (parsed.sortOrder === "asc" || parsed.sortOrder === "desc") { initS = parsed.sortOrder; setSortOrder(parsed.sortOrder); }
       }
     } catch (e) { }
@@ -551,7 +559,10 @@ export default function QCPage() {
     });
   }, []);
 
+  const searchRequestIdRef = React.useRef(0);
+
   const handleSearch = async (startDate?: string, endDate?: string, mesin?: string, potongan?: string, keepActive: boolean = false) => {
+    const reqId = ++searchRequestIdRef.current;
     setIsSearching(true);
     setErrorMsg(null);
     setAllDetails([]);
@@ -574,6 +585,8 @@ export default function QCPage() {
       mesin: m || undefined,
       potongan: p || undefined,
     });
+
+    if (reqId !== searchRequestIdRef.current) return;
 
     if (res.success && res.data) {
       setAllDetails(res.data);
@@ -1340,7 +1353,7 @@ export default function QCPage() {
             }
             setActiveQcPcs(null);
             setFullActiveQcDetails([]);
-            handleSearch(searchTanggal);
+            handleSearch(searchStartDate, searchEndDate, searchMesin, searchPotongan);
           }}
           backLabel="Kembali ke Antrean"
           startTime={startInspectTime}
@@ -1670,7 +1683,7 @@ export default function QCPage() {
               setActiveQcPcs(null);
               setFullActiveQcDetails([]);
               setSelections({});
-              handleSearch(searchTanggal, searchMesin, searchPotongan);
+              handleSearch(searchStartDate, searchEndDate, searchMesin, searchPotongan);
             }}
           />
         )}

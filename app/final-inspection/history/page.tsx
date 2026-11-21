@@ -82,16 +82,13 @@ export default function FinalInspectionHistoryPage() {
     nomor_mc: string;
     design_id: string;
     potongan_ke: string;
-  }>(() => {
-    const today = getShiftDate(new Date());
-    return {
-      date: today,
-      startDate: today,
-      endDate: today,
-      nomor_mc: "",
-      design_id: "",
-      potongan_ke: "",
-    };
+  }>({
+    date: "",
+    startDate: "",
+    endDate: "",
+    nomor_mc: "",
+    design_id: "",
+    potongan_ke: "",
   });
 
   const [data, setData] = useState<any[]>([]);
