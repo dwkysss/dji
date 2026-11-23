@@ -236,9 +236,6 @@ export default function BatchA4BarcodeModal({
                       ${orderRow}
                     </div>
                   </div>
-                  <div class="card-footer">
-                    Scan QR untuk data live: Jumlah, Berat Kain, Tanggal &amp; Grade
-                  </div>
                 </div>
               </div>
             `;
@@ -836,15 +833,8 @@ export default function BatchA4BarcodeModal({
                           </div>
                         </div>
 
-                        {/* Card Footer */}
-                        <div className="border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-between gap-1">
-                          <span
-                            className={`font-bold text-slate-500 ${
-                              gridPreset === "1x2" ? "text-[10.5px]" : "text-[8.5px]"
-                            }`}
-                          >
-                            Scan QR untuk data produksi live
-                          </span>
+                        {/* Card Footer (Preview link only) */}
+                        <div className="border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-end gap-1">
                           <a
                             href={item.trackPath}
                             target="_blank"

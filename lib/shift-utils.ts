@@ -260,6 +260,46 @@ export function formatHHMM(timeInput?: string | null): string {
 }
 
 /**
+ * Formats a time string or ISO string into a clean HH:mm:ss (24-hour) string in Asia/Jakarta (WIB).
+ */
+export function formatHHMMSS(timeInput?: string | null): string {
+  if (!timeInput) return "";
+  const rawStr = String(timeInput).trim();
+  if (!rawStr) return "";
+
+  if (rawStr.includes("T") || rawStr.includes("-") || rawStr.length > 10) {
+    try {
+      const dt = parseAsWibDate(rawStr);
+      if (!isNaN(dt.getTime())) {
+        const wibMs = dt.getTime() + 7 * 60 * 60 * 1000;
+        return new Date(wibMs).toISOString().slice(11, 19);
+      }
+    } catch (e) {}
+  }
+
+  const str = rawStr.replace(/\./g, ":");
+  if (/^\d{1,2}:\d{2}:\d{2}$/.test(str)) {
+    const parts = str.split(":");
+    return `${parts[0].padStart(2, "0")}:${parts[1]}:${parts[2]}`;
+  }
+
+  if (/^\d{1,2}:\d{2}$/.test(str)) {
+    const parts = str.split(":");
+    return `${parts[0].padStart(2, "0")}:${parts[1]}:00`;
+  }
+
+  try {
+    const dt = parseAsWibDate(str);
+    if (!isNaN(dt.getTime())) {
+      const wibMs = dt.getTime() + 7 * 60 * 60 * 1000;
+      return new Date(wibMs).toISOString().slice(11, 19);
+    }
+  } catch (e) {}
+
+  return str;
+}
+
+/**
  * Formats total seconds into a digital stopwatch timer string (e.g., 65 -> "01:05", 3665 -> "01:01:05").
  */
 export function formatTimerSeconds(totalSec: number): string {

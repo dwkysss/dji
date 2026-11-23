@@ -15,7 +15,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { submitQCInspection } from "@/actions/qc-actions";
-import { formatHHMM } from "@/lib/shift-utils";
+import { formatHHMMSS } from "@/lib/shift-utils";
 import { getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
 
 const qcSchema = z.object({
@@ -137,10 +137,11 @@ export default function QCInspectionModal({
       const now = new Date();
       const hh = String(now.getHours()).padStart(2, "0");
       const mm = String(now.getMinutes()).padStart(2, "0");
-      const currentTime = `${hh}:${mm}`;
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      const currentTime = `${hh}:${mm}:${ss}`;
 
       const rawStart = startInspectTime || storedStart;
-      const initialStart = formatHHMM(rawStart) || currentTime;
+      const initialStart = formatHHMMSS(rawStart) || currentTime;
 
       setValue("start_inspect", initialStart);
       setValue("finish_inspect", currentTime);
@@ -509,9 +510,9 @@ export default function QCInspectionModal({
                     <option value="Nurdin">Nurdin</option>
                     <option value="Hendra">Hendra</option>
                     <option value="Taufik">Taufik</option>
-                    <option value="Dede Oting">Dede Oting</option>
+                    <option value="Oting">Oting</option>
                     <option value="Andri">Andri</option>
-                    <option value="Yudi">Yudi</option>
+                    <option value="Atin">Atin</option>
                   </select>
                   {errors.petugas_inspeksi && (
                     <p className="text-red-500 text-[10px] mt-1">
@@ -531,9 +532,9 @@ export default function QCInspectionModal({
                     <option value="Nurdin">Nurdin</option>
                     <option value="Hendra">Hendra</option>
                     <option value="Taufik">Taufik</option>
-                    <option value="Dede Oting">Dede Oting</option>
+                    <option value="Oting">Oting</option>
                     <option value="Andri">Andri</option>
-                    <option value="Yudi">Yudi</option>
+                    <option value="Atin">Atin</option>
                   </select>
                   {errors.petugas_inspeksi_2 && (
                     <p className="text-red-500 text-[10px] mt-1">
@@ -553,9 +554,9 @@ export default function QCInspectionModal({
                     <option value="Nurdin">Nurdin</option>
                     <option value="Hendra">Hendra</option>
                     <option value="Taufik">Taufik</option>
-                    <option value="Dede Oting">Dede Oting</option>
+                    <option value="Oting">Oting</option>
                     <option value="Andri">Andri</option>
-                    <option value="Yudi">Yudi</option>
+                    <option value="Atin">Atin</option>
                   </select>
                   {errors.petugas_inspeksi_3 && (
                     <p className="text-red-500 text-[10px] mt-1">
@@ -569,6 +570,7 @@ export default function QCInspectionModal({
                   </label>
                   <input
                     type="time"
+                    step="1"
                     {...register("start_inspect")}
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm focus:border-sky-500 outline-none"
                   />
@@ -584,6 +586,7 @@ export default function QCInspectionModal({
                   </label>
                   <input
                     type="time"
+                    step="1"
                     {...register("finish_inspect")}
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm focus:border-sky-500 outline-none"
                   />

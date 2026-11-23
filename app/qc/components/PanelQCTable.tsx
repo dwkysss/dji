@@ -34,8 +34,13 @@ export default function PanelQCTable({
   const displayItems = React.useMemo(() => {
     const items: any[] = [];
     
-    // Step 1: Pre-process items to identify operators and Istirahat
-    const sorted = [...detailsToDisplay].sort((a, b) => {
+    // Step 1: Filter out non-panel machine stop / downtime rows & pre-process items to identify operators and Istirahat
+    const validPanelDetails = detailsToDisplay.filter((d) => {
+      const pNo = String(d?.production_headers?.panel_no || "").trim().toUpperCase();
+      if (pNo === "BERHENTI" || pNo === "DOWNTIME MEKANIK (DIRECT)") return false;
+      return true;
+    });
+    const sorted = [...validPanelDetails].sort((a, b) => {
       const pAStr = String(a.production_headers?.panel_no || "").trim().toUpperCase();
       const pBStr = String(b.production_headers?.panel_no || "").trim().toUpperCase();
 

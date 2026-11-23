@@ -40,7 +40,7 @@ import DeletePanelModal from "@/components/forms/DeletePanelModal";
 import InsertPanelModal, { InsertPanelPayload } from "@/components/forms/InsertPanelModal";
 import ProductTour, { ProductTourStep } from "@/components/ProductTour";
 import QrScannerModal, { ParsedDjiQr } from "@/components/modals/QrScannerModal";
-import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
+import { getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import {
   addQCDefectDetail,
   getAllPendingQCDetails,
@@ -60,7 +60,7 @@ import PanelQCTable from "./components/PanelQCTable";
 import MeterQCTable from "./components/MeterQCTable";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
-import { formatHHMM, formatTimerSeconds, getShiftDate } from "@/lib/shift-utils";
+import { formatHHMM, formatHHMMSS, formatTimerSeconds, getShiftDate } from "@/lib/shift-utils";
 import { isPanelGagalCacatAja } from "@/lib/mending-grade-utils";
 
 // Problem categories matching ContinuousForm
@@ -483,9 +483,6 @@ export default function QCPage() {
       return { ...prev, [catId]: [...current, text] };
     });
     setQcDefectManualInput((prev) => ({ ...prev, [catId]: "" }));
-    try {
-      createProblemDetail({ kategori: catId, nama_detail: text });
-    } catch (e) { }
   };
 
   const saveQCFilters = (sDate: string, eDate: string, m: string, p: string, s: "desc" | "asc") => {
@@ -752,15 +749,15 @@ export default function QCPage() {
       fetchActiveSessions();
     }
 
-    if (/^\d{1,2}:\d{2}$/.test(startIso)) {
-      const [hStr, mStr] = startIso.split(":");
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(startIso)) {
+      const [hStr, mStr, sStr] = startIso.split(":");
       const d = new Date();
-      d.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
+      d.setHours(parseInt(hStr, 10), parseInt(mStr, 10), sStr ? parseInt(sStr, 10) : 0, 0);
       startIso = d.toISOString();
     }
 
     setStartTimeIso(startIso);
-    setStartInspectTime(formatHHMM(startIso));
+    setStartInspectTime(formatHHMMSS(startIso));
   };
 
   const detailsToDisplay = React.useMemo(() => {
@@ -1099,7 +1096,6 @@ export default function QCPage() {
         const manual = (qcDefectManualInput[cat] || "").trim();
         if (manual && !details.includes(manual)) {
           details.push(manual);
-          try { createProblemDetail({ kategori: cat, nama_detail: manual }); } catch (e) { }
         }
         if (details.length > 0) {
           combinedDetailsList.push(details.join(", "));

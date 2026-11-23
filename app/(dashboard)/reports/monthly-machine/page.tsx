@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { getMonthlyMachineReport, MonthlyMachineReportData } from "@/actions/report-actions";
+import { getMonthlyMachineReport, MonthlyMachineReportData, SpecialReportItem } from "@/actions/report-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
 import { getMachineStatuses } from "@/actions/dashboard-actions";
 import { getGoogleSheetEndpoint, sendPayloadToGoogleSheet, syncAllMonthlyMachines, getAutoSyncScheduleSettings, updateAutoSyncScheduleSettings } from "@/actions/google-sheet-actions";
@@ -171,8 +171,31 @@ function FormulaTooltip({
 
 function formatKeteranganWithPotongKain(
   potongKainList?: string[],
-  keteranganPerKategori?: Record<string, string[]>
+  keteranganPerKategori?: Record<string, string[]>,
+  laporanKhususList?: SpecialReportItem[]
 ): string {
+  let potongKainStr = "";
+  if (potongKainList && potongKainList.length > 0) {
+    potongKainStr = potongKainList
+      .map((p) => `Potong Kain Ke-${String(p).replace(/^ke-?/i, "").trim()}`)
+      .join(", ");
+  }
+
+  let khususStr = "";
+  if (laporanKhususList && laporanKhususList.length > 0) {
+    khususStr = laporanKhususList
+      .map((item) => {
+        const timeRange =
+          item.waktu_mulai && item.waktu_selesai
+            ? ` (${item.waktu_mulai} - ${item.waktu_selesai})`
+            : item.waktu_mulai
+            ? ` (${item.waktu_mulai})`
+            : "";
+        return `[${item.kategori}] ${item.detail}${timeRange}`;
+      })
+      .join(" | ");
+  }
+
   let ketString = "";
   if (keteranganPerKategori && Object.keys(keteranganPerKategori).length > 0) {
     ketString = Object.entries(keteranganPerKategori)
@@ -191,20 +214,7 @@ function formatKeteranganWithPotongKain(
       .join(" | ");
   }
 
-  let potongKainStr = "";
-  if (potongKainList && potongKainList.length > 0) {
-    potongKainStr = potongKainList
-      .map((p) => `Potong Kain Ke-${String(p).replace(/^ke-?/i, "").trim()}`)
-      .join(", ");
-  }
-
-  if (potongKainStr && ketString) {
-    return `${potongKainStr} | ${ketString}`;
-  }
-  if (potongKainStr) {
-    return potongKainStr;
-  }
-  return ketString;
+  return [potongKainStr, khususStr, ketString].filter(Boolean).join(" | ");
 }
 
 export default function MonthlyMachineReportPage() {
@@ -280,11 +290,13 @@ export default function MonthlyMachineReportPage() {
     title: string;
     contentObj: Record<string, string[]> | null;
     potongKain?: string[];
+    laporanKhusus?: SpecialReportItem[];
   }>({
     isOpen: false,
     title: "",
     contentObj: null,
     potongKain: undefined,
+    laporanKhusus: undefined,
   });
 
   // Load schedule settings on mount
@@ -532,7 +544,7 @@ export default function MonthlyMachineReportPage() {
           const pCacat = td.jumlah_cacat > 0 && td.hasil_produksi > 0 ? ((td.jumlah_cacat / td.hasil_produksi) * 100).toFixed(2) + "%" : "0.00%";
           const pEff = ((shiftDurationSecs - td.downtime_detik) / shiftDurationSecs * 100).toFixed(2) + "%";
           
-          const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori);
+          const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori, td.laporan_khusus_list);
 
           wsData.push([
             isFirst ? dayData.tanggal : "",
@@ -578,7 +590,7 @@ export default function MonthlyMachineReportPage() {
           tanggal: dayData.tanggal,
           teams: teamsToRender.map((teamObj) => {
             const td = teamObj.data;
-            const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori);
+            const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori, td.laporan_khusus_list);
 
             return {
               team: teamObj.teamName,
@@ -710,7 +722,7 @@ export default function MonthlyMachineReportPage() {
           const pCacat = td.jumlah_cacat > 0 && td.hasil_produksi > 0 ? ((td.jumlah_cacat / td.hasil_produksi) * 100).toFixed(2) + "%" : "0.00%";
           const pEff = ((shiftDurationSecs - td.downtime_detik) / shiftDurationSecs * 100).toFixed(2) + "%";
           
-          const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori);
+          const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori, td.laporan_khusus_list);
 
           const row = [
             isFirst ? dayData.tanggal : "",
@@ -1369,7 +1381,7 @@ export default function MonthlyMachineReportPage() {
                     // We'll alternate slightly for rows to look like the image.
                     const rowBgClass = team === "B" ? "bg-[#fdf9f4]" : (team === "C" ? "bg-[#faf5ec]" : "bg-white");
                     
-                    const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori);
+                    const ketString = formatKeteranganWithPotongKain(td.potong_kain_list, td.keterangan_per_kategori, td.laporan_khusus_list);
 
                     return (
                       <tr key={`${dayData.tanggal}-${team}`} className={`${rowBgClass} hover:bg-sky-50/50 transition-colors`}>
@@ -1385,6 +1397,7 @@ export default function MonthlyMachineReportPage() {
                                 title: `Keterangan (Tgl ${dayData.tanggal} Tim ${team})`,
                                 contentObj: td.keterangan_per_kategori || null,
                                 potongKain: td.potong_kain_list,
+                                laporanKhusus: td.laporan_khusus_list,
                               })}
                               className="w-full text-left truncate max-w-[120px] hover:text-sky-600 transition-colors group relative flex items-center justify-between cursor-pointer"
                             >
@@ -1780,6 +1793,39 @@ export default function MonthlyMachineReportPage() {
                 </div>
               )}
 
+              {modalData.laporanKhusus && modalData.laporanKhusus.length > 0 && (
+                <div className="bg-rose-50/70 border border-rose-200 rounded-xl p-3.5 flex flex-col gap-2.5">
+                  <div className="text-[11px] font-black text-rose-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>Laporan Khusus / Mesin Berhenti</span>
+                  </div>
+                  <ul className="space-y-2">
+                    {modalData.laporanKhusus.map((item, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-center justify-between gap-2 text-xs bg-white px-3 py-2 rounded-lg border border-rose-200/80 shadow-2xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-black text-[10px] shrink-0">
+                            {item.kategori}
+                          </span>
+                          <span className="font-semibold text-slate-800 break-words">
+                            {item.detail}
+                          </span>
+                        </div>
+                        {(item.waktu_mulai || item.waktu_selesai) && (
+                          <span className="font-mono font-extrabold text-[11px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
+                            {item.waktu_mulai && item.waktu_selesai
+                              ? `${item.waktu_mulai} - ${item.waktu_selesai}`
+                              : item.waktu_mulai}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {modalData.contentObj && Object.entries(modalData.contentObj).length > 0 ? (
                 <div className="flex flex-col gap-4">
                   {Object.entries(modalData.contentObj).sort(([a], [b]) => a.localeCompare(b)).map(([kat, details]) => (
@@ -1816,7 +1862,8 @@ export default function MonthlyMachineReportPage() {
                   ))}
                 </div>
               ) : (
-                (!modalData.potongKain || modalData.potongKain.length === 0) && (
+                (!modalData.potongKain || modalData.potongKain.length === 0) &&
+                (!modalData.laporanKhusus || modalData.laporanKhusus.length === 0) && (
                   <p className="text-slate-400 italic text-center py-4">Tidak ada keterangan.</p>
                 )
               )}

@@ -42,8 +42,8 @@ import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import HeaderSummaryCard from "@/components/forms/HeaderSummaryCard";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
-import { formatHHMM, formatTimerSeconds, getShiftDate } from "@/lib/shift-utils";
-import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
+import { formatHHMM, formatHHMMSS, formatTimerSeconds, getShiftDate } from "@/lib/shift-utils";
+import { getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import {
   getPendingMendingDetailsByDate,
   getMendingDetailsByGroup,
@@ -459,9 +459,6 @@ export default function MendingPage() {
       return { ...prev, [catId]: [...current, text] };
     });
     setQcDefectManualInput((prev) => ({ ...prev, [catId]: "" }));
-    try {
-      createProblemDetail({ kategori: catId, nama_detail: text });
-    } catch (e) {}
   };
 
   const handleDefectToggleKategori = (catId: string) => {
@@ -585,7 +582,6 @@ export default function MendingPage() {
         const manual = (qcDefectManualInput[cat] || "").trim();
         if (manual && !details.includes(manual)) {
           details.push(manual);
-          try { createProblemDetail({ kategori: cat, nama_detail: manual }); } catch (e) {}
         }
         if (details.length > 0) {
           combinedDetailsList.push(details.join(", "));
@@ -952,15 +948,15 @@ export default function MendingPage() {
       fetchActiveSessions();
     }
 
-    if (/^\d{1,2}:\d{2}$/.test(startIso)) {
-      const [hStr, mStr] = startIso.split(":");
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(startIso)) {
+      const [hStr, mStr, sStr] = startIso.split(":");
       const d = new Date();
-      d.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
+      d.setHours(parseInt(hStr, 10), parseInt(mStr, 10), sStr ? parseInt(sStr, 10) : 0, 0);
       startIso = d.toISOString();
     }
 
     setStartTimeIso(startIso);
-    setStartMendingTime(formatHHMM(startIso));
+    setStartMendingTime(formatHHMMSS(startIso));
   };
 
   const [detailToDelete, setDetailToDelete] = useState<{ id: string; name: string; panelNo?: string } | null>(null);

@@ -1,9 +1,18 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getShiftDate, parseAsWibDate, getShiftName, normalizeGroupName } from "@/lib/shift-utils";
+import { getShiftDate, parseAsWibDate, getShiftName, normalizeGroupName, formatHHMM } from "@/lib/shift-utils";
 import { PROBLEM_DETAILS } from "@/lib/constants";
 import { mapToCanonicalProblem } from "@/lib/canonical-problem-utils";
+
+export interface SpecialReportItem {
+  kategori: string;
+  detail: string;
+  waktu_mulai: string;
+  waktu_selesai: string;
+  durasi_detik: number;
+  jenis: "MEKANIK" | "BERHENTI";
+}
 
 export interface MonthlyMachineReportData {
   tanggal: number;
@@ -25,7 +34,65 @@ export interface TeamData {
   keterangan?: string;
   keterangan_per_kategori?: Record<string, string[]>;
   potong_kain_list?: string[];
+  laporan_khusus_list?: SpecialReportItem[];
   earliestTimestamp?: string;
+}
+
+function resolveSpecialTimeRange(
+  header: { tanggal_jam?: string | null; tgl?: string | null; total_downtime_detik?: number | null; downtime_events?: any },
+  durasiSec: number,
+  jenis: "MEKANIK" | "BERHENTI"
+): { waktu_mulai: string; waktu_selesai: string } {
+  // Khusus Lapor Mesin Mati 1 Shift Penuh (~8 Jam / 28.800 dtk): pakai jam resmi shift pabrik
+  if (jenis === "BERHENTI" && durasiSec >= 28500) {
+    const ts = header.tanggal_jam || header.tgl;
+    if (ts) {
+      const shift = getShiftName(parseAsWibDate(ts));
+      if (shift === "Shift 1") return { waktu_mulai: "07:10", waktu_selesai: "15:10" };
+      if (shift === "Shift 2") return { waktu_mulai: "15:10", waktu_selesai: "23:10" };
+      return { waktu_mulai: "23:10", waktu_selesai: "07:10" };
+    }
+  }
+
+  let isDraft = false;
+  let startMs: number | null = null;
+  if (header.downtime_events) {
+    try {
+      const parsed = typeof header.downtime_events === "string"
+        ? JSON.parse(header.downtime_events)
+        : header.downtime_events;
+      const firstEvt = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (firstEvt) {
+        if (firstEvt.isDraft === true) isDraft = true;
+        if (typeof firstEvt.startTime === "number" && firstEvt.startTime > 0) {
+          startMs = firstEvt.startTime;
+        }
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+  }
+
+  if (startMs === null && header.tanggal_jam) {
+    const parsedDt = parseAsWibDate(header.tanggal_jam);
+    if (!isNaN(parsedDt.getTime())) {
+      startMs = parsedDt.getTime();
+    }
+  }
+
+  if (startMs === null) {
+    return { waktu_mulai: "", waktu_selesai: "" };
+  }
+
+  const startStr = formatHHMM(new Date(startMs).toISOString());
+  if (isDraft) {
+    return { waktu_mulai: startStr, waktu_selesai: "Sekarang" };
+  }
+  if (durasiSec > 0) {
+    const endStr = formatHHMM(new Date(startMs + durasiSec * 1000).toISOString());
+    return { waktu_mulai: startStr, waktu_selesai: endStr };
+  }
+  return { waktu_mulai: startStr, waktu_selesai: "" };
 }
 
 
@@ -578,11 +645,31 @@ export async function getMonthlyMachineReport(
           }
         }
       } else if (isBerhenti) {
-        // Mesin berstatus berhenti (LIBUR, MAINTENANCE, RUSAK, dsb.)
+        // Mesin berstatus berhenti (LIBUR, MAINTENANCE, RUSAK, dsb.) -> masuk Laporan Khusus dengan rentang waktu
         const kat = (row.kategori_masalah || "G").trim().toUpperCase();
         const det = (row.detail_masalah || "LIBUR").trim();
         if (kat && det) {
-          addKeterangan(kat, det);
+          const durSec = Number(header.total_downtime_detik) || 28800;
+          const { waktu_mulai, waktu_selesai } = resolveSpecialTimeRange(header, durSec, "BERHENTI");
+          if (!team.laporan_khusus_list) team.laporan_khusus_list = [];
+          const exists = team.laporan_khusus_list.some(
+            (x) =>
+              x.jenis === "BERHENTI" &&
+              x.kategori === kat &&
+              x.detail === det &&
+              x.waktu_mulai === waktu_mulai &&
+              x.waktu_selesai === waktu_selesai
+          );
+          if (!exists) {
+            team.laporan_khusus_list.push({
+              kategori: kat,
+              detail: det,
+              waktu_mulai,
+              waktu_selesai,
+              durasi_detik: durSec,
+              jenis: "BERHENTI",
+            });
+          }
           addDefectCode(kat);
         }
       }
@@ -705,6 +792,8 @@ export async function getMonthlyMachineReport(
           group_id,
           operator_id,
           pic,
+          total_downtime_detik,
+          downtime_events,
           groups ( nama_grup ),
           operators ( nama_operator, shift )
         )
@@ -741,15 +830,33 @@ export async function getMonthlyMachineReport(
         }
         const team = reportDay.teamData[groupName];
 
-        // Add Keterangan & Kode Tindakan for Mechanic / Block Mesin
+        // Add Laporan Khusus (Block Mesin / Downtime Mekanik) dengan rentang waktu awal-akhir & Kode Tindakan
         if (row.kategori && row.kategori !== "Unknown") {
           const code = String(row.kategori).replace("KODE ", "").trim().toUpperCase();
           if (code && code !== "BS") {
-            if (!team.keterangan_per_kategori) team.keterangan_per_kategori = {};
-            if (!team.keterangan_per_kategori[code]) team.keterangan_per_kategori[code] = [];
             const d = (row.detail || "").trim();
-            if (d && !team.keterangan_per_kategori[code].includes(d)) {
-              team.keterangan_per_kategori[code].push(d);
+            const durSec = Number(row.durasi_detik) || Number(header.total_downtime_detik) || 0;
+            const { waktu_mulai, waktu_selesai } = resolveSpecialTimeRange(header, durSec, "MEKANIK");
+            if (d) {
+              if (!team.laporan_khusus_list) team.laporan_khusus_list = [];
+              const exists = team.laporan_khusus_list.some(
+                (x) =>
+                  x.jenis === "MEKANIK" &&
+                  x.kategori === code &&
+                  x.detail === d &&
+                  x.waktu_mulai === waktu_mulai &&
+                  x.waktu_selesai === waktu_selesai
+              );
+              if (!exists) {
+                team.laporan_khusus_list.push({
+                  kategori: code,
+                  detail: d,
+                  waktu_mulai,
+                  waktu_selesai,
+                  durasi_detik: durSec,
+                  jenis: "MEKANIK",
+                });
+              }
             }
             team.kode_tindakan[code] = (team.kode_tindakan[code] || 0) + 1;
           }
@@ -901,6 +1008,7 @@ export async function getMonthlyMachineReport(
           Boolean(td.operator_name && td.operator_name !== "-") ||
           td.downtime_detik > 0 ||
           td.hasil_produksi > 0 ||
+          Boolean(td.laporan_khusus_list && td.laporan_khusus_list.length > 0) ||
           Boolean(td.keterangan_per_kategori && Object.keys(td.keterangan_per_kategori).length > 0);
 
         if (hasActivity) {
@@ -1015,5 +1123,6 @@ function createEmptyTeamData(): TeamData {
       "A": 0, "B": 0, "C": 0, "D": 0, "E": 0, "F": 0, "G": 0, "H": 0
     },
     potong_kain_list: [],
+    laporan_khusus_list: [],
   };
 }

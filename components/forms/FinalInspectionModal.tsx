@@ -16,7 +16,7 @@ import {
   FileText,
 } from "lucide-react";
 import { submitFinalInspection } from "@/actions/final-inspection-actions";
-import { formatHHMM } from "@/lib/shift-utils";
+import { formatHHMMSS } from "@/lib/shift-utils";
 import { calculateMeterDefectPoints } from "@/lib/defect-format-utils";
 
 const finalInspectionSchema = z.object({
@@ -147,10 +147,11 @@ export default function FinalInspectionModal({
       const now = new Date();
       const hh = String(now.getHours()).padStart(2, "0");
       const mm = String(now.getMinutes()).padStart(2, "0");
-      const currentTime = `${hh}:${mm}`;
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      const currentTime = `${hh}:${mm}:${ss}`;
 
       const rawStart = startFinalTime || storedStart;
-      const initialStart = formatHHMM(rawStart) || currentTime;
+      const initialStart = formatHHMMSS(rawStart) || currentTime;
 
       setValue("start_final", initialStart);
       setValue("finish_final", currentTime);
@@ -444,9 +445,9 @@ export default function FinalInspectionModal({
                     <option value="Nurdin">Nurdin</option>
                     <option value="Hendra">Hendra</option>
                     <option value="Taufik">Taufik</option>
-                    <option value="Dede Oting">Dede Oting</option>
+                    <option value="Oting">Oting</option>
                     <option value="Andri">Andri</option>
-                    <option value="Yudi">Yudi</option>
+                    <option value="Atin">Atin</option>
                   </select>
                   {errors.petugas_final && (
                     <p className="text-red-500 text-[10px] mt-1">
@@ -468,9 +469,9 @@ export default function FinalInspectionModal({
                     <option value="Nurdin">Nurdin</option>
                     <option value="Hendra">Hendra</option>
                     <option value="Taufik">Taufik</option>
-                    <option value="Dede Oting">Dede Oting</option>
+                    <option value="Oting">Oting</option>
                     <option value="Andri">Andri</option>
-                    <option value="Yudi">Yudi</option>
+                    <option value="Atin">Atin</option>
                   </select>
                 </div>
 
@@ -487,9 +488,9 @@ export default function FinalInspectionModal({
                     <option value="Nurdin">Nurdin</option>
                     <option value="Hendra">Hendra</option>
                     <option value="Taufik">Taufik</option>
-                    <option value="Dede Oting">Dede Oting</option>
+                    <option value="Oting">Oting</option>
                     <option value="Andri">Andri</option>
-                    <option value="Yudi">Yudi</option>
+                    <option value="Atin">Atin</option>
                   </select>
                 </div>
 
@@ -500,6 +501,7 @@ export default function FinalInspectionModal({
                   </label>
                   <input
                     type="time"
+                    step="1"
                     {...register("start_final")}
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none font-medium text-slate-800 bg-white"
                   />
@@ -517,6 +519,7 @@ export default function FinalInspectionModal({
                   </label>
                   <input
                     type="time"
+                    step="1"
                     {...register("finish_final")}
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none font-medium text-slate-800 bg-white"
                   />

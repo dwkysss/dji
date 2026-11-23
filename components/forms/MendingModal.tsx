@@ -16,7 +16,7 @@ import {
   FileText,
 } from "lucide-react";
 import { submitMending } from "@/actions/mending-actions";
-import { formatHHMM } from "@/lib/shift-utils";
+import { formatHHMMSS } from "@/lib/shift-utils";
 import { getDefectMeterLength, calculateMeterDefectPoints } from "@/lib/defect-format-utils";
 
 const mendingSchema = z.object({
@@ -120,10 +120,11 @@ export default function MendingModal({
       const now = new Date();
       const hh = String(now.getHours()).padStart(2, "0");
       const mm = String(now.getMinutes()).padStart(2, "0");
-      const currentTime = `${hh}:${mm}`;
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      const currentTime = `${hh}:${mm}:${ss}`;
 
       const rawStart = startMendingTime || storedStart;
-      const initialStart = formatHHMM(rawStart) || currentTime;
+      const initialStart = formatHHMMSS(rawStart) || currentTime;
 
       setValue("start_mending", initialStart);
       setValue("finish_mending", currentTime);
@@ -409,9 +410,9 @@ export default function MendingModal({
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm focus:border-sky-500 outline-none"
                   >
                     <option value="">Pilih</option>
-                    <option value="Dede Oting">Dede Oting</option>
+                    <option value="Oting">Oting</option>
                     <option value="Andri">Andri</option>
-                    <option value="Yudi">Yudi</option>
+                    <option value="Atin">Atin</option>
                   </select>
                   {errors.petugas_mending && (
                     <p className="text-red-500 text-[10px] mt-1">
@@ -425,6 +426,7 @@ export default function MendingModal({
                   </label>
                   <input
                     type="time"
+                    step="1"
                     {...register("start_mending")}
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm focus:border-sky-500 outline-none"
                   />
@@ -440,6 +442,7 @@ export default function MendingModal({
                   </label>
                   <input
                     type="time"
+                    step="1"
                     {...register("finish_mending")}
                     className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm focus:border-sky-500 outline-none"
                   />

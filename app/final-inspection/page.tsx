@@ -44,8 +44,8 @@ import InsertPanelModal, { InsertPanelPayload } from "@/components/forms/InsertP
 import QCEditDetailModal from "@/components/forms/QCEditDetailModal";
 import CompactHeaderCard from "@/components/forms/CompactHeaderCard";
 import SessionTimerHeader from "@/components/forms/SessionTimerHeader";
-import { formatHHMM, formatTimerSeconds, getShiftDate } from "@/lib/shift-utils";
-import { createProblemDetail, getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
+import { formatHHMM, formatHHMMSS, formatTimerSeconds, getShiftDate } from "@/lib/shift-utils";
+import { getProblemCategories, getProblemDetailsGrouped } from "@/actions/problem-detail-actions";
 import {
   getPendingFinalInspectionDetailsByDate,
   getFinalInspectionDetailsByGroup,
@@ -447,9 +447,6 @@ export default function FinalInspectionPage() {
       return { ...prev, [catId]: [...current, text] };
     });
     setQcDefectManualInput((prev) => ({ ...prev, [catId]: "" }));
-    try {
-      createProblemDetail({ kategori: catId, nama_detail: text });
-    } catch (e) {}
   };
 
   const handleDefectToggleKategori = (catId: string) => {
@@ -578,7 +575,6 @@ export default function FinalInspectionPage() {
         const manual = (qcDefectManualInput[cat] || "").trim();
         if (manual && !details.includes(manual)) {
           details.push(manual);
-          try { createProblemDetail({ kategori: cat, nama_detail: manual }); } catch (e) {}
         }
         if (details.length > 0) {
           combinedDetailsList.push(details.join(", "));
@@ -862,14 +858,14 @@ export default function FinalInspectionPage() {
 
       if (savedSession) {
         setStartTimeIso(savedSession.start_time || new Date().toISOString());
-        setStartFinalTime(savedSession.start_time ? formatHHMM(savedSession.start_time) : formatHHMM(new Date().toISOString()));
+        setStartFinalTime(savedSession.start_time ? formatHHMMSS(savedSession.start_time) : formatHHMMSS(new Date().toISOString()));
         setIsPaused(savedSession.is_paused || false);
         setPauseSeconds(savedSession.pause_seconds || 0);
         setPausedAt(savedSession.paused_at || null);
       } else {
         const nowIso = new Date().toISOString();
         setStartTimeIso(nowIso);
-        setStartFinalTime(formatHHMM(nowIso));
+        setStartFinalTime(formatHHMMSS(nowIso));
         setIsPaused(false);
         setPauseSeconds(0);
         setPausedAt(null);

@@ -274,9 +274,6 @@ export default function ProductionPlanBarcodeModal({
               ${targetRowHtml}
               ${noOrderRowHtml}
             </div>
-            <div class="footer-note">
-              Scan QR untuk data live: Jumlah, Berat Kain, Tanggal &amp; Grade
-            </div>
           </div>
         </body>
       </html>
@@ -532,10 +529,6 @@ export default function ProductionPlanBarcodeModal({
                         </span>
                       </div>
                     )}
-                </div>
-
-                <div className="w-full border-t border-slate-200 pt-2 text-center text-[9.5px] font-bold text-slate-500">
-                  Scan QR untuk data live: Jumlah, Berat Kain, Tanggal &amp; Grade
                 </div>
               </div>
             </div>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Timer, Box, CheckCircle2, Plus, X, Edit3, Loader2 } from "lucide-react";
 import { GROUPED_PROBLEM_DETAILS, PROBLEM_DETAILS, ProblemDetailGroup } from "@/lib/constants";
-import { getProblemGroupMapping, createProblemDetail } from "@/actions/problem-detail-actions";
+import { getProblemGroupMapping } from "@/actions/problem-detail-actions";
 
 export interface QuickDefectData {
   kategori: string;
@@ -85,9 +85,6 @@ export default function QuickDefectModal({
     });
 
     setManualInputDetails((prev) => ({ ...prev, [catId]: "" }));
-    try {
-      createProblemDetail({ kategori: catId, nama_detail: text });
-    } catch (e) {}
   };
 
   const handleSaveNonDefect = async () => {
