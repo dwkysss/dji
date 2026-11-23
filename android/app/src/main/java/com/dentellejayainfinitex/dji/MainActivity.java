@@ -54,6 +54,18 @@ public class MainActivity extends BridgeActivity {
     private long lastPermissionRequestTime = 0;
     private boolean isAppInterfaceConfigured = false;
     private boolean isSupervisorExiting = false;
+    private boolean isActivityInForeground = false;
+    private ConnectivityManager.NetworkCallback activeNetworkCallback = null;
+    private final android.os.Handler kioskNetworkHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable offlineUnlockRunnable = () -> {
+        try {
+            if (!isNetworkAvailable()) {
+                stopKioskMode();
+                showSystemBars();
+                updateBatteryDisplay();
+            }
+        } catch (Exception ignored) {}
+    };
     private long lastBackPressedTime = 0;
     private int secretCornerTapCount = 0;
     private long lastCornerTapTime = 0;
@@ -438,18 +450,49 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {}
     }
 
+    private void showSystemBars() {
+        runOnUiThread(() -> {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    android.view.WindowInsetsController controller = getWindow().getInsetsController();
+                    if (controller != null) {
+                        controller.show(
+                            android.view.WindowInsets.Type.navigationBars()
+                            | android.view.WindowInsets.Type.statusBars()
+                        );
+                    }
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    getWindow().getDecorView().setSystemUiVisibility(
+                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    );
+                } else {
+                    getWindow().getDecorView().setSystemUiVisibility(
+                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    );
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
-            hideSystemBars();
+            if (isNetworkAvailable() && isKioskAutoEnabled()) {
+                hideSystemBars();
+            } else {
+                showSystemBars();
+            }
         }
     }
 
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (isKioskAutoEnabled() && !isSupervisorExiting && !isRequestingSystemPermission) {
+        // Hanya tarik balik ke aplikasi jika internet TERSEDIA (Online).
+        // Saat Offline, biarkan pengguna bebas membuka pengaturan Wi-Fi atau keluar sementara.
+        if (isKioskAutoEnabled() && !isSupervisorExiting && !isRequestingSystemPermission && isNetworkAvailable()) {
             // Pengguna menekan tombol Home (bulat) atau Recent Apps (kotak) -> Tarik kembali seketika!
             try {
                 Intent intent = new Intent(this, MainActivity.class);
@@ -565,19 +608,43 @@ public class MainActivity extends BridgeActivity {
             registerReceiver(batteryReceiver, filter);
         } catch (Exception ignored) {}
 
-        hideSystemBars();
+        if (isKioskAutoEnabled() && isNetworkAvailable()) {
+            hideSystemBars();
+        } else {
+            showSystemBars();
+        }
         configureWebViewCache();
         configureAppInterface();
         setupWebViewAutoRecovery();
         setupNativeBatteryIndicator();
 
-        if (isKioskAutoEnabled()) {
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 800);
+        if (isKioskAutoEnabled() && isNetworkAvailable()) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                if (isActivityInForeground && isKioskAutoEnabled() && isNetworkAvailable() && !isRequestingSystemPermission) {
+                    startKioskMode();
+                }
+            }, 800);
         }
     }
 
     @Override
+    public void onPause() {
+        isActivityInForeground = false;
+        super.onPause();
+    }
+
+    @Override
     public void onDestroy() {
+        kioskNetworkHandler.removeCallbacksAndMessages(null);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activeNetworkCallback != null) {
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null) {
+                    cm.unregisterNetworkCallback(activeNetworkCallback);
+                }
+                activeNetworkCallback = null;
+            }
+        } catch (Exception ignored) {}
         try {
             unregisterReceiver(batteryReceiver);
         } catch (Exception ignored) {}
@@ -587,14 +654,24 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        isActivityInForeground = true;
         isSupervisorExiting = false;
-        hideSystemBars();
         configureWebViewCache();
         configureAppInterface();
         updateBatteryDisplay();
 
-        if (isKioskAutoEnabled() && !isLockTaskActive() && !isRequestingSystemPermission) {
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::startKioskMode, 500);
+        if (isKioskAutoEnabled() && isNetworkAvailable()) {
+            hideSystemBars();
+            if (!isLockTaskActive() && !isRequestingSystemPermission) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    if (isActivityInForeground && isKioskAutoEnabled() && isNetworkAvailable() && !isRequestingSystemPermission && !isLockTaskActive()) {
+                        startKioskMode();
+                    }
+                }, 500);
+            }
+        } else {
+            stopKioskMode();
+            showSystemBars();
         }
 
         // Beri tahu halaman web bahwa aplikasi kembali aktif (misal setelah user kembali dari Pengaturan Izin Android)
@@ -843,7 +920,39 @@ public class MainActivity extends BridgeActivity {
         NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
         if (capabilities == null) return false;
 
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        boolean hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return hasInternet && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        }
+        return hasInternet;
+    }
+
+    private void handleNetworkOnlineState() {
+        kioskNetworkHandler.removeCallbacks(offlineUnlockRunnable);
+        runOnUiThread(() -> {
+            updateBatteryDisplay();
+            if (isActivityInForeground && isKioskAutoEnabled() && !isSupervisorExiting && !isRequestingSystemPermission) {
+                hideSystemBars();
+                if (!isLockTaskActive()) {
+                    startKioskMode();
+                }
+            }
+            try {
+                if (getBridge() != null && getBridge().getWebView() != null) {
+                    WebView wv = getBridge().getWebView();
+                    String curUrl = wv.getUrl();
+                    if (curUrl == null || curUrl.isEmpty() || curUrl.contains("about:blank")) {
+                        wv.loadUrl("https://djiprod.tech");
+                    }
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private void handleNetworkOfflineState() {
+        // Jeda 1.5 detik agar tidak kedip saat tablet berpindah akses poin Wi-Fi sesaat
+        kioskNetworkHandler.removeCallbacks(offlineUnlockRunnable);
+        kioskNetworkHandler.postDelayed(offlineUnlockRunnable, 1500);
     }
 
     private boolean isRetryingError = false;
@@ -867,23 +976,33 @@ public class MainActivity extends BridgeActivity {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-                if (cm != null) {
-                    cm.registerDefaultNetworkCallback(new ConnectivityManager.NetworkCallback() {
+                if (cm != null && activeNetworkCallback == null) {
+                    activeNetworkCallback = new ConnectivityManager.NetworkCallback() {
                         @Override
                         public void onAvailable(android.net.Network network) {
-                            runOnUiThread(() -> {
-                                try {
-                                    if (getBridge() != null && getBridge().getWebView() != null) {
-                                        WebView wv = getBridge().getWebView();
-                                        String curUrl = wv.getUrl();
-                                        if (curUrl == null || curUrl.isEmpty() || curUrl.contains("about:blank")) {
-                                            wv.loadUrl("https://djiprod.tech");
-                                        }
-                                    }
-                                } catch (Exception ignored) {}
-                            });
+                            if (isNetworkAvailable()) {
+                                handleNetworkOnlineState();
+                            }
                         }
-                    });
+
+                        @Override
+                        public void onCapabilitiesChanged(android.net.Network network, NetworkCapabilities caps) {
+                            boolean validated = caps != null
+                                && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                                && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+                            if (validated) {
+                                handleNetworkOnlineState();
+                            } else {
+                                handleNetworkOfflineState();
+                            }
+                        }
+
+                        @Override
+                        public void onLost(android.net.Network network) {
+                            handleNetworkOfflineState();
+                        }
+                    };
+                    cm.registerDefaultNetworkCallback(activeNetworkCallback);
                 }
             }
         } catch (Exception ignored) {}
@@ -983,6 +1102,13 @@ public class MainActivity extends BridgeActivity {
                 }
             }
         } catch (Exception ignored) {}
+
+        // Jika sedang offline (tidak ada internet), izinkan keluar normal tanpa terkunci PIN
+        if (!isNetworkAvailable()) {
+            stopKioskMode();
+            super.onBackPressed();
+            return;
+        }
 
         // Kunci aplikasi: Cegah keluar jika tidak tahu PIN
         showExitPinDialog();

@@ -461,9 +461,14 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
       
       const tanggalBeres = header.tanggal_potong || header.tgl || "";
       const obRaw = header.no_order_barang || "";
+      const explicitJenisOb = String(batch.jenis_ob || header.jenis_ob || "").toUpperCase().trim();
       let obStm = "";
       let obDji = "";
-      if (obRaw.toUpperCase().includes("DJI") || obRaw.toUpperCase().includes("DEX")) {
+      if (explicitJenisOb === "DJI") {
+        obDji = obRaw;
+      } else if (explicitJenisOb === "STM") {
+        obStm = obRaw;
+      } else if (obRaw.toUpperCase().includes("DJI") || obRaw.toUpperCase().includes("DEX")) {
         obDji = obRaw;
       } else {
         obStm = obRaw;
@@ -498,7 +503,30 @@ const formatKeteranganMending = (rawKet?: string | null): string => {
       }
       qtyKg = qtyKg || 0;
       
-      const jam = extractTime(header.tanggal_jam);
+      // Ambil Jam Potong Kain: prioritas timestamp terbesar (panel terakhir / BS AKHIR) dari seluruh item potongan
+      let latestCutTs = 0;
+      let latestCutStr = "";
+      const candidateDates: string[] = [];
+      if (header.tanggal_potong && String(header.tanggal_potong).includes(":")) {
+        candidateDates.push(String(header.tanggal_potong));
+      }
+      batch.items?.forEach((i: any) => {
+        const tp = i.detail?.header?.tanggal_potong || i.header?.tanggal_potong;
+        if (tp && String(tp).includes(":")) candidateDates.push(String(tp));
+        const tj = i.detail?.header?.tanggal_jam || i.header?.tanggal_jam;
+        if (tj) candidateDates.push(String(tj));
+      });
+      if (candidateDates.length === 0 && header.tanggal_jam) {
+        candidateDates.push(String(header.tanggal_jam));
+      }
+      candidateDates.forEach((ds) => {
+        const t = new Date(ds).getTime();
+        if (!isNaN(t) && t >= latestCutTs) {
+          latestCutTs = t;
+          latestCutStr = ds;
+        }
+      });
+      const jam = extractTime(latestCutStr || header.tanggal_jam);
       
       const groupNames = new Set<string>();
       if (header.groups?.nama_grup) groupNames.add(header.groups.nama_grup);

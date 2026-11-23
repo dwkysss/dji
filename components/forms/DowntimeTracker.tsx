@@ -154,19 +154,23 @@ export default function DowntimeTracker({
     });
   };
 
-  // Persistent State: Mode Pemilihan Masalah (Instan vs Kombinasi Objek + Aksi)
-  const [problemSelectMode, setProblemSelectMode] = useState<"instant" | "modular">(() => {
+  // Persistent State: Mode Pemilihan Masalah (Instan vs Kombinasi vs Fleksibel Ringkas)
+  const [problemSelectMode, setProblemSelectMode] = useState<"instant" | "modular" | "compact">(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("dji_problem_select_mode");
-      if (saved === "modular" || saved === "instant") return saved;
+      if (saved === "modular" || saved === "instant" || saved === "compact") return saved;
     }
     return "instant";
   });
 
-  // State builder untuk Mode Kombinasi per kategori
+  // Active category tab for Mode Fleksibel Ringkas ("compact")
+  const [compactActiveCat, setCompactActiveCat] = useState<string>("A");
+  const [compactManualInput, setCompactManualInput] = useState<string>("");
+
+  // State builder untuk Mode Kombinasi / Fleksibel per kategori
   const [modularBuilderState, setModularBuilderState] = useState<Record<string, { obj?: string; act?: string }>>({});
 
-  const handleToggleProblemSelectMode = (mode: "instant" | "modular") => {
+  const handleToggleProblemSelectMode = (mode: "instant" | "modular" | "compact") => {
     setProblemSelectMode(mode);
     try {
       localStorage.setItem("dji_problem_select_mode", mode);
@@ -449,6 +453,9 @@ export default function DowntimeTracker({
     // Jika Aksi sudah dipilih sebelumnya, dan sekarang Objek dipilih -> Bentuk masalah & RESET tombol ke putih netral!
     if (newObj && cur.act) {
       const combined = getCanonicalProblemDetail(catId, newObj, cur.act);
+      if (!currentCategories.includes(catId)) {
+        handleCategoryToggle(catId, true);
+      }
       const currentSelected = currentDetails[catId] || [];
       if (!currentSelected.includes(combined)) {
         handleDetailToggle(catId, combined, true);
@@ -490,6 +497,9 @@ export default function DowntimeTracker({
 
     // Objek sudah ada dan sekarang Aksi dipilih -> Bentuk masalah & RESET tombol ke putih netral!
     const combined = getCanonicalProblemDetail(catId, currentObj, act);
+    if (!currentCategories.includes(catId)) {
+      handleCategoryToggle(catId, true);
+    }
     const currentSelected = currentDetails[catId] || [];
     if (!currentSelected.includes(combined)) {
       handleDetailToggle(catId, combined, true);
@@ -604,46 +614,46 @@ export default function DowntimeTracker({
     return (
       <div
         className={cn(
-          "mt-2.5 p-3 sm:p-3.5 rounded-2xl border transition-all animate-fadeIn",
+          "px-2.5 py-2 rounded-xl border transition-all animate-fadeIn",
           effectiveIsMissing
             ? isDark
-              ? "bg-rose-950/40 border-rose-700/80 ring-2 ring-rose-900/60"
-              : "bg-rose-50/80 border-rose-300 ring-2 ring-rose-200"
+              ? "bg-rose-950/40 border-rose-700/80 ring-1 ring-rose-900/60"
+              : "bg-rose-50/80 border-rose-300 ring-1 ring-rose-200"
             : isDark
               ? "bg-slate-800/80 border-slate-700"
-              : "bg-sky-50/80 border-sky-200"
+              : "bg-sky-50/70 border-sky-200/90"
         )}
       >
-        <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center justify-between mb-1.5">
           <span
             className={cn(
-              "text-xs font-black uppercase flex items-center gap-1.5",
-              isDark ? "text-slate-200" : "text-slate-800"
+              "text-[10px] font-black uppercase tracking-wide flex items-center gap-1",
+              isDark ? "text-slate-300" : "text-slate-700"
             )}
           >
-            <Box className="w-4 h-4 text-[#0070bc] dark:text-sky-400" />
+            <Box className="w-3.5 h-3.5 text-[#0070bc] dark:text-sky-400" />
             Lokasi / Nomor Blok {isRequired && <span className="text-rose-500 font-black">*</span>}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {problemList.filter(Boolean).length > 1 && (
-              <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-950/80 px-2 py-0.5 rounded-full border border-sky-200 dark:border-sky-800">
-                {problemList.filter(Boolean).length} Masalah Terpilih
+              <span className="text-[9px] font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-950/80 px-1.5 py-0.5 rounded-full border border-sky-200 dark:border-sky-800">
+                {problemList.filter(Boolean).length} Masalah
               </span>
             )}
             {isRequired ? (
-              <span className="bg-rose-600 text-white font-black text-[9px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
-                Wajib Diisi
+              <span className="bg-rose-600 text-white font-black text-[8.5px] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                Wajib
               </span>
             ) : (
-              <span className={cn("font-bold text-[9px]", isDark ? "text-slate-400" : "text-slate-400")}>
+              <span className={cn("font-semibold text-[9px]", isDark ? "text-slate-400" : "text-slate-400")}>
                 Opsional
               </span>
             )}
           </div>
         </div>
 
-        {/* Input Nomor Blok Mandiri Per Setiap Masalah Terpilih */}
-        <div className="space-y-2.5">
+        {/* Input Nomor Blok Kompak Per Masalah Terpilih (1 Baris Sejajar) */}
+        <div className="space-y-1.5">
           {problemList.map((probName, pIdx) => {
             const probBlockList = getProblemBlocks(probName, pIdx);
             const isThisProbRequired = probName ? isDefectRequiringBlock(probName) : isRequired;
@@ -653,46 +663,34 @@ export default function DowntimeTracker({
               <div
                 key={probName || `prob_${pIdx}`}
                 className={cn(
-                  "p-2.5 sm:p-3 rounded-xl border transition-all",
-                  isDark ? "bg-slate-900/90 border-slate-700/80" : "bg-white border-sky-200/80 shadow-2xs",
+                  "px-2.5 py-1.5 rounded-lg border flex flex-wrap items-center justify-between gap-2 transition-all",
+                  isDark ? "bg-slate-900/90 border-slate-700/80" : "bg-white border-sky-200/70",
                   isProblemMissing && "ring-1 ring-rose-400 border-rose-300 dark:border-rose-700"
                 )}
               >
-                {/* Header Masalah */}
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className={cn("text-xs font-black uppercase", isDark ? "text-sky-300" : "text-sky-800")}>
-                      {probName ? probName : "Nomor Blok"}
-                    </span>
-                    {isThisProbRequired && <span className="text-rose-500 font-black text-xs">*</span>}
-                    {isThisProbRequired && (
-                      <span className="text-[9px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900">
-                        Wajib
-                      </span>
-                    )}
-                  </div>
-                  {probBlockList.length > 1 && (
-                    <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800">
-                      {probBlockList.length} Blok
-                    </span>
-                  )}
+                {/* Label Masalah Kompak */}
+                <div className="flex items-center gap-1 min-w-0">
+                  <span className={cn("text-[11px] font-extrabold uppercase truncate", isDark ? "text-sky-300" : "text-sky-900")}>
+                    {probName ? probName : "Nomor Blok"}
+                  </span>
+                  {isThisProbRequired && <span className="text-rose-500 font-black text-[11px]">*</span>}
                 </div>
 
-                {/* Input Nomor Blok & Tombol + Blok Khusus untuk Masalah Ini */}
-                <div className="flex flex-wrap items-center gap-2">
+                {/* Input Nomor Blok & Tombol + Blok Sejajar */}
+                <div className="flex flex-wrap items-center gap-1.5">
                   {probBlockList.map((bVal, bIdx) => {
                     const isItemEmpty = isThisProbRequired && (!bVal || bVal.trim() === "");
                     return (
                       <div
                         key={bIdx}
                         className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all",
+                          "flex items-center gap-1 px-1.5 py-0.5 rounded-md border transition-all",
                           isDark ? "bg-slate-800/80 border-slate-700" : "bg-slate-50 border-slate-200",
                           isItemEmpty && "border-rose-400 bg-rose-50/60 dark:bg-rose-950/40"
                         )}
                       >
-                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          {probBlockList.length > 1 ? `Blok ${bIdx + 1}:` : "Blok:"}
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          {probBlockList.length > 1 ? `B${bIdx + 1}:` : "Blok:"}
                         </span>
                         <input
                           type="text"
@@ -702,7 +700,7 @@ export default function DowntimeTracker({
                           onChange={(e) => updateProblemBlock(probName, pIdx, bIdx, e.target.value)}
                           placeholder="No"
                           className={cn(
-                            "w-12 sm:w-14 h-8 px-1 rounded-md border text-center font-black font-mono text-xs focus:outline-none transition-all",
+                            "w-11 h-7 px-1 rounded border text-center font-black font-mono text-[11px] focus:outline-none transition-all",
                             isDark
                               ? "bg-slate-900 text-slate-100 placeholder:text-slate-500"
                               : "bg-white text-slate-900 placeholder:text-slate-400",
@@ -715,30 +713,30 @@ export default function DowntimeTracker({
                           <button
                             type="button"
                             onClick={() => removeProblemBlock(probName, pIdx, bIdx)}
-                            className="w-6 h-6 rounded hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-500 flex items-center justify-center cursor-pointer transition-colors"
+                            className="w-5 h-5 rounded hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-500 flex items-center justify-center cursor-pointer transition-colors"
                             title={`Hapus nomor blok ${bIdx + 1}`}
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-3 h-3" />
                           </button>
                         )}
                       </div>
                     );
                   })}
 
-                  {/* Tombol + Blok Khusus untuk Masalah Ini */}
+                  {/* Tombol + Blok Kompak */}
                   <button
                     type="button"
                     onClick={() => addProblemBlock(probName, pIdx)}
                     className={cn(
-                      "h-8 px-2.5 rounded-lg border border-dashed flex items-center justify-center gap-1 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0",
+                      "h-7 px-2 rounded-md border border-dashed flex items-center justify-center gap-0.5 text-[10.5px] font-bold transition-all active:scale-95 cursor-pointer shrink-0",
                       isDark
                         ? "bg-slate-800 hover:bg-slate-700 border-sky-600 text-sky-300"
                         : "bg-sky-50 hover:bg-sky-100 border-sky-300 text-sky-700"
                     )}
                     title={`Tambah nomor blok tambahan untuk ${probName || "masalah ini"}`}
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span className="text-[11px] font-bold">+ Blok</span>
+                    <Plus className="w-3 h-3" />
+                    <span>Blok</span>
                   </button>
                 </div>
               </div>
@@ -747,7 +745,7 @@ export default function DowntimeTracker({
         </div>
 
         {effectiveIsMissing && (
-          <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-2">
+          <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-1.5">
             Admin menginstruksikan nomor blok wajib diisi untuk masalah ini.
           </p>
         )}
@@ -917,6 +915,9 @@ export default function DowntimeTracker({
   const [handoffOperatorId, setHandoffOperatorId] = useState("");
   const [handoffGroupId, setHandoffGroupId] = useState("1");
   const [handoffShift, setHandoffShift] = useState("A");
+  const [handoffProblemCategory, setHandoffProblemCategory] = useState<string>("");
+  const [handoffProblemDetails, setHandoffProblemDetails] = useState<string[]>([]);
+  const [handoffProblemManual, setHandoffProblemManual] = useState<string>("");
   const prevHeaderSyncRef = useRef<{ groupId: string; operatorId: string } | null>(null);
 
   const resolvedGroups = React.useMemo(() => {
@@ -1560,6 +1561,43 @@ export default function DowntimeTracker({
     const targetGroupIdStr = String(handoffSelectedGroupObj?.id || handoffGroupId || "1");
     const targetOpIdStr = selectedOp ? String(selectedOp.id) : String(watch("operatorId") || "");
 
+    // Bangun data masalah / kegiatan shift sebelumnya (jika diisi oleh operator saat Serah Terima Shift)
+    const prevShiftMergedDetails = [...handoffProblemDetails];
+    const trimmedHandoffManual = handoffProblemManual.trim();
+    if (trimmedHandoffManual && !prevShiftMergedDetails.includes(trimmedHandoffManual)) {
+      prevShiftMergedDetails.push(trimmedHandoffManual);
+    }
+    const resolvedPrevCat = handoffProblemCategory || (prevShiftMergedDetails.length > 0 ? "F" : "");
+    const previousShiftProblems =
+      resolvedPrevCat && prevShiftMergedDetails.length > 0
+        ? [
+            {
+              kategori: resolvedPrevCat,
+              details: prevShiftMergedDetails,
+              pcsKe: "Semua",
+            },
+          ]
+        : resolvedPrevCat
+        ? [
+            {
+              kategori: resolvedPrevCat,
+              details: [],
+              pcsKe: "Semua",
+            },
+          ]
+        : [];
+
+    const prevShiftLabel = activeBlock.shift || "A";
+    const prevShiftOperationalDate = getShiftDate(new Date(now - 60 * 1000));
+    const problemSummaryText =
+      previousShiftProblems.length > 0
+        ? ` — Shift ${prevShiftLabel}: [Kode ${previousShiftProblems[0].kategori}] ${
+            previousShiftProblems[0].details.length > 0
+              ? previousShiftProblems[0].details.join(", ")
+              : PROBLEM_CATEGORIES.find((c) => c.id === previousShiftProblems[0].kategori)?.name || ""
+          }`
+        : "";
+
     const newLog = {
       id: `log-${now}`,
       logType: "HANDOFF",
@@ -1567,10 +1605,13 @@ export default function DowntimeTracker({
       operatorId: targetOpIdStr,
       operatorName: targetOp,
       shift: targetShiftName,
+      previousShift: prevShiftLabel,
+      previousShiftDate: prevShiftOperationalDate,
+      previousShiftProblems: previousShiftProblems.length > 0 ? previousShiftProblems : undefined,
       timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
       dateStr: new Date().toLocaleDateString("id-ID"),
       dateIso: isoDate,
-      notes: `Serah terima shift ke ${targetOp} (Grup ${targetShiftName})`
+      notes: `Serah terima shift ke ${targetOp} (Grup ${targetShiftName})${problemSummaryText}`
     };
 
     const updated = {
@@ -1606,6 +1647,9 @@ export default function DowntimeTracker({
       // ignore localStorage parse error
     }
 
+    setHandoffProblemCategory("");
+    setHandoffProblemDetails([]);
+    setHandoffProblemManual("");
     setShowHandoffModal(false);
 
     // Sinkronkan log serah terima shift ke database Supabase agar Tablet B / Laptop ikut update
@@ -3330,12 +3374,40 @@ export default function DowntimeTracker({
                   .filter(Boolean)
                   .join(" | ");
 
+                // Tentukan jenis masalah khusus untuk segmen shift ini:
+                // Jika pada saat Serah Terima Shift setelah/keluar dari segmen ini operator mencatat
+                // masalah khusus (misal Turun Benang / Naik Beam), gunakan masalah tersebut untuk segmen ini!
+                let segProblems = problems;
+                if (!isLast) {
+                  const nextSeg = shiftSegments[i + 1];
+                  const handoffWithProblem = shiftLogs.find((l) => {
+                    if (!Array.isArray(l.previousShiftProblems) || l.previousShiftProblems.length === 0) return false;
+                    // 1. Cocok langsung dengan previousShift + previousShiftDate yang tersimpan di log
+                    if (
+                      l.previousShift &&
+                      l.previousShiftDate &&
+                      resolveShiftCode(l.previousShift, seg.shiftGroup) === opShift &&
+                      l.previousShiftDate === seg.shiftDate
+                    ) {
+                      return true;
+                    }
+                    // 2. Fallback berbasis waktu: log serah terima terjadi menjelang akhir segmen ini atau di dalam segmen berikutnya
+                    const lt = typeof l.startTime === "number" ? l.startTime : 0;
+                    const windowStart = Math.max(seg.startTime, seg.endTime - 60 * 60 * 1000);
+                    const windowEnd = nextSeg ? nextSeg.endTime : unblockTime;
+                    return lt >= windowStart && lt <= windowEnd && resolveShiftCode(l.shift, opShift) !== opShift;
+                  });
+                  if (handoffWithProblem && Array.isArray(handoffWithProblem.previousShiftProblems) && handoffWithProblem.previousShiftProblems.length > 0) {
+                    segProblems = handoffWithProblem.previousShiftProblems;
+                  }
+                }
+
                 const splitEvent = {
                   id: `split-shift-${Date.now()}-${i}`,
                   durasiDetik: seg.durationSec,
                   pcsKe: "Semua",
                   dikerjakanOleh: `Perbaikan Khusus (${opName})`,
-                  problems: problems,
+                  problems: segProblems,
                   shift: opShift,
                   notes: combinedNotes,
                   isResolved: true,
@@ -3407,12 +3479,17 @@ export default function DowntimeTracker({
                   .join(" | ");
 
                 const opShift = resolveShiftCode(currentLog.shift, resolveShiftCode(unblockShift || watch("groupId"), "A"));
+                const nextShiftLog = i < shiftLogs.length - 1 ? shiftLogs[i + 1] : null;
+                const segProblems =
+                  nextShiftLog && Array.isArray(nextShiftLog.previousShiftProblems) && nextShiftLog.previousShiftProblems.length > 0
+                    ? nextShiftLog.previousShiftProblems
+                    : problems;
                 const splitEvent = {
                   id: `split-${Date.now()}-${i}`,
                   durasiDetik: segDurationSec,
                   pcsKe: "Semua",
                   dikerjakanOleh: `Perbaikan Khusus (${currentLog.operatorName || "Operator"})`,
-                  problems: problems,
+                  problems: segProblems,
                   shift: opShift,
                   notes: combinedNotes,
                   isResolved: true,
@@ -5245,43 +5322,333 @@ export default function DowntimeTracker({
                     <p className={cn("text-[11px] mt-0.5", isDark ? "text-slate-400" : "text-slate-500")}>
                       {problemSelectMode === "instant"
                         ? "Mode Instan: Klik tombol masalah langsung"
-                        : "Mode Kombinasi: 1. Klik Objek, 2. Klik Kerusakan"}
+                        : problemSelectMode === "modular"
+                        ? "Mode Kombinasi: 1. Klik Objek, 2. Klik Kerusakan"
+                        : "Mode Fleksibel: Pilih tab kategori A–G lalu klik Objek + Kondisi"}
                     </p>
                   </div>
 
-                  {/* Toggle Mode: Instan vs Kombinasi */}
-                  <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 self-start sm:self-auto shrink-0 shadow-2xs">
+                  {/* Toggle Mode: Instan vs Kombinasi vs Fleksibel (3 Opsi, diingat otomatis) */}
+                  <div className={cn(
+                    "inline-flex p-1 rounded-xl border self-start sm:self-auto shrink-0 shadow-2xs flex-wrap",
+                    isDark ? "bg-slate-800/90 border-slate-700/80" : "bg-slate-100 border-slate-200"
+                  )}>
                     <button
                       type="button"
                       onClick={() => handleToggleProblemSelectMode("instant")}
                       className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer",
                         problemSelectMode === "instant"
-                          ? "bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-xs"
-                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                          ? isDark ? "bg-slate-900 text-sky-400 shadow-xs" : "bg-white text-[#0070bc] shadow-xs"
+                          : isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-900"
                       )}
                     >
-                      <Zap className="w-3.5 h-3.5 text-amber-500" />
+                      <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                       <span>Instan</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleToggleProblemSelectMode("modular")}
                       className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer",
                         problemSelectMode === "modular"
-                          ? "bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-xs"
-                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                          ? isDark ? "bg-slate-900 text-sky-400 shadow-xs" : "bg-white text-[#0070bc] shadow-xs"
+                          : isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-900"
                       )}
                     >
-                      <Layers className="w-3.5 h-3.5 text-sky-500" />
+                      <Layers className="w-3.5 h-3.5 text-sky-500 shrink-0" />
                       <span>Kombinasi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleProblemSelectMode("compact")}
+                      className={cn(
+                        "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer",
+                        problemSelectMode === "compact"
+                          ? "bg-[#0070bc] text-white shadow-xs"
+                          : isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      <span>Pilih Fleksibel</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Filter Visible Categories: A & B default, C - G collapsible (or keep visible if selected) */}
-                {(() => {
+                {/* MODE 3: PILIH FLEKSIBEL RINGKAS (Seperti tampilan Tambah Temuan QC) */}
+                {problemSelectMode === "compact" ? (() => {
+                  const COMPACT_TABS = [
+                    { id: "A", short: "Benang", full: "Kode A: Masalah & Perbaikan Benang" },
+                    { id: "B", short: "Jarum", full: "Kode B: Jarum & Element Rajutan" },
+                    { id: "C", short: "Setup", full: "Kode C: Pengaturan & Design" },
+                    { id: "D", short: "Bahan", full: "Kode D: Bahan Baku & Ganti Benang" },
+                    { id: "E", short: "Listrik", full: "Kode E: Kelistrikan" },
+                    { id: "F", short: "Rawat", full: "Kode F: Perawatan & Mekanik" },
+                    { id: "G", short: "Lain", full: "Kode G: Eksternal & Non-Teknis" },
+                  ];
+                  const activeCat = compactActiveCat || "A";
+                  const activeDefs = modularDefinitions[activeCat] || { objects: [], actions: [] };
+                  const curBuilder = modularBuilderState[activeCat] || {};
+
+                  // Kumpulkan semua masalah terpilih lintas kategori
+                  const allSelectedPairs: { catId: string; detail: string }[] = [];
+                  currentCategories.forEach((cid) => {
+                    (currentDetails[cid] || []).forEach((det) => {
+                      allSelectedPairs.push({ catId: cid, detail: det });
+                    });
+                  });
+
+                  const handleCompactRemoveDetail = (cid: string, det: string) => {
+                    const remaining = (currentDetails[cid] || []).filter((d) => d !== det);
+                    handleDetailToggle(cid, det, false);
+                    if (remaining.length === 0) {
+                      handleCategoryToggle(cid, false);
+                    }
+                  };
+
+                  const handleCompactAddManual = () => {
+                    const txt = compactManualInput.trim();
+                    if (!txt) return;
+                    if (!currentCategories.includes(activeCat)) {
+                      handleCategoryToggle(activeCat, true);
+                    }
+                    const existing = currentDetails[activeCat] || [];
+                    if (!existing.includes(txt)) {
+                      handleDetailToggle(activeCat, txt, true);
+                    }
+                    setCompactManualInput("");
+                  };
+
+                  return (
+                    <div className={cn(
+                      "rounded-2xl border p-3.5 space-y-3 transition-colors",
+                      isDark ? "border-slate-700 bg-slate-900/70" : "border-slate-200 bg-slate-50/70"
+                    )}>
+                      {/* Ringkasan Masalah Terpilih Lintas Kategori */}
+                      {allSelectedPairs.length > 0 && (
+                        <div className={cn(
+                          "flex flex-wrap items-center gap-1.5 pb-2.5 border-b",
+                          isDark ? "border-slate-700" : "border-slate-200/80"
+                        )}>
+                          {allSelectedPairs.map(({ catId: cid, detail: det }) => (
+                            <button
+                              key={`${cid}-${det}`}
+                              type="button"
+                              onClick={() => handleCompactRemoveDetail(cid, det)}
+                              className={cn(
+                                "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border text-[11px] font-bold cursor-pointer transition-colors",
+                                isDark
+                                  ? "bg-rose-950/70 border-rose-800 text-rose-200 hover:bg-rose-900/80"
+                                  : "bg-rose-50 border-rose-200 text-rose-800 hover:bg-rose-100"
+                              )}
+                              title="Klik untuk hapus"
+                            >
+                              <span className="px-1 py-0.2 rounded bg-rose-600 text-white text-[9px] font-black">{cid}</span>
+                              <span>{det}</span>
+                              <X className="w-3 h-3 text-rose-500 shrink-0" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Input Nomor Blok Kompak di Atas Pilihan Kategori */}
+                      {showBlockInput && currentCategories.length > 0 && (
+                        <div className="space-y-1.5">
+                          {currentCategories.map((cid) => {
+                            const selectedForCat = currentDetails[cid] || [];
+                            if (selectedForCat.length === 0) return null;
+                            const reqItems = selectedForCat.filter((d) => isDefectRequiringBlock(d));
+                            const isReq = reqItems.length > 0;
+                            const currentCatKey = problemInputMode === "per_pcs" ? `${activePcsProblemTab}_${cid}` : cid;
+                            const isMiss = isReq && reqItems.some((d) => {
+                              const arr = perProblemBloks[currentCatKey]?.[d];
+                              if (arr && arr.some((v) => v.trim() !== "")) return false;
+                              return !(currentBloks[cid] && currentBloks[cid].trim() !== "");
+                            });
+                            return (
+                              <div key={`compact-blok-${cid}`}>
+                                {renderBlockInputForCategory(cid, isReq, isMiss, selectedForCat)}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Pilih Kategori A-G (1 Baris Rapi & Simetris) */}
+                      <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+                        {COMPACT_TABS.map((tab) => {
+                          const isActive = activeCat === tab.id;
+                          const catSelectedCount = (currentDetails[tab.id] || []).length;
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => setCompactActiveCat(tab.id)}
+                              title={tab.full}
+                              className={cn(
+                                "py-1.5 px-1 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center leading-tight relative",
+                                isActive
+                                  ? "bg-[#0070bc] text-white border-[#0070bc] shadow-xs"
+                                  : isDark
+                                  ? "bg-slate-800 text-slate-300 border-slate-700 hover:border-sky-500/60"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:bg-sky-50/60"
+                              )}
+                            >
+                              {catSelectedCount > 0 && (
+                                <span className={cn(
+                                  "absolute -top-1.5 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-black flex items-center justify-center",
+                                  isActive ? "bg-amber-400 text-slate-900" : "bg-[#0070bc] text-white"
+                                )}>
+                                  {catSelectedCount}
+                                </span>
+                              )}
+                              <span className="text-xs font-black">{tab.id}</span>
+                              <span className={cn("text-[9px] font-semibold mt-0.5 truncate max-w-full", isActive ? "text-sky-100" : "text-slate-400")}>
+                                {tab.short}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* 2 Kolom Sejajar: 1 OBJEK / BAGIAN + 2 KONDISI / MASALAH */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-stretch">
+                        {/* Kolom 1: Objek / Bagian */}
+                        <div className={cn(
+                          "rounded-xl border p-2.5 flex flex-col gap-2",
+                          isDark ? "bg-slate-800/90 border-slate-700" : "bg-white border-slate-200/90"
+                        )}>
+                          <div className={cn("flex items-center gap-1.5 pb-1.5 border-b", isDark ? "border-slate-700" : "border-slate-100")}>
+                            <span className="w-4 h-4 rounded-md bg-[#0070bc] text-white text-[10px] font-black inline-flex items-center justify-center shrink-0">
+                              1
+                            </span>
+                            <span className={cn("text-[10.5px] font-extrabold uppercase tracking-wide", isDark ? "text-slate-200" : "text-slate-700")}>
+                              Objek / Bagian
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap content-start gap-1.5 flex-1 max-h-44 overflow-y-auto custom-scrollbar">
+                            {(activeDefs.objects || []).map((obj) => {
+                              const isPicked = curBuilder.obj === obj;
+                              return (
+                                <button
+                                  key={obj}
+                                  type="button"
+                                  onClick={() => handleModularObjectClick(activeCat, obj)}
+                                  className={cn(
+                                    "h-8 px-2.5 rounded-lg border text-[11.5px] font-semibold transition-all cursor-pointer active:scale-98",
+                                    isPicked
+                                      ? "bg-[#0070bc] text-white border-[#0070bc] shadow-xs ring-2 ring-[#0070bc]/20"
+                                      : isDark
+                                      ? "bg-slate-900/70 text-slate-200 border-slate-700 hover:border-sky-400"
+                                      : "bg-slate-50/80 text-slate-700 border-slate-200 hover:border-sky-400 hover:bg-sky-50/60"
+                                  )}
+                                >
+                                  {obj}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Kolom 2: Kondisi / Masalah */}
+                        <div className={cn(
+                          "rounded-xl border p-2.5 flex flex-col gap-2",
+                          isDark ? "bg-slate-800/90 border-slate-700" : "bg-white border-slate-200/90"
+                        )}>
+                          <div className={cn("flex items-center gap-1.5 pb-1.5 border-b", isDark ? "border-slate-700" : "border-slate-100")}>
+                            <span className="w-4 h-4 rounded-md bg-rose-600 text-white text-[10px] font-black inline-flex items-center justify-center shrink-0">
+                              2
+                            </span>
+                            <span className={cn("text-[10.5px] font-extrabold uppercase tracking-wide", isDark ? "text-slate-200" : "text-slate-700")}>
+                              Kondisi / Masalah
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap content-start gap-1.5 flex-1 max-h-44 overflow-y-auto custom-scrollbar">
+                            {(activeDefs.actions || []).map((act) => {
+                              const isPicked = curBuilder.act === act;
+                              return (
+                                <button
+                                  key={act}
+                                  type="button"
+                                  onClick={() => handleModularActionClick(activeCat, act)}
+                                  className={cn(
+                                    "h-8 px-2.5 rounded-lg border text-[11.5px] font-semibold transition-all cursor-pointer active:scale-98",
+                                    isPicked
+                                      ? "bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-500/20"
+                                      : isDark
+                                      ? "bg-slate-900/70 text-slate-200 border-slate-700 hover:border-rose-400"
+                                      : "bg-slate-50/80 text-slate-700 border-slate-200 hover:border-rose-300 hover:bg-rose-50/60"
+                                  )}
+                                >
+                                  {act}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bar Pratinjau Kombinasi */}
+                      <div className={cn(
+                        "rounded-xl border px-3 py-2 flex items-center justify-between gap-2 flex-wrap",
+                        isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200/80"
+                      )}>
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-md",
+                            curBuilder.obj
+                              ? "bg-sky-100 text-[#0070bc] dark:bg-sky-900/60 dark:text-sky-300"
+                              : isDark ? "bg-slate-700 text-slate-400" : "bg-slate-100 text-slate-500"
+                          )}>
+                            {curBuilder.obj || "Pilih Objek"}
+                          </span>
+                          <span className="text-slate-400">+</span>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-md",
+                            curBuilder.act
+                              ? "bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300"
+                              : isDark ? "bg-slate-700 text-slate-400" : "bg-slate-100 text-slate-500"
+                          )}>
+                            {curBuilder.act || "Pilih Kondisi"}
+                          </span>
+                        </div>
+                        <span className="text-[10.5px] font-semibold text-slate-400">
+                          Otomatis masuk saat keduanya dipilih
+                        </span>
+                      </div>
+
+                      {/* Input Manual Bebas untuk Kategori Aktif */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={compactManualInput}
+                          onChange={(e) => setCompactManualInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleCompactAddManual();
+                            }
+                          }}
+                          placeholder={`Ketik masalah manual lainnya (Kategori ${activeCat})...`}
+                          className={cn(
+                            "flex-1 h-9 px-3 rounded-xl border text-xs font-semibold outline-none transition-colors",
+                            isDark
+                              ? "bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-sky-500"
+                              : "bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-[#0070bc]"
+                          )}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleCompactAddManual}
+                          className="h-9 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer shrink-0 transition-colors"
+                        >
+                          + Tambah
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })() : (
+                /* Filter Visible Categories: A & B default, C - G collapsible (or keep visible if selected) */
+                (() => {
                   const visibleCategories = PROBLEM_CATEGORIES.filter((cat) => {
                     if (showAllCategories) return true;
                     if (cat.id === "A" || cat.id === "B") return true;
@@ -5754,7 +6121,7 @@ export default function DowntimeTracker({
                       </div>
                     </div>
                   );
-                })()}
+                })())}
               </div>
             </div>
 
@@ -5830,13 +6197,13 @@ export default function DowntimeTracker({
       {/* Modal Serah Terima Shift (Pengantian Operator) */}
       {showHandoffModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-4 sm:p-5 border-b border-sky-100 flex items-center justify-between bg-sky-50/80">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="p-4 sm:p-5 border-b border-sky-100 flex items-center justify-between bg-sky-50/80 shrink-0">
               <div className="flex items-center gap-2.5">
                 <RefreshCw className="w-5 h-5 text-[#0070bc]" />
                 <div>
                   <h3 className="font-black text-slate-900 text-sm sm:text-base">Serah Terima Shift</h3>
-                  <p className="text-[10px] text-[#0070bc] font-semibold">Ganti petugas operator untuk shift berikutnya</p>
+                  <p className="text-[10px] text-[#0070bc] font-semibold">Ganti petugas operator &amp; catat masalah shift sebelumnya</p>
                 </div>
               </div>
               <button onClick={() => setShowHandoffModal(false)} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer">
@@ -5844,7 +6211,7 @@ export default function DowntimeTracker({
               </button>
             </div>
 
-            <div className="p-4 sm:p-5 space-y-4">
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto custom-scrollbar">
               {/* Pilihan Grup Shift */}
               <div>
                 <label className="text-[10px] font-extrabold text-slate-600 uppercase mb-1.5 block">
@@ -5925,9 +6292,119 @@ export default function DowntimeTracker({
                   Perubahan grup &amp; nama operator di sini otomatis menyinkronkan data di menu Header.
                 </p>
               </div>
+
+              {/* Input Masalah / Kegiatan Shift Sebelumnya */}
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-3.5 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <label className="text-[10px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Masalah / Kegiatan Shift Sebelumnya (Grup {activeBlock?.shift || "A"})</span>
+                    </label>
+                    <p className="text-[10.5px] text-amber-800/80 font-medium mt-0.5 leading-snug">
+                      Isi jika kasus di shift sebelumnya berbeda (misal Turun Benang, Naik Beam, dll.) agar tercatat akurat per shift di laporan.
+                    </p>
+                  </div>
+                  {(handoffProblemCategory || handoffProblemDetails.length > 0 || handoffProblemManual) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHandoffProblemCategory("");
+                        setHandoffProblemDetails([]);
+                        setHandoffProblemManual("");
+                      }}
+                      className="text-[10px] font-bold text-amber-700 hover:text-amber-900 underline shrink-0 cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+
+                {/* Pilihan Kode Kategori A-G */}
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {PROBLEM_CATEGORIES.map((cat) => {
+                      const isSel = handoffProblemCategory === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => {
+                            if (isSel) {
+                              setHandoffProblemCategory("");
+                              setHandoffProblemDetails([]);
+                            } else {
+                              setHandoffProblemCategory(cat.id);
+                              setHandoffProblemDetails([]);
+                            }
+                          }}
+                          title={cat.name}
+                          className={cn(
+                            "h-9 rounded-xl border text-xs font-black transition-all cursor-pointer",
+                            isSel
+                              ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                              : "bg-white text-slate-700 border-amber-200 hover:bg-amber-100/70"
+                          )}
+                        >
+                          {cat.id}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {handoffProblemCategory && (
+                    <p className="text-[10.5px] font-bold text-amber-900 bg-white/80 px-2.5 py-1.5 rounded-lg border border-amber-200/80">
+                      {PROBLEM_CATEGORIES.find((c) => c.id === handoffProblemCategory)?.name}
+                    </p>
+                  )}
+                </div>
+
+                {/* Pilihan Detail Masalah berdasarkan Kategori */}
+                {handoffProblemCategory && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-extrabold text-slate-600 uppercase block">
+                      Pilih Detail Masalah (Bisa lebih dari 1)
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar p-1 bg-white/70 rounded-xl border border-amber-200/70">
+                      {(dynamicProblemDetails[handoffProblemCategory] || []).map((det) => {
+                        const isPicked = handoffProblemDetails.includes(det);
+                        return (
+                          <button
+                            key={det}
+                            type="button"
+                            onClick={() => {
+                              setHandoffProblemDetails((prev) =>
+                                isPicked ? prev.filter((x) => x !== det) : [...prev, det]
+                              );
+                            }}
+                            className={cn(
+                              "px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all cursor-pointer text-left",
+                              isPicked
+                                ? "bg-[#0070bc] text-white border-[#0070bc] shadow-2xs"
+                                : "bg-white text-slate-700 border-slate-200 hover:border-amber-400 hover:bg-amber-50"
+                            )}
+                          >
+                            {det}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Input Manual Detail / Catatan Tambahan */}
+                <div>
+                  <input
+                    type="text"
+                    value={handoffProblemManual}
+                    onChange={(e) => setHandoffProblemManual(e.target.value)}
+                    placeholder="Ketik detail masalah manual (misal: Turun Benang, Naik Beam, dll.)"
+                    className="w-full h-10 px-3 rounded-xl border border-amber-200 bg-white text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:border-[#0070bc] focus:ring-2 focus:ring-[#0070bc]/15 outline-none"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-2">
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowHandoffModal(false)}

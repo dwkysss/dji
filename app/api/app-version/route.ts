@@ -29,15 +29,15 @@ export async function GET() {
   }
 
   const versionInfo: AppVersionResponse = {
-    latestVersionName: "1.1.3",
-    latestVersionCode: 5,
+    latestVersionName: "1.1.4",
+    latestVersionCode: 6,
     apkUrl: "/downloads/dji-app.apk",
     apkSize: apkSizeStr,
     releaseNotes: [
-      "Perbaikan popup izin kamera native Android agar tidak tertahan oleh mode Kiosk / auto-lock",
-      "Penambahan tombol pintas 'Buka Izin Aplikasi' jika izin kamera sebelumnya pernah diblokir permanen",
-      "Kamera Scan QR otomatis menyala kembali begitu izin diberikan",
-      "Peningkatan responsivitas tampilan tablet untuk QC, Mending, Final Inspection, dan Dashboard"
+      "Kunci aplikasi (Kiosk) otomatis lepas saat internet/Wi-Fi terputus dan aktif kembali saat internet tersambung",
+      "Real-time sync otomatis ke Google Sheets untuk Laporan Harian Inspect/Mending & Laporan Potong Kain",
+      "Mode Pilih Fleksibel pada modal temuan QC, Mending, dan Final Inspection serta input masalah per shift saat Serah Terima",
+      "Perbaikan popup izin kamera native Android pada fitur Scan QR"
     ],
     mandatory: false,
     publishedAt: new Date().toISOString(),

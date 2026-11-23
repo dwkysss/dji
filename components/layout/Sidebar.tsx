@@ -355,6 +355,7 @@ export default function Sidebar() {
           href: "/chatbot",
           icon: MessageSquare,
           roles: ["admin", "manager"],
+          comingSoon: true,
         },
         {
           name: "Manajemen Akun",
@@ -665,6 +666,38 @@ function SidebarInner({
                   <nav className="space-y-0.5 pl-4 border-l-2 border-slate-200/80 ml-5 mb-1">
                     {visibleItems.map((item: any) => {
                       const Icon = item.icon;
+                      if (item.comingSoon) {
+                        return (
+                          <div
+                            key={item.href}
+                            aria-disabled="true"
+                            className="flex items-center justify-between gap-2 px-3 h-9 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed select-none"
+                            title={`${item.name} (Coming Soon)`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <Icon className="w-4 h-4 shrink-0 text-slate-300" />
+                              <span
+                                className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
+                                  isExpanded
+                                    ? "opacity-100 w-auto"
+                                    : "md:opacity-0 md:w-0 md:group-hover:opacity-100 md:group-hover:w-auto"
+                                }`}
+                              >
+                                {item.name}
+                              </span>
+                            </div>
+                            <span
+                              className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80 shrink-0 transition-all duration-300 ${
+                                isExpanded
+                                  ? "opacity-100"
+                                  : "md:opacity-0 md:hidden md:group-hover:opacity-100 md:group-hover:inline-flex"
+                              }`}
+                            >
+                              Coming Soon
+                            </span>
+                          </div>
+                        );
+                      }
                       const isActive = isNavItemActive(item.href, pathname, allNavItems);
                       const isPending = pendingHref === item.href;
                       return (

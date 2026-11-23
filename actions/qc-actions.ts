@@ -19,7 +19,9 @@ export async function searchPendingQCHeaders(designId: string, potonganKe: strin
         operators ( nama_operator )
       `)
       .eq("design_id", designId)
-      .eq("potongan_ke", parseInt(potonganKe));
+      .eq("potongan_ke", parseInt(potonganKe))
+      .neq("panel_no", "BERHENTI")
+      .neq("panel_no", "Downtime Mekanik (Direct)");
 
     if (error) {
       return { success: false, error: error.message };
@@ -421,6 +423,20 @@ export async function submitQCInspection(params: {
       console.error("Error preparing Google Sheets sync:", sheetErr);
     }
 
+    // Real-time background sync ke Google Sheets (Laporan Harian Inspect/Mending + Potong Kain khusus Tricote)
+    try {
+      const { triggerRealtimeSyncAfterInspection } = await import("@/actions/google-sheet-actions");
+      await triggerRealtimeSyncAfterInspection({
+        stage: "qc",
+        machine: nomor_mc,
+        potonganKe: potongan_ke,
+        pcsIndex: pcs_index,
+        isTricote: isTricoteMachine,
+      });
+    } catch (rtErr) {
+      console.error("[QC Realtime Sync] Error triggering background sync:", rtErr);
+    }
+
     return { success: true };
   } catch (err: any) {
     console.error("Server error submitting QC inspection:", err);
@@ -437,9 +453,13 @@ export async function getAvailableQCFilters() {
         nomor_mc,
         design_id,
         potongan_ke,
-        tgl
+        tgl,
+        panel_no
       )
-    `).is("status_inspeksi", null);
+    `)
+    .is("status_inspeksi", null)
+    .neq("production_headers.panel_no", "BERHENTI")
+    .neq("production_headers.panel_no", "Downtime Mekanik (Direct)");
 
     if (error) return { success: false, error: error.message };
 
@@ -468,7 +488,9 @@ export async function getPendingQCDetailsByBatch(mesin: string, designId: string
       .from("production_headers")
       .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_jam, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, meter_awal, meter_akhir, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup), production_details(id, pcs_index, meter_kain, detail_masalah)")
       .eq("nomor_mc", mesin)
-      .eq("potongan_ke", parseInt(potonganKe));
+      .eq("potongan_ke", parseInt(potonganKe))
+      .neq("panel_no", "BERHENTI")
+      .neq("panel_no", "Downtime Mekanik (Direct)");
 
     if (tanggal) {
       query = query.eq("tgl", tanggal);
@@ -599,7 +621,9 @@ export async function getAllPendingQCDetails(
           )
         `)
         .is("status_inspeksi", null)
-        .or("is_deleted.is.null,is_deleted.eq.false");
+        .or("is_deleted.is.null,is_deleted.eq.false")
+        .neq("production_headers.panel_no", "BERHENTI")
+        .neq("production_headers.panel_no", "Downtime Mekanik (Direct)");
 
       if (sDate && eDate) {
         if (sDate === eDate) {

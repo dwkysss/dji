@@ -18,7 +18,9 @@ export async function getAvailableMendingFilters() {
         )
       `)
       .not("final_inspection_id", "is", null)
-      .is("status_mending", null);
+      .is("status_mending", null)
+      .neq("production_headers.panel_no", "BERHENTI")
+      .neq("production_headers.panel_no", "Downtime Mekanik (Direct)");
 
     if (err1) {
       if (err1.message.includes("status_mending")) {
@@ -42,7 +44,9 @@ export async function getAvailableMendingFilters() {
         )
       `)
       .is("final_inspection_id", null)
-      .eq("is_deleted", false);
+      .eq("is_deleted", false)
+      .neq("production_headers.panel_no", "BERHENTI")
+      .neq("production_headers.panel_no", "Downtime Mekanik (Direct)");
 
     if (err2) return { success: false, error: err2.message };
 
@@ -95,7 +99,9 @@ export async function getPendingMendingDetailsByBatch(mesin: string, designId: s
       .from("production_headers")
       .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_jam, tanggal_potong, pick, no_order_barang, design_id, potongan_ke, course, rpm, no_customer, jenis_benang_dasar, liner, heavy, shadow, pinggiran, status_matching, operator_backup, operators(nama_operator), groups(nama_grup)")
       .eq("nomor_mc", mesin)
-      .eq("potongan_ke", parseInt(potonganKe));
+      .eq("potongan_ke", parseInt(potonganKe))
+      .neq("panel_no", "BERHENTI")
+      .neq("panel_no", "Downtime Mekanik (Direct)");
 
     if (headerError) return { success: false, error: headerError.message };
     if (!headers || headers.length === 0) return { success: true, data: [] };
@@ -368,6 +374,19 @@ export async function submitMending(params: {
       }
     } catch (sheetErr) {
       console.error("Error preparing Google Sheets sync for mending:", sheetErr);
+    }
+
+    // Real-time background sync ke Google Sheets (Laporan Harian Inspect/Mending & Laporan Potong Kain)
+    try {
+      const { triggerRealtimeSyncAfterInspection } = await import("@/actions/google-sheet-actions");
+      await triggerRealtimeSyncAfterInspection({
+        stage: "mending",
+        machine: headerInfo.nomor_mc,
+        potonganKe: headerInfo.potongan_ke,
+        pcsIndex: headerInfo.pcs_index,
+      });
+    } catch (rtErr) {
+      console.error("[Mending Realtime Sync] Error triggering background sync:", rtErr);
     }
 
     return { success: true };
@@ -774,7 +793,9 @@ export async function getAllDetailsForPcs(nomor_mc: string, design_id: string, p
       .select("id, panel_no, nomor_mc, pic:created_by_name, tgl, tanggal_potong, pick, no_order_barang, no_customer, course, rpm, status_matching, operator_backup, jenis_benang_dasar, liner, heavy, shadow, pinggiran, downtime_events, meter_awal, meter_akhir, operators(nama_operator), groups(nama_grup), tanggal_jam")
       .eq("nomor_mc", nomor_mc)
       .eq("design_id", design_id)
-      .eq("potongan_ke", potongan_ke);
+      .eq("potongan_ke", potongan_ke)
+      .neq("panel_no", "BERHENTI")
+      .neq("panel_no", "Downtime Mekanik (Direct)");
 
     if (headerError) return { success: false, error: headerError.message };
     if (!headers || headers.length === 0) return { success: true, data: [] };
@@ -841,6 +862,8 @@ export async function getPendingMendingDetailsByDate(tanggalOrParams: string | {
       `)
       .not("final_inspection_id", "is", null)
       .is("status_mending", null)
+      .neq("production_headers.panel_no", "BERHENTI")
+      .neq("production_headers.panel_no", "Downtime Mekanik (Direct)")
       .limit(3000);
 
     const { data, error } = await query;
@@ -1269,6 +1292,9 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
     if (nomor_mc) qcBatchQuery = qcBatchQuery.eq("nomor_mc", nomor_mc);
     if (potongan_ke) qcBatchQuery = qcBatchQuery.eq("potongan_ke", parseInt(potongan_ke));
     const { data: allQcBatches } = await qcBatchQuery;
+    const { getAllObTypeConfigs } = await import("@/actions/machine-config-actions");
+    const obTypeRes = await getAllObTypeConfigs();
+    const obTypeMap = obTypeRes.data || {};
     
     const formattedData = (data || []).map((batch: any) => {
       const firstItem = batch.items && batch.items.length > 0 ? batch.items[0] : null;
@@ -1304,8 +1330,10 @@ export async function getMendingReportData(nomor_mc?: string, potongan_ke?: stri
         }
       }
 
+      const obSpecKey = `${String(batch.nomor_mc || header.nomor_mc || "").toUpperCase().trim()}:${batch.potongan_ke}`;
       return {
         ...batch,
+        jenis_ob: obTypeMap[obSpecKey] || null,
         tanggal_mending: batch.tanggal_final,
         petugas_mending: batch.petugas_final,
         mending_grade_a: batch.final_grade_a,

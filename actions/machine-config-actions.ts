@@ -42,6 +42,7 @@ export async function getMachineConfigs(): Promise<{ success: boolean; data: Mac
           mcStr &&
           !mcStr.startsWith("REQUIRED_BLOCK:") &&
           !mcStr.startsWith("MAX_PANEL:") &&
+          !mcStr.startsWith("OB_TYPE:") &&
           !mcStr.startsWith("ESP32_") &&
           mcStr !== "PROBLEM_GROUP_MAPPING"
         ) {
@@ -320,6 +321,107 @@ export async function getAllMaxPanelConfigs(): Promise<{
     return { success: true, data: map };
   } catch (err: any) {
     console.error("Error in getAllMaxPanelConfigs:", err);
+    return { success: false, data: {} };
+  }
+}
+
+export async function getObTypeConfig(
+  nomorMc: string,
+  potonganKe?: number | string
+): Promise<"STM" | "DJI" | null> {
+  try {
+    if (!nomorMc || potonganKe === undefined || potonganKe === null || potonganKe === "") {
+      return null;
+    }
+    const supabase = await createClient();
+    const mcUpper = String(nomorMc).toUpperCase().trim();
+    const key = `OB_TYPE:${mcUpper}:${potonganKe}`;
+    const { data } = await supabase
+      .from("machine_configs")
+      .select("input_type")
+      .eq("nomor_mc", key)
+      .maybeSingle();
+
+    const val = String(data?.input_type || "").toUpperCase().trim();
+    if (val === "STM" || val === "DJI") return val;
+    return null;
+  } catch (err) {
+    console.error("Error in getObTypeConfig:", err);
+    return null;
+  }
+}
+
+export async function saveObTypeConfig(
+  nomorMc: string,
+  potonganKe: number | string,
+  jenisOb: "STM" | "DJI"
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const mcUpper = String(nomorMc || "").toUpperCase().trim();
+    const key = `OB_TYPE:${mcUpper}:${potonganKe}`;
+    const { error } = await supabase
+      .from("machine_configs")
+      .upsert(
+        {
+          nomor_mc: key,
+          default_pcs: 0,
+          input_type: jenisOb,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "nomor_mc" }
+      );
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error in saveObTypeConfig:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function deleteObTypeConfig(
+  nomorMc: string,
+  potonganKe: number | string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const mcUpper = String(nomorMc || "").toUpperCase().trim();
+    const key = `OB_TYPE:${mcUpper}:${potonganKe}`;
+    const { error } = await supabase
+      .from("machine_configs")
+      .delete()
+      .eq("nomor_mc", key);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error in deleteObTypeConfig:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getAllObTypeConfigs(): Promise<{
+  success: boolean;
+  data: Record<string, "STM" | "DJI">;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("machine_configs")
+      .select("nomor_mc, input_type")
+      .like("nomor_mc", "OB_TYPE:%");
+
+    if (error) throw error;
+    const map: Record<string, "STM" | "DJI"> = {};
+    (data || []).forEach((row: any) => {
+      const k = String(row.nomor_mc || "").replace(/^OB_TYPE:/i, "").trim().toUpperCase();
+      const v = String(row.input_type || "").toUpperCase().trim();
+      if (k && (v === "STM" || v === "DJI")) {
+        map[k] = v;
+      }
+    });
+    return { success: true, data: map };
+  } catch (err) {
+    console.error("Error in getAllObTypeConfigs:", err);
     return { success: false, data: {} };
   }
 }

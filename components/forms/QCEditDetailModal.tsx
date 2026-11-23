@@ -13,6 +13,19 @@ import {
 } from "lucide-react";
 import { updateQCDetailDefectsAndNotes, swapOrMoveQCDefects, bulkUpdateQCDetails } from "@/actions/qc-actions";
 import { getQCDefects, QCDefectItem } from "@/actions/qc-defect-actions";
+import { getModularProblemDefinitions } from "@/actions/problem-detail-actions";
+import { DEFAULT_MODULAR_DEFINITIONS } from "@/lib/constants";
+import { getFlexibleProblemDetail } from "@/lib/canonical-problem-utils";
+
+const MODULAR_CAT_TABS = [
+  { id: "A", short: "Benang", full: "A · Benang" },
+  { id: "B", short: "Jarum", full: "B · Jarum & Mekanik" },
+  { id: "C", short: "Setup", full: "C · Setup & Desain" },
+  { id: "D", short: "Bahan", full: "D · Bahan Baku" },
+  { id: "E", short: "Listrik", full: "E · Kelistrikan" },
+  { id: "F", short: "Rawat", full: "F · Perawatan" },
+  { id: "G", short: "Lain", full: "G · Non-Teknis" },
+];
 
 interface QCEditDetailModalProps {
   isOpen: boolean;
@@ -44,6 +57,29 @@ export default function QCEditDetailModal({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Mode Pilih Cepat vs Fleksibel (Modular Objek + Kondisi) seperti di inputan operator
+  const [selectMode, setSelectMode] = useState<"instant" | "modular">(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("dji_qc_defect_select_mode") === "modular" ? "modular" : "instant";
+    }
+    return "instant";
+  });
+  const [modularDefs, setModularDefs] = useState<Record<string, { objects: string[]; actions: string[] }>>(
+    DEFAULT_MODULAR_DEFINITIONS
+  );
+  const [modularCat, setModularCat] = useState<string>("A");
+  const [modularObj, setModularObj] = useState<string>("");
+  const [modularAct, setModularAct] = useState<string>("");
+
+  const handleChangeSelectMode = (nextMode: "instant" | "modular") => {
+    setSelectMode(nextMode);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("dji_qc_defect_select_mode", nextMode);
+      } catch {}
+    }
+  };
+
   // Move / Swap State
   const [targetMoveDetailId, setTargetMoveDetailId] = useState<string>("");
   const [isMoving, setIsMoving] = useState(false);
@@ -72,6 +108,11 @@ export default function QCEditDetailModal({
           setMasterQCDefects(res.data);
         }
       });
+      getModularProblemDefinitions().then((res) => {
+        if (res.success && res.definitions) {
+          setModularDefs(res.definitions);
+        }
+      }).catch(() => {});
     }
   }, [isOpen]);
 
@@ -79,6 +120,8 @@ export default function QCEditDetailModal({
     if (isOpen && detail) {
       setErrorMsg(null);
       setIsMoveSectionOpen(false);
+      setModularObj("");
+      setModularAct("");
       
       // Select first available target panel if any
       if (otherPanels.length > 0) {
@@ -143,6 +186,42 @@ export default function QCEditDetailModal({
       return prev;
     });
     setManualQCDefectText("");
+  };
+
+  const handlePickModularObject = (obj: string) => {
+    const nextObj = modularObj === obj ? "" : obj;
+    setModularObj(nextObj);
+    if (nextObj && modularAct) {
+      const combined = getFlexibleProblemDetail(
+        modularCat,
+        nextObj,
+        modularAct,
+        masterQCDefects.map((d) => d.nama_cacat)
+      );
+      if (combined) {
+        setSelectedQCDefects((prev) => (prev.includes(combined) ? prev : [...prev, combined]));
+        setModularObj("");
+        setModularAct("");
+      }
+    }
+  };
+
+  const handlePickModularAction = (act: string) => {
+    const nextAct = modularAct === act ? "" : act;
+    setModularAct(nextAct);
+    if (modularObj && nextAct) {
+      const combined = getFlexibleProblemDetail(
+        modularCat,
+        modularObj,
+        nextAct,
+        masterQCDefects.map((d) => d.nama_cacat)
+      );
+      if (combined) {
+        setSelectedQCDefects((prev) => (prev.includes(combined) ? prev : [...prev, combined]));
+        setModularObj("");
+        setModularAct("");
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -375,64 +454,237 @@ export default function QCEditDetailModal({
             </div>
           )}
 
-          {/* Section: PILIH DETAIL MASALAH (Grid 2 Kolom) */}
+          {/* Section: PILIH DETAIL MASALAH (Daftar Cepat / Pilih Fleksibel) */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
-                PILIH DETAIL MASALAH
-              </label>
-              {selectedQCDefects.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-extrabold px-2.5 py-0.5 bg-rose-100 text-rose-700 rounded-full">
-                    {selectedQCDefects.length} Terpilih
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQCDefects([])}
-                    className="text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                  >
-                    Reset
-                  </button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                  PILIH DETAIL MASALAH
+                </label>
+                {selectedQCDefects.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full">
+                      {selectedQCDefects.length} Terpilih
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedQCDefects([])}
+                      className="text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Switcher Mode Daftar Cepat vs Pilih Fleksibel */}
+              <div className="inline-flex p-0.5 rounded-xl bg-slate-100 border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => handleChangeSelectMode("instant")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                    selectMode === "instant"
+                      ? "bg-white text-slate-900 shadow-2xs"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Daftar Cepat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChangeSelectMode("modular")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                    selectMode === "modular"
+                      ? "bg-[#0070bc] text-white shadow-2xs"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Pilih Fleksibel
+                </button>
+              </div>
+            </div>
+
+            {selectMode === "instant" ? (
+              /* 2-Column Grid Cards (Daftar Cepat) */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {masterQCDefects.map((d) => {
+                  const isSelected = selectedQCDefects.includes(d.nama_cacat);
+                  return (
+                    <button
+                      key={d.id || d.nama_cacat}
+                      type="button"
+                      onClick={() => handleToggleQCDefect(d.nama_cacat)}
+                      className={`min-h-[48px] px-4.5 py-3 rounded-2xl border text-left font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-start cursor-pointer active:scale-98 ${
+                        isSelected
+                          ? "border-rose-500 bg-rose-50/80 text-rose-900 shadow-xs ring-2 ring-rose-500/20"
+                          : "border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span>{d.nama_cacat}</span>
+                    </button>
+                  );
+                })}
+
+                {/* Any custom / flexible added defects */}
+                {selectedQCDefects
+                  .filter((name) => !masterQCDefects.some((d) => d.nama_cacat.toLowerCase() === name.toLowerCase()))
+                  .map((customName) => (
+                    <button
+                      key={customName}
+                      type="button"
+                      onClick={() => handleToggleQCDefect(customName)}
+                      className="min-h-[48px] px-4.5 py-3 rounded-2xl border border-rose-500 bg-rose-50/80 text-rose-900 shadow-xs ring-2 ring-rose-500/20 text-left font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-between gap-1.5 cursor-pointer active:scale-98"
+                      title="Klik untuk menghapus"
+                    >
+                      <span>{customName}</span>
+                      <X className="w-3.5 h-3.5 text-rose-600 ml-1 shrink-0" />
+                    </button>
+                  ))}
+              </div>
+            ) : (
+              /* Mode Pilih Fleksibel (Modular: Kategori -> Objek + Kondisi/Tindakan) */
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3">
+                {/* Ringkasan Cacat Terpilih */}
+                {selectedQCDefects.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pb-2.5 border-b border-slate-200/80">
+                    {selectedQCDefects.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => handleToggleQCDefect(name)}
+                        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold cursor-pointer hover:bg-rose-100 transition-colors"
+                        title="Klik untuk hapus"
+                      >
+                        <span>{name}</span>
+                        <X className="w-3 h-3 text-rose-500 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Pilih Kategori A-G (1 Baris Rapi & Simetris) */}
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+                  {MODULAR_CAT_TABS.filter((t) => modularDefs[t.id]).map((tab) => {
+                    const active = modularCat === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setModularCat(tab.id);
+                          setModularObj("");
+                          setModularAct("");
+                        }}
+                        title={tab.full}
+                        className={`py-1.5 px-1 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center leading-tight ${
+                          active
+                            ? "bg-[#0070bc] text-white border-[#0070bc] shadow-xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:bg-sky-50/60"
+                        }`}
+                      >
+                        <span className="text-xs font-black">{tab.id}</span>
+                        <span
+                          className={`text-[9px] font-semibold mt-0.5 truncate max-w-full ${
+                            active ? "text-sky-100" : "text-slate-400"
+                          }`}
+                        >
+                          {tab.short}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
 
-            {/* 2-Column Grid Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {masterQCDefects.map((d) => {
-                const isSelected = selectedQCDefects.includes(d.nama_cacat);
-                return (
-                  <button
-                    key={d.id || d.nama_cacat}
-                    type="button"
-                    onClick={() => handleToggleQCDefect(d.nama_cacat)}
-                    className={`min-h-[48px] px-4.5 py-3 rounded-2xl border text-left font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-start cursor-pointer active:scale-98 ${
-                      isSelected
-                        ? "border-rose-500 bg-rose-50/80 text-rose-900 shadow-xs ring-2 ring-rose-500/20"
-                        : "border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    <span>{d.nama_cacat}</span>
-                  </button>
-                );
-              })}
+                {/* 2 Langkah Sejajar dengan Tinggi Sama */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-stretch">
+                  {/* Kolom 1: Objek / Bagian */}
+                  <div className="bg-white rounded-xl border border-slate-200/90 p-2.5 flex flex-col gap-2">
+                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100">
+                      <span className="w-4 h-4 rounded-md bg-[#0070bc] text-white text-[10px] font-black inline-flex items-center justify-center shrink-0">
+                        1
+                      </span>
+                      <span className="text-[10.5px] font-extrabold text-slate-700 uppercase tracking-wide">
+                        Objek / Bagian
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap content-start gap-1.5 flex-1 max-h-44 overflow-y-auto custom-scrollbar">
+                      {(modularDefs[modularCat]?.objects || []).map((obj) => {
+                        const isPicked = modularObj === obj;
+                        return (
+                          <button
+                            key={obj}
+                            type="button"
+                            onClick={() => handlePickModularObject(obj)}
+                            className={`h-8 px-2.5 rounded-lg border text-[11.5px] font-semibold transition-all cursor-pointer active:scale-98 ${
+                              isPicked
+                                ? "bg-[#0070bc] text-white border-[#0070bc] shadow-xs ring-2 ring-[#0070bc]/20"
+                                : "bg-slate-50/80 text-slate-700 border-slate-200 hover:border-sky-400 hover:bg-sky-50/60"
+                            }`}
+                          >
+                            {obj}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              {/* Any custom added defects */}
-              {selectedQCDefects
-                .filter((name) => !masterQCDefects.some((d) => d.nama_cacat.toLowerCase() === name.toLowerCase()))
-                .map((customName) => (
-                  <button
-                    key={customName}
-                    type="button"
-                    onClick={() => handleToggleQCDefect(customName)}
-                    className="min-h-[48px] px-4.5 py-3 rounded-2xl border border-rose-500 bg-rose-50/80 text-rose-900 shadow-xs ring-2 ring-rose-500/20 text-left font-bold text-xs sm:text-[13px] leading-snug transition-all flex items-center justify-between gap-1.5 cursor-pointer active:scale-98"
-                    title="Klik untuk menghapus"
-                  >
-                    <span>{customName}</span>
-                    <X className="w-3.5 h-3.5 text-rose-600 ml-1 shrink-0" />
-                  </button>
-                ))}
-            </div>
+                  {/* Kolom 2: Kondisi / Masalah */}
+                  <div className="bg-white rounded-xl border border-slate-200/90 p-2.5 flex flex-col gap-2">
+                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100">
+                      <span className="w-4 h-4 rounded-md bg-rose-600 text-white text-[10px] font-black inline-flex items-center justify-center shrink-0">
+                        2
+                      </span>
+                      <span className="text-[10.5px] font-extrabold text-slate-700 uppercase tracking-wide">
+                        Kondisi / Masalah
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap content-start gap-1.5 flex-1 max-h-44 overflow-y-auto custom-scrollbar">
+                      {(modularDefs[modularCat]?.actions || []).map((act) => {
+                        const isPicked = modularAct === act;
+                        return (
+                          <button
+                            key={act}
+                            type="button"
+                            onClick={() => handlePickModularAction(act)}
+                            className={`h-8 px-2.5 rounded-lg border text-[11.5px] font-semibold transition-all cursor-pointer active:scale-98 ${
+                              isPicked
+                                ? "bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-500/20"
+                                : "bg-slate-50/80 text-slate-700 border-slate-200 hover:border-rose-300 hover:bg-rose-50/60"
+                            }`}
+                          >
+                            {act}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Kombinasi Langsung */}
+                <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200/80 text-[11px]">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span
+                      className={`px-2 py-0.5 rounded-md font-bold ${
+                        modularObj ? "bg-sky-100 text-[#0070bc]" : "bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      {modularObj || "Pilih Objek"}
+                    </span>
+                    <span className="text-slate-400 font-black">+</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-md font-bold ${
+                        modularAct ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      {modularAct || "Pilih Kondisi"}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-400 shrink-0 hidden sm:inline">
+                    Otomatis masuk saat keduanya dipilih
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Input Manual Cacat */}
             <div className="flex gap-2 mt-1">

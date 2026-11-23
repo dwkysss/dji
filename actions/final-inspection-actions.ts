@@ -325,7 +325,9 @@ export async function getFinalInspectionDetailsByGroup(nomor_mc: string, design_
         )
       `)
       .eq("production_headers.nomor_mc", nomor_mc)
-      .eq("production_headers.potongan_ke", potongan_ke);
+      .eq("production_headers.potongan_ke", potongan_ke)
+      .neq("production_headers.panel_no", "BERHENTI")
+      .neq("production_headers.panel_no", "Downtime Mekanik (Direct)");
 
     const isTricote = String(nomor_mc || "").trim().toUpperCase().startsWith("T");
     if (!isTricote && pcs_index) {
@@ -522,6 +524,19 @@ export async function submitFinalInspection(params: {
     revalidatePath("/reports/mending-production");
     revalidatePath("/reports/mending-potong");
     revalidatePath("/reports/monthly-machine");
+
+    // Real-time background sync ke Google Sheets (Laporan Harian Inspect/Mending & Laporan Potong Kain)
+    try {
+      const { triggerRealtimeSyncAfterInspection } = await import("@/actions/google-sheet-actions");
+      await triggerRealtimeSyncAfterInspection({
+        stage: "final",
+        machine: headerInfo.nomor_mc,
+        potonganKe: headerInfo.potongan_ke,
+        pcsIndex: headerInfo.pcs_index,
+      });
+    } catch (rtErr) {
+      console.error("[Final Inspection Realtime Sync] Error triggering background sync:", rtErr);
+    }
 
     return { success: true, batchId };
   } catch (err: any) {

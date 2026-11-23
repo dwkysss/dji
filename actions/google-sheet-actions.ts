@@ -12,6 +12,14 @@ export interface GoogleSheetConfigItem {
   updated_at?: string;
 }
 
+// Mesin yang dikecualikan dari seluruh sinkronisasi Google Sheets (manual, auto-sync, maupun real-time)
+const EXCLUDED_SHEET_SYNC_MACHINES = new Set(["R13", "R14"]);
+
+function isExcludedSheetSyncMachine(mc?: string | null): boolean {
+  if (!mc) return false;
+  return EXCLUDED_SHEET_SYNC_MACHINES.has(String(mc).trim().toUpperCase());
+}
+
 function notifySchedulerCacheInvalidation() {
   if (typeof globalThis !== "undefined" && typeof (globalThis as any).__dji_scheduler_cache_invalidate === "function") {
     try {
@@ -411,6 +419,28 @@ export async function syncAllMonthlyMachines(
               };
             }
 
+            let potongKainStr = "";
+            if (td.potong_kain_list && td.potong_kain_list.length > 0) {
+              potongKainStr = td.potong_kain_list
+                .map((p: string) => `Potong Kain Ke-${String(p).replace(/^ke-?/i, "").trim()}`)
+                .join(", ");
+            }
+
+            let khususStr = "";
+            if (td.laporan_khusus_list && td.laporan_khusus_list.length > 0) {
+              khususStr = td.laporan_khusus_list
+                .map((item: any) => {
+                  const timeRange =
+                    item.waktu_mulai && item.waktu_selesai
+                      ? ` (${item.waktu_mulai} - ${item.waktu_selesai})`
+                      : item.waktu_mulai
+                      ? ` (${item.waktu_mulai})`
+                      : "";
+                  return `[${item.kategori}] ${item.detail}${timeRange}`;
+                })
+                .join(" | ");
+            }
+
             let ketString = "";
             if (td.keterangan_per_kategori && Object.keys(td.keterangan_per_kategori).length > 0) {
               ketString = Object.entries(td.keterangan_per_kategori)
@@ -427,21 +457,7 @@ export async function syncAllMonthlyMachines(
                 }).join(" | ");
             }
 
-            let potongKainStr = "";
-            if (td.potong_kain_list && td.potong_kain_list.length > 0) {
-              potongKainStr = td.potong_kain_list
-                .map((p: string) => `Potong Kain Ke-${String(p).replace(/^ke-?/i, "").trim()}`)
-                .join(", ");
-            }
-
-            let fullKeterangan = "";
-            if (potongKainStr && ketString) {
-              fullKeterangan = `${potongKainStr} | ${ketString}`;
-            } else if (potongKainStr) {
-              fullKeterangan = potongKainStr;
-            } else {
-              fullKeterangan = ketString;
-            }
+            const fullKeterangan = [potongKainStr, khususStr, ketString].filter(Boolean).join(" | ");
 
             const formatSec = (totalSec: number) => {
               if (!totalSec || totalSec <= 0) return "";
@@ -508,9 +524,10 @@ export async function syncAllMonthlyMachines(
     error?: string;
   }> = [];
 
-  const machinesToSync = (typeof monthOrOptions === "object" && monthOrOptions?.machines && monthOrOptions.machines.length > 0)
+  const rawMachinesToSync = (typeof monthOrOptions === "object" && monthOrOptions?.machines && monthOrOptions.machines.length > 0)
     ? monthOrOptions.machines
     : REGISTERED_MACHINES;
+  const machinesToSync = rawMachinesToSync.filter((mc) => !isExcludedSheetSyncMachine(mc));
 
   const chunkSize = 5;
   for (let i = 0; i < machinesToSync.length; i += chunkSize) {
@@ -602,6 +619,124 @@ export async function updatePotongKainScheduleSettings(payload: {
 }
 
 /**
+ * Helper terpusat untuk memformat 1 batch potong kain menjadi 1 baris payload Google Sheets
+ */
+function formatPotongKainBatchToSheetRow(batch: any) {
+  const header = batch.header || {};
+  const firstItem = batch.items?.[0] || {};
+  const tanggalBeres = header.tanggal_potong || header.tgl || "";
+  const obRaw = header.no_order_barang || "";
+  const explicitJenisOb = String(batch.jenis_ob || header.jenis_ob || "").toUpperCase().trim();
+  let obStm = "";
+  let obDji = "";
+  if (explicitJenisOb === "DJI") {
+    obDji = obRaw;
+  } else if (explicitJenisOb === "STM") {
+    obStm = obRaw;
+  } else if (obRaw.toUpperCase().includes("DJI") || obRaw.toUpperCase().includes("DEX")) {
+    obDji = obRaw;
+  } else {
+    obStm = obRaw;
+  }
+
+  let panelCount = batch.total_panel || 0;
+  if (batch.items && batch.items.length > 0) {
+    let regPanels = 0;
+    let totalBs = 0;
+    batch.items.forEach((it: any) => {
+      const pNo = String(it.detail?.header?.panel_no || it.header?.panel_no || "").trim().toUpperCase();
+      if (pNo.includes("BS") || pNo.includes("AWAL") || pNo.includes("AKHIR") || it.detail?.jml_hasil_produksi === 0) {
+        totalBs += 1;
+      } else if (pNo !== "METERAN" && pNo !== "START" && pNo !== "FINISH") {
+        regPanels += 1;
+      }
+    });
+    if (regPanels > 0 || totalBs > 0) panelCount = regPanels + totalBs;
+  }
+
+  let qtyKg = firstItem.qc_batch?.berat_kain;
+  if (!qtyKg && batch.items) {
+    const it = batch.items.find((i: any) => i.qc_batch?.berat_kain);
+    if (it) qtyKg = it.qc_batch?.berat_kain;
+  }
+
+  const groupNames = new Set<string>();
+  if (header.groups?.nama_grup) groupNames.add(header.groups.nama_grup);
+  batch.items?.forEach((i: any) => {
+    if (i.detail?.header?.groups?.nama_grup) groupNames.add(i.detail.header.groups.nama_grup);
+  });
+  const shift = Array.from(groupNames).join(", ") || "-";
+
+  // Ambil Jam Potong Kain: prioritas timestamp terbesar (panel terakhir / BS AKHIR) dalam zona waktu WIB
+  let jam = "";
+  let latestCutTs = 0;
+  let latestCutDate: Date | null = null;
+  const candidateDates: string[] = [];
+  if (header.tanggal_potong && String(header.tanggal_potong).includes(":")) {
+    candidateDates.push(String(header.tanggal_potong));
+  }
+  batch.items?.forEach((i: any) => {
+    const tp = i.detail?.header?.tanggal_potong || i.header?.tanggal_potong;
+    if (tp && String(tp).includes(":")) candidateDates.push(String(tp));
+    const tj = i.detail?.header?.tanggal_jam || i.header?.tanggal_jam;
+    if (tj) candidateDates.push(String(tj));
+  });
+  if (candidateDates.length === 0 && header.tanggal_jam) {
+    candidateDates.push(String(header.tanggal_jam));
+  }
+  candidateDates.forEach((ds) => {
+    try {
+      const d = new Date(ds);
+      const t = d.getTime();
+      if (!isNaN(t) && t >= latestCutTs) {
+        latestCutTs = t;
+        latestCutDate = d;
+      }
+    } catch {}
+  });
+  if (latestCutDate) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Jakarta",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(latestCutDate);
+      const hh = parts.find((p) => p.type === "hour")?.value || "00";
+      const mm = parts.find((p) => p.type === "minute")?.value || "00";
+      jam = `${hh}:${mm}`;
+    } catch {}
+  }
+
+  const rawKet = batch.keterangan_mending || batch.keterangan_final || "";
+  const ket = rawKet.replace(/\[PAUSE:\d+\]/gi, "").replace(/\[ELAPSED:\d+\]/gi, "").trim();
+  const potKe = String(batch.potongan_ke || "");
+  const pcsIndex = String(batch.pcs_index || firstItem.detail?.pcs_index || "1");
+  const batchKey = `${potKe}_${pcsIndex}`;
+
+  return {
+    batchId: batch.id,
+    batchKey,
+    tanggalBeres,
+    obStm,
+    obDji,
+    design: header.design_id || "",
+    lebar: header.lebar || "",
+    rollPnl: panelCount,
+    qtyKg: qtyKg || "",
+    jam,
+    shift,
+    potonganKe: potKe,
+    pcsKe: pcsIndex,
+    grade: batch.final_grade_a > 0 ? "A" : (batch.final_grade_b > 0 ? "B" : "C"),
+    tglMending: batch.tanggal_mending || batch.tanggal_final || "",
+    tglPengiriman: "",
+    customer: header.no_customer || "",
+    ket: ket || "-",
+  };
+}
+
+/**
  * Sinkronisasi data Potong Kain untuk 1 mesin tertentu ke Google Sheets
  */
 export async function syncPotongKainToGoogleSheet(
@@ -619,6 +754,16 @@ export async function syncPotongKainToGoogleSheet(
   skippedCount?: number;
 }> {
   try {
+    if (isExcludedSheetSyncMachine(machine)) {
+      return {
+        success: true,
+        message: `Mesin ${machine} dikecualikan dari sinkronisasi Google Sheets (dilewati).`,
+        appendedCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+      };
+    }
+
     const { getMendingReportData } = await import("@/actions/mending-actions");
     const res = await getMendingReportData(machine);
 
@@ -643,84 +788,9 @@ export async function syncPotongKainToGoogleSheet(
     }
 
     // Format rows
-    const rows = filteredData.map((batch: any) => {
-      const header = batch.header || {};
-      const firstItem = batch.items?.[0] || {};
-      const tanggalBeres = header.tanggal_potong || header.tgl || "";
-      const obRaw = header.no_order_barang || "";
-      let obStm = "";
-      let obDji = "";
-      if (obRaw.toUpperCase().includes("DJI") || obRaw.toUpperCase().includes("DEX")) {
-        obDji = obRaw;
-      } else {
-        obStm = obRaw;
-      }
-
-      let panelCount = batch.total_panel || 0;
-      if (batch.items && batch.items.length > 0) {
-        let regPanels = 0;
-        let totalBs = 0;
-        batch.items.forEach((it: any) => {
-          const pNo = String(it.detail?.header?.panel_no || it.header?.panel_no || "").trim().toUpperCase();
-          if (pNo.includes("BS") || pNo.includes("AWAL") || pNo.includes("AKHIR") || it.detail?.jml_hasil_produksi === 0) {
-            totalBs += 1;
-          } else if (pNo !== "METERAN" && pNo !== "START" && pNo !== "FINISH") {
-            regPanels += 1;
-          }
-        });
-        if (regPanels > 0 || totalBs > 0) panelCount = regPanels + totalBs;
-      }
-
-      let qtyKg = firstItem.qc_batch?.berat_kain;
-      if (!qtyKg && batch.items) {
-        const it = batch.items.find((i: any) => i.qc_batch?.berat_kain);
-        if (it) qtyKg = it.qc_batch?.berat_kain;
-      }
-
-      const groupNames = new Set<string>();
-      if (header.groups?.nama_grup) groupNames.add(header.groups.nama_grup);
-      batch.items?.forEach((i: any) => {
-        if (i.detail?.header?.groups?.nama_grup) groupNames.add(i.detail.header.groups.nama_grup);
-      });
-      const shift = Array.from(groupNames).join(", ") || "-";
-
-      let jam = "";
-      if (header.tanggal_jam) {
-        try {
-          const d = new Date(header.tanggal_jam);
-          if (!isNaN(d.getTime())) {
-            jam = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-          }
-        } catch {}
-      }
-
-      const rawKet = batch.keterangan_mending || batch.keterangan_final || "";
-      const ket = rawKet.replace(/\[PAUSE:\d+\]/gi, "").replace(/\[ELAPSED:\d+\]/gi, "").trim();
-      const potKe = String(batch.potongan_ke || "");
-      const pcsIndex = String(batch.pcs_index || firstItem.detail?.pcs_index || "1");
-      const batchKey = `${potKe}_${pcsIndex}`;
-
-      return {
-        batchId: batch.id,
-        batchKey,
-        tanggalBeres,
-        obStm,
-        obDji,
-        design: header.design_id || "",
-        lebar: header.lebar || "",
-        rollPnl: panelCount,
-        qtyKg: qtyKg || "",
-        jam,
-        shift,
-        potonganKe: potKe,
-        pcsKe: pcsIndex,
-        grade: batch.final_grade_a > 0 ? "A" : (batch.final_grade_b > 0 ? "B" : "C"),
-        tglMending: batch.tanggal_mending || batch.tanggal_final || "",
-        tglPengiriman: "",
-        customer: header.no_customer || "",
-        ket: ket || "-",
-      };
-    }).sort((a: any, b: any) => Number(a.potonganKe || 0) - Number(b.potonganKe || 0));
+    const rows = filteredData
+      .map((batch: any) => formatPotongKainBatchToSheetRow(batch))
+      .sort((a: any, b: any) => Number(a.potonganKe || 0) - Number(b.potonganKe || 0));
 
     // Filter jika hanya ingin data yang belum pernah di-sync
     let rowsToSync = rows;
@@ -784,9 +854,10 @@ export async function syncAllPotongKainMachines(
   }>;
 }> {
   const { REGISTERED_MACHINES } = await import("@/lib/constants");
+  const eligibleMachines = REGISTERED_MACHINES.filter((mc) => !isExcludedSheetSyncMachine(mc));
   const results = [];
 
-  for (const mc of REGISTERED_MACHINES) {
+  for (const mc of eligibleMachines) {
     try {
       const res = await syncPotongKainToGoogleSheet(mc, year, safeMode, month, onlyUnsynced);
       results.push({
@@ -956,10 +1027,21 @@ export async function syncDailyInspectMendingToGoogleSheet(
       return { success: false, error: "Tidak ada data baris yang dipilih untuk disinkronkan." };
     }
 
+    const filteredRows = rows.filter((r: any) => !isExcludedSheetSyncMachine(r?.nomor_mc || r?.mesin));
+    if (filteredRows.length === 0) {
+      return {
+        success: true,
+        message: "Tidak ada baris yang disinkronkan (mesin R13 & R14 dikecualikan dari Google Sheets).",
+        appendedCount: 0,
+        updatedCount: 0,
+        total: 0,
+      };
+    }
+
     const payload = {
       reportType: "daily_inspect_mending",
       sheetName,
-      rows,
+      rows: filteredRows,
     };
 
     const res = await sendPayloadToGoogleSheet("daily_inspect_mending", payload);
@@ -1081,6 +1163,186 @@ export async function syncAllDailyInspectMending(): Promise<{
 }
 
 // ============================================================================
+// REAL-TIME EVENT-DRIVEN SINGLE-ROW SYNC (POTONG KAIN & HARIAN INSPECT/MENDING)
+// ============================================================================
+
+/**
+ * Sinkronisasi real-time HANYA 1 baris potongan tertentu ke Laporan Potong Kain (Google Sheets).
+ * Otomatis dilewati secara aman jika endpoint potong_kain nonaktif/belum diatur.
+ */
+export async function syncSinglePotongKainRowToGoogleSheet(params: {
+  machine: string;
+  potonganKe: number | string;
+  pcsIndex?: number | string;
+  safeMode?: boolean;
+}): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  try {
+    const mc = String(params.machine || "").trim().toUpperCase();
+    const potStr = String(params.potonganKe || "").trim();
+    if (!mc || !potStr || potStr === "0") {
+      return { success: false, skipped: true };
+    }
+
+    const endpoint = await getGoogleSheetEndpoint("potong_kain");
+    if (!endpoint.url) {
+      return { success: false, skipped: true };
+    }
+
+    const { getMendingReportData } = await import("@/actions/mending-actions");
+    const res = await getMendingReportData(mc, potStr);
+    if (!res.success || !res.data || res.data.length === 0) {
+      return { success: false, skipped: true };
+    }
+
+    const targetPcs = params.pcsIndex !== undefined && params.pcsIndex !== null && Number(params.pcsIndex) > 0
+      ? String(params.pcsIndex)
+      : null;
+
+    let rowsToSync = res.data.map((batch: any) => formatPotongKainBatchToSheetRow(batch));
+    if (targetPcs) {
+      const exactPcsRows = rowsToSync.filter((r: any) => String(r.pcsKe) === targetPcs);
+      if (exactPcsRows.length > 0) {
+        rowsToSync = exactPcsRows;
+      }
+    }
+
+    if (rowsToSync.length === 0) {
+      return { success: false, skipped: true };
+    }
+
+    const firstDate = rowsToSync[0]?.tanggalBeres || rowsToSync[0]?.tglMending || "";
+    const yearStr = firstDate.length >= 4 ? firstDate.slice(0, 4) : new Date().getFullYear().toString();
+
+    const syncRes = await sendPayloadToGoogleSheet("potong_kain", {
+      action: "sync_potong_kain",
+      machine: mc,
+      sheetName: mc,
+      year: yearStr,
+      period: yearStr,
+      safeMode: params.safeMode !== false,
+      rows: rowsToSync,
+    });
+
+    if (syncRes && syncRes.success) {
+      const syncedKeysAdded = rowsToSync.map((r: any) => r.batchKey);
+      await markPotongKainSynced(mc, syncedKeysAdded);
+      console.log(`[Realtime Sync] Potong Kain ${mc} Pot.${potStr} berhasil disinkronkan (${rowsToSync.length} baris).`);
+      return { success: true };
+    }
+
+    console.warn(`[Realtime Sync] Potong Kain ${mc} Pot.${potStr} gagal:`, syncRes?.error);
+    return { success: false, error: syncRes?.error };
+  } catch (err: any) {
+    console.error("[Realtime Sync] Error syncSinglePotongKainRowToGoogleSheet:", err?.message || err);
+    return { success: false, error: err?.message || "Gagal realtime sync potong kain" };
+  }
+}
+
+/**
+ * Sinkronisasi real-time HANYA 1 baris potongan tertentu ke Laporan Harian Inspect & Mending (Google Sheets).
+ * Menggunakan Upsert di Google Apps Script sehingga aman saat QC -> Mending -> Final selesai bertahap.
+ */
+export async function syncSingleDailyInspectMendingRowToGoogleSheet(params: {
+  machine: string;
+  potonganKe: number | string;
+  pcsIndex?: number | string;
+}): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  try {
+    const mc = String(params.machine || "").trim().toUpperCase();
+    const potNum = Number(params.potonganKe);
+    if (!mc || !potNum || isNaN(potNum)) {
+      return { success: false, skipped: true };
+    }
+
+    const endpoint = await getGoogleSheetEndpoint("daily_inspect_mending");
+    if (!endpoint.url) {
+      return { success: false, skipped: true };
+    }
+
+    const { getDailyInspectMendingReport } = await import("@/actions/daily-inspect-mending-actions");
+    const reportRes = await getDailyInspectMendingReport({
+      machine: mc,
+      potonganKe: potNum,
+    });
+
+    if (!reportRes.success || !reportRes.data || reportRes.data.length === 0) {
+      return { success: false, skipped: true };
+    }
+
+    const targetPcs = params.pcsIndex !== undefined && params.pcsIndex !== null && Number(params.pcsIndex) > 0
+      ? Number(params.pcsIndex)
+      : null;
+
+    let matchingRows = reportRes.data.filter(
+      (r) => r.nomor_mc.trim().toUpperCase() === mc && Number(r.potongan_ke) === potNum
+    );
+    if (targetPcs !== null) {
+      const exactPcs = matchingRows.filter((r) => Number(r.pcs_index) === targetPcs);
+      if (exactPcs.length > 0) {
+        matchingRows = exactPcs;
+      }
+    }
+
+    if (matchingRows.length === 0) {
+      return { success: false, skipped: true };
+    }
+
+    const syncRes = await syncDailyInspectMendingToGoogleSheet(matchingRows);
+    if (syncRes.success) {
+      console.log(`[Realtime Sync] Harian Inspect/Mending ${mc} Pot.${potNum} berhasil disinkronkan (${matchingRows.length} baris).`);
+      return { success: true };
+    }
+
+    console.warn(`[Realtime Sync] Harian Inspect/Mending ${mc} Pot.${potNum} gagal:`, syncRes.error);
+    return { success: false, error: syncRes.error };
+  } catch (err: any) {
+    console.error("[Realtime Sync] Error syncSingleDailyInspectMendingRowToGoogleSheet:", err?.message || err);
+    return { success: false, error: err?.message || "Gagal realtime sync harian inspect & mending" };
+  }
+}
+
+/**
+ * Dispatcher non-blocking (fire-and-forget) yang dipanggil setelah simpan QC / Mending / Final Inspection.
+ * Berjalan di background agar proses simpan operator/petugas tetap instan & tidak pernah gagal jika Google Sheets lambat.
+ */
+export async function triggerRealtimeSyncAfterInspection(params: {
+  stage: "qc" | "mending" | "final";
+  machine: string;
+  potonganKe: number | string;
+  pcsIndex?: number | string;
+  isTricote?: boolean;
+}): Promise<void> {
+  const mc = String(params.machine || "").trim().toUpperCase();
+  const pot = params.potonganKe;
+  if (!mc || !pot || Number(pot) <= 0 || isExcludedSheetSyncMachine(mc)) return;
+
+  setImmediate(() => {
+    (async () => {
+      try {
+        // 1. Laporan Harian Inspect & Mending: selalu kirim/update di setiap tahap (QC, Mending, Final)
+        await syncSingleDailyInspectMendingRowToGoogleSheet({
+          machine: mc,
+          potonganKe: pot,
+          pcsIndex: params.pcsIndex,
+        });
+
+        // 2. Laporan Potong Kain: kirim saat Mending selesai, Final selesai, atau QC selesai pada mesin Tricote (awalan T)
+        if (params.stage === "mending" || params.stage === "final" || (params.stage === "qc" && params.isTricote)) {
+          await syncSinglePotongKainRowToGoogleSheet({
+            machine: mc,
+            potonganKe: pot,
+            pcsIndex: params.pcsIndex,
+            safeMode: true,
+          });
+        }
+      } catch (err: any) {
+        console.error(`[Realtime Sync] Unhandled background error (${params.stage} ${mc} Pot.${pot}):`, err?.message || err);
+      }
+    })();
+  });
+}
+
+// ============================================================================
 // LAPORAN PER DESAIN (REKAP EFISIENSI PER MESIN) - GOOGLE SHEETS SYNC
 // ============================================================================
 
@@ -1147,6 +1409,14 @@ export async function syncDesignReportToGoogleSheet(params: {
   try {
     const { getDesignReportData } = await import("@/actions/design-report-actions");
     const mc = params.machine.trim().toUpperCase();
+    if (isExcludedSheetSyncMachine(mc)) {
+      return {
+        success: true,
+        message: `Mesin ${mc} dikecualikan dari sinkronisasi Google Sheets (dilewati).`,
+        designCount: 0,
+        rowCount: 0,
+      };
+    }
     const res = await getDesignReportData(
       mc,
       params.year,
@@ -1241,7 +1511,7 @@ export async function syncAllDesignReportMachines(
     const skippedMachines: string[] = [];
     const failedMachines: { machine: string; error: string }[] = [];
 
-    for (const mc of REGISTERED_MACHINES) {
+    for (const mc of REGISTERED_MACHINES.filter((m) => !isExcludedSheetSyncMachine(m))) {
       const res = await syncDesignReportToGoogleSheet({
         machine: mc,
         year: targetYear,

@@ -6,13 +6,17 @@ import {
   saveMaxPanelConfig,
   deleteMaxPanelConfig,
   getAllMaxPanelConfigs,
+  getObTypeConfig,
+  saveObTypeConfig,
+  deleteObTypeConfig,
+  getAllObTypeConfigs,
   upsertMachineConfig,
 } from "./machine-config-actions";
 
 export async function getProductionPlan(nomorMc: string, potonganKe: number) {
   try {
     const supabase = await createClient();
-    
+
     const { data, error } = await supabase
       .from("production_plans")
       .select("*")
@@ -24,13 +28,16 @@ export async function getProductionPlan(nomorMc: string, potonganKe: number) {
       console.error("Error fetching production plan:", error);
     }
 
-    const maxPanel = await getMaxPanelConfig(nomorMc, potonganKe);
+    const [maxPanel, jenisOb] = await Promise.all([
+      getMaxPanelConfig(nomorMc, potonganKe),
+      getObTypeConfig(nomorMc, potonganKe),
+    ]);
 
     if (!data) {
       if (maxPanel) {
         return {
           success: true,
-          data: { nomor_mc: nomorMc, potongan_ke: potonganKe, max_panel: maxPanel },
+          data: { nomor_mc: nomorMc, potongan_ke: potonganKe, max_panel: maxPanel, jenis_ob: jenisOb || "" },
         };
       }
       return { success: true, data: null };
@@ -41,6 +48,7 @@ export async function getProductionPlan(nomorMc: string, potonganKe: number) {
       data: {
         ...data,
         max_panel: maxPanel !== null ? maxPanel : data.max_panel || null,
+        jenis_ob: jenisOb || "",
       },
     };
   } catch (err: any) {
@@ -52,7 +60,7 @@ export async function getProductionPlan(nomorMc: string, potonganKe: number) {
 export async function upsertProductionPlan(data: any) {
   try {
     const supabase = await createClient();
-    const { max_panel, input_type, ...cleanPayload } = data;
+    const { max_panel, input_type, jenis_ob, workflow_status: _ws, ...cleanPayload } = data;
 
     // Save max_panel config if provided
     if (max_panel !== undefined && data.nomor_mc && data.potongan_ke) {
@@ -60,6 +68,16 @@ export async function upsertProductionPlan(data: any) {
         await saveMaxPanelConfig(data.nomor_mc, Number(max_panel), data.potongan_ke);
       } else {
         await deleteMaxPanelConfig(data.nomor_mc, data.potongan_ke);
+      }
+    }
+
+    // Save jenis_ob config (STM / DJI) if provided, or delete to fall back to Auto
+    if (jenis_ob !== undefined && data.nomor_mc && data.potongan_ke) {
+      const cleanObType = String(jenis_ob || "").toUpperCase().trim();
+      if (cleanObType === "STM" || cleanObType === "DJI") {
+        await saveObTypeConfig(data.nomor_mc, data.potongan_ke, cleanObType);
+      } else {
+        await deleteObTypeConfig(data.nomor_mc, data.potongan_ke);
       }
     }
 
@@ -78,7 +96,7 @@ export async function upsertProductionPlan(data: any) {
 
       await upsertMachineConfig(data.nomor_mc, defaultPcsToKeep, input_type);
     }
-    
+
     // Check if plan already exists in production_plans
     const { data: existing, error: fetchError } = await supabase
       .from("production_plans")
@@ -100,7 +118,7 @@ export async function upsertProductionPlan(data: any) {
         .eq("id", existing.id)
         .select()
         .single();
-        
+
       if (error) throw error;
       result = updated;
     } else {
@@ -110,7 +128,7 @@ export async function upsertProductionPlan(data: any) {
         .insert(cleanPayload)
         .select()
         .single();
-        
+
       if (error) throw error;
       result = inserted;
     }
@@ -128,14 +146,156 @@ export async function upsertProductionPlan(data: any) {
   }
 }
 
+export interface DuplicatePotonganConflict {
+  potongan_ke: number;
+  inPlan: boolean;
+  inProduction: boolean;
+  planDesignId?: string | null;
+  planNoOrder?: string | null;
+  prodDesignId?: string | null;
+  prodNoOrder?: string | null;
+}
+
+/**
+ * Mengecek apakah kombinasi nomor_mc + daftar potongan_ke sudah pernah
+ * dijadwalkan (production_plans) dan/atau sudah pernah diproduksi (production_headers).
+ */
+export async function checkDuplicateProductionPlans(
+  nomorMc: string,
+  potonganList: number[],
+  excludePlanId?: string
+): Promise<{
+  success: boolean;
+  conflicts: DuplicatePotonganConflict[];
+  error?: string;
+}> {
+  try {
+    const cleanMc = nomorMc?.trim();
+    const uniquePots = Array.from(
+      new Set(
+        (potonganList || [])
+          .map((p) => Number(p))
+          .filter((p) => Number.isInteger(p) && p > 0)
+      )
+    ).slice(0, 105);
+
+    if (!cleanMc || uniquePots.length === 0) {
+      return { success: true, conflicts: [] };
+    }
+
+    const supabase = await createClient();
+
+    // 1. Cek di production_plans
+    const plansPromise = supabase
+      .from("production_plans")
+      .select("id, potongan_ke, design_id, no_order_barang")
+      .eq("nomor_mc", cleanMc)
+      .in("potongan_ke", uniquePots);
+
+    // 2. Cek di production_headers (riwayat produksi aktual)
+    const fetchProdRows = async () => {
+      if (uniquePots.length === 1) {
+        const { data, error } = await supabase
+          .from("production_headers")
+          .select("potongan_ke, design_id, no_order_barang")
+          .eq("nomor_mc", cleanMc)
+          .eq("potongan_ke", uniquePots[0])
+          .neq("panel_no", "Downtime Mekanik (Direct)")
+          .neq("panel_no", "BERHENTI")
+          .order("tanggal_jam", { ascending: false })
+          .limit(1);
+        if (error) throw error;
+        return data || [];
+      }
+
+      const collected: any[] = [];
+      const foundPots = new Set<number>();
+      const pageSize = 1000;
+      for (let page = 0; page < 10; page++) {
+        const from = page * pageSize;
+        const { data, error } = await supabase
+          .from("production_headers")
+          .select("potongan_ke, design_id, no_order_barang")
+          .eq("nomor_mc", cleanMc)
+          .in("potongan_ke", uniquePots)
+          .neq("panel_no", "Downtime Mekanik (Direct)")
+          .neq("panel_no", "BERHENTI")
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const batch = data || [];
+        for (const row of batch) {
+          const pot = Number(row.potongan_ke);
+          if (!foundPots.has(pot)) {
+            foundPots.add(pot);
+            collected.push(row);
+          }
+        }
+        if (batch.length < pageSize || foundPots.size >= uniquePots.length) {
+          break;
+        }
+      }
+      return collected;
+    };
+
+    const [plansRes, prodRows] = await Promise.all([plansPromise, fetchProdRows()]);
+    if (plansRes.error) throw plansRes.error;
+
+    const conflictMap = new Map<number, DuplicatePotonganConflict>();
+
+    for (const row of plansRes.data || []) {
+      if (excludePlanId && String(row.id) === String(excludePlanId)) continue;
+      const pot = Number(row.potongan_ke);
+      conflictMap.set(pot, {
+        potongan_ke: pot,
+        inPlan: true,
+        inProduction: false,
+        planDesignId: row.design_id || null,
+        planNoOrder: row.no_order_barang || null,
+      });
+    }
+
+    for (const row of prodRows || []) {
+      const pot = Number(row.potongan_ke);
+      const existing = conflictMap.get(pot);
+      if (existing) {
+        existing.inProduction = true;
+        if (!existing.prodDesignId && row.design_id) existing.prodDesignId = row.design_id;
+        if (!existing.prodNoOrder && row.no_order_barang) existing.prodNoOrder = row.no_order_barang;
+      } else {
+        conflictMap.set(pot, {
+          potongan_ke: pot,
+          inPlan: false,
+          inProduction: true,
+          prodDesignId: row.design_id || null,
+          prodNoOrder: row.no_order_barang || null,
+        });
+      }
+    }
+
+    const conflicts = Array.from(conflictMap.values()).sort(
+      (a, b) => a.potongan_ke - b.potongan_ke
+    );
+
+    return { success: true, conflicts };
+  } catch (err: any) {
+    console.error("Error checking duplicate production plans:", err);
+    return { success: false, conflicts: [], error: err.message };
+  }
+}
+
 /**
  * Menjadwalkan beberapa potongan sekaligus (Batch Range)
  * Contoh: dari potongan 100 s/d 110 dengan spek yang sama
  */
-export async function upsertBatchProductionPlans(data: any, fromPot: number, toPot: number) {
+export async function upsertBatchProductionPlans(
+  data: any,
+  fromPot: number,
+  toPot: number,
+  options?: { skipPotongans?: number[] }
+) {
   try {
     const supabase = await createClient();
-    const { max_panel, input_type, id, potongan_ke, ...cleanPayload } = data;
+    const { max_panel, input_type, jenis_ob, workflow_status: _ws, id, potongan_ke, ...cleanPayload } = data;
 
     const start = Math.min(fromPot, toPot);
     const end = Math.max(fromPot, toPot);
@@ -168,10 +328,22 @@ export async function upsertBatchProductionPlans(data: any, fromPot: number, toP
       await upsertMachineConfig(cleanPayload.nomor_mc, defaultPcsToKeep, input_type);
     }
 
-    // 2. Ambil list potongan yang sudah ada di database dalam range ini
+    // 2. Ambil list potongan yang akan diproses (dikurangi skipPotongans bila diminta)
+    const skipSet = new Set(
+      (options?.skipPotongans || []).map((p) => Number(p)).filter((p) => !isNaN(p))
+    );
     const potonganList: number[] = [];
     for (let p = start; p <= end; p++) {
-      potonganList.push(p);
+      if (!skipSet.has(p)) {
+        potonganList.push(p);
+      }
+    }
+
+    if (potonganList.length === 0) {
+      return {
+        success: false,
+        error: "Semua potongan dalam rentang ini sudah ada. Tidak ada jadwal baru untuk disimpan.",
+      };
     }
 
     const { data: existingList, error: fetchErr } = await supabase
@@ -234,9 +406,24 @@ export async function upsertBatchProductionPlans(data: any, fromPot: number, toP
       await Promise.all(maxPanelPromises);
     }
 
+    // Simpan konfigurasi jenis_ob (STM / DJI) untuk setiap potongan
+    if (jenis_ob !== undefined && cleanPayload.nomor_mc) {
+      const cleanObType = String(jenis_ob || "").toUpperCase().trim();
+      const obTypePromises = potonganList.map((pot) => {
+        if (cleanObType === "STM" || cleanObType === "DJI") {
+          return saveObTypeConfig(cleanPayload.nomor_mc, pot, cleanObType);
+        } else {
+          return deleteObTypeConfig(cleanPayload.nomor_mc, pot);
+        }
+      });
+      await Promise.all(obTypePromises);
+    }
+
     return {
       success: true,
       count: potonganList.length,
+      skippedCount: end - start + 1 - potonganList.length,
+      savedPotongans: potonganList,
       from: start,
       to: end,
     };
@@ -304,25 +491,27 @@ export async function getAllProductionPlans(
       getAllMaxPanelConfigs(),
       uniqueMachines.length > 0
         ? supabase
-            .from("production_headers")
-            .select("nomor_mc, potongan_ke")
-            .in("nomor_mc", uniqueMachines)
+          .from("production_headers")
+          .select("nomor_mc, potongan_ke")
+          .in("nomor_mc", uniqueMachines)
         : Promise.resolve({ data: [] }),
       uniqueMachines.length > 0
         ? supabase
-            .from("qc_inspection_batches")
-            .select("nomor_mc, potongan_ke")
-            .in("nomor_mc", uniqueMachines)
+          .from("qc_inspection_batches")
+          .select("nomor_mc, potongan_ke")
+          .in("nomor_mc", uniqueMachines)
         : Promise.resolve({ data: [] }),
       uniqueMachines.length > 0
         ? supabase
-            .from("mending_batches")
-            .select("nomor_mc, potongan_ke")
-            .in("nomor_mc", uniqueMachines)
+          .from("mending_batches")
+          .select("nomor_mc, potongan_ke")
+          .in("nomor_mc", uniqueMachines)
         : Promise.resolve({ data: [] }),
     ]);
 
     const maxPanelMap = maxPanelRes.data || {};
+    const obTypeRes = await getAllObTypeConfigs();
+    const obTypeMap = obTypeRes.data || {};
     const toKey = (mc: any, pot: any) =>
       `${String(mc || "").trim().toUpperCase()}::${Number(pot)}`;
 
@@ -336,6 +525,7 @@ export async function getAllProductionPlans(
       const mcUpper = String(p.nomor_mc || "").toUpperCase().trim();
       const specKey = `${mcUpper}:${p.potongan_ke}`;
       const maxPanel = maxPanelMap[specKey] || maxPanelMap[mcUpper] || p.max_panel || null;
+      const jenisOb = obTypeMap[specKey] || "";
       const key = toKey(mcUpper, p.potongan_ke);
 
       let workflow_status: PlanWorkflowStatus = "PLANNED";
@@ -350,6 +540,7 @@ export async function getAllProductionPlans(
       return {
         ...p,
         max_panel: maxPanel,
+        jenis_ob: jenisOb,
         workflow_status,
       };
     });
@@ -386,7 +577,7 @@ export async function getAllProductionPlans(
 export async function deleteProductionPlan(id: string) {
   try {
     const supabase = await createClient();
-    
+
     const { error } = await supabase
       .from("production_plans")
       .delete()
@@ -406,7 +597,7 @@ export async function getRecentPlansByMachine(nomorMc: string) {
     const supabase = await createClient();
     const cleanMc = nomorMc?.trim();
     if (!cleanMc) return { success: true, data: [] };
-    
+
     // Fetch records from ACTUAL production history
     const { data, error } = await supabase
       .from("production_headers")
@@ -424,7 +615,7 @@ export async function getRecentPlansByMachine(nomorMc: string) {
     // Filter to get unique configurations based on potongan_ke and design_id
     const uniquePlans: any[] = [];
     const seen = new Set();
-    
+
     if (data) {
       for (const row of data) {
         const key = `${row.potongan_ke ?? ""}-${row.design_id ?? ""}`;

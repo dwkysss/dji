@@ -89,6 +89,7 @@ export interface GetDailyInspectMendingParams {
   dateFrom?: string;
   dateTo?: string;
   machine?: string;
+  potonganKe?: number;
   year?: string;
   search?: string;
   dateField?: "tgl_inspect" | "tgl_potong" | "tgl_mending" | "tgl_final";
@@ -304,6 +305,12 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
         qcQuery = qcQuery.eq("nomor_mc", params.machine);
         mendingQuery = mendingQuery.eq("nomor_mc", params.machine);
         finalQuery = finalQuery.eq("nomor_mc", params.machine);
+      }
+      if (params.potonganKe !== undefined && !isNaN(Number(params.potonganKe))) {
+        const potNum = Number(params.potonganKe);
+        qcQuery = qcQuery.eq("potongan_ke", potNum);
+        mendingQuery = mendingQuery.eq("potongan_ke", potNum);
+        finalQuery = finalQuery.eq("potongan_ke", potNum);
       }
 
       const [qcRes, mRes, fRes] = await Promise.all([qcQuery, mendingQuery, finalQuery]);

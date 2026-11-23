@@ -1,10 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAllProductionPlans, deleteProductionPlan, upsertProductionPlan, upsertBatchProductionPlans, getRecentPlansByMachine } from "@/actions/plan-actions";
+import {
+  getAllProductionPlans,
+  deleteProductionPlan,
+  upsertProductionPlan,
+  upsertBatchProductionPlans,
+  getRecentPlansByMachine,
+  checkDuplicateProductionPlans,
+  type DuplicatePotonganConflict,
+} from "@/actions/plan-actions";
 import { getMachineConfigs, getAllMaxPanelConfigs } from "@/actions/machine-config-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
-import { FileSpreadsheet, Plus, Edit, Trash2, RefreshCw, X, Save, Search, QrCode, Printer, Layers, Factory, CheckSquare } from "lucide-react";
+import { FileSpreadsheet, Plus, Edit, Trash2, RefreshCw, X, Save, Search, QrCode, Printer, Layers, Factory, CheckSquare, AlertTriangle } from "lucide-react";
 import ProductionPlanBarcodeModal, { PlanBarcodeData } from "@/components/modals/ProductionPlanBarcodeModal";
 import BatchA4BarcodeModal from "@/components/modals/BatchA4BarcodeModal";
 
@@ -23,6 +31,15 @@ export default function ProductionPlansPage() {
   const [isRangeMode, setIsRangeMode] = useState(false);
   const [rangeFrom, setRangeFrom] = useState<string>("");
   const [rangeTo, setRangeTo] = useState<string>("");
+
+  // Duplicate / Already-Scheduled & Already-Produced Detection states
+  const [duplicateConflicts, setDuplicateConflicts] = useState<DuplicatePotonganConflict[]>([]);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [duplicateConfirmState, setDuplicateConfirmState] = useState<{
+    conflicts: DuplicatePotonganConflict[];
+    andPrintBarcode: boolean;
+    totalInRange: number;
+  } | null>(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -184,6 +201,69 @@ export default function ProductionPlansPage() {
     }
   }, [formData.nomor_mc, formData.id]);
 
+  // Real-time check for duplicate / already-produced potongan
+  useEffect(() => {
+    if (!isModalOpen || !formData.nomor_mc) {
+      setDuplicateConflicts([]);
+      setCheckingDuplicates(false);
+      return;
+    }
+
+    const potList: number[] = [];
+    if (isRangeMode && !formData.id) {
+      const fromNum = parseInt(rangeFrom, 10);
+      const toNum = parseInt(rangeTo, 10);
+      if (
+        !isNaN(fromNum) &&
+        !isNaN(toNum) &&
+        fromNum > 0 &&
+        toNum >= fromNum &&
+        toNum - fromNum <= 100
+      ) {
+        for (let p = fromNum; p <= toNum; p++) {
+          potList.push(p);
+        }
+      }
+    } else {
+      const potNum = parseInt(String(formData.potongan_ke || ""), 10);
+      if (!isNaN(potNum) && potNum > 0) {
+        potList.push(potNum);
+      }
+    }
+
+    if (potList.length === 0) {
+      setDuplicateConflicts([]);
+      setCheckingDuplicates(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCheckingDuplicates(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await checkDuplicateProductionPlans(
+          formData.nomor_mc,
+          potList,
+          formData.id ? String(formData.id) : undefined
+        );
+        if (!cancelled) {
+          setDuplicateConflicts(res.success ? res.conflicts : []);
+        }
+      } catch (e) {
+        console.error("Failed to check duplicates:", e);
+        if (!cancelled) setDuplicateConflicts([]);
+      } finally {
+        if (!cancelled) setCheckingDuplicates(false);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isModalOpen, formData.nomor_mc, formData.potongan_ke, formData.id, isRangeMode, rangeFrom, rangeTo]);
+
   const fetchPlans = async () => {
     setLoading(true);
     try {
@@ -261,6 +341,8 @@ export default function ProductionPlansPage() {
     setIsRangeMode(false);
     setRangeFrom("");
     setRangeTo("");
+    setDuplicateConflicts([]);
+    setDuplicateConfirmState(null);
     if (plan) {
       const mcKey = String(plan.nomor_mc || "").toUpperCase().trim();
       const cfg = machineConfigs[mcKey];
@@ -270,6 +352,7 @@ export default function ProductionPlansPage() {
         input_type: detectedType,
         max_panel: plan.max_panel !== undefined && plan.max_panel !== null ? plan.max_panel : "",
         pcs_count: plan.pcs_count || cfg?.default_pcs || 1,
+        jenis_ob: plan.jenis_ob || "",
       });
     } else {
       setFormData({
@@ -281,6 +364,7 @@ export default function ProductionPlansPage() {
         pick: "",
         course: "",
         no_order_barang: "",
+        jenis_ob: "",
         no_customer: "",
         jenis_benang_dasar: "",
         liner: "",
@@ -294,35 +378,7 @@ export default function ProductionPlansPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent, andPrintBarcode = false) => {
-    e.preventDefault();
-    if (!formData.nomor_mc) {
-      setErrorMsg("Nomor Mesin harus dipilih.");
-      return;
-    }
-
-    if (isRangeMode && !formData.id) {
-      const fromNum = parseInt(rangeFrom);
-      const toNum = parseInt(rangeTo);
-      if (isNaN(fromNum) || isNaN(toNum) || fromNum <= 0 || toNum <= 0) {
-        setErrorMsg("Rentang potongan (Dari & Sampai) harus diisi dengan angka bulat positif.");
-        return;
-      }
-      if (toNum < fromNum) {
-        setErrorMsg("Nomor potongan 'Sampai' harus lebih besar atau sama dengan potongan 'Dari'.");
-        return;
-      }
-      if (toNum - fromNum > 100) {
-        setErrorMsg("Maksimal rentang 100 potongan sekaligus dalam sekali simpan.");
-        return;
-      }
-    } else {
-      if (!formData.potongan_ke) {
-        setErrorMsg("Nomor Mesin dan Potongan Ke harus diisi.");
-        return;
-      }
-    }
-    
+  const executeSave = async (andPrintBarcode = false, skipPotongans: number[] = []) => {
     setSaving(true);
     setErrorMsg(null);
     try {
@@ -337,17 +393,24 @@ export default function ProductionPlansPage() {
           payload[f] = payload[f].toUpperCase();
         }
       });
-      
-      let res;
+
+      let res: any;
       if (isRangeMode && !formData.id) {
-        const fromNum = parseInt(rangeFrom);
-        const toNum = parseInt(rangeTo);
-        res = await upsertBatchProductionPlans(payload, fromNum, toNum);
+        const fromNum = parseInt(rangeFrom, 10);
+        const toNum = parseInt(rangeTo, 10);
+        res = await upsertBatchProductionPlans(
+          payload,
+          fromNum,
+          toNum,
+          skipPotongans.length > 0 ? { skipPotongans } : undefined
+        );
       } else {
         res = await upsertProductionPlan(payload);
       }
 
       if (res.success) {
+        setDuplicateConfirmState(null);
+        setDuplicateConflicts([]);
         setIsModalOpen(false);
         fetchPlans();
         if (andPrintBarcode) {
@@ -355,18 +418,20 @@ export default function ProductionPlansPage() {
             payload.input_type || machineConfigs[payload.nomor_mc]?.input_type || "PANEL";
 
           if (isRangeMode && !formData.id) {
-            const fromNum = parseInt(rangeFrom);
-            const toNum = parseInt(rangeTo);
-            const generatedPlans: PlanBarcodeData[] = [];
-            for (let pot = fromNum; pot <= toNum; pot++) {
-              generatedPlans.push({
-                ...payload,
-                potongan_ke: pot,
-                input_type: resolvedInputType,
-              });
+            const fromNum = parseInt(rangeFrom, 10);
+            const toNum = parseInt(rangeTo, 10);
+            const savedPots: number[] = Array.isArray(res.savedPotongans)
+              ? res.savedPotongans
+              : Array.from({ length: toNum - fromNum + 1 }, (_, i) => fromNum + i);
+            const generatedPlans: PlanBarcodeData[] = savedPots.map((pot) => ({
+              ...payload,
+              potongan_ke: pot,
+              input_type: resolvedInputType,
+            }));
+            if (generatedPlans.length > 0) {
+              setBatchBarcodePlans(generatedPlans);
+              setIsBatchBarcodeOpen(true);
             }
-            setBatchBarcodePlans(generatedPlans);
-            setIsBatchBarcodeOpen(true);
           } else {
             handleOpenBarcodeModal({
               ...payload,
@@ -376,13 +441,80 @@ export default function ProductionPlansPage() {
           }
         }
       } else {
+        setDuplicateConfirmState(null);
         setErrorMsg(res.error || "Gagal menyimpan jadwal.");
       }
     } catch (e: any) {
+      setDuplicateConfirmState(null);
       setErrorMsg(e.message || "Terjadi kesalahan.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async (e: React.FormEvent, andPrintBarcode = false) => {
+    e.preventDefault();
+    if (!formData.nomor_mc) {
+      setErrorMsg("Nomor Mesin harus dipilih.");
+      return;
+    }
+
+    const potListToCheck: number[] = [];
+    if (isRangeMode && !formData.id) {
+      const fromNum = parseInt(rangeFrom, 10);
+      const toNum = parseInt(rangeTo, 10);
+      if (isNaN(fromNum) || isNaN(toNum) || fromNum <= 0 || toNum <= 0) {
+        setErrorMsg("Rentang potongan (Dari & Sampai) harus diisi dengan angka bulat positif.");
+        return;
+      }
+      if (toNum < fromNum) {
+        setErrorMsg("Nomor potongan 'Sampai' harus lebih besar atau sama dengan potongan 'Dari'.");
+        return;
+      }
+      if (toNum - fromNum > 100) {
+        setErrorMsg("Maksimal rentang 100 potongan sekaligus dalam sekali simpan.");
+        return;
+      }
+      for (let p = fromNum; p <= toNum; p++) {
+        potListToCheck.push(p);
+      }
+    } else {
+      if (!formData.potongan_ke) {
+        setErrorMsg("Nomor Mesin dan Potongan Ke harus diisi.");
+        return;
+      }
+      const potNum = parseInt(String(formData.potongan_ke), 10);
+      if (!isNaN(potNum) && potNum > 0) {
+        potListToCheck.push(potNum);
+      }
+    }
+
+    // Pastikan pengecekan duplikat up-to-date sebelum menyimpan (Opsi B: Peringatan + Konfirmasi)
+    setSaving(true);
+    setErrorMsg(null);
+    try {
+      const checkRes = await checkDuplicateProductionPlans(
+        formData.nomor_mc,
+        potListToCheck,
+        formData.id ? String(formData.id) : undefined
+      );
+      const conflicts = checkRes.success ? checkRes.conflicts : duplicateConflicts;
+      setDuplicateConflicts(conflicts);
+
+      if (conflicts.length > 0) {
+        setSaving(false);
+        setDuplicateConfirmState({
+          conflicts,
+          andPrintBarcode,
+          totalInRange: potListToCheck.length,
+        });
+        return;
+      }
+    } catch (err) {
+      console.error("Duplicate pre-save check error:", err);
+    }
+
+    await executeSave(andPrintBarcode);
   };
 
   const handleDelete = async (id: string) => {
@@ -809,8 +941,19 @@ export default function ProductionPlansPage() {
                       <td className="px-3 py-3 whitespace-nowrap">
                         {hasOrder || hasCust ? (
                           <div className="space-y-0.5">
-                            <div className="font-semibold text-slate-800 text-xs tabular-nums">
-                              {hasOrder ? p.no_order_barang : "—"}
+                            <div className="font-semibold text-slate-800 text-xs tabular-nums flex items-center gap-1.5 flex-wrap">
+                              <span>{hasOrder ? p.no_order_barang : "—"}</span>
+                              {hasOrder && p.jenis_ob && (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wide ${
+                                    p.jenis_ob === "DJI"
+                                      ? "bg-sky-100 text-sky-800"
+                                      : "bg-indigo-100 text-indigo-800"
+                                  }`}
+                                >
+                                  OB {p.jenis_ob}
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-slate-500 font-medium tabular-nums">
                               {hasCust ? `Cust: ${p.no_customer}` : "Tanpa customer"}
@@ -1191,6 +1334,118 @@ export default function ProductionPlansPage() {
                     </div>
                   </div>
 
+                  {/* Real-Time Duplicate / Already-Produced Warning Banner */}
+                  {checkingDuplicates && (
+                    <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 px-1">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0070bc]" />
+                      <span>Memeriksa riwayat jadwal &amp; produksi potongan...</span>
+                    </div>
+                  )}
+
+                  {!checkingDuplicates && duplicateConflicts.length > 0 && (() => {
+                    const hasProd = duplicateConflicts.some((c) => c.inProduction);
+                    const hasPlan = duplicateConflicts.some((c) => c.inPlan);
+                    const single = duplicateConflicts.length === 1 && !isRangeMode ? duplicateConflicts[0] : null;
+                    const planCount = duplicateConflicts.filter((c) => c.inPlan).length;
+                    const prodCount = duplicateConflicts.filter((c) => c.inProduction).length;
+
+                    return (
+                      <div
+                        className={`rounded-xl border p-3 space-y-2 ${
+                          hasProd
+                            ? "bg-rose-50/80 border-rose-200 text-rose-900"
+                            : "bg-amber-50/90 border-amber-200 text-amber-900"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <AlertTriangle
+                            className={`w-4 h-4 shrink-0 mt-0.5 ${
+                              hasProd ? "text-rose-600" : "text-amber-600"
+                            }`}
+                          />
+                          <div className="flex-1 min-w-0 space-y-1">
+                            {single ? (
+                              <>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-xs font-extrabold">
+                                    Potongan {single.potongan_ke} di mesin {formData.nomor_mc}
+                                    {single.inPlan && single.inProduction
+                                      ? " sudah pernah dijadwalkan & diproduksi."
+                                      : single.inProduction
+                                      ? " sudah pernah masuk riwayat produksi."
+                                      : " sudah pernah dijadwalkan."}
+                                  </span>
+                                  {single.inPlan && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-extrabold">
+                                      Sudah Dijadwalkan
+                                    </span>
+                                  )}
+                                  {single.inProduction && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-extrabold">
+                                      Sudah Diproduksi
+                                    </span>
+                                  )}
+                                </div>
+                                {(single.planDesignId || single.prodDesignId || single.planNoOrder || single.prodNoOrder) && (
+                                  <p className="text-[11px] font-medium opacity-85">
+                                    Data sebelumnya: Design{" "}
+                                    <strong>{single.planDesignId || single.prodDesignId || "-"}</strong>
+                                    {(single.planNoOrder || single.prodNoOrder) && (
+                                      <>
+                                        {" "}• No Order{" "}
+                                        <strong>{single.planNoOrder || single.prodNoOrder}</strong>
+                                      </>
+                                    )}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-xs font-extrabold">
+                                  Ditemukan {duplicateConflicts.length} potongan bentrok di mesin{" "}
+                                  {formData.nomor_mc}
+                                  {hasPlan && hasProd
+                                    ? ` (${planCount} sudah dijadwalkan, ${prodCount} sudah diproduksi)`
+                                    : hasProd
+                                    ? " (sudah pernah diproduksi)"
+                                    : " (sudah pernah dijadwalkan)"}
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                  {duplicateConflicts.slice(0, 12).map((c) => (
+                                    <span
+                                      key={c.potongan_ke}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10.5px] font-bold border ${
+                                        c.inProduction
+                                          ? "bg-rose-100/90 text-rose-800 border-rose-300"
+                                          : "bg-amber-100/90 text-amber-800 border-amber-300"
+                                      }`}
+                                    >
+                                      <span>Pot. {c.potongan_ke}</span>
+                                      <span className="opacity-75 font-semibold">
+                                        (
+                                        {c.inPlan && c.inProduction
+                                          ? "Jadwal & Produksi"
+                                          : c.inProduction
+                                          ? "Produksi"
+                                          : "Jadwal"}
+                                        )
+                                      </span>
+                                    </span>
+                                  ))}
+                                  {duplicateConflicts.length > 12 && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-white/80 border border-slate-200 text-slate-600">
+                                      +{duplicateConflicts.length - 12} lainnya
+                                    </span>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Quick Copy from Recent History */}
                   {recentPlans.length > 0 && (
                     <div className="pt-2 border-t border-slate-200/70 flex flex-col gap-1.5">
@@ -1264,6 +1519,33 @@ export default function ProductionPlansPage() {
                         placeholder="Mis. EXR/26/126"
                         className="h-10 px-3 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] focus:ring-2 focus:ring-sky-500/15 bg-white outline-none uppercase font-semibold text-slate-800 text-xs placeholder:normal-case placeholder:font-normal placeholder:text-slate-400"
                       />
+                      <div className="grid grid-cols-3 gap-1 pt-0.5">
+                        {[
+                          { val: "", label: "Auto" },
+                          { val: "STM", label: "OB STM" },
+                          { val: "DJI", label: "OB DJI" },
+                        ].map((opt) => {
+                          const active = (formData.jenis_ob || "") === opt.val;
+                          return (
+                            <button
+                              key={opt.val || "auto"}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, jenis_ob: opt.val })}
+                              className={`h-7 rounded-lg text-[10px] font-extrabold border transition-all cursor-pointer ${
+                                active
+                                  ? opt.val === "DJI"
+                                    ? "bg-sky-600 text-white border-sky-600 shadow-2xs"
+                                    : opt.val === "STM"
+                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                                    : "bg-slate-800 text-white border-slate-800 shadow-2xs"
+                                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
@@ -1438,6 +1720,142 @@ export default function ProductionPlansPage() {
           </div>
         </div>
       )}
+
+      {/* Dialog Konfirmasi Potongan Duplikat / Sudah Diproduksi (Opsi B) */}
+      {duplicateConfirmState && (() => {
+        const { conflicts, andPrintBarcode, totalInRange } = duplicateConfirmState;
+        const isBatch = isRangeMode && !formData.id;
+        const conflictPotList = conflicts.map((c) => c.potongan_ke);
+        const newCountIfSkip = Math.max(0, totalInRange - conflicts.length);
+        const hasProd = conflicts.some((c) => c.inProduction);
+
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-900/65 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden animate-in fade-in zoom-in">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-slate-200/80 flex items-start justify-between gap-3 bg-white">
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      hasProd
+                        ? "bg-rose-100 text-rose-600"
+                        : "bg-amber-100 text-amber-600"
+                    }`}
+                  >
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
+                      Potongan Sudah Pernah Ada
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Mesin <strong className="text-slate-800">{formData.nomor_mc}</strong> memiliki{" "}
+                      <strong className="text-slate-800">{conflicts.length} potongan</strong> yang
+                      sudah dijadwalkan atau diproduksi.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setDuplicateConfirmState(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-4 sm:p-5 space-y-3 max-h-[55vh] overflow-y-auto">
+                <div className="space-y-2">
+                  {conflicts.map((c) => (
+                    <div
+                      key={c.potongan_ke}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs font-extrabold text-slate-900 tabular-nums">
+                            Potongan {c.potongan_ke}
+                          </span>
+                          {c.inPlan && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold">
+                              Sudah Dijadwalkan
+                            </span>
+                          )}
+                          {c.inProduction && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold">
+                              Sudah Diproduksi
+                            </span>
+                          )}
+                        </div>
+                        {(c.planDesignId || c.prodDesignId || c.planNoOrder || c.prodNoOrder) && (
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5 truncate">
+                            Design: <strong className="text-slate-700">{c.planDesignId || c.prodDesignId || "-"}</strong>
+                            {(c.planNoOrder || c.prodNoOrder) && (
+                              <>
+                                {" "}• Order: <strong className="text-slate-700">{c.planNoOrder || c.prodNoOrder}</strong>
+                              </>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {isBatch
+                    ? newCountIfSkip > 0
+                      ? `Anda dapat melewati ${conflicts.length} potongan yang sudah ada (hanya menyimpan ${newCountIfSkip} potongan baru), atau tetap menimpa seluruh rentang.`
+                      : "Seluruh potongan dalam rentang ini sudah ada. Pilih 'Timpa Semua' jika memang ingin memperbarui data jadwalnya."
+                    : "Apakah Anda yakin ingin tetap menyimpan dan menimpa data jadwal potongan ini?"}
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-4 sm:px-5 py-3.5 border-t border-slate-200/80 bg-slate-50/80 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setDuplicateConfirmState(null)}
+                  className="h-9 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+
+                {isBatch && newCountIfSkip > 0 && (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => executeSave(andPrintBarcode, conflictPotList)}
+                    className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {saving ? "Menyimpan..." : `Lewati yang Ada (Simpan ${newCountIfSkip} Baru)`}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => executeSave(andPrintBarcode, [])}
+                  className={`h-9 px-4 rounded-xl text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 ${
+                    hasProd
+                      ? "bg-rose-600 hover:bg-rose-700"
+                      : "bg-amber-600 hover:bg-amber-700"
+                  }`}
+                >
+                  {saving
+                    ? "Menyimpan..."
+                    : isBatch
+                    ? "Timpa Semua"
+                    : "Tetap Simpan & Timpa"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal Cetak Barcode Potongan (Satuan) */}
       <ProductionPlanBarcodeModal
