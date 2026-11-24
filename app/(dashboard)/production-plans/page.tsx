@@ -3,16 +3,18 @@
 import { useState, useEffect } from "react";
 import {
   getAllProductionPlans,
+  getProductionPlansByRange,
   deleteProductionPlan,
   upsertProductionPlan,
   upsertBatchProductionPlans,
   getRecentPlansByMachine,
   checkDuplicateProductionPlans,
   type DuplicatePotonganConflict,
+  type PlanSortBy,
 } from "@/actions/plan-actions";
 import { getMachineConfigs, getAllMaxPanelConfigs } from "@/actions/machine-config-actions";
 import { REGISTERED_MACHINES } from "@/lib/constants";
-import { FileSpreadsheet, Plus, Edit, Trash2, RefreshCw, X, Save, Search, QrCode, Printer, Layers, Factory, CheckSquare, AlertTriangle } from "lucide-react";
+import { FileSpreadsheet, Plus, Edit, Trash2, RefreshCw, X, Save, Search, QrCode, Printer, Layers, Factory, CheckSquare, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import ProductionPlanBarcodeModal, { PlanBarcodeData } from "@/components/modals/ProductionPlanBarcodeModal";
 import BatchA4BarcodeModal from "@/components/modals/BatchA4BarcodeModal";
 
@@ -56,11 +58,22 @@ export default function ProductionPlansPage() {
   const [batchBarcodePlans, setBatchBarcodePlans] = useState<PlanBarcodeData[]>([]);
   const [isBatchBarcodeOpen, setIsBatchBarcodeOpen] = useState(false);
 
+  // Range Print Modal states (pilih range potongan, misal 1 - 10)
+  const [isRangePrintOpen, setIsRangePrintOpen] = useState(false);
+  const [rangePrintMc, setRangePrintMc] = useState<string>("R1");
+  const [rangePrintFrom, setRangePrintFrom] = useState<string>("");
+  const [rangePrintTo, setRangePrintTo] = useState<string>("");
+  const [rangePrintLoading, setRangePrintLoading] = useState(false);
+  const [rangePrintError, setRangePrintError] = useState<string | null>(null);
+  const [rangePrintResults, setRangePrintResults] = useState<any[] | null>(null);
+  const [rangePrintCheckedIds, setRangePrintCheckedIds] = useState<Set<string>>(new Set());
+
   // Filters & Workflow Status states
   const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "COMPLETED" | "ALL">("ACTIVE");
   const [statusCounts, setStatusCounts] = useState({ active: 0, completed: 0, all: 0 });
   const [machineGroupFilter, setMachineGroupFilter] = useState<"ALL" | "RASCHEL" | "TRICOTE">("ALL");
   const [machineNoFilter, setMachineNoFilter] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<PlanSortBy>("NEWEST");
   const [typeFilter, setTypeFilter] = useState<"ALL" | "PANEL" | "METER">("ALL");
 
   const filteredMachineOptions = REGISTERED_MACHINES.filter((mc) => {
@@ -139,6 +152,71 @@ export default function ProductionPlansPage() {
 
     if (selected.length === 0) return;
     setBatchBarcodePlans(selected);
+    setIsBatchBarcodeOpen(true);
+  };
+
+  const handleOpenRangePrintModal = () => {
+    setRangePrintMc(
+      machineNoFilter && machineNoFilter !== "ALL"
+        ? machineNoFilter
+        : plans[0]?.nomor_mc || REGISTERED_MACHINES[0] || "R1"
+    );
+    setRangePrintFrom("");
+    setRangePrintTo("");
+    setRangePrintError(null);
+    setRangePrintResults(null);
+    setRangePrintCheckedIds(new Set());
+    setIsRangePrintOpen(true);
+  };
+
+  const handleFetchRangePrint = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const fromNum = Number(rangePrintFrom);
+    const toNum = Number(rangePrintTo || rangePrintFrom);
+    if (!rangePrintMc) {
+      setRangePrintError("Pilih mesin terlebih dahulu.");
+      return;
+    }
+    if (!fromNum || fromNum <= 0 || !toNum || toNum <= 0) {
+      setRangePrintError("Masukkan nomor potongan awal dan akhir yang valid (contoh: 1 s/d 10).");
+      return;
+    }
+
+    setRangePrintLoading(true);
+    setRangePrintError(null);
+    try {
+      const res = await getProductionPlansByRange({
+        nomorMc: rangePrintMc,
+        fromPotongan: fromNum,
+        toPotongan: toNum,
+      });
+      if (!res.success) {
+        setRangePrintError(res.error || "Gagal mencari jadwal potongan.");
+        setRangePrintResults([]);
+        setRangePrintCheckedIds(new Set());
+      } else {
+        const list = res.data || [];
+        setRangePrintResults(list);
+        setRangePrintCheckedIds(new Set(list.map((item: any) => String(item.id))));
+      }
+    } catch (err: any) {
+      setRangePrintError(err?.message || "Terjadi kesalahan saat mencari data.");
+    } finally {
+      setRangePrintLoading(false);
+    }
+  };
+
+  const handleConfirmRangePrintA4 = () => {
+    if (!rangePrintResults || rangePrintResults.length === 0) return;
+    const chosen: PlanBarcodeData[] = rangePrintResults
+      .filter((p) => rangePrintCheckedIds.has(String(p.id)))
+      .map((p) => ({
+        ...p,
+        input_type: isPlanMeter(p) ? "METER" : "PANEL",
+      }));
+    if (chosen.length === 0) return;
+    setIsRangePrintOpen(false);
+    setBatchBarcodePlans(chosen);
     setIsBatchBarcodeOpen(true);
   };
   
@@ -271,6 +349,7 @@ export default function ProductionPlansPage() {
         statusFilter,
         machineGroup: machineGroupFilter,
         machineNo: machineNoFilter,
+        sortBy,
       });
       if (res.success && res.data) {
         setPlans(res.data);
@@ -288,7 +367,7 @@ export default function ProductionPlansPage() {
 
   useEffect(() => {
     fetchPlans();
-  }, [currentPage, perPage, searchQuery, statusFilter, machineGroupFilter, machineNoFilter]);
+  }, [currentPage, perPage, searchQuery, statusFilter, machineGroupFilter, machineNoFilter, sortBy]);
 
   const handleMachineChange = (mc: string) => {
     const mcKey = mc.toUpperCase().trim();
@@ -632,7 +711,7 @@ export default function ProductionPlansPage() {
               Cetak Massal QR A4
             </p>
             {selectedPlanIds.size > 0 ? (
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <span className="text-sm font-black text-emerald-700 tabular-nums">
                   {selectedPlanIds.size} terpilih
                 </span>
@@ -644,11 +723,25 @@ export default function ProductionPlansPage() {
                   <Printer className="w-3 h-3" />
                   <span>Cetak A4</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={handleOpenRangePrintModal}
+                  className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:border-[#0070bc] text-slate-700 hover:text-[#0070bc] text-[11px] font-bold transition-colors cursor-pointer"
+                >
+                  Range
+                </button>
               </div>
             ) : (
-              <p className="text-xs font-medium text-slate-500 mt-1 truncate">
-                Centang baris tabel untuk cetak A4
-              </p>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleOpenRangePrintModal}
+                  className="px-2.5 py-1 rounded-lg bg-[#0070bc] hover:bg-[#005a96] text-white text-[11px] font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <Printer className="w-3 h-3" />
+                  <span>Pilih Range Potongan</span>
+                </button>
+              </div>
             )}
           </div>
           <div
@@ -736,10 +829,10 @@ export default function ProductionPlansPage() {
         <div className="px-4 py-3 border-b border-slate-200/80 bg-slate-50/50 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
           {/* Left: Search + Machine Group + Specific Machine */}
           <div className="flex flex-wrap items-center gap-2 flex-1">
-            <div className="relative w-full sm:w-60">
+            <div className="relative w-full sm:w-64">
               <input
                 type="text"
-                placeholder="Cari mesin, design, order..."
+                placeholder="Cari mesin, potongan, design, order..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -783,6 +876,21 @@ export default function ProductionPlansPage() {
                   Mesin {mc}
                 </option>
               ))}
+            </select>
+
+            {/* Urutkan Potongan */}
+            <select
+              value={sortBy}
+              onChange={(e) => {
+                setSortBy(e.target.value as PlanSortBy);
+                setCurrentPage(1);
+              }}
+              aria-label="Urutkan Jadwal"
+              className="h-9 px-3 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#0070bc] bg-white outline-none text-xs font-bold text-slate-700 cursor-pointer"
+            >
+              <option value="NEWEST">Urut: Terbaru</option>
+              <option value="POTONGAN_ASC">Potongan: Kecil → Besar</option>
+              <option value="POTONGAN_DESC">Potongan: Besar → Kecil</option>
             </select>
           </div>
 
@@ -843,7 +951,28 @@ export default function ProductionPlansPage() {
                       className="w-4 h-4 rounded border-slate-300 accent-[#0070bc] cursor-pointer align-middle"
                     />
                   </th>
-                  <th className="px-3 py-3">Mesin &amp; Potongan</th>
+                  <th className="px-3 py-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSortBy((prev) =>
+                          prev === "POTONGAN_ASC" ? "POTONGAN_DESC" : "POTONGAN_ASC"
+                        );
+                        setCurrentPage(1);
+                      }}
+                      className="inline-flex items-center gap-1 hover:text-[#0070bc] transition-colors cursor-pointer uppercase tracking-wider"
+                      title="Klik untuk mengurutkan berdasarkan nomor potongan"
+                    >
+                      <span>Mesin &amp; Potongan</span>
+                      {sortBy === "POTONGAN_ASC" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-[#0070bc]" />
+                      ) : sortBy === "POTONGAN_DESC" ? (
+                        <ArrowDown className="w-3.5 h-3.5 text-[#0070bc]" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </button>
+                  </th>
                   <th className="px-3 py-3">Status</th>
                   <th className="px-3 py-3">Design</th>
                   <th className="px-3 py-3">Order &amp; Customer</th>
@@ -1856,6 +1985,207 @@ export default function ProductionPlansPage() {
           </div>
         );
       })()}
+
+      {/* Modal Pilih Range Potongan untuk Cetak QR A4 */}
+      {isRangePrintOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-scaleUp">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-sky-50 border border-sky-200/80 flex items-center justify-center text-[#0070bc]">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-slate-900">
+                    Cetak QR per Range Potongan
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Pilih mesin &amp; rentang potongan (misal 1 s/d 10), lalu centang yang ingin dicetak
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRangePrintOpen(false)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              <form onSubmit={handleFetchRangePrint} className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Mesin
+                    </label>
+                    <select
+                      value={rangePrintMc}
+                      onChange={(e) => setRangePrintMc(e.target.value)}
+                      className="w-full h-9 px-2.5 rounded-xl border border-slate-200 focus:border-[#0070bc] bg-white outline-none text-xs font-bold text-slate-800 cursor-pointer"
+                    >
+                      {REGISTERED_MACHINES.map((mc) => (
+                        <option key={mc} value={mc}>
+                          Mesin {mc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Dari Potongan
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      placeholder="Contoh: 1"
+                      value={rangePrintFrom}
+                      onChange={(e) => setRangePrintFrom(e.target.value)}
+                      className="w-full h-9 px-3 rounded-xl border border-slate-200 focus:border-[#0070bc] bg-white outline-none text-xs font-bold text-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Sampai Potongan
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      placeholder="Contoh: 10"
+                      value={rangePrintTo}
+                      onChange={(e) => setRangePrintTo(e.target.value)}
+                      className="w-full h-9 px-3 rounded-xl border border-slate-200 focus:border-[#0070bc] bg-white outline-none text-xs font-bold text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={rangePrintLoading}
+                  className="w-full h-9 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>{rangePrintLoading ? "Mencari jadwal..." : "Tampilkan Daftar Potongan"}</span>
+                </button>
+              </form>
+
+              {rangePrintError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                  {rangePrintError}
+                </div>
+              )}
+
+              {rangePrintResults !== null && (
+                <div className="space-y-2.5">
+                  {rangePrintResults.length === 0 ? (
+                    <div className="p-6 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/70">
+                      <p className="text-xs font-bold text-slate-700">
+                        Tidak ada jadwal ditemukan pada range tersebut
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Pastikan jadwal untuk Mesin {rangePrintMc} potongan {rangePrintFrom}–{rangePrintTo || rangePrintFrom} sudah dibuat.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-extrabold text-slate-700">
+                          Ditemukan {rangePrintResults.length} potongan ({rangePrintCheckedIds.size} dipilih)
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRangePrintCheckedIds(
+                                new Set(rangePrintResults.map((p) => String(p.id)))
+                              )
+                            }
+                            className="text-[11px] font-bold text-[#0070bc] hover:underline cursor-pointer"
+                          >
+                            Pilih Semua
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setRangePrintCheckedIds(new Set())}
+                            className="text-[11px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                          >
+                            Kosongkan
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-56 overflow-y-auto p-1">
+                        {rangePrintResults.map((p) => {
+                          const idStr = String(p.id);
+                          const isChecked = rangePrintCheckedIds.has(idStr);
+                          return (
+                            <label
+                              key={idStr}
+                              className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-xs cursor-pointer transition-all select-none ${
+                                isChecked
+                                  ? "bg-sky-50 border-[#0070bc] text-slate-900"
+                                  : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  setRangePrintCheckedIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(idStr)) next.delete(idStr);
+                                    else next.add(idStr);
+                                    return next;
+                                  });
+                                }}
+                                className="w-3.5 h-3.5 rounded accent-[#0070bc] cursor-pointer shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="font-extrabold leading-tight truncate">
+                                  Pot {p.potongan_ke}
+                                </div>
+                                <div className="text-[10px] font-semibold text-slate-500 truncate">
+                                  {p.design_id || "-"}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 border-t border-slate-100 flex items-center justify-between gap-2 bg-slate-50/80">
+              <button
+                type="button"
+                onClick={() => setIsRangePrintOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors cursor-pointer"
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRangePrintA4}
+                disabled={rangePrintCheckedIds.size === 0}
+                className="px-4 py-2 text-xs font-black text-white bg-[#0070bc] hover:bg-[#005a96] rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Lanjut Cetak A4 ({rangePrintCheckedIds.size})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Cetak Barcode Potongan (Satuan) */}
       <ProductionPlanBarcodeModal

@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
-import { Printer, X } from "lucide-react";
+import React, { useState } from "react";
+import { Printer, X, Download, CloudUpload, ExternalLink, Loader2 } from "lucide-react";
 import { formatDefectLinesWithNumbering } from "@/lib/defect-format-utils";
 import { parseAsWibDate, formatDurationSmart } from "@/lib/shift-utils";
+import { archiveBatchPdfToDrive, downloadBatchPdfBase64 } from "@/actions/drive-pdf-actions";
 
 interface PrintableProductionReportProps {
   detailData: any;
@@ -142,7 +143,7 @@ const getGrade = (panel: any, detail: any): "A" | "B" | "BS" | "" => {
   const ketCacat = (detail?.keterangan_cacat || panel?.keterangan_cacat || "").toUpperCase();
   const katMasalah = (detail?.kategori_masalah || panel?.kategori_masalah || "").toUpperCase();
   const panelNo = String(panel?.panel_no || "").toUpperCase();
-  if (ketCacat.includes("ISTIRAHAT") || ketCacat === "START" || ketCacat === "FINISH") return "";
+  if (ketCacat === "START" || ketCacat === "FINISH") return "";
   if (ketCacat.includes("BS") || ketCacat.includes("GAGAL") || katMasalah.includes("BS") || panelNo.includes("BS") || panelNo.includes("GAGAL")) return "BS";
   const inspId = detail?.final_inspection_id ?? panel?.final_inspection_id ?? 1;
   if (inspId === 3 || String(inspId) === "3") return "BS";
@@ -325,7 +326,15 @@ function buildPanelRows(panels: any[], shiftName: string) {
       const grpStr = panel.groups?.nama_grup || shiftName || "-";
       const oprStr = panel.operators?.nama_operator || panel.pic || "-";
 
-      const isIstirahat = (detail.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") || (detail.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT");
+      const hasBackupOp = Boolean(
+        panel.operator_backup &&
+          String(panel.operator_backup).trim() !== "" &&
+          String(panel.operator_backup).trim() !== "-"
+      );
+      const isIstirahat =
+        hasBackupOp ||
+        (detail.keterangan_cacat || "").toUpperCase().includes("ISTIRAHAT") ||
+        (detail.kategori_masalah || "").toUpperCase().includes("ISTIRAHAT");
       let hasRealDefect = false;
       if (detail.production_defects && Array.isArray(detail.production_defects) && detail.production_defects.length > 0) {
         hasRealDefect = detail.production_defects.some((d: any) => {
@@ -348,9 +357,10 @@ function buildPanelRows(panels: any[], shiftName: string) {
       if ((detail.keterangan_cacat || "").includes("[TAMBAHAN QC]")) {
         hasRealDefect = true;
       }
-      const hasDefect = !isIstirahat && hasRealDefect;
+      const hasDefect = hasRealDefect;
       const isGagal = String(panel.panel_no || "").toUpperCase().includes("GAGAL") || String(panel.panel_no || "").toUpperCase().includes("BS");
 
+      const isFirstRow = rows.length === 0;
       const showTgl = di === 0 ? (tglStr !== lastTgl || oprStr !== lastOpr) : false;
       const showGrp = di === 0 ? (grpStr !== lastGrp || oprStr !== lastOpr) : false;
       const showOpr = di === 0 ? (oprStr !== lastOpr) : false;
@@ -358,19 +368,19 @@ function buildPanelRows(panels: any[], shiftName: string) {
       if (di === 0) { if (showTgl) lastTgl = tglStr; if (showGrp) lastGrp = grpStr; if (showOpr) lastOpr = oprStr; }
 
       const mergedDetail = { ...detail, production_defects: detail.production_defects || panel.production_defects };
-      const cacatText = isIstirahat ? "-" : buildCacatText(mergedDetail);
+      const cacatText = buildCacatText(mergedDetail);
       const downtimeSec = panel.total_downtime_detik || 0;
       const downtimeStr = di === 0 && downtimeSec > 0 ? formatDurationNice(downtimeSec) : "-";
 
-      // Grade (no grade for istirahat)
+      // Grade
       const isFinish = (detail.keterangan_cacat || "").toUpperCase() === "FINISH"
         || (panel.meter_akhir !== null && panel.meter_akhir !== undefined && String(panel.meter_akhir || "").trim() !== "" && !detail.kategori_masalah && !detail.detail_masalah);
-      const grade = (isIstirahat || isFinish) ? "" : getGrade(panel, detail);
+      const grade = isFinish ? "" : getGrade(panel, detail);
 
       // Backup operator name for istirahat rows
       let backupOpName = "";
       if (isIstirahat) {
-        backupOpName = panel.operator_backup || "";
+        backupOpName = panel.operator_backup && String(panel.operator_backup).trim() !== "-" ? String(panel.operator_backup).trim() : "";
         if (!backupOpName) {
           const searchStr = `${panel.pic || ""} ${panel.jenis_laporan || ""} ${detail.keterangan_cacat || ""} ${detail.detail_masalah || ""}`;
           const m = searchStr.match(/Backup:\s*([^)\],]+)/i);
@@ -382,10 +392,10 @@ function buildPanelRows(panels: any[], shiftName: string) {
       const isBsAkhir = String(panel.panel_no || "").toUpperCase().includes("AKHIR");
       const isSisa = isBsAwal || isBsAkhir;
 
-      // cacat display: for finish show "FINISH", for istirahat show backup name or "-", for sisa show Sisa Awal/Akhir Potongan
-      const displayCacat = isSisa ? (isBsAwal ? "Sisa Awal Potongan" : "Sisa Akhir Potongan") : isFinish ? "FINISH" : isIstirahat ? (backupOpName || "-") : cacatText;
+      // cacat display: for finish show "FINISH", for sisa show Sisa Awal/Akhir Potongan, otherwise cacatText (backupOpName rendered above it when istirahat)
+      const displayCacat = isSisa ? (isBsAwal ? "Sisa Awal Potongan" : "Sisa Akhir Potongan") : isFinish ? "FINISH" : cacatText;
 
-      rows.push({ panelNo: panel.panel_no, tglStr, grpStr, oprStr, showTgl, showGrp, showOpr, isIstirahat, isFinish, hasDefect, isGagal, cacatText: displayCacat, downtimeStr, grade, backupOpName });
+      rows.push({ panelNo: panel.panel_no, tglStr, grpStr, oprStr, showTgl, showGrp, showOpr, isFirstRow, isIstirahat, isFinish, hasDefect, isGagal, cacatText: displayCacat, downtimeStr, grade, backupOpName });
     });
   });
 
@@ -599,9 +609,9 @@ function GradeCols({ grade }: { grade: "A" | "B" | "BS" | "" }) {
   const tick = <span className="text-slate-950 font-bold text-[9px]">✓</span>;
   return (
     <>
-      <td className="py-0.5 px-0.5 border-r border-slate-300 text-center w-5">{grade === "A" ? tick : ""}</td>
-      <td className="py-0.5 px-0.5 border-r border-slate-300 text-center w-5">{grade === "B" ? tick : ""}</td>
-      <td className="py-0.5 px-0.5 border-r border-slate-300 text-center w-6">{grade === "BS" ? tick : ""}</td>
+      <td className="py-0.5 px-0.5 border-r border-slate-300 text-center">{grade === "A" ? tick : ""}</td>
+      <td className="py-0.5 px-0.5 border-r border-slate-300 text-center">{grade === "B" ? tick : ""}</td>
+      <td className="py-0.5 px-0.5 text-center">{grade === "BS" ? tick : ""}</td>
     </>
   );
 }
@@ -610,18 +620,30 @@ function PanelPrintTable({ rows }: { rows: any[] }) {
   return (
     <div className="border border-slate-400 text-[7px]">
       <table className="w-full text-left border-collapse table-fixed">
-        <thead className="bg-white text-slate-950 font-bold uppercase tracking-wider border-b border-slate-400 text-[7.5px]">
+        <colgroup>
+          <col style={{ width: "7.5%" }} />
+          <col style={{ width: "12.5%" }} />
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "13.5%" }} />
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "25.5%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "5.5%" }} />
+          <col style={{ width: "5.5%" }} />
+          <col style={{ width: "7%" }} />
+        </colgroup>
+        <thead className="bg-slate-50/70 text-slate-950 font-bold uppercase tracking-tight border-b border-slate-400 text-[6.5px] leading-tight">
           <tr>
-            <th className="p-0.5 border-r border-slate-400 w-7 text-center">PNL</th>
-            <th className="p-0.5 border-r border-slate-400 w-14">TGL</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-5">GRP</th>
-            <th className="p-0.5 border-r border-slate-400 w-16">OPERATOR</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-6">KET</th>
-            <th className="p-0.5 border-r border-slate-400 whitespace-nowrap">KETERANGAN CACAT</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-8">DT</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-5">A</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-5">B</th>
-            <th className="p-0.5 text-center w-6">BS</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">PNL</th>
+            <th className="py-1 px-1 border-r border-slate-400 text-center">TGL</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">GRP</th>
+            <th className="py-1 px-1 border-r border-slate-400 text-left">OPERATOR</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">KET</th>
+            <th className="py-1 px-1 border-r border-slate-400 text-left">KETERANGAN CACAT</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">DT</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">A</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">B</th>
+            <th className="py-1 px-0.5 text-center">BS</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-300">
@@ -634,29 +656,35 @@ function PanelPrintTable({ rows }: { rows: any[] }) {
                   ? "BS AKHIR"
                   : row.panelNo}
               </td>
-              <td className="py-0.5 px-0.5 border-r border-slate-300 whitespace-nowrap">{row.showTgl ? row.tglStr : ""}</td>
+              <td className="py-0.5 px-0.5 border-r border-slate-300 text-center whitespace-nowrap text-[6.5px]">{row.showTgl ? row.tglStr : ""}</td>
               <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">{row.showGrp ? row.grpStr : ""}</td>
-              <td className="py-0.5 px-0.5 border-r border-slate-300 font-semibold truncate max-w-[64px]">
-                {row.isIstirahat
-                  ? <span className="italic font-bold">Istirahat</span>
-                  : (row.showOpr ? row.oprStr : "")}
+              <td className="py-0.5 px-1 border-r border-slate-300 font-semibold truncate">
+                {row.isFirstRow
+                  ? row.oprStr
+                  : row.isIstirahat
+                    ? <span className="italic font-bold">Istirahat</span>
+                    : (row.showOpr ? row.oprStr : "")}
               </td>
               {/* KET: empty for FINISH */}
               <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold">
                 {row.isFinish ? "" : row.isGagal || row.hasDefect
                   ? <span>✕</span>
-                  : row.isIstirahat
-                    ? <span>-</span>
-                    : <span>✓</span>}
+                  : <span>✓</span>}
               </td>
-              {/* KETERANGAN CACAT: backup name for istirahat, FINISH label, or cacat text */}
+              {/* KETERANGAN CACAT: backup name above defect details for istirahat, FINISH label, or cacat text */}
               <td className="py-0.5 px-1 border-r border-slate-300 text-[6px] leading-tight break-words whitespace-pre-line">
-                {row.isIstirahat && row.backupOpName
-                  ? <span className="font-bold not-italic">{row.backupOpName}</span>
-                  : row.cacatText
-                }
+                {row.isIstirahat && row.backupOpName ? (
+                  <div>
+                    <div className="font-bold not-italic">{row.backupOpName}</div>
+                    {row.cacatText && row.cacatText !== "-" && (
+                      <div>{row.cacatText}</div>
+                    )}
+                  </div>
+                ) : (
+                  row.cacatText
+                )}
               </td>
-              <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold font-mono">{row.downtimeStr}</td>
+              <td className="py-0.5 px-0.5 border-r border-slate-300 text-center font-bold font-mono text-[6.5px] leading-tight">{row.downtimeStr}</td>
               {/* Grade cols: empty for FINISH */}
               {row.isFinish
                 ? <><td className="border-r border-slate-300"></td><td className="border-r border-slate-300"></td><td></td></>
@@ -676,19 +704,31 @@ function MeterPrintTable({ rows }: { rows: any[] }) {
   const totalCols = 10;
   return (
     <div className="border border-slate-400 text-[7px]">
-      <table className="w-full text-left border-collapse">
-        <thead className="bg-white text-slate-950 font-bold uppercase tracking-wider border-b border-slate-400 text-[7.5px]">
+      <table className="w-full text-left border-collapse table-fixed">
+        <colgroup>
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "30%" }} />
+          <col style={{ width: "5.5%" }} />
+          <col style={{ width: "5.5%" }} />
+          <col style={{ width: "6%" }} />
+        </colgroup>
+        <thead className="bg-slate-50/70 text-slate-950 font-bold uppercase tracking-tight border-b border-slate-400 text-[6.5px] leading-tight">
           <tr>
-            <th className="p-0.5 border-r border-slate-400 w-6 text-center">NO</th>
-            <th className="p-0.5 border-r border-slate-400 w-14">TGL</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-5">GRP</th>
-            <th className="p-0.5 border-r border-slate-400 w-16">OPERATOR</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-9">METER</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-6">KET</th>
-            <th className="p-0.5 border-r border-slate-400 whitespace-nowrap">KETERANGAN CACAT</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-5">A</th>
-            <th className="p-0.5 border-r border-slate-400 text-center w-5">B</th>
-            <th className="p-0.5 text-center w-6">BS</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">NO</th>
+            <th className="py-1 px-1 border-r border-slate-400 text-center">TGL</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">GRP</th>
+            <th className="py-1 px-1 border-r border-slate-400 text-left">OPERATOR</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">METER</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">KET</th>
+            <th className="py-1 px-1 border-r border-slate-400 text-left">KETERANGAN CACAT</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">A</th>
+            <th className="py-1 px-0.5 border-r border-slate-400 text-center">B</th>
+            <th className="py-1 px-0.5 text-center">BS</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-300">
@@ -765,6 +805,55 @@ function MeterPrintTable({ rows }: { rows: any[] }) {
 
 export default function PrintableProductionReport({ detailData, isOpen, onClose }: PrintableProductionReportProps) {
   const printDocRef = React.useRef<HTMLDivElement>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isUploadingDrive, setIsUploadingDrive] = useState(false);
+  const [driveResult, setDriveResult] = useState<{ url?: string; error?: string; path?: string } | null>(null);
+
+  const handleDownloadDirectPdf = async () => {
+    if (!detailData?.nomor_mc || !detailData?.potongan_ke) return;
+    setIsDownloadingPdf(true);
+    try {
+      const res = await downloadBatchPdfBase64({
+        nomorMc: detailData.nomor_mc,
+        potonganKe: detailData.potongan_ke,
+        designId: detailData.design_id,
+      });
+      if (res.success && res.pdfBase64 && res.fileName) {
+        const link = document.createElement("a");
+        link.href = `data:application/pdf;base64,${res.pdfBase64}`;
+        link.download = res.fileName;
+        link.click();
+      } else {
+        alert(res.error || "Gagal mengunduh PDF.");
+      }
+    } catch (err: any) {
+      alert(err?.message || "Gagal mengunduh PDF.");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const handleArchiveToDrive = async () => {
+    if (!detailData?.nomor_mc || !detailData?.potongan_ke) return;
+    setIsUploadingDrive(true);
+    setDriveResult(null);
+    try {
+      const res = await archiveBatchPdfToDrive({
+        nomorMc: detailData.nomor_mc,
+        potonganKe: detailData.potongan_ke,
+        designId: detailData.design_id,
+      });
+      if (res.success) {
+        setDriveResult({ url: res.fileUrl, path: res.folderPath });
+      } else {
+        setDriveResult({ error: res.error || "Gagal menyimpan PDF ke Google Drive." });
+      }
+    } catch (err: any) {
+      setDriveResult({ error: err?.message || "Gagal menyimpan PDF ke Google Drive." });
+    } finally {
+      setIsUploadingDrive(false);
+    }
+  };
 
   // Teleport the printable div directly into body before print,
   // and restore it afterward — this prevents modal wrapper from creating blank pages.
@@ -833,12 +922,66 @@ export default function PrintableProductionReport({ detailData, isOpen, onClose 
   return (
     <div className="print-root fixed inset-0 z-[200] flex justify-center items-start p-2 sm:p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto custom-scrollbar animate-fadeIn">
       {/* ── Floating Actions ── */}
-      <div className="fixed top-4 right-4 z-[210] flex items-center gap-3 no-print">
-        <div className="flex items-center gap-1.5 bg-white rounded-xl px-2.5 py-1.5 border border-slate-200 shadow text-[10px] font-bold text-slate-600">
+      <div className="fixed top-4 right-4 z-[210] flex flex-wrap items-center justify-end gap-2 no-print max-w-[95vw]">
+        <div className="hidden sm:flex items-center gap-1.5 bg-white rounded-xl px-2.5 py-1.5 border border-slate-200 shadow text-[10px] font-bold text-slate-600">
           <span>Orientasi:</span>
           <span className="text-sky-600">{needsLandscape ? "LANDSCAPE" : "PORTRAIT"}</span>
           <span className="text-slate-400">({sortedPcsKeys.length} PCS)</span>
         </div>
+
+        {driveResult?.url && (
+          <a
+            href={driveResult.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-10 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xl flex items-center gap-1.5 transition-all"
+            title={driveResult.path ? `Tersimpan di: ${driveResult.path}` : "Buka PDF di Google Drive"}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Buka di Drive</span>
+          </a>
+        )}
+
+        {driveResult?.error && (
+          <div className="h-10 px-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[11px] shadow-xl flex items-center max-w-[260px] truncate" title={driveResult.error}>
+            {driveResult.error}
+          </div>
+        )}
+
+        {detailData?.potongan_ke && (
+          <>
+            <button
+              type="button"
+              onClick={handleArchiveToDrive}
+              disabled={isUploadingDrive}
+              className="h-10 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs tracking-wide shadow-xl flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-60"
+              title="Simpan otomatis PDF laporan ini ke Google Drive"
+            >
+              {isUploadingDrive ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CloudUpload className="w-4 h-4" />
+              )}
+              <span>{isUploadingDrive ? "Menyimpan..." : "Simpan ke Drive"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadDirectPdf}
+              disabled={isDownloadingPdf}
+              className="h-10 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs tracking-wide shadow-xl flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-60"
+              title="Unduh langsung sebagai file PDF A4"
+            >
+              {isDownloadingPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span>{isDownloadingPdf ? "Membuat..." : "Download PDF"}</span>
+            </button>
+          </>
+        )}
+
         <button type="button" onClick={() => window.print()}
           className="h-10 px-4 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs tracking-wide shadow-xl flex items-center gap-2 transition-all active:scale-95 cursor-pointer">
           <Printer className="w-4 h-4" />

@@ -92,7 +92,7 @@ export default function BatchA4BarcodeModal({
   onClose,
   plans,
 }: BatchA4BarcodeModalProps) {
-  const [gridPreset, setGridPreset] = useState<GridPresetKey>("2x3");
+  const [gridPreset, setGridPreset] = useState<GridPresetKey>("2x2");
   const [expandAllPcs, setExpandAllPcs] = useState<boolean>(true);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const previewContainerRef = useRef<HTMLDivElement | null>(null);

@@ -477,6 +477,15 @@ export async function createProductionReport(
             await supabase.from("production_details").insert(bsAkhirDetails as any);
           }
 
+          // Auto-archive PDF Riwayat Input per potongan ke Google Drive (non-blocking)
+          try {
+            const { triggerAutoArchivePdfToDrive } = await import("@/actions/drive-pdf-actions");
+            await triggerAutoArchivePdfToDrive({
+              nomorMc: validated.nomorMc,
+              potonganKe: potonganKeNum,
+            });
+          } catch {}
+
           const sheetUrl =
             process.env.GOOGLE_SHEET_URL ||
             process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
@@ -677,6 +686,15 @@ export async function createProductionReport(
                     .update({ tanggal_potong: cutDate })
                     .eq("nomor_mc", validated.nomorMc)
                     .eq("potongan_ke", prevPotonganNum);
+
+                  // Auto-archive PDF potongan sebelumnya yang otomatis ditutup ke Google Drive
+                  try {
+                    const { triggerAutoArchivePdfToDrive } = await import("@/actions/drive-pdf-actions");
+                    await triggerAutoArchivePdfToDrive({
+                      nomorMc: validated.nomorMc,
+                      potonganKe: prevPotonganNum,
+                    });
+                  } catch {}
                 }
               }
             } catch (autoCloseErr) {
@@ -797,6 +815,15 @@ export async function createProductionReport(
             .update({ tanggal_potong: validated.tanggalPotong })
             .eq("nomor_mc", validated.nomorMc)
             .eq("potongan_ke", potonganKeNum);
+
+          // Auto-archive PDF Riwayat Input per potongan ke Google Drive (non-blocking)
+          try {
+            const { triggerAutoArchivePdfToDrive } = await import("@/actions/drive-pdf-actions");
+            await triggerAutoArchivePdfToDrive({
+              nomorMc: validated.nomorMc,
+              potonganKe: potonganKeNum,
+            });
+          } catch {}
 
           // Trigger sinkronisasi update ke Google Sheets untuk panel-panel sebelumnya
           const sheetUrl =
@@ -2147,6 +2174,15 @@ export async function updateProductionReport(
           .eq("nomor_mc", data.nomorMc)
           .eq("potongan_ke", potonganKeNum);
 
+        // Auto-archive PDF Riwayat Input per potongan ke Google Drive (non-blocking)
+        try {
+          const { triggerAutoArchivePdfToDrive } = await import("@/actions/drive-pdf-actions");
+          await triggerAutoArchivePdfToDrive({
+            nomorMc: data.nomorMc,
+            potonganKe: potonganKeNum,
+          });
+        } catch {}
+
         // Trigger sinkronisasi update ke Google Sheets untuk panel-panel sebelumnya
         const sheetUrl =
           process.env.GOOGLE_SHEET_URL ||
@@ -2337,6 +2373,15 @@ export async function markPotonganAsCut(
       .update({ tanggal_potong: targetDate })
       .eq("nomor_mc", nomorMc)
       .eq("potongan_ke", potonganNum);
+
+    // 4. Auto-archive PDF Riwayat Input per potongan ke Google Drive (non-blocking)
+    try {
+      const { triggerAutoArchivePdfToDrive } = await import("@/actions/drive-pdf-actions");
+      await triggerAutoArchivePdfToDrive({
+        nomorMc,
+        potonganKe: potonganNum,
+      });
+    } catch {}
 
     revalidatePath("/(employee)/history");
     return { success: true };

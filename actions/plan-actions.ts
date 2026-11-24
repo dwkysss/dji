@@ -435,10 +435,13 @@ export async function upsertBatchProductionPlans(
 
 export type PlanWorkflowStatus = "PLANNED" | "IN_PRODUCTION" | "INSPECTED" | "COMPLETED";
 
+export type PlanSortBy = "NEWEST" | "POTONGAN_ASC" | "POTONGAN_DESC";
+
 export interface GetProductionPlansOptions {
   statusFilter?: "ACTIVE" | "COMPLETED" | "ALL";
   machineGroup?: "ALL" | "RASCHEL" | "TRICOTE";
   machineNo?: string;
+  sortBy?: PlanSortBy;
 }
 
 export async function getAllProductionPlans(
@@ -453,6 +456,7 @@ export async function getAllProductionPlans(
       statusFilter = "ACTIVE",
       machineGroup = "ALL",
       machineNo = "",
+      sortBy = "NEWEST",
     } = options;
 
     let query = supabase
@@ -467,20 +471,42 @@ export async function getAllProductionPlans(
       query = query.ilike("nomor_mc", "T%");
     }
 
-    if (search.trim()) {
-      const q = search.trim();
-      query = query.or(
-        `nomor_mc.ilike.%${q}%,design_id.ilike.%${q}%,no_order_barang.ilike.%${q}%,no_customer.ilike.%${q}%`
-      );
-    }
-
     const { data: allMatchingPlans, error } = await query.order("created_at", {
       ascending: false,
     });
 
     if (error) throw error;
 
-    const rows: any[] = allMatchingPlans || [];
+    let rows: any[] = allMatchingPlans || [];
+
+    if (search.trim()) {
+      const qLower = search.trim().toLowerCase();
+      // Support multi-token search (e.g. "R1 625", "pot 625", "potongan 625", "625", "WLD 6923")
+      const potOnlyMatch = qLower.match(/^(?:potongan|pot)\.?\s*(\d+)$/);
+      const tokens = qLower.split(/\s+/).filter(Boolean);
+
+      rows = rows.filter((p: any) => {
+        const mc = String(p.nomor_mc || "").toLowerCase();
+        const pot = String(p.potongan_ke ?? "").toLowerCase();
+        const design = String(p.design_id || "").toLowerCase();
+        const order = String(p.no_order_barang || "").toLowerCase();
+        const cust = String(p.no_customer || "").toLowerCase();
+
+        if (potOnlyMatch) {
+          return pot.includes(potOnlyMatch[1]);
+        }
+
+        const combined = `${mc} ${pot} pot ${pot} potongan ${pot} ${design} ${order} ${cust}`;
+        return (
+          mc.includes(qLower) ||
+          pot.includes(qLower) ||
+          design.includes(qLower) ||
+          order.includes(qLower) ||
+          cust.includes(qLower) ||
+          (tokens.length > 1 && tokens.every((t) => combined.includes(t)))
+        );
+      });
+    }
 
     // Fetch live progress status for matching machines in parallel
     const uniqueMachines = Array.from(
@@ -554,6 +580,20 @@ export async function getAllProductionPlans(
       return true;
     });
 
+    if (sortBy === "POTONGAN_ASC") {
+      filteredByStatus.sort((a, b) => {
+        const diff = (Number(a.potongan_ke) || 0) - (Number(b.potongan_ke) || 0);
+        if (diff !== 0) return diff;
+        return String(a.nomor_mc || "").localeCompare(String(b.nomor_mc || ""), undefined, { numeric: true });
+      });
+    } else if (sortBy === "POTONGAN_DESC") {
+      filteredByStatus.sort((a, b) => {
+        const diff = (Number(b.potongan_ke) || 0) - (Number(a.potongan_ke) || 0);
+        if (diff !== 0) return diff;
+        return String(a.nomor_mc || "").localeCompare(String(b.nomor_mc || ""), undefined, { numeric: true });
+      });
+    }
+
     const total = filteredByStatus.length;
     const from = (page - 1) * limit;
     const pagedData = filteredByStatus.slice(from, from + limit);
@@ -571,6 +611,44 @@ export async function getAllProductionPlans(
   } catch (err: any) {
     console.error("Error fetching all production plans:", err);
     return { success: false, error: err.message };
+  }
+}
+
+export async function getProductionPlansByRange(params: {
+  nomorMc: string;
+  fromPotongan: number;
+  toPotongan: number;
+}) {
+  try {
+    const supabase = await createClient();
+    const mc = String(params.nomorMc || "").trim().toUpperCase();
+    const start = Math.min(Number(params.fromPotongan) || 0, Number(params.toPotongan) || 0);
+    const end = Math.max(Number(params.fromPotongan) || 0, Number(params.toPotongan) || 0);
+
+    if (!mc || start <= 0 || end <= 0) {
+      return { success: false, error: "Mesin dan range potongan wajib diisi dengan angka valid.", data: [] };
+    }
+    if (end - start > 200) {
+      return { success: false, error: "Maksimal range sekali cetak adalah 200 potongan.", data: [] };
+    }
+
+    const { data, error } = await supabase
+      .from("production_plans")
+      .select("*")
+      .ilike("nomor_mc", mc)
+      .gte("potongan_ke", start)
+      .lte("potongan_ke", end)
+      .order("potongan_ke", { ascending: true });
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      data: data || [],
+    };
+  } catch (err: any) {
+    console.error("Error fetching production plans by range:", err);
+    return { success: false, error: err.message || "Gagal mengambil data range potongan.", data: [] };
   }
 }
 

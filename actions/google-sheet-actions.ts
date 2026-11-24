@@ -70,6 +70,25 @@ export async function getGoogleSheetConfigs(): Promise<{
       }
     }
 
+    // Pastikan entri konfigurasi Arsip Otomatis PDF ke Google Drive tersedia otomatis di halaman Admin > Integrasi Google Sheets
+    if (!list.some((item) => item.id === "drive_pdf_archive")) {
+      const defaultDrivePdfConfig: GoogleSheetConfigItem = {
+        id: "drive_pdf_archive",
+        report_name: "Arsip Otomatis PDF Riwayat Input (Google Drive)",
+        spreadsheet_id: "",
+        web_app_url: "",
+        description:
+          "Upload otomatis file PDF Laporan Hasil Produksi per potongan ke Google Drive (Folder: Tahun / Bulan / Mesin) saat Potong Kain maupun selesai QC/Mending. Isi kolom Spreadsheet ID dengan Folder ID Google Drive tujuan (opsional, kosongkan untuk folder otomatis 'Arsip Laporan Produksi DJI').",
+        is_active: true,
+      };
+      const { error: seedDriveErr } = await supabase
+        .from("google_sheet_configs")
+        .upsert(defaultDrivePdfConfig, { onConflict: "id" });
+      if (!seedDriveErr) {
+        list.push(defaultDrivePdfConfig);
+      }
+    }
+
     return { success: true, data: list };
   } catch (err: any) {
     console.error("Error in getGoogleSheetConfigs:", err);
@@ -136,6 +155,11 @@ export async function getGoogleSheetEndpoint(reportId: string): Promise<{
         url: data.web_app_url,
         spreadsheetId: data.spreadsheet_id || null,
       };
+    }
+
+    // Jangan fallback ke URL sheet umum untuk Arsip PDF Google Drive
+    if (reportId === "drive_pdf_archive") {
+      return { url: null, spreadsheetId: null };
     }
 
     // Fallback ke .env
@@ -1335,6 +1359,13 @@ export async function triggerRealtimeSyncAfterInspection(params: {
             safeMode: true,
           });
         }
+
+        // 3. Auto-Archive PDF Laporan Hasil Produksi per potongan ke Google Drive di setiap tahap (QC, Mending, Final)
+        const { triggerAutoArchivePdfToDrive } = await import("@/actions/drive-pdf-actions");
+        await triggerAutoArchivePdfToDrive({
+          nomorMc: mc,
+          potonganKe: pot,
+        });
       } catch (err: any) {
         console.error(`[Realtime Sync] Unhandled background error (${params.stage} ${mc} Pot.${pot}):`, err?.message || err);
       }
