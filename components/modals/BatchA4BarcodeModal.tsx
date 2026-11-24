@@ -71,12 +71,21 @@ interface LabelItem {
   potongan_ke: number;
   design_id: string;
   no_customer: string;
-  no_order_barang: string;
+  mcPotText: string;
   pcsRollText: string;
-  targetText: string | null;
+  jumlahText: string;
+  beratKainText: string;
+  tanggalText: string;
+  gradeText: string;
   trackPath: string;
   qrTrackingUrl: string;
 }
+
+const cleanVal = (val?: string | number | null): string => {
+  if (val === null || val === undefined) return "";
+  const str = String(val).trim();
+  return str === "" || str === "-" ? "" : str;
+};
 
 export default function BatchA4BarcodeModal({
   isOpen,
@@ -107,10 +116,23 @@ export default function BatchA4BarcodeModal({
             mcClean.startsWith("R16") ||
             mcClean.startsWith("T")));
 
-      const targetVal = plan.target_meter || plan.target_panel || plan.max_panel;
-      const targetText = targetVal
-        ? `${targetVal} ${isMeter ? "Meter" : "Panel"}`
-        : null;
+      const designText = cleanVal(plan.design_id);
+      const noCustomerText = cleanVal(plan.no_customer);
+      const jumlahRaw = cleanVal(plan.jumlah);
+      const jumlahText = jumlahRaw
+        ? /[a-zA-Z]/.test(jumlahRaw)
+          ? jumlahRaw
+          : `${jumlahRaw} ${isMeter ? "Meter" : "Panel"}`
+        : "";
+      const beratRaw = cleanVal(plan.berat_kain);
+      const beratKainText =
+        beratRaw && beratRaw !== "0"
+          ? /kg/i.test(beratRaw)
+            ? beratRaw
+            : `${beratRaw} Kg`
+          : "";
+      const tanggalText = cleanVal(plan.tanggal);
+      const gradeText = cleanVal(plan.grade);
 
       const totalPcs = Math.max(1, Number(plan.pcs_count) || 1);
       const countToGenerate = expandAllPcs && totalPcs > 1 ? totalPcs : 1;
@@ -131,16 +153,14 @@ export default function BatchA4BarcodeModal({
           key: `${mcClean}-${plan.potongan_ke}-pcs${i}-${items.length}`,
           mcClean,
           potongan_ke: plan.potongan_ke,
-          design_id: plan.design_id || "-",
-          no_customer: plan.no_customer || "-",
-          no_order_barang:
-            plan.no_order_barang &&
-            plan.no_order_barang.trim() !== "" &&
-            plan.no_order_barang !== "-"
-              ? plan.no_order_barang
-              : "",
+          design_id: designText,
+          no_customer: noCustomerText,
+          mcPotText: `MC ${mcClean} / Pot ${plan.potongan_ke}`,
           pcsRollText,
-          targetText,
+          jumlahText,
+          beratKainText,
+          tanggalText,
+          gradeText,
           trackPath,
           qrTrackingUrl: `${publicBaseUrl}${trackPath}`,
         });
@@ -208,12 +228,7 @@ export default function BatchA4BarcodeModal({
         const cardsHtml = pageItems
           .map((item) => {
             const qrSvg = svgMap.get(item.key) || "";
-            const targetRow = item.targetText
-              ? `<div class="row"><span class="lbl">Target</span><span class="val">${item.targetText}</span></div>`
-              : "";
-            const orderRow = item.no_order_barang
-              ? `<div class="row"><span class="lbl">No Order</span><span class="val">${item.no_order_barang}</span></div>`
-              : "";
+            const pv = (v: string) => (v ? v : "&nbsp;");
 
             return `
               <div class="cell">
@@ -225,15 +240,23 @@ export default function BatchA4BarcodeModal({
                     <div class="mc-badge">MC ${item.mcClean} • POT ${item.potongan_ke}</div>
                   </div>
                   <div class="card-body">
-                    <div class="qr-box">
-                      ${qrSvg}
+                    <div class="left-col">
+                      <div class="qr-box">
+                        ${qrSvg}
+                      </div>
+                      <div class="grade-box">
+                        <div class="grade-lbl">GRADE</div>
+                        <div class="grade-val">${pv(item.gradeText)}</div>
+                      </div>
                     </div>
                     <div class="info-col">
-                      <div class="row"><span class="lbl">Desain</span><span class="val">${item.design_id}</span></div>
-                      <div class="row"><span class="lbl">Customer</span><span class="val">${item.no_customer}</span></div>
-                      <div class="row"><span class="lbl">PCS / Roll</span><span class="val">${item.pcsRollText}</span></div>
-                      ${targetRow}
-                      ${orderRow}
+                      <div class="row"><span class="lbl">Desain:</span><span class="val">${pv(item.design_id)}</span></div>
+                      <div class="row"><span class="lbl">No Customer:</span><span class="val">${pv(item.no_customer)}</span></div>
+                      <div class="row"><span class="lbl">Mesin / Potongan:</span><span class="val">${item.mcPotText}</span></div>
+                      <div class="row"><span class="lbl">PCS / Roll:</span><span class="val">${item.pcsRollText}</span></div>
+                      <div class="row"><span class="lbl">Jumlah:</span><span class="val">${pv(item.jumlahText)}</span></div>
+                      <div class="row"><span class="lbl">Berat Kain:</span><span class="val">${pv(item.beratKainText)}</span></div>
+                      <div class="row"><span class="lbl">Tanggal:</span><span class="val">${pv(item.tanggalText)}</span></div>
                     </div>
                   </div>
                 </div>
@@ -344,13 +367,20 @@ export default function BatchA4BarcodeModal({
               flex: 1;
               display: flex;
               align-items: center;
-              gap: 3.5mm;
-              padding: 2mm 0;
+              gap: 2.5mm;
+              padding: 1.5mm 0;
+            }
+            .left-col {
+              flex-shrink: 0;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 2mm;
             }
             .qr-box {
               flex-shrink: 0;
-              width: 37mm;
-              height: 37mm;
+              width: 31mm;
+              height: 31mm;
               display: flex;
               align-items: center;
               justify-content: center;
@@ -359,33 +389,66 @@ export default function BatchA4BarcodeModal({
               border-radius: 2mm;
             }
             .qr-box svg {
-              width: 34mm;
-              height: 34mm;
+              width: 28mm;
+              height: 28mm;
               display: block;
+            }
+            .grade-box {
+              width: 31mm;
+              border: 1.6pt solid #0f172a;
+              border-radius: 2mm;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+              background: #ffffff;
+            }
+            .grade-lbl {
+              background: #0f172a;
+              color: #ffffff;
+              text-align: center;
+              font-size: 7pt;
+              font-weight: 900;
+              letter-spacing: 0.8px;
+              padding: 0.7mm 1mm;
+              line-height: 1.1;
+            }
+            .grade-val {
+              height: 10.5mm;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 16pt;
+              font-weight: 900;
+              color: #000000;
             }
             .info-col {
               flex: 1;
               min-width: 0;
               display: flex;
               flex-direction: column;
-              gap: 2.2mm;
+              gap: 1.1mm;
             }
             .row {
               display: flex;
-              flex-direction: column;
+              flex-direction: row;
+              justify-content: space-between;
+              align-items: baseline;
+              gap: 1.5mm;
               line-height: 1.2;
+              border-bottom: 0.5pt dotted #cbd5e1;
+              padding-bottom: 0.8mm;
             }
             .lbl {
-              font-size: 7.5pt;
+              font-size: 6.8pt;
               font-weight: 700;
               color: #475569;
-              text-transform: uppercase;
-              letter-spacing: 0.2px;
+              white-space: nowrap;
             }
             .val {
-              font-size: 9.5pt;
+              font-size: 7.4pt;
               font-weight: 800;
               color: #000000;
+              text-align: right;
               word-break: break-word;
             }
             .card-footer {
@@ -423,30 +486,45 @@ export default function BatchA4BarcodeModal({
               gap: 5.5mm;
               padding: 2.5mm 0;
             }
+            .preset-2x2 .left-col {
+              gap: 2.5mm;
+            }
             .preset-2x2 .qr-box {
-              width: 48mm;
-              height: 48mm;
+              width: 44mm;
+              height: 44mm;
               padding: 1.5mm;
             }
             .preset-2x2 .qr-box svg {
+              width: 40mm;
+              height: 40mm;
+            }
+            .preset-2x2 .grade-box {
               width: 44mm;
-              height: 44mm;
+              border-width: 1.8pt;
+            }
+            .preset-2x2 .grade-lbl {
+              font-size: 8.5pt;
+              padding: 1mm 1.5mm;
+            }
+            .preset-2x2 .grade-val {
+              height: 12.5mm;
+              font-size: 20pt;
             }
             .preset-2x2 .info-col {
-              gap: 2.5mm;
+              gap: 1.6mm;
             }
             .preset-2x2 .row {
               flex-direction: row;
               justify-content: space-between;
               align-items: baseline;
               border-bottom: 0.6pt dotted #cbd5e1;
-              padding-bottom: 1.4mm;
+              padding-bottom: 1mm;
             }
             .preset-2x2 .lbl {
-              font-size: 9pt;
+              font-size: 8.5pt;
             }
             .preset-2x2 .val {
-              font-size: 11pt;
+              font-size: 9.5pt;
               text-align: right;
             }
             .preset-2x2 .card-footer {
@@ -478,30 +556,47 @@ export default function BatchA4BarcodeModal({
               gap: 8mm;
               padding: 4mm 0;
             }
+            .preset-1x2 .left-col {
+              gap: 3.5mm;
+            }
             .preset-1x2 .qr-box {
-              width: 66mm;
-              height: 66mm;
+              width: 62mm;
+              height: 62mm;
               padding: 2mm;
             }
             .preset-1x2 .qr-box svg {
-              width: 61mm;
-              height: 61mm;
+              width: 57mm;
+              height: 57mm;
+            }
+            .preset-1x2 .grade-box {
+              width: 62mm;
+              border-width: 2.2pt;
+              border-radius: 3mm;
+            }
+            .preset-1x2 .grade-lbl {
+              font-size: 10.5pt;
+              letter-spacing: 1.2px;
+              padding: 1.3mm 2mm;
+            }
+            .preset-1x2 .grade-val {
+              height: 17mm;
+              font-size: 26pt;
             }
             .preset-1x2 .info-col {
-              gap: 3.5mm;
+              gap: 2.2mm;
             }
             .preset-1x2 .row {
               flex-direction: row;
               justify-content: space-between;
               align-items: baseline;
               border-bottom: 0.75pt dotted #cbd5e1;
-              padding-bottom: 2mm;
+              padding-bottom: 1.4mm;
             }
             .preset-1x2 .lbl {
-              font-size: 11pt;
+              font-size: 10.5pt;
             }
             .preset-1x2 .val {
-              font-size: 13pt;
+              font-size: 11.5pt;
               text-align: right;
             }
             .preset-1x2 .card-footer {
@@ -714,122 +809,90 @@ export default function BatchA4BarcodeModal({
                               : "gap-3"
                           }`}
                         >
-                          <div
-                            data-qr-key={item.key}
-                            className="shrink-0 p-1.5 border border-slate-200 rounded-lg bg-white"
-                          >
-                            <QRCodeSVG
-                              value={item.qrTrackingUrl}
-                              size={preset.previewQrSize}
-                              level="M"
-                              includeMargin={false}
-                            />
+                          <div className="shrink-0 flex flex-col items-center gap-1.5">
+                            <div
+                              data-qr-key={item.key}
+                              className="p-1.5 border border-slate-200 rounded-lg bg-white"
+                            >
+                              <QRCodeSVG
+                                value={item.qrTrackingUrl}
+                                size={preset.previewQrSize}
+                                level="M"
+                                includeMargin={false}
+                              />
+                            </div>
+                            <div
+                              className={`w-full border-2 border-slate-900 rounded-lg overflow-hidden flex flex-col bg-white ${
+                                gridPreset === "1x2"
+                                  ? "rounded-xl"
+                                  : "rounded-lg"
+                              }`}
+                            >
+                              <div
+                                className={`bg-slate-900 text-white text-center font-black uppercase tracking-widest leading-none ${
+                                  gridPreset === "1x2"
+                                    ? "text-[11px] py-1.5"
+                                    : gridPreset === "2x2"
+                                    ? "text-[9.5px] py-1"
+                                    : "text-[8px] py-0.5"
+                                }`}
+                              >
+                                GRADE
+                              </div>
+                              <div
+                                className={`flex items-center justify-center font-black text-slate-900 ${
+                                  gridPreset === "1x2"
+                                    ? "h-12 text-3xl"
+                                    : gridPreset === "2x2"
+                                    ? "h-9 text-2xl"
+                                    : "h-8 text-lg"
+                                }`}
+                              >
+                                {item.gradeText || "\u00A0"}
+                              </div>
+                            </div>
                           </div>
 
                           <div
                             className={`flex-1 min-w-0 w-full ${
                               gridPreset === "1x2"
-                                ? "space-y-2 text-xs sm:text-sm"
+                                ? "space-y-1.5 text-xs sm:text-sm"
                                 : gridPreset === "2x2"
-                                ? "space-y-1.5 text-[11px]"
-                                : "space-y-1 text-[10px]"
+                                ? "space-y-1 text-[10.5px]"
+                                : "space-y-0.5 text-[9.5px]"
                             }`}
                           >
-                            {gridPreset === "2x3" ? (
-                              <>
-                                <div>
-                                  <div className="text-[9px] font-bold uppercase text-slate-400 leading-none">
-                                    Desain
-                                  </div>
-                                  <div className="font-extrabold text-slate-900 truncate">
-                                    {item.design_id}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-[9px] font-bold uppercase text-slate-400 leading-none">
-                                    Customer
-                                  </div>
-                                  <div className="font-extrabold text-slate-900 truncate">
-                                    {item.no_customer}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-[9px] font-bold uppercase text-slate-400 leading-none">
-                                    PCS / Roll
-                                  </div>
-                                  <div className="font-extrabold text-slate-900 truncate">
-                                    {item.pcsRollText}
-                                  </div>
-                                </div>
-                                {item.targetText && (
-                                  <div>
-                                    <div className="text-[9px] font-bold uppercase text-slate-400 leading-none">
-                                      Target
-                                    </div>
-                                    <div className="font-extrabold text-slate-900 truncate">
-                                      {item.targetText}
-                                    </div>
-                                  </div>
-                                )}
-                                {item.no_order_barang && (
-                                  <div>
-                                    <div className="text-[9px] font-bold uppercase text-slate-400 leading-none">
-                                      No Order
-                                    </div>
-                                    <div className="font-extrabold text-slate-900 truncate">
-                                      {item.no_order_barang}
-                                    </div>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <div className="flex items-baseline justify-between gap-2 border-b border-dotted border-slate-200 pb-1">
-                                  <span className="font-bold uppercase text-slate-500 text-[10px]">
-                                    Desain
-                                  </span>
-                                  <span className="font-extrabold text-slate-900 text-right truncate">
-                                    {item.design_id}
-                                  </span>
-                                </div>
-                                <div className="flex items-baseline justify-between gap-2 border-b border-dotted border-slate-200 pb-1">
-                                  <span className="font-bold uppercase text-slate-500 text-[10px]">
-                                    Customer
-                                  </span>
-                                  <span className="font-extrabold text-slate-900 text-right truncate">
-                                    {item.no_customer}
-                                  </span>
-                                </div>
-                                <div className="flex items-baseline justify-between gap-2 border-b border-dotted border-slate-200 pb-1">
-                                  <span className="font-bold uppercase text-slate-500 text-[10px]">
-                                    PCS / Roll
-                                  </span>
-                                  <span className="font-extrabold text-slate-900 text-right truncate">
-                                    {item.pcsRollText}
-                                  </span>
-                                </div>
-                                {item.targetText && (
-                                  <div className="flex items-baseline justify-between gap-2 border-b border-dotted border-slate-200 pb-1">
-                                    <span className="font-bold uppercase text-slate-500 text-[10px]">
-                                      Target
-                                    </span>
-                                    <span className="font-extrabold text-slate-900 text-right truncate">
-                                      {item.targetText}
-                                    </span>
-                                  </div>
-                                )}
-                                {item.no_order_barang && (
-                                  <div className="flex items-baseline justify-between gap-2 border-b border-dotted border-slate-200 pb-1">
-                                    <span className="font-bold uppercase text-slate-500 text-[10px]">
-                                      No Order
-                                    </span>
-                                    <span className="font-extrabold text-slate-900 text-right truncate">
-                                      {item.no_order_barang}
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            )}
+                            {[
+                              { label: "Desain:", val: item.design_id },
+                              { label: "No Customer:", val: item.no_customer },
+                              { label: "Mesin / Potongan:", val: item.mcPotText },
+                              { label: "PCS / Roll:", val: item.pcsRollText },
+                              { label: "Jumlah:", val: item.jumlahText },
+                              { label: "Berat Kain:", val: item.beratKainText },
+                              { label: "Tanggal:", val: item.tanggalText },
+                            ].map((row) => (
+                              <div
+                                key={row.label}
+                                className={`flex items-baseline justify-between gap-1.5 border-b border-dotted border-slate-200 ${
+                                  gridPreset === "2x3" ? "pb-0.5" : "pb-1"
+                                }`}
+                              >
+                                <span
+                                  className={`font-bold text-slate-500 shrink-0 ${
+                                    gridPreset === "2x3"
+                                      ? "text-[8.5px]"
+                                      : gridPreset === "2x2"
+                                      ? "text-[9.5px]"
+                                      : "text-[11px]"
+                                  }`}
+                                >
+                                  {row.label}
+                                </span>
+                                <span className="font-extrabold text-slate-900 text-right truncate">
+                                  {row.val || "\u00A0"}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         </div>
 

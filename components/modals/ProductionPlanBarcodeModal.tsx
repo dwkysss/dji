@@ -26,8 +26,18 @@ export interface PlanBarcodeData {
   target_panel?: number;
   max_panel?: number;
   input_type?: "PANEL" | "METER";
+  jumlah?: string | number | null;
+  berat_kain?: string | number | null;
+  tanggal?: string | null;
+  grade?: string | null;
   created_at?: string;
 }
+
+const cleanBarcodeValue = (val?: string | number | null): string => {
+  if (val === null || val === undefined) return "";
+  const str = String(val).trim();
+  return str === "" || str === "-" ? "" : str;
+};
 
 interface ProductionPlanBarcodeModalProps {
   isOpen: boolean;
@@ -62,8 +72,23 @@ export default function ProductionPlanBarcodeModal({
         mcClean.startsWith("R16") ||
         mcClean.startsWith("T")));
 
-  const targetVal = plan.target_meter || plan.target_panel || plan.max_panel;
-  const targetText = targetVal ? `${targetVal} ${isMeter ? "Meter" : "Panel"}` : null;
+  const designText = cleanBarcodeValue(plan.design_id);
+  const noCustomerText = cleanBarcodeValue(plan.no_customer);
+  const jumlahRaw = cleanBarcodeValue(plan.jumlah);
+  const jumlahText = jumlahRaw
+    ? /[a-zA-Z]/.test(jumlahRaw)
+      ? jumlahRaw
+      : `${jumlahRaw} ${isMeter ? "Meter" : "Panel"}`
+    : "";
+  const beratRaw = cleanBarcodeValue(plan.berat_kain);
+  const beratKainText =
+    beratRaw && beratRaw !== "0"
+      ? /kg/i.test(beratRaw)
+        ? beratRaw
+        : `${beratRaw} Kg`
+      : "";
+  const tanggalText = cleanBarcodeValue(plan.tanggal);
+  const gradeText = cleanBarcodeValue(plan.grade);
 
   const hasMultiPcs = Boolean(plan.pcs_count && plan.pcs_count > 1);
   const pcsRollText = hasMultiPcs
@@ -107,20 +132,8 @@ export default function ProductionPlanBarcodeModal({
 
     const qrSvg = node.querySelector("svg")?.outerHTML || "";
 
-    const targetRowHtml = targetText
-      ? `<div class="info-row">
-           <span class="info-label">Target:</span>
-           <span class="info-val">${targetText}</span>
-         </div>`
-      : "";
-
-    const noOrderRowHtml =
-      plan.no_order_barang && plan.no_order_barang.trim() !== "" && plan.no_order_barang !== "-"
-        ? `<div class="info-row">
-             <span class="info-label">No Order:</span>
-             <span class="info-val">${plan.no_order_barang}</span>
-           </div>`
-        : "";
+    const renderPrintVal = (val: string) =>
+      val ? val : "&nbsp;";
 
     doc.open();
     doc.write(`
@@ -221,7 +234,8 @@ export default function ProductionPlanBarcodeModal({
               display: flex;
               justify-content: space-between;
               align-items: center;
-              line-height: 1.3;
+              line-height: 1.35;
+              min-height: 17px;
             }
             .info-label {
               color: #475569;
@@ -231,6 +245,42 @@ export default function ProductionPlanBarcodeModal({
               color: #0f172a;
               font-weight: 800;
               text-align: right;
+              min-width: 80px;
+            }
+            .grade-box {
+              width: 100%;
+              margin-top: 6px;
+              border: 2.5px solid #0f172a;
+              border-radius: 12px;
+              overflow: hidden;
+              display: flex;
+              align-items: stretch;
+              min-height: 46px;
+              background: #ffffff;
+            }
+            .grade-label {
+              background: #0f172a;
+              color: #ffffff;
+              padding: 8px 14px;
+              font-size: 13px;
+              font-weight: 900;
+              letter-spacing: 1px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              text-transform: uppercase;
+              flex-shrink: 0;
+            }
+            .grade-val {
+              flex: 1;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 24px;
+              font-weight: 900;
+              color: #0f172a;
+              letter-spacing: 1px;
+              padding: 4px 12px;
             }
             .footer-note {
               width: 100%;
@@ -257,11 +307,11 @@ export default function ProductionPlanBarcodeModal({
             <div class="info-table">
               <div class="info-row">
                 <span class="info-label">Desain:</span>
-                <span class="info-val">${plan.design_id || "-"}</span>
+                <span class="info-val">${renderPrintVal(designText)}</span>
               </div>
               <div class="info-row">
                 <span class="info-label">No Customer:</span>
-                <span class="info-val">${plan.no_customer || "-"}</span>
+                <span class="info-val">${renderPrintVal(noCustomerText)}</span>
               </div>
               <div class="info-row">
                 <span class="info-label">Mesin / Potongan:</span>
@@ -271,8 +321,22 @@ export default function ProductionPlanBarcodeModal({
                 <span class="info-label">PCS / Roll:</span>
                 <span class="info-val">${pcsRollText}</span>
               </div>
-              ${targetRowHtml}
-              ${noOrderRowHtml}
+              <div class="info-row">
+                <span class="info-label">Jumlah:</span>
+                <span class="info-val">${renderPrintVal(jumlahText)}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Berat Kain:</span>
+                <span class="info-val">${renderPrintVal(beratKainText)}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Tanggal:</span>
+                <span class="info-val">${renderPrintVal(tanggalText)}</span>
+              </div>
+            </div>
+            <div class="grade-box">
+              <div class="grade-label">GRADE</div>
+              <div class="grade-val">${renderPrintVal(gradeText)}</div>
             </div>
           </div>
         </body>
@@ -383,10 +447,10 @@ export default function ProductionPlanBarcodeModal({
                   QR Dinamis (Live Tracking)
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Label fisik hanya mencetak data rencana yang sudah pasti. Saat QR di-scan lewat
-                  kamera HP/scanner, halaman tracking otomatis menampilkan data aktual terbaru
-                  (<strong>Jumlah</strong>, <strong>Berat Kain</strong>, <strong>Tanggal</strong>,
-                  dan <strong>Grade</strong>) sesuai progres produksi.
+                  Kolom yang datanya belum tersedia saat jadwal produksi (seperti{" "}
+                  <strong>No Customer</strong>, <strong>Jumlah</strong>, <strong>Berat Kain</strong>,
+                  atau <strong>Tanggal</strong>) sengaja dikosongkan agar bisa diisi manual dengan
+                  pulpen. Saat QR di-scan, halaman tracking tetap menampilkan data aktual terbaru.
                 </p>
               </div>
 
@@ -485,50 +549,60 @@ export default function ProductionPlanBarcodeModal({
                   </span>
                 </div>
 
-                {/* Plan-Stage Info Only (No Premature Production Data) */}
+                {/* 7 Standardized Label Rows (empty fields left blank for manual write-in) */}
                 <div className="w-full border-t-2 border-dashed border-slate-300 pt-2.5 flex flex-col gap-1.5 text-[11px]">
-                  <div className="flex justify-between items-center gap-2">
+                  <div className="flex justify-between items-center gap-2 min-h-[16px]">
                     <span className="font-bold text-slate-600">Desain:</span>
                     <span className="font-extrabold text-slate-900 text-right truncate max-w-[165px]">
-                      {plan.design_id || "-"}
+                      {designText || "\u00A0"}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center gap-2">
+                  <div className="flex justify-between items-center gap-2 min-h-[16px]">
                     <span className="font-bold text-slate-600">No Customer:</span>
                     <span className="font-extrabold text-slate-900 text-right truncate max-w-[165px]">
-                      {plan.no_customer || "-"}
+                      {noCustomerText || "\u00A0"}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center gap-2">
+                  <div className="flex justify-between items-center gap-2 min-h-[16px]">
                     <span className="font-bold text-slate-600">Mesin / Potongan:</span>
                     <span className="font-extrabold text-slate-900 text-right">
                       MC {mcClean} / Pot {plan.potongan_ke}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center gap-2">
+                  <div className="flex justify-between items-center gap-2 min-h-[16px]">
                     <span className="font-bold text-slate-600">PCS / Roll:</span>
                     <span className="font-extrabold text-slate-900 text-right">
                       {pcsRollText}
                     </span>
                   </div>
-                  {targetText && (
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="font-bold text-slate-600">Target:</span>
-                      <span className="font-extrabold text-slate-900 text-right">
-                        {targetText}
-                      </span>
-                    </div>
-                  )}
-                  {plan.no_order_barang &&
-                    plan.no_order_barang.trim() !== "" &&
-                    plan.no_order_barang !== "-" && (
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="font-bold text-slate-600">No Order:</span>
-                        <span className="font-extrabold text-slate-900 text-right truncate max-w-[165px]">
-                          {plan.no_order_barang}
-                        </span>
-                      </div>
-                    )}
+                  <div className="flex justify-between items-center gap-2 min-h-[16px]">
+                    <span className="font-bold text-slate-600">Jumlah:</span>
+                    <span className="font-extrabold text-slate-900 text-right">
+                      {jumlahText || "\u00A0"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center gap-2 min-h-[16px]">
+                    <span className="font-bold text-slate-600">Berat Kain:</span>
+                    <span className="font-extrabold text-slate-900 text-right">
+                      {beratKainText || "\u00A0"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center gap-2 min-h-[16px]">
+                    <span className="font-bold text-slate-600">Tanggal:</span>
+                    <span className="font-extrabold text-slate-900 text-right">
+                      {tanggalText || "\u00A0"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Highlighted Grade Write-In Box */}
+                <div className="w-full mt-1 border-[2.5px] border-slate-900 rounded-xl overflow-hidden flex items-stretch min-h-[44px] bg-white">
+                  <div className="bg-slate-900 text-white px-3.5 py-2 text-xs font-black tracking-widest uppercase flex items-center justify-center shrink-0">
+                    GRADE
+                  </div>
+                  <div className="flex-1 flex items-center justify-center text-2xl font-black text-slate-900 tracking-wider px-3">
+                    {gradeText || "\u00A0"}
+                  </div>
                 </div>
               </div>
             </div>

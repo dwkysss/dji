@@ -33,6 +33,13 @@ export interface DailyInspectMendingRow {
   durasi_final: string;
 }
 
+const formatPetugasList = (names: Array<string | null | undefined>): string => {
+  const clean = names.map((n) => String(n || "").trim()).filter(Boolean);
+  if (clean.length <= 1) return clean[0] || "";
+  if (clean.length === 2) return `${clean[0]} & ${clean[1]}`;
+  return `${clean.slice(0, -1).join(", ")}, & ${clean[clean.length - 1]}`;
+};
+
 const calculateDurationStr = (
   start?: string | null,
   finish?: string | null,
@@ -368,10 +375,11 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
         if (qb.design_id && !row.design_id) row.design_id = qb.design_id;
 
         row.tgl_inspect = qb.tanggal_inspeksi || "";
-        const inspectNames = [qb.petugas_inspeksi, qb.petugas_inspeksi_2, qb.petugas_inspeksi_3]
-          .filter(Boolean)
-          .join(" & ");
-        row.petugas_inspect = inspectNames;
+        row.petugas_inspect = formatPetugasList([
+          qb.petugas_inspeksi,
+          qb.petugas_inspeksi_2,
+          qb.petugas_inspeksi_3,
+        ]);
         row.start_inspect = qb.start_inspect || "";
         row.finish_inspect = qb.finish_inspect || "";
         row.durasi_inspect = calculateDurationStr(
@@ -384,7 +392,7 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
         // Jika mesin Tricote (berawalan T), otomatis inspect & mending bersamaan jika mending belum ada
         if (row.nomor_mc.startsWith("T") && !row.tgl_mending) {
           row.tgl_mending = qb.tanggal_inspeksi || "";
-          row.petugas_mending = qb.petugas_mending || inspectNames;
+          row.petugas_mending = qb.petugas_mending || row.petugas_inspect;
           row.start_mending = qb.start_inspect || "";
           row.finish_mending = qb.finish_inspect || "";
           row.durasi_mending = row.durasi_inspect;
@@ -428,10 +436,11 @@ export async function getDailyInspectMendingReport(params: GetDailyInspectMendin
         if (fb.design_id && !row.design_id) row.design_id = fb.design_id;
 
         row.tgl_final = fb.tanggal_final || "";
-        const finalNames = [fb.petugas_final, fb.petugas_final_2, fb.petugas_final_3]
-          .filter(Boolean)
-          .join(" & ");
-        row.petugas_final = finalNames;
+        row.petugas_final = formatPetugasList([
+          fb.petugas_final,
+          fb.petugas_final_2,
+          fb.petugas_final_3,
+        ]);
         row.start_final = fb.start_final || "";
         row.finish_final = fb.finish_final || "";
         row.durasi_final = calculateDurationStr(

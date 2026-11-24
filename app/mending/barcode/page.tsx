@@ -281,31 +281,31 @@ function BarcodeContent() {
             <div class="info-table">
               <div class="info-row">
                 <span>Desain:</span>
-                <span>${selectedBatch?.design_id || "-"}</span>
+                <span>${selectedBatch?.design_id && selectedBatch.design_id !== "-" ? selectedBatch.design_id : "&nbsp;"}</span>
               </div>
               <div class="info-row">
                 <span>No Customer:</span>
-                <span>${selectedBatch?.no_customer || "-"}</span>
+                <span>${selectedBatch?.no_customer && selectedBatch.no_customer !== "-" ? selectedBatch.no_customer : "&nbsp;"}</span>
               </div>
               <div class="info-row">
                 <span>Mesin / Potongan:</span>
-                <span>MC ${selectedBatch?.nomor_mc || "-"} / Pot ${selectedBatch?.potongan_ke || "-"}</span>
+                <span>MC ${selectedBatch?.nomor_mc || ""} / Pot ${selectedBatch?.potongan_ke || ""}</span>
               </div>
               <div class="info-row">
                 <span>PCS / Roll:</span>
-                <span>PCS ${selectedBatch?.pcs_index || "-"}</span>
+                <span>PCS ${selectedBatch?.pcs_index || ""}</span>
               </div>
               <div class="info-row">
                 <span>Jumlah:</span>
-                <span>${jumlahText}</span>
+                <span>${jumlahText && jumlahText !== "-" ? jumlahText : "&nbsp;"}</span>
               </div>
               <div class="info-row">
                 <span>Berat Kain:</span>
-                <span>${beratKainText}</span>
+                <span>${beratKainText && beratKainText !== "-" ? beratKainText : "&nbsp;"}</span>
               </div>
               <div class="info-row">
                 <span>Tanggal:</span>
-                <span>${selectedBatch?.tgl || "-"}</span>
+                <span>${selectedBatch?.tgl && selectedBatch.tgl !== "-" ? selectedBatch.tgl : "&nbsp;"}</span>
               </div>
             </div>
           </div>
@@ -647,13 +647,13 @@ function BarcodeContent() {
                       <div className="flex justify-between">
                         <span>Desain:</span>
                         <span className="font-black text-slate-900 text-right">
-                          {selectedBatch.design_id}
+                          {selectedBatch.design_id && selectedBatch.design_id !== "-" ? selectedBatch.design_id : "\u00A0"}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>No Customer:</span>
                         <span className="font-bold text-slate-900 text-right">
-                          {selectedBatch.no_customer || "-"}
+                          {selectedBatch.no_customer && selectedBatch.no_customer !== "-" ? selectedBatch.no_customer : "\u00A0"}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -671,19 +671,23 @@ function BarcodeContent() {
                       <div className="flex justify-between">
                         <span>Jumlah:</span>
                         <span className="font-bold text-slate-900">
-                          {selectedBatch.is_meteran ? `${selectedBatch.jumlah_panel} Meter` : `${selectedBatch.jumlah_panel} Panel`}
+                          {selectedBatch.jumlah_panel > 0
+                            ? selectedBatch.is_meteran
+                              ? `${selectedBatch.jumlah_panel} Meter`
+                              : `${selectedBatch.jumlah_panel} Panel`
+                            : "\u00A0"}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Berat Kain:</span>
                         <span className="font-bold text-slate-900">
-                          {selectedBatch.berat_kain > 0 ? `${selectedBatch.berat_kain} Kg` : "-"}
+                          {selectedBatch.berat_kain > 0 ? `${selectedBatch.berat_kain} Kg` : "\u00A0"}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Tanggal:</span>
                         <span className="font-bold text-slate-900">
-                          {selectedBatch.tgl || "-"}
+                          {selectedBatch.tgl && selectedBatch.tgl !== "-" ? selectedBatch.tgl : "\u00A0"}
                         </span>
                       </div>
                     </div>
